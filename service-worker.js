@@ -1,104 +1,52 @@
-const CACHE_NAME = 'parsis2-v1.0.0';
-const OFFLINE_URL = '/offline.html';
-
-const PRECACHE_ASSETS = [
-    '/',
-    '/index.html',
-    '/css/style.css',
-    '/js/app.js',
-    '/js/db.js',
-    '/js/utils.js',
-    '/manifest.json',
-    '/icons/icon-192x192.png',
-    '/icons/icon-512x512.png'
+const CACHE = 'parsis2-v1.0.0';
+const ASSETS = [
+    './',
+    './index.html',
+    './manifest.json',
+    './css/style.css',
+    './css/components.css',
+    './js/utils.js',
+    './js/db.js',
+    './js/app.js',
+    './js/pages/dashboard.js',
+    './js/pages/persons.js',
+    './js/pages/products.js',
+    './js/pages/accounts.js',
+    './js/pages/vouchers.js',
+    './js/pages/invoices.js',
+    './js/pages/receipts.js',
+    './js/pages/reports.js',
+    './js/pages/settings.js'
 ];
 
-// نصب: پیش‌کش کردن دارایی‌های اصلی
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('[Service Worker] Pre-caching app shell');
-                return cache.addAll(PRECACHE_ASSETS);
-            })
-            .then(() => self.skipWaiting())
+self.addEventListener('install', e => {
+    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', e => {
+    e.waitUntil(
+        caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+        ).then(() => self.clients.claim())
     );
 });
 
-// فعال‌سازی: پاک کردن کش‌های قدیمی
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('[Service Worker] Removing old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim())
+self.addEventListener('fetch', e => {
+    if (e.request.method !== 'GET') return;
+    e.respondWith(
+        caches.match(e.request).then(cached => {
+            if (cached) return cached;
+            return fetch(e.request).then(res => {
+                if (res.ok && res.type === 'basic') {
+                    const clone = res.clone();
+                    caches.open(CACHE).then(c => c.put(e.request, clone));
+                }
+                return res;
+            }).catch(() => {
+                if (e.request.mode === 'navigate') {
+                    return caches.match('./index.html');
+                }
+            });
+        })
     );
-});
-
-// استراتژی: Cache First برای دارایی‌های استاتیک، Network First برای API
-self.addEventListener('fetch', (event) => {
-    const { request } = event;
-    const url = new URL(request.url);
-
-    // درخواست‌های API: Network First
-    if (url.pathname.startsWith('/api/')) {
-        event.respondWith(networkFirst(request));
-        return;
-    }
-
-    // سایر درخواست‌ها: Cache First
-    event.respondWith(cacheFirst(request));
-});
-
-async function cacheFirst(request) {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-        return cachedResponse;
-    }
-    try {
-        const networkResponse = await fetch(request);
-        if (networkResponse.ok) {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, networkResponse.clone());
-        }
-        return networkResponse;
-    } catch (error) {
-        // اگر آفلاین بود و دارایی در کش نبود، صفحه آفلاین را برگردان
-        if (request.mode === 'navigate') {
-            const offlinePage = await caches.match(OFFLINE_URL);
-            if (offlinePage) return offlinePage;
-        }
-        return new Response('آفلاین هستید', { status: 503 });
-    }
-}
-
-async function networkFirst(request) {
-    try {
-        const networkResponse = await fetch(request);
-        if (networkResponse.ok) {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, networkResponse.clone());
-        }
-        return networkResponse;
-    } catch (error) {
-        const cachedResponse = await caches.match(request);
-        if (cachedResponse) return cachedResponse;
-        return new Response(JSON.stringify({ error: 'آفلاین' }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-}
-
-// مدیریت پیام‌ها (برای به‌روزرسانی)
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
 });
