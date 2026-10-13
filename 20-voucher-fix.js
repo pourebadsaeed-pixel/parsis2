@@ -4,12 +4,102 @@
    ✔ بازنویسی کامل renderVoucherList بدون flag یک‌بارمصرف
    ✔ تشخیص خودکار و رندر مجدد اگر جدول خالی ولی دیتابیس پر باشد
    ✔ لاگ تشخیصی در Console برای دیباگ
+   ✔ ★ v42.1: افزودن صفحه‌بندی (۵۰ سند در هر صفحه)
    ===================================================================== */
 'use strict';
 
 (function fixVoucherListDisplay() {
     console.log('🔧 [v42] نصب پچ فهرست اسناد...');
 
+    var PAGE_SIZE = 50;
+
+    /* ═══════════════════════════════════════════════════════
+       اطمینان از وجود کانتینر صفحه‌بندی
+       ═══════════════════════════════════════════════════════ */
+    function ensurePaginationBox() {
+        var box = document.getElementById('vlist-pagination');
+        if (box) return box;
+
+        // ساخت کانتینر
+        box = document.createElement('div');
+        box.id = 'vlist-pagination';
+        box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;' +
+                            'margin-top:14px;padding:6px 0;flex-wrap:wrap;direction:rtl';
+
+        // پیدا کردن جای مناسب — بعد از table-wrap در کارت فهرست اسناد
+        var tableWrap = document.querySelector('#page-voucher-list .table-wrap');
+        if (tableWrap && tableWrap.parentNode) {
+            tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
+        } else {
+            // fallback: انتهای بدنه صفحه
+            var page = document.getElementById('page-voucher-list');
+            if (page) page.appendChild(box);
+        }
+        return box;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       رسم دکمه‌های صفحه‌بندی
+       ═══════════════════════════════════════════════════════ */
+    function renderPager(total, curPage) {
+        var box = ensurePaginationBox();
+        if (!box) return;
+        box.innerHTML = '';
+
+        var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (totalPages <= 1) {
+            box.style.display = 'none';
+            return;
+        }
+        box.style.display = 'flex';
+
+        function mkBtn(label, page, disabled, title) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = label;
+            b.title = title || '';
+            b.disabled = !!disabled;
+            b.style.cssText = 'min-width:42px;height:38px;padding:0 12px;border-radius:10px;' +
+                              'border:1.5px solid var(--border);background:var(--card-solid);' +
+                              'color:var(--primary-dark);font-weight:800;font-family:inherit;' +
+                              'font-size:1rem;cursor:pointer;transition:all .2s;' +
+                              'display:inline-flex;align-items:center;justify-content:center';
+            if (disabled) {
+                b.style.opacity = '0.35';
+                b.style.cursor = 'not-allowed';
+            } else {
+                b.addEventListener('mouseenter', function() { b.style.background = 'var(--primary-light)'; });
+                b.addEventListener('mouseleave', function() { b.style.background = 'var(--card-solid)'; });
+                b.addEventListener('click', function() {
+                    // ذخیره صفحه جاری
+                    window._vlistPg = window._vlistPg || { page: 1 };
+                    window._vlistPg.page = page;
+                    renderVoucherListV42();
+                });
+            }
+            box.appendChild(b);
+        }
+
+        // در RTL، اولین المان سمت راست است
+        // ترتیب منطقی: [آخرین][بعدی][قبلی][اولین]
+        // اما در ظاهر: اولین (راست) = ⏮ صفحه اول، آخرین (چپ) = ⏭ صفحه آخر
+        mkBtn('⏮', 1, curPage === 1, 'اولین صفحه');
+        mkBtn('▶', curPage - 1, curPage === 1, 'صفحه قبل');   // در RTL، ▶ یعنی برگشت به قبل
+        mkBtn('◀', curPage + 1, curPage === totalPages, 'صفحه بعد');  // در RTL، ◀ یعنی رفتن به بعد
+
+        // شماره صفحه (متن)
+        var info = document.createElement('span');
+        info.textContent = 'صفحه ' + toFa(curPage) + ' از ' + toFa(totalPages);
+        info.style.cssText = 'padding:0 14px;font-weight:800;color:var(--primary-dark);font-size:0.85rem';
+        box.appendChild(info);
+
+        // دکمه‌های پرش سریع (اختیاری)
+        mkBtn('⏭', totalPages, curPage === totalPages, 'آخرین صفحه');
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       تابع اصلی رندر
+       ═══════════════════════════════════════════════════════ */
     function renderVoucherListV42() {
         var tb = document.getElementById('voucher-list-body');
         if (!tb) {
@@ -25,10 +115,12 @@
                 tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است. برای ثبت، از «✏️ صدور سند» استفاده کنید.</td></tr>';
                 var cEl = document.getElementById('vlist-count');
                 if (cEl) cEl.textContent = '۰';
+                var box = document.getElementById('vlist-pagination');
+                if (box) box.style.display = 'none';
                 return;
             }
 
-            // فیلترها
+            /* ─── فیلترها ─── */
             var periodFilter = (document.getElementById('vl-period-filter') || {}).value || '';
             var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
             var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
@@ -49,7 +141,7 @@
                 });
             }
 
-            // مرتب‌سازی
+            /* ─── مرتب‌سازی ─── */
             var st = (typeof sortState !== 'undefined' && sortState.vouchers) ? sortState.vouchers : { col: 'number', dir: 'desc' };
             try {
                 vouchers.sort(function(a, b) {
@@ -64,13 +156,22 @@
                 });
             } catch (e) { console.warn('⚠️ [v42] خطای مرتب‌سازی:', e); }
 
-            // رسم
+            /* ─── ★ صفحه‌بندی ─── */
+            var total = vouchers.length;
+            var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+            window._vlistPg = window._vlistPg || { page: 1 };
+            if (window._vlistPg.page > totalPages) window._vlistPg.page = totalPages;
+            if (window._vlistPg.page < 1) window._vlistPg.page = 1;
+            var startIdx = (window._vlistPg.page - 1) * PAGE_SIZE;
+            var pageVouchers = vouchers.slice(startIdx, startIdx + PAGE_SIZE);
+
+            /* ─── رسم ردیف‌ها ─── */
             tb.innerHTML = '';
             var hide = getHideState('voucher-list');
             var shown = 0;
 
-            for (var i = 0; i < vouchers.length; i++) {
-                var v = vouchers[i];
+            for (var i = 0; i < pageVouchers.length; i++) {
+                var v = pageVouchers[i];
                 var status = v.status || 'draft';
                 var issues = [];
                 try { issues = getVoucherIssues(v) || []; } catch (e) { issues = []; }
@@ -119,12 +220,15 @@
                 tb.innerHTML = '<tr><td colspan="8" class="empty-row">سندی مطابق فیلترها یافت نشد.</td></tr>';
             }
 
-            console.log('✅ [v42] ' + shown + ' سند نمایش داده شد');
+            console.log('✅ [v42] ' + shown + ' سند از ' + total + ' نمایش داده شد (صفحه ' + window._vlistPg.page + '/' + totalPages + ')');
 
             var cntEl = document.getElementById('vlist-count');
-            if (cntEl) cntEl.textContent = toFa(vouchers.length);
+            if (cntEl) cntEl.textContent = toFa(total);
 
-            // رویداد دکمه‌ها
+            /* ─── ★ رسم دکمه‌های صفحه‌بندی ─── */
+            renderPager(total, window._vlistPg.page);
+
+            /* ─── رویداد دکمه‌ها ─── */
             var btns = tb.querySelectorAll('.row-btn');
             for (var b = 0; b < btns.length; b++) {
                 btns[b].addEventListener('click', handleRowBtnClick);
@@ -179,11 +283,11 @@
         }
     }
 
-    // ★ جایگزینی قطعی
+    /* ─── جایگزینی قطعی ─── */
     window.renderVoucherList = renderVoucherListV42;
     window._renderVoucherListV42 = renderVoucherListV42;
 
-    // ★ پچ goToPage
+    /* ─── پچ goToPage ─── */
     function patchGoToPage() {
         if (!window.goToPage) { setTimeout(patchGoToPage, 500); return; }
         if (window._gtpV42Patched) return;
@@ -200,7 +304,7 @@
         };
     }
 
-    // ★ نگهبان هوشمند: اگر جدول خالی ولی DB پر بود، رندر کن
+    /* ─── نگهبان هوشمند ─── */
     setInterval(function () {
         var page = document.getElementById('page-voucher-list');
         if (!page || !page.classList.contains('active')) return;
@@ -221,7 +325,7 @@
         if (page && page.classList.contains('active')) {
             setTimeout(renderVoucherListV42, 500);
         }
-        console.log('✅ [v42] پچ فهرست اسناد نصب شد');
+        console.log('✅ [v42.1] پچ فهرست اسناد + صفحه‌بندی نصب شد');
     }
 
     if (document.readyState === 'loading') {
