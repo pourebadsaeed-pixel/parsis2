@@ -5,56 +5,239 @@
 'use strict';
 
 /* ==================== Backup / Restore / Reset ==================== */
+
+/* ★ اصلاح‌شده: پشتیبان‌گیری از localStorage + تصاویر IndexedDB */
 function downloadBackup() {
     var data = {};
     for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
         if (k.indexOf(LS_PREFIX) === 0) data[k] = localStorage.getItem(k);
     }
-    var backup = { app: 'parsis', version: APP_VERSION, exportedAt: new Date().toISOString(), data: data };
-    var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var now = new Date();
-    var dateStr = todayJalaliStr().replace(/\//g, '-');
-    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'parsis-' + dateStr + '_' + timeStr + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
+
+    function blobToDataURL(blob) {
+        return new Promise(function (resolve) {
+            try {
+                var r = new FileReader();
+                r.onload = function () { resolve(r.result); };
+                r.onerror = function () { resolve(null); };
+                r.readAsDataURL(blob);
+            } catch (e) { resolve(null); }
+        });
+    }
+
+    function collectImages() {
+        return new Promise(function (resolve) {
+            if (!window.indexedDB) { resolve([]); return; }
+            var req = indexedDB.open('parsisNoteImages', 1);
+            req.onupgradeneeded = function (e) {
+                var db = e.target.result;
+                if (!db.objectStoreNames.contains('handles')) {
+                    db.createObjectStore('handles', { keyPath: 'id' });
+                }
+            };
+            req.onsuccess = function () {
+                var db = req.result;
+                if (!db.objectStoreNames.contains('handles')) { resolve([]); return; }
+                var tx = db.transaction('handles', 'readonly');
+                var all = tx.objectStore('handles').getAll();
+                all.onsuccess = async function () {
+                    var recs = all.result || [];
+                    var out = [];
+                    for (var i = 0; i < recs.length; i++) {
+                        var rec = recs[i];
+                        if (rec && rec.blob) {
+                            var d = await blobToDataURL(rec.blob);
+                            if (d) {
+                                out.push({
+                                    id: rec.id,
+                                    name: rec.name || '',
+                                    size: rec.size || 0,
+                                    type: rec.type || 'image/png',
+                                    dataUrl: d
+                                });
+                            }
+                        }
+                    }
+                    resolve(out);
+                };
+                all.onerror = function () { resolve([]); };
+            };
+            req.onerror = function () { resolve([]); };
+        });
+    }
+
+    collectImages().then(function (images) {
+        var backup = {
+            app: 'parsis',
+            version: APP_VERSION,
+            exportedAt: new Date().toISOString(),
+            data: data,
+            images: images
+        };
+        var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var now = new Date();
+        var dateStr = todayJalaliStr().replace(/\//g, '-');
+        var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'parsis-' + dateStr + '_' + timeStr + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+        if (images.length > 0) {
+            showToast('✅ پشتیبان شامل ' + toFa(images.length) + ' تصویر یادداشت');
+        }
+    });
 }
+
+/* ★ اصلاح‌شده: بازیابی کامل با پاک کردن داده‌های قدیمی + حذف BOM + گزارش خطا */
 function restoreBackup(file) {
     var reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
-            var parsed = JSON.parse(e.target.result);
+            var text = String(e.target.result);
+            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+            var parsed = JSON.parse(text);
             var data = parsed.data || parsed;
-            if (!confirm('⚠️ جایگزین شود؟')) return;
-            var keys = Object.keys(data);
-            for (var i = 0; i < keys.length; i++) {
-                if (keys[i].indexOf(LS_PREFIX) === 0) localStorage.setItem(keys[i], data[keys[i]]);
+            var images = parsed.images || [];
+
+            if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+                alert('❌ فایل پشتیبان خالی یا نامعتبر است.');
+                return;
             }
-            alert('✅ بازیابی شد.');
-            location.reload();
-        } catch(err) {
-            alert('❌ ' + err.message);
+
+            var validKeys = Object.keys(data).filter(function (k) {
+                return k.indexOf(LS_PREFIX) === 0;
+            });
+            if (validKeys.length === 0) {
+                alert('❌ فایل پشتیبان شامل هیچ کلید پارسیس نیست.');
+                return;
+            }
+
+            var msg = '📦 محتوای پشتیبان:\n\n';
+            msg += '• تاریخ: ' + (parsed.exportedAt || '—') + '\n';
+            msg += '• نسخه: ' + (parsed.version || '—') + '\n';
+            msg += '• ' + toFa(validKeys.length) + ' کلید داده\n';
+            if (images.length > 0) msg += '• ' + toFa(images.length) + ' تصویر یادداشت\n';
+            msg += '\n⚠️ همه داده‌های فعلی پاک و جایگزین می‌شوند.\nادامه؟';
+            if (!confirm(msg)) return;
+
+            // پاک کردن همه کلیدهای فعلی
+            var toRemove = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var kk = localStorage.key(i);
+                if (kk && kk.indexOf(LS_PREFIX) === 0) toRemove.push(kk);
+            }
+            toRemove.forEach(function (k) { localStorage.removeItem(k); });
+
+            // نوشتن کلیدهای جدید
+            var writeErrors = 0;
+            validKeys.forEach(function (k) {
+                try { localStorage.setItem(k, data[k]); }
+                catch (err) { writeErrors++; }
+            });
+
+            function dataURLToBlob(dataUrl) {
+                var parts = String(dataUrl).split(',');
+                if (parts.length !== 2) return null;
+                var mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+                var binary = atob(parts[1]);
+                var arr = new Uint8Array(binary.length);
+                for (var j = 0; j < binary.length; j++) arr[j] = binary.charCodeAt(j);
+                return new Blob([arr], { type: mime });
+            }
+
+            function restoreImages(callback) {
+                if (images.length === 0 || !window.indexedDB) { callback(); return; }
+                var req = indexedDB.open('parsisNoteImages', 1);
+                req.onupgradeneeded = function (ev) {
+                    var db = ev.target.result;
+                    if (!db.objectStoreNames.contains('handles')) {
+                        db.createObjectStore('handles', { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = function () {
+                    var db = req.result;
+                    var tx = db.transaction('handles', 'readwrite');
+                    var store = tx.objectStore('handles');
+                    store.clear();
+                    images.forEach(function (img) {
+                        try {
+                            var blob = dataURLToBlob(img.dataUrl);
+                            if (blob) {
+                                store.put({
+                                    id: img.id,
+                                    blob: blob,
+                                    name: img.name || '',
+                                    size: img.size || 0,
+                                    type: img.type || 'image/png',
+                                    isBlob: true
+                                });
+                            }
+                        } catch (err) {}
+                    });
+                    tx.oncomplete = function () { callback(); };
+                    tx.onerror = function () { callback(); };
+                };
+                req.onerror = function () { callback(); };
+            }
+
+            restoreImages(function () {
+                var finalMsg = '✅ بازیابی موفق!\n\n';
+                finalMsg += '• ' + toFa(validKeys.length) + ' کلید بازیابی شد';
+                if (images.length > 0) finalMsg += '\n• ' + toFa(images.length) + ' تصویر بازیابی شد';
+                if (writeErrors > 0) finalMsg += '\n⚠️ ' + toFa(writeErrors) + ' کلید نوشته نشد';
+                alert(finalMsg);
+                location.reload();
+            });
+        } catch (err) {
+            alert('❌ خطا در خواندن فایل:\n' + (err.message || err));
         }
     };
-    reader.readAsText(file);
+    reader.onerror = function () {
+        alert('❌ خطا در خواندن فایل.');
+    };
+    reader.readAsText(file, 'UTF-8');
 }
+
+/* ★ اصلاح‌شده: پاک کردن تصاویر IndexedDB نیز */
 function resetAllData() {
     var pwd = prompt('رمز ریست:');
     if (pwd === null) return;
     if (String(pwd).trim() !== '1234') { alert('رمز اشتباه.'); return; }
-    if (!confirm('⚠️ همه داده‌ها پاک شود؟')) return;
+    if (!confirm('⚠️ همه داده‌ها (شامل تصاویر یادداشت‌ها) پاک شود؟')) return;
+
+    // localStorage
     var ks = [];
     for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
         if (k && k.indexOf(LS_PREFIX) === 0) ks.push(k);
     }
-    ks.forEach(function(k) { localStorage.removeItem(k); });
-    alert('✅');
-    location.reload();
+    ks.forEach(function (k) { localStorage.removeItem(k); });
+
+    // IndexedDB
+    try {
+        var req = indexedDB.open('parsisNoteImages', 1);
+        req.onupgradeneeded = function (e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains('handles')) {
+                db.createObjectStore('handles', { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = function () {
+            var db = req.result;
+            if (db.objectStoreNames.contains('handles')) {
+                var tx = db.transaction('handles', 'readwrite');
+                tx.objectStore('handles').clear();
+                tx.oncomplete = function () { alert('✅ همه داده‌ها پاک شد.'); location.reload(); };
+                tx.onerror = function () { alert('✅'); location.reload(); };
+            } else { alert('✅'); location.reload(); }
+        };
+        req.onerror = function () { alert('✅'); location.reload(); };
+    } catch (e) { alert('✅'); location.reload(); }
 }
 
 /* ==================== Settings bindings ==================== */
@@ -531,7 +714,6 @@ function bindVoucherForm() {
     });
     document.getElementById('save-as-template').addEventListener('click', saveVoucherAsTemplate);
     document.getElementById('goto-templates').addEventListener('click', function() { goToPage('templates'); });
-    // این دو عنصر از HTML حذف شده‌اند اما برای سازگاری محافظت می‌کنیم
     var vpf = document.getElementById('vl-period-filter');
     if (vpf) vpf.addEventListener('change', renderVoucherList);
     var vsrch = document.getElementById('vlist-search');
@@ -613,7 +795,6 @@ function bindTemplateForm() {
 
 /* ==================== Report buttons ==================== */
 function bindReportButtons() {
-    /* Cashflow */
     document.getElementById('cf-run').addEventListener('click', runCashFlowReport);
     document.getElementById('cf-today').addEventListener('click', function() {
         var t = todayJalaliStr();
@@ -624,7 +805,6 @@ function bindReportButtons() {
     document.getElementById('cf-print').addEventListener('click', function() { printHtmlReport('#cf-result', 'وضعیت نقدینگی'); });
     document.getElementById('cf-export').addEventListener('click', function() { exportReportTable('#cf-result', 'cash-flow'); });
 
-    /* Cashflow by desc */
     document.getElementById('cfd-run').addEventListener('click', runCashFlowByDescReport);
     document.getElementById('cfd-today').addEventListener('click', function() {
         var t = todayJalaliStr();
@@ -635,7 +815,6 @@ function bindReportButtons() {
     document.getElementById('cfd-print').addEventListener('click', function() { printHtmlReport('#cfd-result', 'گردش وجه نقد'); });
     document.getElementById('cfd-export').addEventListener('click', function() { exportReportTable('#cfd-result', 'cash-flow-by-desc'); });
 
-    /* گزارش مقایسه‌ای (جدید) */
     var rcRunBtn = document.getElementById('rc-run');
     if (rcRunBtn) rcRunBtn.addEventListener('click', runComparisonReport);
     var rcPrintBtn = document.getElementById('rc-print');
@@ -643,16 +822,13 @@ function bindReportButtons() {
     var rcExportBtn = document.getElementById('rc-export');
     if (rcExportBtn) rcExportBtn.addEventListener('click', function() { exportReportTable('#rc-result', 'comparison-report'); });
 
-    /* Rates */
     document.getElementById('rr-run').addEventListener('click', runRatesReport);
     document.getElementById('rr-print').addEventListener('click', function() { printHtmlReport('#rr-result', 'گزارش نرخ ارز و طلا'); });
     document.getElementById('rr-export').addEventListener('click', function() { exportReportTable('#rr-result', 'rates'); });
     document.getElementById('live-rates-refresh').addEventListener('click', function() { fetchLiveRates(); });
 
-    /* Daily close */
     document.getElementById('dc-save').addEventListener('click', saveDailyClosePrices);
 
-    /* Account / Trial / Incomplete / Facility reports */
     document.getElementById('ra-run').addEventListener('click', runAccountReport);
     document.getElementById('rt-run').addEventListener('click', runTrialBalance);
     document.getElementById('ri-run').addEventListener('click', runIncompleteReport);
@@ -822,15 +998,12 @@ function bindExportButtons() {
 
 /* ==================== INIT ==================== */
 function init() {
-    /* ظاهر و فونت */
     applyTheme(state.theme);
     applyFont(state.font);
 
-    /* چیپ‌ها */
     renderChips('bank-types-list', state.bankTypes, 'bankTypes');
     renderChips('cash-types-list', state.cashTypes, 'cashTypes');
 
-    /* سیستم‌های عمومی */
     setupTabs();
     setupSorting();
     initCalendarListeners();
@@ -838,7 +1011,6 @@ function init() {
     initSidebarSearch();
     initHomeSwipe();
 
-    /* دیفالت‌ها */
     if (DB.load('accounts', []).length > 0) {
         var ldc = document.getElementById('load-default-chart');
         if (ldc) ldc.disabled = true;
@@ -852,11 +1024,9 @@ function init() {
     if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
     renderFrequentNav();
 
-    /* ★ محافظ‌های SMS — اگر فایل ۶ نسخه قدیمی باشد، خطا نمی‌دهد */
     if (typeof renderSmsInbox === 'function') renderSmsInbox();
     if (typeof updateSmsBadge === 'function') updateSmsBadge();
 
-    /* تنظیمات اولیه */
     document.getElementById('set-currency-display2').value = state.currencyDisplay;
     document.getElementById('set-hide-numbers').checked = state.hideNumbers;
     var ssar2 = document.getElementById('set-sms-auto-read');
@@ -867,7 +1037,6 @@ function init() {
     if (aboutEl) aboutEl.textContent = APP_NAME + ' — نسخه ' + toFa(APP_VERSION) + ' (PWA)';
     updateUnitChips();
 
-    /* بایندینگ‌ها — با محافظ در برابر خطاهای احتمالی */
     try { bindSidebarNav(); } catch(e) { console.warn('bindSidebarNav:', e); }
     try { bindSettingsButtons(); } catch(e) { console.warn('bindSettingsButtons:', e); }
     try { bindThemeFontButtons(); } catch(e) { console.warn('bindThemeFontButtons:', e); }
@@ -886,7 +1055,6 @@ function init() {
     try { bindFilterInputs(); } catch(e) { console.warn('bindFilterInputs:', e); }
     try { bindExportButtons(); } catch(e) { console.warn('bindExportButtons:', e); }
 
-    /* بروزرسانی اولیه */
     updateDateDisplay();
     updateTopbarPeriod();
     updateHomeWidgets();
@@ -896,7 +1064,6 @@ function init() {
         updateTopbarPeriod();
     }, 60000);
 
-    /* بازه‌های پیش‌فرض گزارش مقایسه‌ای */
     (function initCompareDefaults() {
         var f1 = document.getElementById('rc-from1');
         if (!f1) return;
@@ -908,28 +1075,23 @@ function init() {
         document.getElementById('rc-to2').value   = t;
     })();
 
-    /* فرم سند جدید */
     newVoucherForm();
     attachDatePickers();
     if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
 
-    /* ★ محافظ checkClipboardSupport */
     if (typeof checkClipboardSupport === 'function') checkClipboardSupport();
 
     clearNoteForm();
 
-    /* کارت‌های قابل جمع شدن */
     makeCardCollapsible(document.getElementById('voucher-template-card'), 'voucher-template-card', true);
     makeCardCollapsible(document.getElementById('voucher-head-card'), 'voucher-head-card', true);
 
-    /* نرخ لحظه‌ای */
     setTimeout(function() { fetchLiveRates(true); }, 1500);
     setInterval(function() {
         if (state.widgets.liveRates) fetchLiveRates(true);
     }, 300000);
 
-    /* خواندن خودکار پیامک */
     function autoRead() {
         if (!state.smsAutoRead) return;
         if (typeof readClipboardAndAdd !== 'function') return;
@@ -940,19 +1102,16 @@ function init() {
         if (document.visibilityState === 'visible') autoRead();
     });
 
-    /* AI */
     if (typeof aiInit === 'function') aiInit();
     if (typeof aiRender === 'function') aiRender();
     if (typeof initAvalaiCreditRefresh === 'function') initAvalaiCreditRefresh();
 
-    /* estimate / auto helpers */
     if (typeof renderEstimateItems === 'function') renderEstimateItems();
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 
-    /* ساخت دکمه‌های اشتراک‌گذاری */
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 300);
 
-    console.log('🎉 ' + APP_NAME + ' v' + APP_VERSION + ' — آماده است. (۹ ماژول بارگذاری شد + پچ‌ها)');
+    console.log('🎉 ' + APP_NAME + ' v' + APP_VERSION + ' — آماده است.');
 }
 
 /* ==================== Start ==================== */
