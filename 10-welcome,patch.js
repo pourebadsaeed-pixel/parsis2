@@ -759,42 +759,15 @@ window.isFacilityUsed = isFacilityUsed;
 
 /* =====================================================================
    ★ بخش ۱۴: نمایش فقط حساب‌های دارای مانده (درخواست ۵)
+   ★ تمیز شده در v42.1: بخش «مرور حساب‌ها» حذف شد (در 11-fixes-v29.js ساخته می‌شود)
    ===================================================================== */
 (function patchOnlyBalanceOption() {
-    // افزودن چک‌باکس به فرم‌های مرور/تراز/مقایسه‌ای
-    function injectCheckbox(containerSelector, id, labelText, onChange) {
-        var container = document.querySelector(containerSelector);
-        if (!container) return;
-        if (document.getElementById(id)) return;
-        var label = document.createElement('label');
-        label.className = 'checkbox-item';
-        label.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light)';
-        label.innerHTML = '<input type="checkbox" id="' + id + '"> <span>' + labelText + '</span>';
-        container.appendChild(label);
-        label.querySelector('input').addEventListener('change', onChange);
-    }
-
     setTimeout(function() {
-        // مرور حساب‌ها
-        var raCard = document.querySelector('#page-report-account .card');
-        if (raCard) {
-            var p = raCard.querySelector('.form-buttons');
-            if (p) {
-                var lbl = document.createElement('label');
-                lbl.className = 'checkbox-item';
-                lbl.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light);display:inline-flex';
-                lbl.innerHTML = '<input type="checkbox" id="ra-only-balance"> <span>فقط حساب‌های دارای مانده</span>';
-                p.parentNode.insertBefore(lbl, p.nextSibling);
-                lbl.querySelector('input').addEventListener('change', function() {
-                    if (typeof runAccountReport === 'function') runAccountReport();
-                });
-            }
-        }
-        // تراز
+        // تراز آزمایشی
         var rtCard = document.querySelector('#page-report-trial .card');
         if (rtCard) {
             var p2 = rtCard.querySelector('.form-buttons');
-            if (p2) {
+            if (p2 && !document.getElementById('rt-only-balance')) {
                 var lbl2 = document.createElement('label');
                 lbl2.className = 'checkbox-item';
                 lbl2.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light);display:inline-flex';
@@ -809,7 +782,7 @@ window.isFacilityUsed = isFacilityUsed;
         var rcCard = document.querySelector('#page-report-compare .card');
         if (rcCard) {
             var p3 = rcCard.querySelector('.form-buttons');
-            if (p3) {
+            if (p3 && !document.getElementById('rc-only-balance')) {
                 var lbl3 = document.createElement('label');
                 lbl3.className = 'checkbox-item';
                 lbl3.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light);display:inline-flex';
