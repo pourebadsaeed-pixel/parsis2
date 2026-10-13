@@ -1,4 +1,4 @@
-/* پارسیس — پچ بهبودهای UX: خوش‌آمدگویی، وضعیت سند، پرداخت قسط، ویرایش گردش */
+/* پارسیس — پچ بهبودهای UX: تفصیلی ترکیبی، پرداخت قسط، گردش، پیامک */
 'use strict';
 
 /* =====================================================================
@@ -23,7 +23,6 @@ function isAccountUsed(accountId) {
             }
         }
     }
-    // آیا حساب والدِ حساب دیگری است؟
     var accs = DB.load('accounts', []);
     return accs.some(function(a) { return a.parent === accountId; });
 }
@@ -100,7 +99,6 @@ window.isFacilityUsed = isFacilityUsed;
         _origAttach.apply(this, arguments);
         var dls = tb.querySelectorAll('.row-btn.del');
         dls.forEach(function(btn) {
-            // حذف listener قبلی با کلون
             var newBtn = btn.cloneNode(true);
             btn.parentNode.replaceChild(newBtn, btn);
             newBtn.addEventListener('click', function() {
@@ -150,22 +148,18 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۳: پچ رسم ستون تفصیلی ترکیبی در فرم سند (درخواست ۲)
+   ★ بخش ۳: پچ رسم ستون تفصیلی ترکیبی در فرم سند
    ===================================================================== */
 (function patchCombinedDetailColumn() {
-    // نگه‌داشتن مرجع تابع اصلی
     var _orig = window.renderVoucherLines;
     if (typeof _orig !== 'function') return;
 
     window.renderVoucherLines = function() {
         var box = document.getElementById('voucher-lines');
         if (!box) return _orig.apply(this, arguments);
-        // اگر خطی چند-لینکی داریم، از نسخه‌ی ترکیبی استفاده می‌کنیم
         _orig.apply(this, arguments);
 
         var accounts = DB.load('accounts', []);
-        // روی هر voucher-line که چند لینک دارد، بخش‌های مجزای تفصیلی را
-        // با یک select ترکیبی واحد جایگزین می‌کنیم
         var lines = box.querySelectorAll('.voucher-line');
         lines.forEach(function(wrap, idx) {
             var line = voucherLines[idx];
@@ -173,15 +167,12 @@ window.isFacilityUsed = isFacilityUsed;
             var acc = accounts.find(function(a) { return a.id === line.account; });
             if (!acc || !acc.links || acc.links.length < 2) return;
 
-            // یافتن تمام divs تفصیلی
             var detailDivs = wrap.querySelectorAll('.ln-search-row');
             if (detailDivs.length < 2) return;
-            // اولین select تفصیلی را نگه می‌داریم، بقیه را حذف می‌کنیم
             var firstInput = detailDivs[0].querySelector('input');
             var firstSelect = detailDivs[0].querySelector('select');
             if (!firstSelect) return;
 
-            // ساخت options ترکیبی: «نوع: برچسب»
             var combined = [];
             acc.links.forEach(function(lt) {
                 var items = getLinkedItems(lt);
@@ -194,7 +185,6 @@ window.isFacilityUsed = isFacilityUsed;
                 });
             });
 
-            // شناسایی انتخاب فعلی (اگر وجود دارد)
             var currentLT = null, currentID = null;
             acc.links.forEach(function(lt) {
                 if (line.details && line.details[lt]) {
@@ -216,7 +206,6 @@ window.isFacilityUsed = isFacilityUsed;
             firstSelect.dataset.combined = '1';
             if (firstInput) firstInput.placeholder = '🔍 تفصیلی ترکیبی...';
 
-            // listener جدید (جایگزین)
             var newSel = firstSelect.cloneNode(true);
             firstSelect.parentNode.replaceChild(newSel, firstSelect);
             newSel.addEventListener('change', function() {
@@ -227,7 +216,6 @@ window.isFacilityUsed = isFacilityUsed;
                     line.details[parts[0]] = parts[1];
                 }
             });
-            // listener جستجو
             if (firstInput) {
                 var newInput = firstInput.cloneNode(true);
                 firstInput.parentNode.replaceChild(newInput, firstInput);
@@ -250,7 +238,6 @@ window.isFacilityUsed = isFacilityUsed;
                 });
             }
 
-            // حذف ردیف‌های تفصیلی بعدی
             for (var d = detailDivs.length - 1; d >= 1; d--) {
                 detailDivs[d].parentNode.removeChild(detailDivs[d]);
             }
@@ -266,7 +253,6 @@ window.isFacilityUsed = isFacilityUsed;
     if (typeof _orig !== 'function') return;
     window.getVoucherIssues = function(v) {
         var issues = _orig.apply(this, arguments);
-        // اگر معین بیش از یک لینک دارد و فقط یکی از details پر است، بررسی می‌کنیم
         var accounts = DB.load('accounts', []);
         (v.lines || []).forEach(function(line, i) {
             if (!line.account) return;
@@ -283,7 +269,7 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۵: جلوگیری از حذف معین از چارت (درخواست ۳)
+   ★ بخش ۵: جلوگیری از حذف معین از چارت
    ===================================================================== */
 (function patchChartTreeDelete() {
     var _orig = window.renderChartTree;
@@ -296,7 +282,6 @@ window.isFacilityUsed = isFacilityUsed;
         box.querySelectorAll('.tree-del-btn').forEach(function(btn) {
             var nodeDiv = btn.closest('.tree-node');
             if (!nodeDiv) return;
-            // پیدا کردن id از روی کد قابل مشاهده
             var codeEl = nodeDiv.querySelector('.tn-code');
             if (!codeEl) return;
             var code = codeEl.textContent.trim();
@@ -319,12 +304,11 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۶: جلوگیری از حذف در چارت — پچ تابع داخلی buildNode
+   ★ بخش ۶: جلوگیری از حذف در چارت — پچ buildNode از طریق renderChartTree
    ===================================================================== */
-/* این کار با پچ renderChartTree انجام شد که del-btn ها را دوباره bind می‌کند */
 
 /* =====================================================================
-   ★ بخش ۷: ستون رفرنس دوره مالی در فهرست اسناد (درخواست ۱)
+   ★ بخش ۷: ستون رفرنس دوره مالی در فهرست اسناد
    ===================================================================== */
 (function patchVoucherListFiscalRef() {
     var _orig = window.renderVoucherList;
@@ -340,16 +324,12 @@ window.isFacilityUsed = isFacilityUsed;
         var vMap = {};
         vouchers.forEach(function(v) { vMap[v.id] = v; });
 
-        // اضافه کردن هدر دورهٔ مالی اگر نبود
         var thead = document.querySelector('#voucher-table-list thead tr');
         if (thead && !thead.querySelector('[data-fiscal-ref]')) {
             var ths = thead.querySelectorAll('th');
-            // ستون دوره در جایگاه ۴ (بعد از نوع) وجود دارد — آن را با رفرنس ترکیب نمی‌کنیم
-            // فقط یک نشانگر برای سلول دوره اضافه می‌کنیم
             thead.setAttribute('data-fiscal-ref', '1');
         }
 
-        // هر ردیف را با شناسه دوره غنی می‌کنیم
         Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr) {
             var firstCell = tr.querySelector('td');
             if (!firstCell) return;
@@ -363,114 +343,7 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۸: نمایش وضعیت سند در فرم پس از ذخیره (درخواست ۱۲)
-   ===================================================================== */
-(function patchVoucherStatusBadge() {
-    // افزودن نوار وضعیت به هدر فرم سند
-    function injectStatusBar() {
-        var card = document.getElementById('voucher-head-card');
-        if (!card) return;
-        if (card.querySelector('.voucher-status-bar')) return;
-        var bar = document.createElement('div');
-        bar.className = 'voucher-status-bar';
-        bar.id = 'voucher-status-bar';
-        bar.style.cssText = 'margin-bottom:12px;padding:10px 14px;border-radius:12px;font-weight:800;display:none;align-items:center;gap:10px;border:1px solid var(--border)';
-        bar.innerHTML = '<span class="vsb-icon"></span><span class="vsb-text"></span><span class="vsb-id"></span>';
-        card.insertBefore(bar, card.firstChild);
-    }
-    function setStatus(status, vId) {
-        var bar = document.getElementById('voucher-status-bar');
-        if (!bar) return;
-        bar.style.display = 'flex';
-        var icon = bar.querySelector('.vsb-icon');
-        var text = bar.querySelector('.vsb-text');
-        var idEl = bar.querySelector('.vsb-id');
-        if (status === 'approved') {
-            bar.style.background = 'linear-gradient(135deg,#d1fae5,#a7f3d0)';
-            bar.style.color = '#065f46';
-            bar.style.borderColor = '#059669';
-            icon.textContent = '✅';
-            text.textContent = 'سند تأیید شده';
-        } else if (status === 'draft') {
-            bar.style.background = 'linear-gradient(135deg,#fef3c7,#fde68a)';
-            bar.style.color = '#92400e';
-            bar.style.borderColor = '#f59e0b';
-            icon.textContent = '📝';
-            text.textContent = 'سند به‌عنوان پیش‌نویس ذخیره شد';
-        } else {
-            bar.style.display = 'none';
-            return;
-        }
-        idEl.textContent = vId ? ('شناسه: ' + vId.substring(0, 8)) : '';
-        idEl.style.fontSize = '0.72rem';
-        idEl.style.opacity = '0.7';
-        idEl.style.marginRight = 'auto';
-    }
-    window._setVoucherStatusBar = setStatus;
-
-    // پچ persistVoucher
-    var _orig = window.persistVoucher;
-    if (typeof _orig === 'function') {
-        window.persistVoucher = function(approve) {
-            var vIdBefore = document.getElementById('v-id').value;
-            _orig.apply(this, arguments);
-            var vIdAfter = document.getElementById('v-id').value;
-            if (approve) {
-                setStatus('approved', vIdBefore || vIdAfter);
-            } else {
-                // اگر ذخیره موفق بود، v-id باید پر شده باشد
-                if (vIdAfter && vIdAfter.length > 0) {
-                    setStatus('draft', vIdAfter);
-                }
-            }
-        };
-    }
-
-    // پچ newVoucherForm برای پاک کردن نوار
-    var _origNew = window.newVoucherForm;
-    if (typeof _origNew === 'function') {
-        window.newVoucherForm = function() {
-            _origNew.apply(this, arguments);
-            var bar = document.getElementById('voucher-status-bar');
-            if (bar) bar.style.display = 'none';
-        };
-    }
-
-    // پچ loadVoucherForEdit
-    var _origLoad = window.loadVoucherForEdit;
-    if (typeof _origLoad === 'function') {
-        window.loadVoucherForEdit = function(v) {
-            _origLoad.apply(this, arguments);
-            if (v && v.status === 'approved') setStatus('approved', v.id);
-            else if (v) setStatus('draft', v.id);
-        };
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(injectStatusBar, 800); });
-    } else {
-        setTimeout(injectStatusBar, 800);
-    }
-
-    // پچ hasUnsavedData در تب‌ها — اگر سند ذخیره شده، گیر ندهد
-    if (typeof window._origHasUnsavedData === 'undefined') {
-        // این تابع داخل IIFE فایل ۰۲ است و بیرون قابل دسترسی نیست؛
-        // راه‌حل جایگزین: ردیابی تغییرات در DOM با MutationObserver
-        var vIdInitial = '';
-        var descInitial = '';
-        document.addEventListener('input', function(e) {
-            // فقط وقتی فرم سند فعال است
-            var page = document.getElementById('page-voucher-new');
-            if (!page || !page.classList.contains('active')) return;
-            var vIdEl = document.getElementById('v-id');
-            if (!vIdEl) return;
-            // اگر v-id پر است یعنی سند ذخیره شده — داده‌ی ذخیره‌شده = پاک
-        });
-    }
-})();
-
-/* =====================================================================
-   ★ بخش ۹: جابجایی دکمه 🧹 شرح به قبل از + (درخواست ۱۳)
+   ★ بخش ۹: جابجایی دکمه 🧹 شرح به قبل از +
    ===================================================================== */
 (function patchDescRowButtons() {
     var _orig = window.renderVoucherLines;
@@ -483,8 +356,6 @@ window.isFacilityUsed = isFacilityUsed;
             box.querySelectorAll('.desc-row').forEach(function(row) {
                 if (row.dataset.reordered === '1') return;
                 row.dataset.reordered = '1';
-                // در حال حاضر: input + button.add-std
-                // می‌خواهیم: input + button.clear + button.add-std
                 var addBtn = row.querySelector('.desc-add-btn');
                 if (!addBtn) return;
                 var clearBtn = document.createElement('button');
@@ -504,7 +375,6 @@ window.isFacilityUsed = isFacilityUsed;
                     }
                 });
                 row.insertBefore(clearBtn, addBtn);
-                // اطمینان از چیدمان: desc-row به grid تبدیل شود
                 row.style.gridTemplateColumns = '1fr auto auto';
             });
         };
@@ -512,7 +382,7 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۰: آیکن پرکاربرد بسته باشد (درخواست ۷)
+   ★ بخش ۱۰: آیکن پرکاربرد بسته باشد
    ===================================================================== */
 (function patchFrequentNavCollapsed() {
     function collapseFrequent() {
@@ -520,13 +390,11 @@ window.isFacilityUsed = isFacilityUsed;
         if (!g) return;
         g.classList.add('collapsed');
     }
-    // اطمینان از اینکه title کلیک‌پذیر برای باز/بسته دارد (موجود است)
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(collapseFrequent, 900); });
     } else {
         setTimeout(collapseFrequent, 900);
     }
-    // هر بار بعد از renderFrequentNav دوباره بسته شود
     if (typeof window.renderFrequentNav === 'function') {
         var _orig = window.renderFrequentNav;
         window.renderFrequentNav = function() {
@@ -537,10 +405,9 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۱: حذف ردیف فیلتر از پرینت/اشتراک (درخواست ۱۰)
+   ★ بخش ۱۱: حذف ردیف فیلتر از پرینت/اشتراک
    ===================================================================== */
 (function patchShareAndPrintFilterRows() {
-    // پچ shareAsImage — مخفی کردن فیلترها قبل از اسکرین‌شات
     if (typeof window.shareAsImage === 'function') {
         var _orig = window.shareAsImage;
         window.shareAsImage = function(el, title, filename) {
@@ -563,16 +430,14 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۲: گروه‌بندی صندوق پیامک‌ها در تب‌ها (درخواست ۱۱)
+   ★ بخش ۱۲: گروه‌بندی صندوق پیامک‌ها در تب‌ها
    ===================================================================== */
 (function patchSmsGroupingTabs() {
     function injectSmsTabs() {
         var page = document.getElementById('page-sms');
         if (!page) return;
-        // تب‌های گروه‌بندی بین «ثبت‌نشده» و «صندوق»
         var pendingCard = document.querySelector('#page-sms .card #pending-sms-list');
         if (!pendingCard) return;
-        // فقط یک بار
         if (document.getElementById('sms-group-tabs')) return;
 
         var tabs = document.createElement('div');
@@ -585,7 +450,6 @@ window.isFacilityUsed = isFacilityUsed;
             '<button class="tab-btn" data-sms-group="registered">✅ ثبت‌شده</button>' +
             '<button class="tab-btn" data-sms-group="ignored">🚫 نادیده</button>';
 
-        // اولین card داخل صفحه SMS را پیدا کن
         var firstCard = page.querySelector('.card');
         if (firstCard) {
             page.insertBefore(tabs, firstCard);
@@ -593,21 +457,14 @@ window.isFacilityUsed = isFacilityUsed;
             page.appendChild(tabs);
         }
 
-        // پرچم نمایش
         var state = { group: 'pending' };
 
         function applyFilter() {
-            // کارت اول: پیامک‌های ثبت‌نشده
             var pendingCard = page.querySelectorAll('.card')[0];
             var methodsCard = page.querySelectorAll('.card')[1];
             var pasteCard = page.querySelectorAll('.card')[2];
             var inboxCard = page.querySelectorAll('.card')[3];
             var allCards = [pendingCard, methodsCard, pasteCard, inboxCard];
-
-            // تب pending = فقط pendingCard
-            // تب inbox = فقط inboxCard (فقط ثبت‌شده‌ها نمایش داده می‌شوند)
-            // تب registered = فقط inboxCard فیلتر شده به converted
-            // تب ignored = فقط inboxCard فیلتر شده به ignored
 
             allCards.forEach(function(c) { if (c) c.style.display = 'none'; });
 
@@ -667,7 +524,6 @@ window.isFacilityUsed = isFacilityUsed;
         setTimeout(injectSmsTabs, 1200);
     }
 
-    // بعد از هر render دوباره فیلتر اعمال شود
     if (typeof window.renderSmsInbox === 'function') {
         var _orig = window.renderSmsInbox;
         window.renderSmsInbox = function() {
@@ -676,7 +532,6 @@ window.isFacilityUsed = isFacilityUsed;
             var activeTab = document.querySelector('#sms-group-tabs .tab-btn.active');
             if (activeTab) {
                 var g = activeTab.getAttribute('data-sms-group');
-                // اعمال مجدد فیلتر
                 setTimeout(function() {
                     var items = document.querySelectorAll('#sms-inbox-list .sms-item');
                     items.forEach(function(it) {
@@ -698,11 +553,9 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۳: ویرایش سند از مودال گردش حساب (درخواست ۱۴)
+   ★ بخش ۱۳: ویرایش سند از مودال گردش حساب
    ===================================================================== */
 (function patchTurnoverEditLinks() {
-    // openAccountTurnover تولید جدول با ستون‌های شماره، تاریخ، شرح ... دارد.
-    // ردیف‌ها را کلیک‌پذیر می‌کنیم تا سند باز شود.
     var _orig = window.openAccountTurnover;
     if (typeof _orig !== 'function') return;
     window.openAccountTurnover = function(accountId, detailInfo) {
@@ -721,7 +574,6 @@ window.isFacilityUsed = isFacilityUsed;
                 tr.classList.add('turnover-clickable');
                 tr.addEventListener('click', function(e) {
                     if (e.target.closest('button')) return;
-                    // ستون شماره سند = 3 (ایندکس 2)
                     var cells = tr.querySelectorAll('td');
                     if (cells.length < 3) return;
                     var numTxt = cells[2].textContent.trim();
@@ -740,8 +592,8 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۴: نمایش فقط حساب‌های دارای مانده (درخواست ۵)
-   ★ تمیز شده در v42.1: بخش «مرور حساب‌ها» حذف شد (در 11-fixes-v29.js ساخته می‌شود)
+   ★ بخش ۱۴: نمایش فقط حساب‌های دارای مانده
+   ★ بخش «مرور حساب‌ها» حذف شد (در 11-fixes-v29.js ساخته می‌شود)
    ===================================================================== */
 (function patchOnlyBalanceOption() {
     setTimeout(function() {
@@ -779,14 +631,13 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۵: پچ runAccountReport — فیلتر فقط-مانده + جمع فیلترشده (۶)
+   ★ بخش ۱۵: پچ runAccountReport — فیلتر فقط-مانده + جمع فیلترشده
    ===================================================================== */
 (function patchAccountReport() {
     var _orig = window.runAccountReport;
     if (typeof _orig !== 'function') return;
     window.runAccountReport = function() {
         _orig.apply(this, arguments);
-        // اعمال فیلتر فقط-مانده روی درخت (بعد از رسم)
         setTimeout(function() {
             var box = document.getElementById('ra-result');
             if (!box) return;
@@ -813,7 +664,6 @@ window.isFacilityUsed = isFacilityUsed;
 (function patchTrialBalance() {
     var _orig = window.runTrialBalance;
     if (typeof _orig !== 'function') return;
-    // افزودن گزینه سطح ۱ به انتخابگر
     setTimeout(function() {
         var sel = document.getElementById('rt-level');
         if (sel && !sel.querySelector('option[value="1"]')) {
@@ -843,10 +693,8 @@ window.isFacilityUsed = isFacilityUsed;
                     tr.style.display = hasBalance ? '' : 'none';
                     if (hasBalance) kept++;
                 });
-                // بازمحاسبه جمع فقط بر اساس ردیف‌های visible
                 recalcTrialFooter(box);
             } else {
-                // اگر فیلتر نیست، اما ردیف فیلتر داخلی اعمال شده
                 recalcTrialFooter(box);
             }
         }, 120);
@@ -941,23 +789,19 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۸: پچ گردش وجه نقد — جمع فیلترشده (درخواست ۶)
+   ★ بخش ۱۸: پچ گردش وجه نقد — جمع فیلترشده
    ===================================================================== */
 (function patchCashFlowByDescSum() {
-    // تابع cfd اصلی جدول با tfoot می‌سازد. برای اعمال فیلتر ستونی،
-    // پس از filter، جمع را محاسبه مجدد می‌کنیم.
     setInterval(function() {
         var box = document.getElementById('cfd-result');
         if (!box) return;
         var tbody = box.querySelector('tbody');
         if (!tbody) return;
-        // اگر ردیفی hidden باشد، جمع را بازمحاسبه کن
         var hasHidden = false;
         tbody.querySelectorAll('tr').forEach(function(tr) {
             if (tr.style.display === 'none') hasHidden = true;
         });
         if (!hasHidden) return;
-        // فقط یک‌بار در هر تغییر (با cache روی dataset)
         var sig = Array.prototype.map.call(tbody.querySelectorAll('tr'), function(tr) {
             return tr.style.display === 'none' ? '0' : '1';
         }).join('');
@@ -985,11 +829,9 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۹: گزارش مرور حساب — نمایش ستونی هم‌راستا (درخواست ۴)
+   ★ بخش ۱۹: گزارش مرور حساب — نمایش ستونی هم‌راستا
    ===================================================================== */
 (function patchAccountReportAlignment() {
-    // استایل اصلاحی اضافه می‌کنیم که ردیف‌های سطح ۱ تا ۴ را
-    // در یک گرید ستونی هم‌راستا نمایش دهد.
     var css = ''
         + '.rt-node { display: grid !important; '
         +   'grid-template-columns: 28px minmax(140px, 1fr) auto auto auto auto; '
@@ -1013,16 +855,14 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۲۰: پرداخت قسط + ساخت سند خودکار (درخواست ۱۵)
+   ★ بخش ۲۰: پرداخت قسط + ساخت سند خودکار
    ===================================================================== */
-/* افزودن معین تسهیلات به فرم تسهیلات */
 (function patchFacilityMoeinSelect() {
     function refresh() {
         var sel = document.getElementById('fc-moein');
         if (!sel) return;
         var accounts = DB.load('accounts', []);
         var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
-        // فیلتر: حساب‌هایی که لینک facility دارند
         var facilityAccounts = leaves.filter(function(a) { return a.links && a.links.indexOf('facility') !== -1; });
         sel.innerHTML = '<option value="">— معین تسهیلات (اختیاری) —</option>';
         facilityAccounts.forEach(function(a) {
@@ -1047,7 +887,6 @@ window.isFacilityUsed = isFacilityUsed;
         }
         refresh();
     }
-    // پچ loadFacilityIntoForm برای پرکردن select
     if (typeof window.loadFacilityIntoForm === 'function') {
         var _orig = window.loadFacilityIntoForm;
         window.loadFacilityIntoForm = function(f) {
@@ -1075,11 +914,9 @@ window.isFacilityUsed = isFacilityUsed;
     window._refreshFacilityMoein = refresh;
 })();
 
-/* پچ saveFacility برای ذخیره moeinId */
 (function patchSaveFacility() {
     var btn = document.getElementById('save-fac');
     if (!btn) return;
-    // listener اصلی در فایل ۰۹ است؛ ما با capture بعد از آن اجرا می‌شویم
     btn.addEventListener('click', function() {
         setTimeout(function() {
             var moeinSel = document.getElementById('fc-moein');
@@ -1095,7 +932,6 @@ window.isFacilityUsed = isFacilityUsed;
     }, true);
 })();
 
-/* ★ افزودن دکمه «پرداخت» به هر قسط در دفترچه اقساط */
 (function patchInstallmentPayButtons() {
     var _origRender = window.renderInstallments;
     if (typeof _origRender !== 'function') return;
@@ -1131,7 +967,6 @@ window.isFacilityUsed = isFacilityUsed;
     };
 })();
 
-/* ★ تابع پرداخت قسط + ساخت سند خودکار */
 async function payInstallment(facilityId, installmentIdx) {
     var facilities = DB.load('facilities', []);
     var f = facilities.find(function(x) { return x.id === facilityId; });
@@ -1148,7 +983,6 @@ async function payInstallment(facilityId, installmentIdx) {
         alert('⚠️ ابتدا بانک تسهیلات را انتخاب کنید.');
         return;
     }
-    // تاییدیه
     var bank = DB.load('bankAccounts', []).find(function(b) { return b.id === f.bankId; });
     var bankTitle = bank ? (bank.bank + ' — ' + (bank.account || '')) : '—';
     var msg = 'پرداخت قسط:\n\n' +
@@ -1159,7 +993,6 @@ async function payInstallment(facilityId, installmentIdx) {
         'سند خودکار ساخته شود؟';
     if (!confirm(msg)) return;
 
-    // ساخت پیش‌نویس سند
     var bankMoein = (typeof getBankMoeinId === 'function') ? getBankMoeinId() : '';
     if (!bankMoein) { alert('معین بانک در چارت تعریف نشده.'); return; }
     var accounts = DB.load('accounts', []);
@@ -1173,7 +1006,6 @@ async function payInstallment(facilityId, installmentIdx) {
     var description = 'پرداخت قسط ' + (ins.date) + ' — ' + f.name;
     var lines = [];
 
-    // ردیف بدهکار: معین تسهیلات (با تفصیلی facility)
     var facDetails = hasFacilityLink ? { facility: f.id } : {};
     lines.push({
         id: uid(),
@@ -1184,7 +1016,6 @@ async function payInstallment(facilityId, installmentIdx) {
         description: description
     });
 
-    // ردیف بستانکار: معین بانک (با تفصیلی بانک)
     lines.push({
         id: uid(),
         account: bankMoein,
@@ -1209,7 +1040,6 @@ async function payInstallment(facilityId, installmentIdx) {
         status: 'draft'
     };
 
-    // به‌روزرسانی قسط قبل از رفتن به فرم
     facilities.forEach(function(ff) {
         if (ff.id === facilityId) {
             ff.installments[installmentIdx].status = 'paid';
@@ -1230,155 +1060,12 @@ async function payInstallment(facilityId, installmentIdx) {
     if (typeof renderFacilitiesList === 'function') renderFacilitiesList();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 
-    // انتقال به فرم سند برای بازبینی و تأیید
     if (typeof loadVoucherForEdit === 'function') {
         loadVoucherForEdit(v);
     }
     if (typeof goToPage === 'function') goToPage('voucher-new');
 }
 window.payInstallment = payInstallment;
-
-/* =====================================================================
-   ★ بخش ۲۱: صفحه خوش‌آمدگویی (درخواست ۸)
-   ===================================================================== */
-(function welcomeScreen() {
-    function buildOverlay() {
-        if (document.getElementById('welcome-overlay')) return;
-        var el = document.createElement('div');
-        el.id = 'welcome-overlay';
-        el.className = 'welcome-overlay';
-        el.innerHTML = ''
-            + '<div class="welcome-top">'
-            +   '<div class="welcome-date" id="welcome-date-jalali">—</div>'
-            +   '<div class="welcome-date-greg" id="welcome-date-greg">—</div>'
-            + '</div>'
-            + '<div class="welcome-center">'
-            +   '<div class="welcome-logo">📊</div>'
-            +   '<h1 class="welcome-title">پارسیس</h1>'
-            +   '<div class="welcome-subtitle">حسابداری هوشمند</div>'
-            +   '<div class="welcome-version">نسخه ' + toFa(APP_VERSION) + '</div>'
-            + '</div>'
-            + '<div class="welcome-chart-wrap">'
-            +   '<div class="welcome-chart-title">💹 خلاصهٔ دورهٔ مالی فعال</div>'
-            +   '<div class="welcome-chart" id="welcome-chart"></div>'
-            +   '<div class="welcome-legend" id="welcome-legend"></div>'
-            + '</div>'
-            + '<div class="welcome-hint">👆 برای ورود کلیک کنید</div>';
-        document.body.appendChild(el);
-        el.addEventListener('click', function() {
-            el.classList.add('welcome-out');
-            setTimeout(function() {
-                el.style.display = 'none';
-                try { DB.save('welcome.lastShownAt', Date.now()); } catch(e) {}
-            }, 600);
-        });
-    }
-
-    function renderDate() {
-        var d = new Date();
-        var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-        var jEl = document.getElementById('welcome-date-jalali');
-        var gEl = document.getElementById('welcome-date-greg');
-        if (jEl) {
-            jEl.textContent = WEEKDAYS_FA[d.getDay()] + '، ' +
-                toFa(j[2]) + ' ' + JALALI_MONTHS[j[1] - 1] + ' ' + toFa(j[0]);
-        }
-        if (gEl) {
-            gEl.textContent = d.getDate() + ' ' + GREG_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
-        }
-    }
-
-    function computePeriodStats() {
-        var accounts = DB.load('accounts', []);
-        var vouchers = DB.load('vouchers', []).filter(function(v) {
-            if (v.status !== 'approved') return false;
-            if (state.activePeriodId && v.periodId !== state.activePeriodId) return false;
-            return true;
-        });
-        var income = 0, expense = 0;
-        vouchers.forEach(function(v) {
-            (v.lines || []).forEach(function(l) {
-                if (!l.account) return;
-                var rootId = getRootAccountId(l.account, accounts);
-                var root = accounts.find(function(a) { return a.id === rootId; });
-                if (!root) return;
-                var code = String(root.code || '').charAt(0);
-                var d = Number(l.debit) || 0;
-                var c = Number(l.credit) || 0;
-                if (code === '4') income += c;
-                else if (code === '5') expense += d;
-            });
-        });
-        return { income: income, expense: expense };
-    }
-
-    function renderChart() {
-        var stats = computePeriodStats();
-        var box = document.getElementById('welcome-chart');
-        var legend = document.getElementById('welcome-legend');
-        if (!box || !legend) return;
-        var total = stats.income + stats.expense;
-        if (total === 0) {
-            box.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;font-size:0.85rem">در دورهٔ فعال، درآمد/هزینه‌ای ثبت نشده است.</div>';
-            legend.innerHTML = '';
-            return;
-        }
-        var incomePct = stats.income / total * 100;
-        var expensePct = stats.expense / total * 100;
-
-        // SVG دایره‌ای با انیمیشن
-        var size = 240, r = 90, cx = size / 2, cy = size / 2;
-        var circ = 2 * Math.PI * r;
-        var incLen = incomePct / 100 * circ;
-
-        var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
-        svg += '<defs>';
-        svg += '<linearGradient id="wg-income" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#059669"/></linearGradient>';
-        svg += '<linearGradient id="wg-expense" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f87171"/><stop offset="100%" stop-color="#dc2626"/></linearGradient>';
-        svg += '</defs>';
-        svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="32"/>';
-        svg += '<circle class="wc-arc-expense" cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="url(#wg-expense)" stroke-width="32" stroke-dasharray="' + circ + ' ' + circ + '" stroke-dashoffset="0" transform="rotate(-90 ' + cx + ' ' + cy + ')" style="stroke-dashoffset: ' + circ + '; animation: wgDraw 1s ease forwards; animation-delay: 0.3s; --dash-target: 0;"/>';
-        svg += '<circle class="wc-arc-income" cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="url(#wg-income)" stroke-width="32" stroke-dasharray="' + incLen + ' ' + (circ - incLen) + '" stroke-dashoffset="0" transform="rotate(-90 ' + cx + ' ' + cy + ')" style="stroke-dasharray: 0 ' + circ + '; animation: wgDrawInc 1s ease forwards; animation-delay: 1.3s;"/>';
-        svg += '<text x="' + cx + '" y="' + (cy - 6) + '" text-anchor="middle" font-size="14" fill="rgba(255,255,255,0.7)">مجموع</text>';
-        svg += '<text class="wc-total" x="' + cx + '" y="' + (cy + 18) + '" text-anchor="middle" font-size="18" font-weight="bold" fill="#fff" style="opacity:0; animation: wgFadeIn 0.5s ease forwards; animation-delay: 2.5s">' + toFa(total.toLocaleString('fa-IR')) + '</text>';
-        svg += '</svg>';
-        box.innerHTML = svg;
-
-        // Legend با انیمیشن ترتیبی
-        legend.innerHTML = ''
-            + '<div class="wl-item" style="opacity:0;animation:wgSlide 0.5s ease forwards;animation-delay:1s">'
-            +   '<span class="wl-color in"></span>'
-            +   '<span class="wl-label">💰 درآمد</span>'
-            +   '<span class="wl-amount">' + formatMoney(stats.income) + '</span>'
-            +   '<span class="wl-pct">' + toFa(incomePct.toFixed(1)) + '٪</span>'
-            + '</div>'
-            + '<div class="wl-item" style="opacity:0;animation:wgSlide 0.5s ease forwards;animation-delay:2s">'
-            +   '<span class="wl-color out"></span>'
-            +   '<span class="wl-label">💸 هزینه</span>'
-            +   '<span class="wl-amount">' + formatMoney(stats.expense) + '</span>'
-            +   '<span class="wl-pct">' + toFa(expensePct.toFixed(1)) + '٪</span>'
-            + '</div>';
-    }
-
-    function init() {
-        // اگر کاربر قبلاً در همین session دیده، نشان نده
-        try {
-            var last = DB.load('welcome.lastShownAt', 0);
-            var session = sessionStorage.getItem('parsis.welcomeShown');
-            if (session === '1') return;
-            sessionStorage.setItem('parsis.welcomeShown', '1');
-        } catch(e) {}
-        buildOverlay();
-        renderDate();
-        setTimeout(renderChart, 200);
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(init, 500); });
-    } else {
-        setTimeout(init, 500);
-    }
-})();
 
 /* =====================================================================
    ★ بخش ۲۲: استایل خوش‌آمدگویی + قسط + وضعیت سند
@@ -1460,7 +1147,7 @@ window.payInstallment = payInstallment;
             var extra = []
                 .concat([''])
                 .concat(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'])
-                .concat(['🆕 قابلیت‌های جدید نسخه v28'])
+                .concat(['🆕 قابلیت‌های نسخه ۲.۰'])
                 .concat(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'])
                 .concat(['• معین‌های چند-نوعی: در فرم سند، اگر معینی بیش از یک لینک (مثلاً person و company) دارد،'])
                 .concat(['  کاربر یک ستون ترکیبی می‌بیند؛ در details فقط یک کلید از لینک‌های معین مجاز است.'])
@@ -1481,16 +1168,9 @@ window.payInstallment = payInstallment;
    ===================================================================== */
 (function finalInit() {
     function boot() {
-        console.log('🎉 پارسیس v28 — پچ ۱۵گانه اعمال شد.');
-        // به‌روزرسانی UI
+        console.log('🎉 پارسیس — پچ بهبودهای UX اعمال شد.');
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
         if (typeof updateEyeButtons === 'function') updateEyeButtons();
-        // جمع‌بندی اطلاع‌رسانی
-        setTimeout(function() {
-            if (typeof showToast === 'function') {
-                showToast('✨ پارسیس نسخه ۴۴ آماده است.');
-            }
-        }, 2000);
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(boot, 1400); });
