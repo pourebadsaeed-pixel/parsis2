@@ -1333,5 +1333,62 @@ window.openEventModal41 = openEventModal41;
     }
     setTimeout(init, 3500);
 })();
+/* ═════════════════════════════════════════════════════════
+   ۲۲) رفع z-index تقویم داخل مودال‌ها
+   ═════════════════════════════════════════════════════════ */
+(function fixCalendarZIndexInModal() {
+    if (window._calZFix41) return;
+    window._calZFix41 = true;
 
+    function patch() {
+        if (typeof window.openCalendar !== 'function') {
+            setTimeout(patch, 500);
+            return;
+        }
+
+        var _origOpen = window.openCalendar;
+
+        window.openCalendar = function(input) {
+            /* پیدا کردن بالاترین z-index در والدین input */
+            var maxZ = 0;
+            var el = input;
+            while (el && el !== document.body) {
+                var cs = window.getComputedStyle(el);
+                var z = parseInt(cs.zIndex, 10);
+                if (!isNaN(z) && z > maxZ) maxZ = z;
+                el = el.parentElement;
+            }
+
+            /* فراخوانی تابع اصلی */
+            _origOpen.apply(this, arguments);
+
+            /* تنظیم z-index تقویم بالاتر از مودال */
+            var popup = document.getElementById('cal-popup');
+            var overlay = document.getElementById('cal-overlay');
+            if (maxZ >= 300) {
+                /* داخل مودال هستیم — بالاتر از آن برو */
+                var targetZ = maxZ + 200;
+                if (overlay) overlay.style.zIndex = String(targetZ);
+                if (popup) popup.style.zIndex = String(targetZ + 1);
+            } else {
+                /* حالت عادی */
+                if (overlay) overlay.style.zIndex = '';
+                if (popup) popup.style.zIndex = '';
+            }
+        };
+        /* پاک کردن z-index بعد از بستن */
+        if (typeof window.closeCalendar === 'function') {
+            var _origClose = window.closeCalendar;
+            window.closeCalendar = function() {
+                _origClose.apply(this, arguments);
+                var popup = document.getElementById('cal-popup');
+                var overlay = document.getElementById('cal-overlay');
+                if (popup) popup.style.zIndex = '';
+                if (overlay) overlay.style.zIndex = '';
+            };
+        }
+        console.log('✅ [v41.1] پچ z-index تقویم داخل مودال اعمال شد');
+    }
+    patch();
+})();
 console.log('✅ [v41.1] پارسیس — پچ جامع تقویم نسخه ۱.۱ بارگذاری شد');
