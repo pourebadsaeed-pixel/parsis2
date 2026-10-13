@@ -1,18 +1,21 @@
 /* =====================================================================
-   پارسیس v39 — 16-calendar-v37.js (نسخه نهایی پایدار)
-   رفع قطعی: 
-     ۱) جابجایی ساعت/دقیقه در مودال ساعت (RTL issue)
-     ۲) آیکن تقویم قفل و باز نمی‌شود
-     ۳) انتخاب تاریخ ممکن نیست
-     ۴) نمایش تفصیلی ترکیبی
-     ۵) اقساط با ساعت پیش‌فرض ۲۱:۰۰
-     ۶) تقویم حرفه‌ای + یادآور
+   پارسیس — 16-ui-patches.js
+   پچ‌های رابط کاربری زنده‌ی نسخه‌های ۳۷–۳۹
+   
+   ★ این فایل جایگزین 16-calendar-v37.js قبلی است.
+   ★ کدهای تقویم (که در 14-calendar.js بازنویسی شده‌اند) حذف شدند.
+   ★ شامل ۴ بخش زنده:
+       ۱) renderVoucherLines — ردیف سند با تفصیلی ترکیبی + دکمه پاک شرح
+       ۲) openTimePicker — انتخاب ساعت عقربه‌ای
+       ۳) renderInstallments — دفترچه اقساط با ساعت پیش‌فرض ۲۱:۰۰
+       ۴) bulletproofDatePicker — دکمه‌های باز شدن تقویم در inputها
    ===================================================================== */
 'use strict';
 
-/* =====================================================================
-   ۱) نمایش تفصیلی معین چند-نوعی — یک سلول جستجو + یک سلول انتخاب
-   ===================================================================== */
+/* ═══════════════════════════════════════════════════════════════
+   بخش ۱ — ردیف سند با تفصیلی ترکیبی
+   (معین‌های چند-نوعی: یک ستون جستجو + یک ستون انتخاب ترکیبی)
+   ═══════════════════════════════════════════════════════════════ */
 (function fixCombinedDetailCell() {
     window.renderVoucherLines = function() {
         var box = document.getElementById('voucher-lines');
@@ -141,7 +144,7 @@
                 wrap.appendChild(detGrid);
             }
 
-            /* ردیف ۳: مبالغ */
+            /* ردیف ۳: مبالغ + شماره/تاریخ پیگیری */
             var r3 = document.createElement('div');
             r3.className = 'ln-row r4';
             r3.style.marginTop = '10px';
@@ -290,9 +293,10 @@
     };
 })();
 
-/* =====================================================================
-   ۲) ساعت عقربه‌ای — با رفع جابجایی HH/MM
-   ===================================================================== */
+/* ═══════════════════════════════════════════════════════════════
+   بخش ۲ — انتخاب ساعت عقربه‌ای
+   (با رفع مشکل جهت HH:MM در RTL)
+   ═══════════════════════════════════════════════════════════════ */
 function openTimePicker(callback, initialValue) {
     var old = document.getElementById('time-picker-modal'); if (old) old.remove();
     var oldO = document.getElementById('time-picker-overlay'); if (oldO) oldO.remove();
@@ -313,7 +317,6 @@ function openTimePicker(callback, initialValue) {
         +     '<button id="tp-close" class="close-btn">×</button>'
         +   '</div>'
         +   '<div class="modal-body" style="text-align:center;padding:16px">'
-        /* ★★★ اینجا direction:ltr اضافه شد تا HH:MM درست نمایش داده شود ★★★ */
         +     '<div style="direction:ltr;display:flex;justify-content:center;gap:14px;margin-bottom:14px">'
         +       '<div id="tp-hh-display" style="font-size:2.4rem;font-weight:900;font-family:monospace;direction:ltr;padding:8px 20px;background:#eef2ff;color:#4338ca;border-radius:12px;cursor:pointer;min-width:80px;text-align:center">' + pad2(selH) + '</div>'
         +       '<div style="font-size:2.4rem;font-weight:900;color:#4338ca">:</div>'
@@ -352,7 +355,6 @@ function openTimePicker(callback, initialValue) {
     function drawNumbers() {
         var nums = '';
         if (mode === 'hour') {
-            // ۲۴ ساعت، دو رینگ
             for (var i = 0; i < 24; i++) {
                 var isOuter = i < 12;
                 var r = isOuter ? 110 : 78;
@@ -474,9 +476,9 @@ function openTimePicker(callback, initialValue) {
 }
 window.openTimePicker = openTimePicker;
 
-/* =====================================================================
-   ۳) اقساط با ساعت پیش‌فرض ۲۱:۰۰
-   ===================================================================== */
+/* ═══════════════════════════════════════════════════════════════
+   بخش ۳ — دفترچه اقساط با ساعت پیش‌فرض ۲۱:۰۰
+   ═══════════════════════════════════════════════════════════════ */
 (function patchInstallmentTime() {
     window.renderInstallments = function() {
         var box = document.getElementById('fac-installments');
@@ -565,69 +567,14 @@ window.openTimePicker = openTimePicker;
     };
 })();
 
-/* =====================================================================
-   ۴) تقویم حرفه‌ای — فقط اقساط + منابع + رویدادهای شخصی
-   ===================================================================== */
-(function overrideCalendarEvents() {
-    window.calBuildAllEvents = function() {
-        var evs = [];
-        DB.load('facilities', []).forEach(function(f) {
-            (f.installments || []).forEach(function(ins, i) {
-                if (!ins.date) return;
-                evs.push({
-                    id: 'i_' + f.id + '_' + i, cat: 'installment', date: ins.date,
-                    time: ins.time || '21:00',
-                    title: (ins.status === 'paid' ? '✅ ' : '⏰ ') + 'قسط ' + f.name,
-                    sub: ins.status === 'paid' ? 'پرداخت‌شده' : 'پرداخت‌نشده',
-                    amount: Number(ins.amount) || 0, ref: f.id, readonly: true
-                });
-            });
-        });
-        DB.load('cashFlowSources', []).forEach(function(s) {
-            if (!s.expectedDate) return;
-            evs.push({
-                id: 's_' + s.id, cat: 'source', date: s.expectedDate,
-                time: s.time || '21:00',
-                title: '📥 ' + getSourceLabel(s),
-                sub: s.notes || '', amount: Number(s.amount) || 0, ref: s.id, readonly: true
-            });
-        });
-        calLoadUserEvents().forEach(function(u) {
-            var ev = Object.assign({}, u, { readonly: false });
-            if (!ev.time) ev.time = '21:00';
-            evs.push(ev);
-        });
-        return evs;
-    };
-
-    window.CAL_CATS = {
-        installment: { label: 'قسط',       color: '#dc2626', icon: '💳' },
-        source:      { label: 'دریافتنی',   color: '#10b981', icon: '📥' },
-        personal:    { label: 'شخصی',       color: '#8b5cf6', icon: '⭐' },
-        work:        { label: 'کاری',       color: '#0ea5e9', icon: '💼' },
-        birthday:    { label: 'تولد',       color: '#ec4899', icon: '🎂' },
-        note:        { label: 'یادداشت',     color: '#f59e0b', icon: '📔' }
-    };
-})();
-
-/* استایل تقویم */
-(function injectCalendarStyle() {
+/* ═══════════════════════════════════════════════════════════════
+   بخش ۴ — استایل دکمه‌های تقویم در inputها
+   ═══════════════════════════════════════════════════════════════ */
+(function injectCalendarButtonStyle() {
     if (document.getElementById('cal-v39-style')) return;
     var s = document.createElement('style');
     s.id = 'cal-v39-style';
     s.textContent = ''
-    + '.calg-mcell { display:flex;flex-direction:column;gap:3px }'
-    + '.calg-mcell .cd { display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px dashed var(--border) }'
-    + '.calg-mcell .cd .cjd { font-weight:900;font-size:0.82rem;color:#1e40af;line-height:1.15 }'
-    + '.calg-mcell.today .cd .cjd { color:#1e3a8a }'
-    + '.calg-mcell .cd .cwday { font-size:0.62rem;color:#64748b;font-weight:700;line-height:1 }'
-    + '.calg-mcell .cd .cgd { font-size:0.6rem;color:#94a3b8;font-weight:700;direction:ltr;line-height:1 }'
-    + '.calg-mcell .cev { display:flex;align-items:center;gap:4px;font-size:0.68rem;overflow:hidden;margin-bottom:2px;padding:2px 4px;border-radius:5px;background:rgba(99,102,241,0.06) }'
-    + '.calg-mcell .cev .ctime { font-size:0.6rem;color:#6366f1;font-weight:800;direction:ltr;flex-shrink:0;font-family:monospace }'
-    + '.calg-mcell .cev .ctxt { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 }'
-    + '.calg-mcell .cdot { width:7px;height:7px;border-radius:2px;flex-shrink:0 }'
-    + '@media (max-width:640px) { .calg-mcell { min-height:80px } .calg-mcell .cev { display:none } }'
-    /* ★ استایل قوی برای دکمه تقویم */
     + '.date-wrap { position:relative !important; display:block !important }'
     + '.date-wrap .date-picker { padding-left:42px !important; padding-right:12px !important }'
     + '.date-wrap .cal-btn {'
@@ -651,354 +598,12 @@ window.openTimePicker = openTimePicker;
     document.head.appendChild(s);
 })();
 
-/* Override renderMonth */
-(function overrideRenderMonth() {
-    window.calRenderMonth = function(events) {
-        var y = _cal.cursor.y, m = _cal.cursor.m;
-        var days = daysInJalaliMonth(y, m);
-        var firstG = jalaliToGregorian(y, m, 1);
-        var firstDow = (new Date(firstG[0], firstG[1] - 1, firstG[2]).getDay() + 1) % 7;
-        var prevM = m - 1, prevY = y, nextM = m + 1, nextY = y;
-        if (prevM < 1) { prevM = 12; prevY--; }
-        if (nextM > 12) { nextM = 1; nextY++; }
-        var prevDays = daysInJalaliMonth(prevY, prevM);
-        var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
-
-        var byDate = {};
-        events.forEach(function(e) {
-            if (!byDate[e.date]) byDate[e.date] = [];
-            byDate[e.date].push(e);
-        });
-        Object.keys(byDate).forEach(function(d) {
-            byDate[d].sort(function(a, b) { return (a.time || '00:00').localeCompare(b.time || '00:00'); });
-        });
-
-        var EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        var FA_WD = ['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه'];
-
-        var html = '<div class="calg-mhead">';
-        ['شنبه','یک','دو','سه','چهار','پنج','جمعه'].forEach(function(x) { html += '<div>' + x + '</div>'; });
-        html += '</div><div class="calg-mgrid">';
-
-        var total = 42, dc = 1, ndc = 1;
-        for (var i = 0; i < total; i++) {
-            var day, cy, cm, other = false;
-            if (i < firstDow) { day = prevDays - (firstDow - 1 - i); cy = prevY; cm = prevM; other = true; }
-            else if (dc <= days) { day = dc++; cy = y; cm = m; }
-            else { day = ndc++; cy = nextY; cm = nextM; other = true; }
-            var ds = cy + '/' + pad2(cm) + '/' + pad2(day);
-            var isToday = (cy === today[0] && cm === today[1] && day === today[2]);
-            var colIdx = i % 7;
-            var isFri = (colIdx === 6);
-            var gd = jalaliToGregorian(cy, cm, day);
-            var dt = new Date(gd[0], gd[1] - 1, gd[2]);
-            var enDay = dt.getDate();
-            var enMon = EN_MONTHS[dt.getMonth()];
-            var wd = FA_WD[dt.getDay()];
-
-            var cls = 'calg-mcell';
-            if (other) cls += ' other';
-            if (isToday) cls += ' today';
-            if (isFri) cls += ' fri';
-
-            html += '<div class="' + cls + '" data-date="' + ds + '">';
-            html += '<div class="cd">';
-            html += '<div class="cjd">' + toFa(day) + ' ' + JALALI_MONTHS[cm - 1] + '</div>';
-            html += '<div class="cwday">' + wd + '</div>';
-            html += '<div class="cgd">' + enDay + ' ' + enMon + '</div>';
-            html += '</div>';
-
-            var evs = byDate[ds] || [];
-            var shown = 0;
-            evs.forEach(function(e) {
-                if (shown >= 3) return;
-                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#999' };
-                var timeStr = e.time ? toFa(e.time) : '';
-                html += '<div class="cev"><span class="cdot" style="background:' + cat.color + '"></span>'
-                     +  (timeStr ? '<span class="ctime">' + timeStr + '</span>' : '')
-                     +  '<span class="ctxt">' + esc(e.title) + '</span></div>';
-                shown++;
-            });
-            if (evs.length > 3) html += '<div class="cmore">+' + toFa(evs.length - 3) + ' مورد دیگر</div>';
-            html += '</div>';
-        }
-        html += '</div>';
-        return html;
-    };
-
-    window.calRenderDay = function(events) {
-        var ds = c(_cal.cursor);
-        var dayEvs = events.filter(function(e) { return e.date === ds; });
-        dayEvs.sort(function(a, b) { return (a.time || '00:00').localeCompare(b.time || '00:00'); });
-        var gDate = jalaliToGregorian(_cal.cursor.y, _cal.cursor.m, _cal.cursor.d);
-        var dObj = new Date(gDate[0], gDate[1] - 1, gDate[2]);
-        var enMon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dObj.getMonth()];
-        var html = '<div style="text-align:center;margin-bottom:14px;padding:12px;background:var(--primary-soft);border-radius:12px">'
-                 +   '<div style="font-size:1.05rem;font-weight:900;color:#1e40af">' + WEEKDAYS_FA[dObj.getDay()] + '، ' + toFa(_cal.cursor.d) + ' ' + JALALI_MONTHS[_cal.cursor.m - 1] + ' ' + toFa(_cal.cursor.y) + '</div>'
-                 +   '<div style="font-size:0.78rem;color:#94a3b8;direction:ltr;margin-top:4px">' + dObj.getDate() + ' ' + enMon + ' ' + dObj.getFullYear() + '</div>'
-                 + '</div>';
-        if (dayEvs.length === 0) { html += '<div class="calg-empty">رویدادی برای این روز نیست.</div>'; return html; }
-        html += '<div style="display:flex;flex-direction:column;gap:8px">';
-        dayEvs.forEach(function(e) {
-            var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#999' };
-            html += '<div style="display:flex;gap:12px;align-items:center;padding:14px;background:#fff;border:1px solid var(--border);border-right:4px solid ' + cat.color + ';border-radius:12px;cursor:pointer" data-ev="' + e.id + '">'
-                 +   '<div style="font-size:0.85rem;font-weight:900;color:' + cat.color + ';direction:ltr;min-width:60px;font-family:monospace">' + toFa(e.time || '21:00') + '</div>'
-                 +   '<div style="flex:1">'
-                 +     '<div style="font-weight:800;font-size:0.9rem">' + esc(e.title) + '</div>'
-                 +     (e.sub ? '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">' + esc(e.sub) + '</div>' : '')
-                 +   '</div>'
-                 +   (e.amount ? '<div style="font-weight:800;color:var(--primary-dark);white-space:nowrap">' + formatMoney(e.amount) + '</div>' : '')
-                 + '</div>';
-        });
-        html += '</div>';
-        return html;
-    };
-})();
-
-/* =====================================================================
-   ۵) رفع باگ دکمه افزودن رویداد
-   ===================================================================== */
-(function patchEventModal() {
-    window.calOpenEventModal = function(ev, defaultDate) {
-        var old = document.getElementById('calg-modal'); if (old) old.remove();
-        var oldO = document.getElementById('calg-modal-overlay'); if (oldO) oldO.remove();
-
-        var isNew = !ev;
-        var title = isNew ? '＋ رویداد جدید' : '✎ ویرایش رویداد';
-
-        var USER_CATS = ['personal','work','birthday'];
-        var catPicker = USER_CATS.map(function(k) {
-            var c = window.CAL_CATS[k] || { color: '#999', icon: '📌', label: k };
-            var active = (ev && ev.cat === k) || (!ev && k === 'personal') ? ' active' : '';
-            return '<button type="button" class="' + active + '" data-cat="' + k + '" '
-                 + 'style="color:' + c.color + ';padding:8px 12px;border-radius:10px;border:2px solid transparent;'
-                 + 'font-family:inherit;font-size:0.78rem;font-weight:800;cursor:pointer;'
-                 + 'background:#f0f6ff;display:inline-flex;align-items:center;gap:5px">'
-                 + c.icon + ' ' + c.label + '</button>';
-        }).join('');
-
-        var html = ''
-            + '<div id="calg-modal-overlay" class="calg-mo"></div>'
-            + '<div id="calg-modal" class="calg-mp">'
-            +   '<div class="calg-mph"><h3>' + title + '</h3><button id="calg-mclose">×</button></div>'
-            +   '<div class="calg-mpb">'
-            +     '<div class="calg-fld"><label>عنوان</label><input id="calg-ttl" value="' + (ev ? esc(ev.title) : '') + '"></div>'
-            +     '<div class="calg-fld"><label>دسته‌بندی</label><div class="calg-cat-picker" id="calg-cats">' + catPicker + '</div></div>'
-            +     '<div class="calg-2col">'
-            +       '<div class="calg-fld"><label>تاریخ (شمسی)</label><input id="calg-date" class="date-picker" dir="ltr" value="' + (ev ? ev.date : (defaultDate || '')) + '"></div>'
-            +       '<div class="calg-fld"><label>ساعت</label>'
-            +         '<div style="display:flex;gap:6px">'
-            +           '<input id="calg-time" dir="ltr" placeholder="HH:MM" value="' + (ev && ev.time ? ev.time : '21:00') + '" style="flex:1;font-family:monospace;text-align:center;direction:ltr">'
-            +           '<button type="button" id="calg-clock-btn" style="background:var(--primary-soft);color:var(--primary-dark);border:1.5px solid var(--border);width:44px;border-radius:10px;cursor:pointer;font-size:1.1rem">🕐</button>'
-            +         '</div>'
-            +       '</div>'
-            +     '</div>'
-            +     '<div class="calg-fld"><label>توضیحات</label><textarea id="calg-desc" rows="3">' + (ev && ev.desc ? esc(ev.desc) : '') + '</textarea></div>'
-            +     '<div class="calg-fld"><label>یادآور (دقیقه قبل)</label><input id="calg-rem" type="number" placeholder="مثلاً 30" value="' + (ev && ev.reminder ? ev.reminder : '') + '"></div>'
-            +   '</div>'
-            +   '<div class="calg-mpf">'
-            +     (ev ? '<button class="del" id="calg-del">حذف</button>' : '')
-            +     '<button class="cancel" id="calg-cancel">انصراف</button>'
-            +     '<button class="save" id="calg-save">💾 ذخیره</button>'
-            +   '</div>'
-            + '</div>';
-        document.body.insertAdjacentHTML('beforeend', html);
-
-        setTimeout(function() {
-            if (typeof attachDatePickers === 'function') attachDatePickers();
-        }, 50);
-
-        var selectedCat = (ev && ev.cat) || 'personal';
-        document.querySelectorAll('#calg-cats button').forEach(function(b) {
-            b.onclick = function() {
-                document.querySelectorAll('#calg-cats button').forEach(function(x) { x.classList.remove('active'); });
-                this.classList.add('active');
-                selectedCat = this.getAttribute('data-cat');
-            };
-        });
-
-        function close() {
-            var o = document.getElementById('calg-modal-overlay'); if (o) o.remove();
-            var m = document.getElementById('calg-modal'); if (m) m.remove();
-        }
-        document.getElementById('calg-mclose').onclick = close;
-        document.getElementById('calg-cancel').onclick = close;
-        document.getElementById('calg-modal-overlay').onclick = close;
-
-        document.getElementById('calg-clock-btn').onclick = function() {
-            var cur = document.getElementById('calg-time').value || '21:00';
-            openTimePicker(function(hhmm) {
-                document.getElementById('calg-time').value = hhmm;
-            }, cur);
-        };
-
-        document.getElementById('calg-save').onclick = function() {
-            var t = document.getElementById('calg-ttl').value.trim();
-            var d = normalizeDigits(document.getElementById('calg-date').value.trim());
-            var tm = document.getElementById('calg-time').value.trim() || '21:00';
-            var desc = document.getElementById('calg-desc').value.trim();
-            var rem = Number(document.getElementById('calg-rem').value) || 0;
-            if (!t) { alert('عنوان اجباری'); return; }
-            if (!d) { alert('تاریخ اجباری'); return; }
-            var list = calLoadUserEvents();
-            var obj;
-            if (ev && ev.id) {
-                obj = { id: ev.id, cat: selectedCat, date: d, time: tm, title: t, desc: desc, reminder: rem };
-                for (var i = 0; i < list.length; i++) if (list[i].id === ev.id) { list[i] = obj; break; }
-            } else {
-                obj = { id: 'u_' + uid(), cat: selectedCat, date: d, time: tm, title: t, desc: desc, reminder: rem, createdAt: Date.now() };
-                list.push(obj);
-            }
-            calSaveUserEvents(list);
-            close();
-            calRender();
-            showToast('✅ رویداد ذخیره شد');
-        };
-
-        if (ev) {
-            document.getElementById('calg-del').onclick = function() {
-                if (!confirm('رویداد حذف شود؟')) return;
-                var list = calLoadUserEvents().filter(function(x) { return x.id !== ev.id; });
-                calSaveUserEvents(list);
-                close();
-                calRender();
-                showToast('🗑 حذف شد');
-            };
-        }
-
-        setTimeout(function() {
-            document.getElementById('calg-modal-overlay').classList.add('show');
-            document.getElementById('calg-modal').classList.add('show');
-        }, 10);
-    };
-})();
-
-/* =====================================================================
-   ۶) سیستم یادآور
-   ===================================================================== */
-(function reminderSystem() {
-    var shownKeys = {};
-    try {
-        var saved = sessionStorage.getItem('parsis.shownReminders');
-        if (saved) shownKeys = JSON.parse(saved);
-    } catch(e) {}
-
-    function saveShown() {
-        try { sessionStorage.setItem('parsis.shownReminders', JSON.stringify(shownKeys)); } catch(e) {}
-    }
-
-    function checkReminders() {
-        var now = new Date();
-        var todayJ = toJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
-        var todayStr = todayJ[0] + '/' + pad2(todayJ[1]) + '/' + pad2(todayJ[2]);
-        var nowHHMM = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
-        var nowTs = now.getTime();
-
-        DB.load('facilities', []).forEach(function(f) {
-            (f.installments || []).forEach(function(ins, i) {
-                if (!ins.date || ins.status === 'paid') return;
-                if (ins.date !== todayStr) return;
-                var t = ins.time || '21:00';
-                var key = 'inst_' + f.id + '_' + i + '_' + ins.date + '_' + t;
-                if (shownKeys[key]) return;
-                if (nowHHMM >= t) {
-                    shownKeys[key] = true; saveShown();
-                    showReminderModal('💳 یادآور قسط', 'قسط ' + f.name + ' در ساعت ' + toFa(t),
-                        (ins.amount ? formatMoney(ins.amount) + ' ' + currencyLabel() : ''),
-                        function() { if (typeof goToPage === 'function') goToPage('facilities'); });
-                }
-            });
-        });
-
-        DB.load('cashFlowSources', []).forEach(function(s) {
-            if (!s.expectedDate || s.expectedDate !== todayStr) return;
-            var t = s.time || '21:00';
-            var key = 'src_' + s.id + '_' + s.expectedDate + '_' + t;
-            if (shownKeys[key]) return;
-            if (nowHHMM >= t) {
-                shownKeys[key] = true; saveShown();
-                showReminderModal('📥 یادآور دریافتنی', getSourceLabel(s),
-                    (s.amount ? formatMoney(s.amount) + ' ' + currencyLabel() : ''),
-                    function() { if (typeof goToPage === 'function') goToPage('cashflow-sources'); });
-            }
-        });
-
-        calLoadUserEvents().forEach(function(u) {
-            if (!u.date || !u.time || u.date !== todayStr) return;
-            var reminderMin = Number(u.reminder) || 0;
-            var key = 'usr_' + u.id + '_' + u.date + '_' + u.time;
-            if (shownKeys[key]) return;
-            var parts = u.time.split(':');
-            var target = new Date(now);
-            target.setHours(Number(parts[0]) || 0, Number(parts[1]) || 0, 0, 0);
-            var remindAt = target.getTime() - reminderMin * 60 * 1000;
-            if (nowTs >= remindAt) {
-                shownKeys[key] = true; saveShown();
-                showReminderModal('🔔 یادآور', u.title || 'رویداد', u.time ? 'ساعت ' + toFa(u.time) : '',
-                    function() { if (typeof goToPage === 'function') goToPage('jalali-calendar'); });
-            }
-        });
-    }
-
-    window.showReminderModal = function(title, subtitle, amount, onClick) {
-        var old = document.getElementById('reminder-modal'); if (old) old.remove();
-        var oldO = document.getElementById('reminder-overlay'); if (oldO) oldO.remove();
-        var html = ''
-            + '<div id="reminder-overlay" class="overlay show" style="z-index:950"></div>'
-            + '<div id="reminder-modal" class="modal show" style="max-width:420px;z-index:960">'
-            +   '<div class="modal-head" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><h2>' + title + '</h2></div>'
-            +   '<div class="modal-body" style="text-align:center;padding:24px">'
-            +     '<div style="font-size:3.5rem;margin-bottom:12px">🔔</div>'
-            +     '<div style="font-weight:900;font-size:1.1rem;color:var(--primary-dark);margin-bottom:8px">' + esc(subtitle) + '</div>'
-            +     (amount ? '<div style="font-size:1.2rem;font-weight:800;color:var(--accent);margin-bottom:14px">' + amount + '</div>' : '')
-            +     '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px">' + toFa(todayJalaliStr()) + ' — ' + toFa(tsToJalaliTime(Date.now())) + '</div>'
-            +     '<div style="display:flex;gap:8px">'
-            +       '<button id="rem-dismiss" style="flex:1;padding:13px;background:var(--card-alt);color:var(--text);border:none;border-radius:12px;font-family:inherit;font-weight:800;cursor:pointer;font-size:0.88rem">بستن</button>'
-            +       (onClick ? '<button id="rem-action" style="flex:2;padding:13px;background:var(--gradient-accent);color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;cursor:pointer;font-size:0.88rem">مشاهده</button>' : '')
-            +     '</div>'
-            +   '</div>'
-            + '</div>';
-        document.body.insertAdjacentHTML('beforeend', html);
-
-        function close() {
-            var o = document.getElementById('reminder-overlay'); if (o) o.remove();
-            var m = document.getElementById('reminder-modal'); if (m) m.remove();
-        }
-        document.getElementById('rem-dismiss').onclick = close;
-        if (onClick && document.getElementById('rem-action')) {
-            document.getElementById('rem-action').onclick = function() { close(); onClick(); };
-        }
-        try {
-            if (window.AudioContext || window.webkitAudioContext) {
-                var ctx = new (window.AudioContext || window.webkitAudioContext)();
-                [880, 1100, 1320].forEach(function(freq, idx) {
-                    var osc = ctx.createOscillator();
-                    var gain = ctx.createGain();
-                    osc.connect(gain); gain.connect(ctx.destination);
-                    osc.frequency.value = freq;
-                    var t0 = ctx.currentTime + idx * 0.15;
-                    gain.gain.setValueAtTime(0.001, t0);
-                    gain.gain.linearRampToValueAtTime(0.15, t0 + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14);
-                    osc.start(t0); osc.stop(t0 + 0.15);
-                });
-            }
-        } catch(e) {}
-    };
-
-    setInterval(checkReminders, 30000);
-    setTimeout(checkReminders, 3000);
-})();
-
-/* =====================================================================
-   ۷) ★★★ رفع قطعی آیکن تقویم — با Event Delegation + Force Click
-   ===================================================================== */
+/* ═══════════════════════════════════════════════════════════════
+   بخش ۵ — اتصال مطمئن دکمه‌های تقویم به inputها
+   ═══════════════════════════════════════════════════════════════ */
 (function bulletproofDatePicker() {
-    function log() { /* console.log.apply(console, arguments); */ }
-
     function attachOne(el) {
         if (!el || el.nodeType !== 1) return;
-        // اگر قبلاً داخل date-wrap با دکمه هست، رد شو
         var parent = el.parentNode;
         if (!parent) return;
         var wrap;
@@ -1015,7 +620,6 @@ window.openTimePicker = openTimePicker;
         wrap.style.position = 'relative';
         wrap.style.display = 'block';
 
-        // استایل‌های input
         el.style.paddingLeft = '42px';
         el.style.paddingRight = '12px';
 
@@ -1050,21 +654,12 @@ window.openTimePicker = openTimePicker;
             'box-shadow:0 1px 3px rgba(15,23,42,0.08)'
         ].join(';');
 
-        // ★ اتصال مستقیم برای اطمینان
         (function(inputEl) {
             var fire = function(ev) {
                 if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-                log('📅 button clicked');
                 if (typeof window.openCalendar === 'function') {
-                    try {
-                        window.openCalendar(inputEl);
-                    } catch(err) {
-                        console.error('📅 openCalendar failed:', err);
-                        alert('خطا در باز کردن تقویم: ' + (err.message || err));
-                    }
-                } else {
-                    console.error('📅 window.openCalendar not defined!');
-                    alert('تابع تقویم یافت نشد. صفحه را رفرش کنید.');
+                    try { window.openCalendar(inputEl); }
+                    catch(err) { console.error('openCalendar failed:', err); }
                 }
             };
             btn.addEventListener('click', fire, false);
@@ -1078,7 +673,6 @@ window.openTimePicker = openTimePicker;
         })(el);
 
         wrap.appendChild(btn);
-        log('📅 attached to', el.id || el.className);
     }
 
     window.attachDatePickers = function() {
@@ -1088,13 +682,12 @@ window.openTimePicker = openTimePicker;
         }
     };
 
-    // ★★★ Event Delegation (Capture Phase) به‌عنوان لایه‌ی پشتیبان
+    /* Event Delegation (Capture Phase) به‌عنوان لایه پشتیبان */
     document.addEventListener('click', function(e) {
         var t = e.target;
         if (!t || !t.closest) return;
         var btn = t.closest('.cal-btn');
         if (!btn) return;
-        // اگر قبلاً handler اصلی اجرا شده، دیگر اجرا نکن
         if (btn.dataset.handled === '1') {
             delete btn.dataset.handled;
             return;
@@ -1106,35 +699,17 @@ window.openTimePicker = openTimePicker;
         e.preventDefault();
         e.stopPropagation();
         btn.dataset.handled = '1';
-        log('📅 delegation fired for', inp.id || inp.className);
         if (typeof window.openCalendar === 'function') {
-            try {
-                window.openCalendar(inp);
-            } catch(err) {
-                console.error('📅 openCalendar (delegation) failed:', err);
-            }
+            try { window.openCalendar(inp); }
+            catch(err) { console.error('openCalendar (delegation) failed:', err); }
         }
     }, true);
 
-    // اجرای دوره‌ای
+    /* اجرای دوره‌ای */
     setTimeout(window.attachDatePickers, 300);
     setTimeout(window.attachDatePickers, 1000);
     setTimeout(window.attachDatePickers, 2500);
     setInterval(window.attachDatePickers, 2000);
 })();
 
-/* =====================================================================
-   ۸) تست صحت در Console
-   ===================================================================== */
-setTimeout(function() {
-    console.log('════════ پارسیس v39 — بررسی ════════');
-    console.log('openCalendar:', typeof window.openCalendar);
-    console.log('cal-popup:', !!document.getElementById('cal-popup'));
-    console.log('cal-overlay:', !!document.getElementById('cal-overlay'));
-    console.log('.date-picker count:', document.querySelectorAll('.date-picker').length);
-    console.log('.date-wrap count:', document.querySelectorAll('.date-wrap').length);
-    console.log('.cal-btn count:', document.querySelectorAll('.cal-btn').length);
-    console.log('═════════════════════════════════════');
-}, 3500);
-
-console.log('✅ پارسیس v39 — رفع جابجایی ساعت + آیکن تقویم + انتخاب تاریخ');
+console.log('✅ 16-ui-patches بارگذاری شد — فرم سند، ساعت، اقساط، تقویم');
