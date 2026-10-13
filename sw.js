@@ -19,7 +19,7 @@ var ASSETS = [
   './11-fixes-v29.js',
   './14-calendar.js',
   './15-account-review-final.js',
-  './16-calendar-v37.js',
+  './16-ui-patches.js',
   './16-fixes-v38.js',
   './17-scan-improved.js',
   './19-final-v41.js',
