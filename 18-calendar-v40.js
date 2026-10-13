@@ -23,6 +23,28 @@
 console.log('🚀 [v41.1] شروع بارگذاری پچ تقویم...');
 
 /* ═════════════════════════════════════════════════════════
+   calEnsurePage — از فایل قدیمی 14-calendar-google.js منتقل شد
+   ═════════════════════════════════════════════════════════ */
+function calEnsurePage() {
+    if (document.getElementById('page-jalali-calendar')) return;
+    var main = document.querySelector('main.content');
+    if (!main) return;
+    var sec = document.createElement('section');
+    sec.id = 'page-jalali-calendar';
+    sec.className = 'page';
+    main.appendChild(sec);
+
+    // افزودن آیتم به منوی عملیات
+    var navOps = document.querySelector('[data-nav-group="ops"] .nav-group-items');
+    if (navOps && !navOps.querySelector('[data-page="jalali-calendar"]')) {
+        var b = document.createElement('button');
+        b.setAttribute('data-page', 'jalali-calendar');
+        b.textContent = '📅 تقویم شمسی';
+        navOps.appendChild(b);
+    }
+}
+
+/* ═════════════════════════════════════════════════════════
    ۱) رفع نرخ طلا + غیرفعال‌سازی API معیوب priceto.day
    ═════════════════════════════════════════════════════════ */
 (function fixRates41() {
