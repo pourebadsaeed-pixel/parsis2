@@ -1,5 +1,5 @@
 // Service Worker پارسیس
-var CACHE_NAME = 'parsis-v1';
+var CACHE_NAME = 'parsis-v2';
 
 var ASSETS = [
   './index.html',
@@ -17,12 +17,11 @@ var ASSETS = [
   './09-settings,backup,restore,reset,init.js',
   './10-welcome,patch.js',
   './11-fixes-v29.js',
-  './14-calendar-google.js',
+  './14-calendar.js',
   './15-account-review-final.js',
   './16-calendar-v37.js',
   './16-fixes-v38.js',
   './17-scan-improved.js',
-  './18-calendar-v40.js',
   './19-final-v41.js',
   './20-voucher-fix.js',
   './23-share-width-fix.js'
