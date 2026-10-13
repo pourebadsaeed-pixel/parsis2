@@ -1,10 +1,11 @@
-// Service Worker پارسیس — v50
-var CACHE_NAME = 'parsis-v50';
+// Service Worker پارسیس
+var CACHE_NAME = 'parsis-v1';
 
 var ASSETS = [
   './index.html',
   './manifest.json',
   './style.css',
+  './offline.html',
   './01-core,db,state,digits,dates,calendar,calc.js',
   './02-ui,nav,sidebar,theme,tables,sort,columns,csv,print.js',
   './03-base,persons,companies,banks,fiscal,chart,templates.js',
@@ -27,27 +28,27 @@ var ASSETS = [
   './23-share-width-fix.js'
 ];
 
-self.addEventListener('install', function(event) {
+self.addEventListener('install', function (event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(ASSETS).catch(function() {});
+    caches.open(CACHE_NAME).then(function (cache) {
+      return cache.addAll(ASSETS).catch(function () {});
     })
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', function(event) {
+self.addEventListener('activate', function (event) {
   event.waitUntil(
-    caches.keys().then(function(names) {
+    caches.keys().then(function (names) {
       return Promise.all(
-        names.filter(function(n) { return n !== CACHE_NAME; })
-             .map(function(n) { return caches.delete(n); })
+        names.filter(function (n) { return n !== CACHE_NAME; })
+             .map(function (n) { return caches.delete(n); })
       );
-    }).then(function() { return self.clients.claim(); })
+    }).then(function () { return self.clients.claim(); })
   );
 });
 
-self.addEventListener('fetch', function(event) {
+self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
   var url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
@@ -60,15 +61,15 @@ self.addEventListener('fetch', function(event) {
 
   if (isHTML) {
     event.respondWith(
-      fetch(event.request).then(function(response) {
+      fetch(event.request).then(function (response) {
         if (response && response.status === 200) {
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
+          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
         }
         return response;
-      }).catch(function() {
-        return caches.match(event.request).then(function(cached) {
-          return cached || caches.match('./index.html');
+      }).catch(function () {
+        return caches.match(event.request).then(function (cached) {
+          return cached || caches.match('./offline.html') || caches.match('./index.html');
         });
       })
     );
@@ -76,19 +77,19 @@ self.addEventListener('fetch', function(event) {
   }
 
   event.respondWith(
-    caches.match(event.request).then(function(cached) {
+    caches.match(event.request).then(function (cached) {
       if (cached) return cached;
-      return fetch(event.request).then(function(response) {
+      return fetch(event.request).then(function (response) {
         if (response && response.status === 200 && response.type === 'basic') {
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
+          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
         }
         return response;
-      }).catch(function() { return caches.match('./index.html'); });
+      }).catch(function () { return caches.match('./index.html'); });
     })
   );
 });
 
-self.addEventListener('message', function(event) {
+self.addEventListener('message', function (event) {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
