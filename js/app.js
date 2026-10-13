@@ -1,126 +1,171 @@
-// ثبت Service Worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-                console.log('Service Worker ثبت شد:', registration.scope);
-                // بررسی به‌روزرسانی
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            if (confirm('نسخه جدیدی موجود است. به‌روزرسانی شود؟')) {
-                                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                                window.location.reload();
-                            }
-                        }
-                    });
-                });
-            })
-            .catch((error) => {
-                console.error('خطا در ثبت Service Worker:', error);
-            });
-    });
-}
+// ═══════════════ App Core ═══════════════
 
-// راه‌اندازی اولیه
-document.addEventListener('DOMContentLoaded', async () => {
-    await openDB();
-    await requestNotificationPermission();
-    loadPage('dashboard');
-    setupNavigation();
-    registerInstallPrompt();
-});
+const PAGES = {
+    dashboard: DashboardPage,
+    persons: PersonsPage,
+    products: ProductsPage,
+    accounts: AccountsPage,
+    vouchers: VouchersPage,
+    invoices: InvoicesPage,
+    receipts: ReceiptsPage,
+    reports: ReportsPage,
+    settings: SettingsPage
+};
 
-// ناوبری بین صفحات
-function setupNavigation() {
-    const navLinks = document.querySelectorAll('.app-nav a');
-    navLinks.forEach((link) => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const page = link.getAttribute('href').replace('#', '');
-            loadPage(page);
+const App = {
+    currentPage: 'dashboard',
+
+    async init() {
+        // ثبت Service Worker
+        if ('serviceWorker' in navigator) {
+            try {
+                await navigator.serviceWorker.register('./service-worker.js');
+                console.log('✓ Service Worker registered');
+            } catch (e) {
+                console.warn('SW registration failed:', e);
+            }
+        }
+
+        // راه‌اندازی DB
+        await DB.open();
+
+        // مسیریابی
+        window.addEventListener('hashchange', () => this.route());
+        this.bindGlobalEvents();
+        this.bindInstallPrompt();
+
+        // بارگذاری اولیه
+        await this.route();
+
+        // پنهان کردن لودر
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('app').hidden = false;
+    },
+
+    bindGlobalEvents() {
+        // دکمه منوی موبایل
+        document.getElementById('hamburger')?.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.add('open');
+            document.getElementById('overlay').classList.add('open');
         });
-    });
-}
 
-function loadPage(pageName) {
-    document.querySelectorAll('.page').forEach((page) => {
-        page.classList.remove('active');
-    });
-    const targetPage = document.getElementById(pageName);
-    if (targetPage) {
-        targetPage.classList.add('active');
-        loadPageContent(pageName);
-    }
-}
+        const closeSidebar = () => {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('open');
+        };
+        document.getElementById('close-sidebar')?.addEventListener('click', closeSidebar);
+        document.getElementById('overlay')?.addEventListener('click', closeSidebar);
 
-async function loadPageContent(pageName) {
-    const contentDiv = document.getElementById(`${pageName}-content`);
-    if (!contentDiv) return;
+        // مودال
+        document.getElementById('modal-close')?.addEventListener('click', () => this.closeModal());
+        document.querySelector('.modal-backdrop')?.addEventListener('click', () => this.closeModal());
 
-    switch (pageName) {
-        case 'dashboard':
-            const persons = await getAllItems('persons');
-            const vouchers = await getAllItems('vouchers');
-            contentDiv.innerHTML = `
-                <div class="stat-card">
-                    <span class="stat-number">${toPersianDigits(persons.length)}</span>
-                    <span class="stat-label">اشخاص</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-number">${toPersianDigits(vouchers.length)}</span>
-                    <span class="stat-label">اسناد</span>
-                </div>
-            `;
-            break;
-        case 'persons':
-            const allPersons = await getAllItems('persons');
-            contentDiv.innerHTML = allPersons.length
-                ? allPersons.map((p) => `<div class="list-item">${p.name}</div>`).join('')
-                : '<p>هیچ شخصی ثبت نشده است.</p>';
-            break;
-        default:
-            contentDiv.innerHTML = '<p>به‌زودی...</p>';
-    }
-}
+        // ناوبری
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) closeSidebar();
+            });
+        });
+    },
 
-// نصب PWA
-let deferredPrompt = null;
+    bindInstallPrompt() {
+        let deferredPrompt = null;
+        const installBtn = document.getElementById('btn-install');
 
-function registerInstallPrompt() {
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        showInstallButton();
-    });
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (installBtn) installBtn.hidden = false;
+        });
 
-    window.addEventListener('appinstalled', () => {
-        console.log('PWA نصب شد');
-        deferredPrompt = null;
-        hideInstallButton();
-    });
-}
-
-function showInstallButton() {
-    if (document.getElementById('install-btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'install-btn';
-    btn.textContent = 'نصب اپلیکیشن';
-    btn.className = 'install-btn';
-    btn.addEventListener('click', async () => {
-        if (deferredPrompt) {
+        installBtn?.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
             deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
-            console.log('نتیجه نصب:', outcome);
+            if (outcome === 'accepted') {
+                App.toast('اپلیکیشن نصب شد', 'success');
+            }
             deferredPrompt = null;
-            hideInstallButton();
-        }
-    });
-    document.body.appendChild(btn);
-}
+            installBtn.hidden = true;
+        });
+    },
 
-function hideInstallButton() {
-    const btn = document.getElementById('install-btn');
-    if (btn) btn.remove();
-}
+    async route() {
+        const hash = location.hash.replace('#', '') || 'dashboard';
+        const page = PAGES[hash] ? hash : 'dashboard';
+        this.currentPage = page;
+
+        // به‌روزرسانی منو
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.page === page);
+        });
+
+        await this.render();
+    },
+
+    async render() {
+        const container = document.getElementById('page-container');
+        const page = PAGES[this.currentPage];
+
+        try {
+            container.innerHTML = `<div style="text-align:center;padding:40px;">در حال بارگذاری...</div>`;
+            const html = await page.render();
+            container.innerHTML = html;
+            if (page.bind) await page.bind();
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<div class="empty-state">
+                <div class="icon">⚠️</div>
+                <h3>خطا در بارگذاری صفحه</h3>
+                <p>${Utils.escapeHtml(e.message)}</p>
+            </div>`;
+        }
+    },
+
+    async reload() {
+        await this.render();
+    },
+
+    // ─────── مودال ───────
+    modal({ title, body, okText = 'تأیید', cancelText = 'لغو', onOk }) {
+        const modal = document.getElementById('modal');
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-body').innerHTML = body;
+        document.getElementById('modal-footer').innerHTML = `
+            <button class="btn btn-primary" id="modal-ok">${okText}</button>
+            <button class="btn btn-secondary" id="modal-cancel">${cancelText}</button>
+        `;
+        modal.hidden = false;
+
+        document.getElementById('modal-ok').onclick = async () => {
+            if (onOk) {
+                const result = await onOk();
+                if (result !== false) this.closeModal();
+            } else {
+                this.closeModal();
+            }
+        };
+        document.getElementById('modal-cancel').onclick = () => this.closeModal();
+    },
+
+    closeModal() {
+        document.getElementById('modal').hidden = true;
+    },
+
+    // ─────── توست ───────
+    toast(message, type = 'info', duration = 3000) {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        el.className = `toast ${type}`;
+        el.textContent = message;
+        container.appendChild(el);
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.3s';
+            setTimeout(() => el.remove(), 300);
+        }, duration);
+    }
+};
+
+// شروع اپلیکیشن
+document.addEventListener('DOMContentLoaded', () => App.init());
