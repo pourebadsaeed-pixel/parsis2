@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (کش آفلاین) */
-var CACHE_NAME = 'parsis-v4';
+var CACHE_NAME = 'parsis-v5';
 
 var ASSETS = [
   './index.html',
@@ -21,7 +21,8 @@ var ASSETS = [
   './15-account-review-final.js',
   './16-patches.js',
   './17-scan-improved.js',
-  './18-misc-fixes.js'
+  './18-misc-fixes.js',
+  './99-final-consolidated.js',
 ];
 
 self.addEventListener('install', function (event) {
