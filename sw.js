@@ -1,4 +1,4 @@
-// Service Worker پارسیس
+/* پارسیس — Service Worker (کش آفلاین) */
 var CACHE_NAME = 'parsis-v2';
 
 var ASSETS = [
