@@ -1,10 +1,17 @@
 /* =====================================================================
-   پارسیس v41.1 — 18-calendar-v40.js
-   نسخه‌ی نهایی و اصلاح‌شده — بدون باگ Object.defineProperty
+   پارسیس v41.1 — 14-calendar.js
+   نسخه‌ی نهایی و یکپارچه‌ی تقویم + CSS + calEnsurePage
+   
+   تغییرات این نسخه:
+   ✔ ادغام CSS پایه‌ی تقویم (از 14-calendar-google.js قدیمی)
+   ✔ ادغام تابع calEnsurePage (ساخت صفحه و آیتم منو)
+   ✔ فراخوانی calEnsurePage در ابتدای init
+   ✔ رفع مشکل نمایش لیست عمودی به‌جای گرید ۷ ستونی
+   ✔ رفع مشکل نام تب «jalali-calendar40»
    
    شامل:
    ✔ نرخ طلای دسته دوم اصلاح‌شده
-   ✔ غیرفعال‌سازی API معیوب priceto.day (رفع خطای 404)
+   ✔ غیرفعال‌سازی API معیوب priceto.day
    ✔ باکس‌های اعتبار AvalAI بزرگ‌تر
    ✔ دسته‌بندی‌های قابل ویرایش (CRUD)
    ✔ تبدیل ساعت به فارسی
@@ -13,7 +20,6 @@
    ✔ تکرار (روزانه، هفتگی، ماهانه، سالانه، سفارشی)
    ✔ محل رویداد و افراد (چندگانه)
    ✔ ساعت ۵ تا ۲۳ در نمای روز
-   ✔ مخفف روزهای هفته = حرف اول
    ✔ اشتراک‌گذاری روز
    ✔ نوتیفیکیشن استک‌شونده
    ✔ ساعت در فرم برآورد منابع دریافتنی
@@ -23,18 +29,20 @@
 console.log('🚀 [v41.1] شروع بارگذاری پچ تقویم...');
 
 /* ═════════════════════════════════════════════════════════
-   calEnsurePage — از فایل قدیمی 14-calendar-google.js منتقل شد
+   ۰) calEnsurePage — ساخت صفحه و آیتم منو
    ═════════════════════════════════════════════════════════ */
 function calEnsurePage() {
-    if (document.getElementById('page-jalali-calendar')) return;
-    var main = document.querySelector('main.content');
-    if (!main) return;
-    var sec = document.createElement('section');
-    sec.id = 'page-jalali-calendar';
-    sec.className = 'page';
-    main.appendChild(sec);
-
-    // افزودن آیتم به منوی عملیات
+    /* ساخت صفحه */
+    if (!document.getElementById('page-jalali-calendar')) {
+        var main = document.querySelector('main.content');
+        if (main) {
+            var sec = document.createElement('section');
+            sec.id = 'page-jalali-calendar';
+            sec.className = 'page';
+            main.appendChild(sec);
+        }
+    }
+    /* افزودن آیتم به منوی عملیات */
     var navOps = document.querySelector('[data-nav-group="ops"] .nav-group-items');
     if (navOps && !navOps.querySelector('[data-page="jalali-calendar"]')) {
         var b = document.createElement('button');
@@ -43,6 +51,94 @@ function calEnsurePage() {
         navOps.appendChild(b);
     }
 }
+window.calEnsurePage = calEnsurePage;
+
+/* ═════════════════════════════════════════════════════════
+   ۰.۵) CSS پایه‌ی تقویم
+   ═════════════════════════════════════════════════════════ */
+(function injectCalendarBaseCss() {
+    if (document.getElementById('calg-style')) return;
+    var s = document.createElement('style');
+    s.id = 'calg-style';
+    s.textContent = ''
+    + '.calg-wrap { background:#fff; border-radius:16px; border:1px solid var(--border); overflow:hidden }'
+    + '.calg-bar { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,#f4f8fd,#fff); flex-wrap:wrap }'
+    + '.calg-bar h3 { margin:0; flex:1; font-size:1rem; font-weight:900; color:#1e40af }'
+    + '.calg-btn { padding:7px 14px; border-radius:10px; border:1px solid var(--border); background:#fff; font-family:inherit; font-size:.8rem; font-weight:800; color:#1e40af; cursor:pointer; transition:all .2s }'
+    + '.calg-btn:hover { background:#e0ecf8 }'
+    + '.calg-btn.primary { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; border:none }'
+    + '.calg-tabs { display:flex; gap:4px; padding:8px 16px; background:#f8fafd; border-bottom:1px solid var(--border); flex-wrap:wrap }'
+    + '.calg-tab { padding:6px 14px; border-radius:8px; font-size:.78rem; font-weight:800; color:var(--text-muted); background:transparent; border:none; cursor:pointer; font-family:inherit; transition:all .2s }'
+    + '.calg-tab.active { background:#1e40af; color:#fff }'
+    + '.calg-body { padding:14px }'
+
+    /* Month view */
+    + '.calg-mhead { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-bottom:6px }'
+    + '.calg-mhead > div { text-align:center; font-weight:900; font-size:.76rem; padding:7px 4px; background:#eef4fb; border-radius:8px; color:#1e40af }'
+    + '.calg-mhead > div:last-child { color:#dc2626 }'
+    + '.calg-mgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px }'
+    + '.calg-mcell { background:#fbfdff; border:1.5px solid #e0ecf8; border-radius:10px; min-height:92px; padding:6px; display:flex; flex-direction:column; cursor:pointer; transition:all .15s; overflow:hidden }'
+    + '.calg-mcell:hover { border-color:#3b82f6; transform:translateY(-2px) }'
+    + '.calg-mcell.other { opacity:.35 }'
+    + '.calg-mcell.today { background:linear-gradient(135deg,#dbeafe,#eff6ff); border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.2) }'
+    + '.calg-mcell.fri { background:linear-gradient(135deg,#fee2e2,#fff5f5) }'
+    + '.calg-mcell .cd { display:flex; flex-direction:column; align-items:flex-start; gap:1px; margin-bottom:4px; padding-bottom:3px; border-bottom:1px dashed var(--border) }'
+    + '.calg-mcell .cd .cjd { font-weight:900; font-size:.82rem; color:#1e40af; line-height:1.15 }'
+    + '.calg-mcell.today .cd .cjd { color:#1e3a8a }'
+    + '.calg-mcell .cd .cwday { font-size:.62rem; color:#64748b; font-weight:700; line-height:1 }'
+    + '.calg-mcell .cd .cgd { font-size:.6rem; color:#94a3b8; font-weight:700; direction:ltr; line-height:1 }'
+    + '.calg-mcell .cev { display:flex; align-items:center; gap:4px; font-size:.68rem; overflow:hidden; margin-bottom:2px; padding:2px 4px; border-radius:5px; background:rgba(99,102,241,0.06) }'
+    + '.calg-mcell .cev .cdot { width:7px; height:7px; border-radius:2px; flex-shrink:0 }'
+    + '.calg-mcell .cev .ctime { font-size:.6rem; color:#6366f1; font-weight:800; direction:ltr; flex-shrink:0; font-family:monospace }'
+    + '.calg-mcell .cev .ctxt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }'
+    + '.calg-mcell .cmore { font-size:.6rem; color:#94a3b8; font-weight:800 }'
+
+    /* Week/3-day view */
+    + '.calg-multi { position:relative }'
+    + '.calg-md-head { padding:8px 4px; text-align:center; background:#eef4fb; border-radius:10px; border:1px solid #dbe7f6 }'
+    + '.calg-md-head.today { background:linear-gradient(135deg,#dbeafe,#bfdbfe); border-color:#3b82f6 }'
+    + '.calg-md-head .mh-wd { font-size:.7rem; color:#64748b; font-weight:800 }'
+    + '.calg-md-head .mh-jd { font-size:.9rem; font-weight:900; color:#1e40af; margin-top:2px }'
+    + '.calg-md-head.today .mh-jd { color:#1e3a8a }'
+    + '.calg-md-head .mh-gd { font-size:.62rem; color:#94a3b8; direction:ltr; margin-top:1px }'
+    + '.calg-md-ev:hover { filter:brightness(0.97); transform:translateX(-2px) }'
+    + '.calg-md-col::-webkit-scrollbar { width:5px }'
+    + '.calg-md-col::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px }'
+
+    /* Agenda */
+    + '.calg-empty { text-align:center; padding:30px; color:#94a3b8 }'
+    + '.calg-agev:hover { background:#e0ecf8 !important }'
+
+    /* Legend */
+    + '.calg-legend { display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; background:#fafcff; border-top:1px solid var(--border); font-size:.74rem; font-weight:700 }'
+    + '.calg-legend label { display:flex; align-items:center; gap:5px; cursor:pointer }'
+    + '.calg-legend .lg-dot { width:10px; height:10px; border-radius:3px }'
+
+    /* Modal */
+    + '.calg-mo { position:fixed; inset:0; background:rgba(15,23,42,.55); backdrop-filter:blur(4px); z-index:880; opacity:0; visibility:hidden; transition:all .25s }'
+    + '.calg-mo.show { opacity:1; visibility:visible }'
+    + '.calg-mp { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.92); width:min(500px,94vw); max-height:88vh; background:#fff; border-radius:18px; z-index:885; opacity:0; visibility:hidden; transition:all .25s cubic-bezier(.34,1.56,.64,1); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,.35) }'
+    + '.calg-mp.show { opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1) }'
+    + '.calg-mph { padding:14px 18px; background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; display:flex; justify-content:space-between; align-items:center }'
+    + '.calg-mph h3 { margin:0; font-size:.95rem; font-weight:900 }'
+    + '.calg-mph button { background:rgba(255,255,255,.2); color:#fff; border:none; width:32px; height:32px; border-radius:10px; font-size:1.1rem; cursor:pointer }'
+    + '.calg-mpb { padding:16px; overflow-y:auto; flex:1 }'
+    + '.calg-fld { margin-bottom:12px }'
+    + '.calg-fld label { display:block; font-size:.74rem; font-weight:800; color:var(--text-muted); margin-bottom:5px }'
+    + '.calg-fld input, .calg-fld select, .calg-fld textarea { width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:10px; font-family:inherit; font-size:.85rem; outline:none; box-sizing:border-box; background:#fafcff }'
+    + '.calg-fld input:focus, .calg-fld select:focus, .calg-fld textarea:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15) }'
+    + '.calg-2col { display:grid; grid-template-columns:1fr 1fr; gap:10px }'
+    + '.calg-cat-picker { display:flex; flex-wrap:wrap; gap:6px }'
+    + '.calg-mpf { padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap }'
+    + '.calg-mpf button { padding:10px 18px; border-radius:10px; border:none; font-family:inherit; font-weight:800; font-size:.85rem; cursor:pointer }'
+    + '.calg-mpf .save { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff }'
+    + '.calg-mpf .del { background:#fee2e2; color:#dc2626 }'
+    + '.calg-mpf .cancel { background:#f3f4f6; color:#4b5563 }'
+
+    + '@media (max-width:640px) { .calg-mcell { min-height:60px; padding:4px } .calg-mcell .cev { display:none } }';
+    document.head.appendChild(s);
+    console.log('✅ [v41.1] CSS پایه‌ی تقویم تزریق شد');
+})();
 
 /* ═════════════════════════════════════════════════════════
    ۱) رفع نرخ طلا + غیرفعال‌سازی API معیوب priceto.day
@@ -52,9 +148,7 @@ function calEnsurePage() {
         try {
             if (typeof RATE_ASSETS !== 'undefined' && Array.isArray(RATE_ASSETS)) {
                 RATE_ASSETS.forEach(function (a) {
-                    // غیرفعال‌سازی priceto برای رفع خطای 404
                     a.priceto = '';
-                    // اصلاح gold_mini_size
                     if (a.key === 'gold_mini_size') {
                         a.navasanKey = '18ayar';
                         a.navasanMul = 10;
@@ -115,7 +209,6 @@ function uCats41() {
 }
 function sUCats41(l) { DB.save('cal.userCats', l); }
 
-/* ★ راه‌حل اصلی: جایگزینی مستقیم به‌جای defineProperty */
 function rebuildCalCats41() {
     var c = Object.assign({}, SYS_CATS_41);
     uCats41().forEach(function (u) { c[u.key] = u; });
@@ -123,7 +216,6 @@ function rebuildCalCats41() {
         window.CAL_CATS = c;
     } catch (e) {
         console.warn('⚠️ [v41.1] CAL_CATS assign failed, using fallback');
-        // راه‌حل پشتیبان: یک متغیر جدید
         window.CAL_CATS_V41 = c;
     }
     return c;
@@ -354,7 +446,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
 
     var html = '<div class="calg-multi" data-view="' + viewKey + '" style="display:grid;grid-template-columns:repeat(' + numDays + ',minmax(0,1fr));gap:5px">';
 
-    // هدر
     for (var d = 0; d < numDays; d++) {
         var ds = addJalaliDays(startJ, d);
         if (!ds) continue;
@@ -369,7 +460,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
              +  '</div>';
     }
 
-    // ستون‌ها
     for (var d2 = 0; d2 < numDays; d2++) {
         var ds2 = addJalaliDays(startJ, d2);
         if (!ds2) continue;
@@ -519,24 +609,21 @@ window.calRender = function () {
 
     var html = '<h2>📅 تقویم شمسی</h2><div class="calg-wrap">';
 
-    // نوار بالا
     html += '<div class="calg-bar">';
     html += '<button class="calg-btn" id="calg-prev">‹</button>';
-    html += '<h3 id="calg-titledate" style="flex:1;text-align:center;font-size:1rem">' + buildCalTitle41() + '</h3>';
+    html += '<h3 id="calg-titledate">' + buildCalTitle41() + '</h3>';
     html += '<button class="calg-btn" id="calg-today">امروز</button>';
     html += '<button class="calg-btn" id="calg-next">›</button>';
     html += '<button class="calg-btn" id="calg-cat-mgr" title="مدیریت دسته‌بندی" style="font-size:1.05rem">🎨</button>';
     html += '<button class="calg-btn primary" id="calg-new">＋ رویداد</button>';
     html += '</div>';
 
-    // تب‌ها
     html += '<div class="calg-tabs">';
     [['month','ماه'],['week','هفته'],['3day','۳ روز آتی'],['day','روز'],['agenda','دستورکار']].forEach(function (x) {
         html += '<button class="calg-tab' + (CAL41.view === x[0] ? ' active' : '') + '" data-view="' + x[0] + '">' + x[1] + '</button>';
     });
     html += '</div>';
 
-    // محتوا
     html += '<div class="calg-body" id="calg-body">';
     if (CAL41.view === 'month')      html += calRenderMonth41(active);
     else if (CAL41.view === 'week')  html += calRenderMultiDay41(active, 7, 'week');
@@ -545,7 +632,6 @@ window.calRender = function () {
     else                              html += calRenderAgenda41(active);
     html += '</div>';
 
-    // Legend
     var cats = window.CAL_CATS || {};
     html += '<div class="calg-legend">';
     Object.keys(cats).forEach(function (k) {
@@ -888,7 +974,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
     document.body.insertAdjacentHTML('beforeend', html);
     setTimeout(function () { if (typeof attachDatePickers === 'function') attachDatePickers(); }, 80);
 
-    // دسته‌بندی
     document.querySelectorAll('.evt-cat-btn').forEach(function (b) {
         b.onclick = function () {
             selectedCat = this.getAttribute('data-cat');
@@ -902,7 +987,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
         };
     });
 
-    // مقدار اولیه select تکرار
     var recSel = document.getElementById('evt-recur');
     recSel.value = recurrence.type || 'none';
     if (recurrence.type === 'custom') document.getElementById('evt-recur-custom').style.display = 'block';
@@ -911,7 +995,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
         document.getElementById('evt-recur-custom').style.display = (this.value === 'custom') ? 'block' : 'none';
     };
 
-    // دکمه‌های ساعت
     document.getElementById('evt-start-clock').onclick = function () {
         openTimePicker(function (t) { document.getElementById('evt-start-time').value = t; },
             document.getElementById('evt-start-time').value || '21:00');
@@ -921,7 +1004,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
             document.getElementById('evt-end-time').value || '21:00');
     };
 
-    // یادآور
     document.getElementById('evt-rem-minus').onclick = function () {
         var el = document.getElementById('evt-rem');
         el.value = Math.max(0, (Number(el.value) || 0) - 5);
@@ -934,7 +1016,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
         if (Number(this.value) < 0) this.value = 0;
     });
 
-    // چیپ افراد
     function renderChips() {
         var box = document.getElementById('evt-persons-chips');
         box.innerHTML = persons.map(function (pid) {
@@ -969,7 +1050,6 @@ function openEventModal41(ev, defaultDate, defaultHour) {
     document.getElementById('evt-cancel').onclick = close;
     document.getElementById('evt-overlay').onclick = close;
 
-    // ذخیره
     document.getElementById('evt-save').onclick = function () {
         var title = document.getElementById('evt-title').value.trim();
         var sd = normalizeDigits(document.getElementById('evt-start-date').value.trim());
@@ -1202,7 +1282,6 @@ window.openEventModal41 = openEventModal41;
     setTimeout(inject, 3000);
     setTimeout(inject, 6000);
 
-    // پچ saveCfsSource برای ذخیره ساعت
     var _origSave = window.saveCfsSource;
     if (typeof _origSave === 'function') {
         window.saveCfsSource = function () {
@@ -1226,33 +1305,13 @@ window.openEventModal41 = openEventModal41;
 })();
 
 /* ═════════════════════════════════════════════════════════
-   ۲۱) استایل‌های تقویم
-   ═════════════════════════════════════════════════════════ */
-(function css41() {
-    if (document.getElementById('cal41-style')) return;
-    var s = document.createElement('style');
-    s.id = 'cal41-style';
-    s.textContent = ''
-      + '.calg-multi { position:relative }'
-      + '.calg-md-head { padding:8px 4px;text-align:center;background:#eef4fb;border-radius:10px;border:1px solid #dbe7f6 }'
-      + '.calg-md-head.today { background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-color:#3b82f6 }'
-      + '.calg-md-head .mh-wd { font-size:.7rem;color:#64748b;font-weight:800 }'
-      + '.calg-md-head .mh-jd { font-size:.9rem;font-weight:900;color:#1e40af;margin-top:2px }'
-      + '.calg-md-head.today .mh-jd { color:#1e3a8a }'
-      + '.calg-md-head .mh-gd { font-size:.62rem;color:#94a3b8;direction:ltr;margin-top:1px }'
-      + '.calg-md-col { grid-column:auto }'
-      + '.calg-md-ev:hover { filter:brightness(0.97);transform:translateX(-2px) }'
-      + '.calg-md-col::-webkit-scrollbar { width:5px }'
-      + '.calg-md-col::-webkit-scrollbar-thumb { background:#cbd5e1;border-radius:3px }';
-    document.head.appendChild(s);
-})();
-
-/* ═════════════════════════════════════════════════════════
-   ۲۲) راه‌اندازی نهایی
+   ۲۱) راه‌اندازی نهایی
    ═════════════════════════════════════════════════════════ */
 (function boot41() {
     function init() {
-        // پچ goToPage
+        /* ★ ساخت صفحه و آیتم منو از ابتدا برای نام‌گذاری صحیح تب */
+        if (typeof calEnsurePage === 'function') calEnsurePage();
+
         if (!window._cal41Patched && typeof window.goToPage === 'function') {
             window._cal41Patched = true;
             var orig = window.goToPage;
