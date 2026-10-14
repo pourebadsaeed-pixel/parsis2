@@ -98,9 +98,32 @@
         <button class="home-page-tab active" data-home-page="1">صفحه ۱</button>
         <button class="home-page-tab" data-home-page="2">صفحه ۲</button>
         <button class="home-page-tab" data-home-page="3">صفحه ۳</button>
+        <button class="home-page-tab" data-home-page="4">صفحه ۴</button>
     </div>
     <div class="home-grid" id="home-grid">
-        <div class="card widget-card" data-widget="calendar"><div id="home-cal-widget"></div></div>
+        <!-- ★ ویجت تقویم هفتگی -->
+        <div class="card widget-card" data-widget="calendar">
+            <h3>📅 تقویم هفتگی</h3>
+            <div id="home-cal-widget"></div>
+        </div>
+
+        <!-- ★★★ ویجت ۳ روز آتی -->
+        <div class="card widget-card widget-wide" data-widget="calendarNext3">
+            <h3>📅 ۳ روز آتی</h3>
+            <div id="home-calendar-next3"></div>
+        </div>
+
+        <!-- ★★★ ویجت روز جاری -->
+        <div class="card widget-card" data-widget="calendarDay">
+            <h3>📆 روز جاری</h3>
+            <div id="home-calendar-day"></div>
+        </div>
+
+        <!-- ★★★ ویجت دستورکار -->
+        <div class="card widget-card" data-widget="calendarAgenda">
+            <h3>📋 دستورکار</h3>
+            <div id="home-calendar-agenda"></div>
+        </div>
 
         <!-- ★ ۳ ویجت چک‌لیست مستقل -->
         <div class="card widget-card" data-widget="todayChecklistPersonal">
@@ -446,7 +469,6 @@
         <div class="tabs" style="margin-bottom:12px;background:var(--card-solid)"><button class="tab-btn active" data-notes-view="all">📋 همه یادداشت‌ها</button><button class="tab-btn" data-notes-view="archived">📦 آرشیو شده</button></div>
         <div class="list-header" data-hide-key="notes-list">
             <span class="count-badge" id="notes-count">۰</span>
-            <!-- ★ فیلتر دسته -->
             <select class="filter-input" id="notes-cat-filter" style="flex:0 0 auto;max-width:160px">
                 <option value="">همه دسته‌ها</option>
                 <option value="personal">⭐ شخصی</option>
@@ -460,7 +482,6 @@
     <div id="tab-notes-add" class="tab-content"><div class="card">
         <input type="hidden" id="nt-id">
         <div class="grid-2"><div class="field"><label>عنوان *</label><input type="text" id="nt-title" placeholder="عنوان یادداشت"></div><div class="field"><label>تاریخ</label><input type="text" id="nt-date" class="date-picker" dir="ltr"></div></div>
-        <!-- ★ دسته‌بندی یادداشت -->
         <div class="field">
             <label>دسته‌بندی *</label>
             <select id="nt-category">
@@ -553,6 +574,7 @@
             </div>
         </div>
         <label class="checkbox-item" style="margin-bottom:10px"><input type="checkbox" id="cfd-strip-babet"> <span>حذف عبارت «بابت» از ابتدای شرح‌ها</span></label>
+        <label class="checkbox-item" style="margin-bottom:10px"><input type="checkbox" id="cfd-only-balance"> <span>✔ فقط دارای مانده (غیرصفر)</span></label>
         <div class="form-buttons"><button id="cfd-run" class="btn-primary">🔍 اجرا</button><button id="cfd-today" class="btn-secondary">امروز تا یک ماه</button><button id="cfd-print" class="btn-secondary">🖨 چاپ</button><button id="cfd-export" class="btn-secondary">📊 اکسل</button></div>
     </div>
     <div class="card"><div class="list-header" data-col-table="cfd-table" data-hide-key="cfd"><span class="count-badge" id="cfd-count">۰</span><span class="unit-chip" id="cfd-unit"></span></div><div id="cfd-result"></div></div>
@@ -738,7 +760,11 @@
         </div></div>
 
         <div class="modal-section"><h3>📊 ویجت‌ها (فعال/غیرفعال)</h3><div class="checkbox-grid">
-            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendar"> <span>📅 تقویم</span></label>
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendar"> <span>📅 تقویم هفتگی</span></label>
+            <!-- ★★★ ۳ ویجت جدید تقویم -->
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarNext3"> <span>📅 ۳ روز آتی</span></label>
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarDay"> <span>📆 روز جاری</span></label>
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarAgenda"> <span>📋 دستورکار</span></label>
             <!-- ★ ۳ چک‌لیست مستقل -->
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistPersonal"> <span>⭐ چک‌لیست شخصی</span></label>
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistFamily"> <span>🏠 چک‌لیست خانواده</span></label>
@@ -752,7 +778,7 @@
         </div></div>
 
         <div class="modal-section"><h3>🔀 ترتیب و صفحه ویجت‌ها</h3>
-            <p class="muted" style="font-size:0.72rem;margin-bottom:8px">💡 هر ویجت را می‌توانید به صفحه‌ی دلخواه ببرید.</p>
+            <p class="muted" style="font-size:0.72rem;margin-bottom:8px">💡 هر ویجت را می‌توانید به صفحه‌ی دلخواه ببرید (۱ تا ۴).</p>
             <div id="widget-order-list"></div>
         </div>
 
