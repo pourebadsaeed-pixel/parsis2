@@ -1,13 +1,12 @@
 /* پارسیس — تقویم شمسی ۵ نمای + رویداد + نوتیف + نرخ لحظه‌ای */
 'use strict';
 
-console.log('🚀 [v41.2] شروع بارگذاری پچ تقویم...');
+console.log('🚀 [v41.3] شروع بارگذاری پچ تقویم...');
 
 /* ═════════════════════════════════════════════════════════
    ۰) calEnsurePage — ساخت صفحه و آیتم منو
    ═════════════════════════════════════════════════════════ */
 function calEnsurePage() {
-    /* ساخت صفحه */
     if (!document.getElementById('page-jalali-calendar')) {
         var main = document.querySelector('main.content');
         if (main) {
@@ -17,7 +16,6 @@ function calEnsurePage() {
             main.appendChild(sec);
         }
     }
-    /* ★ افزودن آیتم به منوی عملیات با نام جدید */
     var navOps = document.querySelector('[data-nav-group="ops"] .nav-group-items');
     if (navOps) {
         var existing = navOps.querySelector('[data-page="jalali-calendar"]');
@@ -27,7 +25,6 @@ function calEnsurePage() {
             b.textContent = '📅 مدیریت تقویم';
             navOps.appendChild(b);
         } else {
-            /* ★ اگر قبلاً ساخته شده بود، متن را به‌روزرسانی کن */
             existing.textContent = '📅 مدیریت تقویم';
         }
     }
@@ -53,7 +50,6 @@ window.calEnsurePage = calEnsurePage;
     + '.calg-tab.active { background:#1e40af; color:#fff }'
     + '.calg-body { padding:14px }'
 
-    /* Month view */
     + '.calg-mhead { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-bottom:6px }'
     + '.calg-mhead > div { text-align:center; font-weight:900; font-size:.76rem; padding:7px 4px; background:#eef4fb; border-radius:8px; color:#1e40af }'
     + '.calg-mhead > div:last-child { color:#dc2626 }'
@@ -74,7 +70,6 @@ window.calEnsurePage = calEnsurePage;
     + '.calg-mcell .cev .ctxt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }'
     + '.calg-mcell .cmore { font-size:.6rem; color:#94a3b8; font-weight:800 }'
 
-    /* Week/3-day view */
     + '.calg-multi { position:relative }'
     + '.calg-md-head { padding:8px 4px; text-align:center; background:#eef4fb; border-radius:10px; border:1px solid #dbe7f6 }'
     + '.calg-md-head.today { background:linear-gradient(135deg,#dbeafe,#bfdbfe); border-color:#3b82f6 }'
@@ -85,22 +80,18 @@ window.calEnsurePage = calEnsurePage;
     + '.calg-md-ev:hover { filter:brightness(0.97); transform:translateX(-2px) }'
     + '.calg-md-col::-webkit-scrollbar { width:5px }'
     + '.calg-md-col::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px }'
-    /* ★ سلول‌های ساعتی برای نمای ۳ روز آتی */
     + '.calg-md-hour-cell { min-height:52px; padding:5px 6px; border-bottom:1px solid var(--border); border-left:1px solid var(--border); cursor:pointer; transition:background .15s }'
     + '.calg-md-hour-cell:hover { background:#f0f6ff }'
     + '.calg-md-hour-label { padding:8px 6px; text-align:center; font-weight:900; font-size:.78rem; background:var(--card-alt); border-bottom:1px solid var(--border); direction:ltr; color:var(--primary-dark); font-family:monospace; border-left:1px solid var(--border) }'
     + '.calg-md-hour-ev { background:#dbeafe15; border-right:3px solid #3b82f6; padding:5px 7px; border-radius:7px; margin-bottom:3px; cursor:pointer; font-size:.72rem; font-weight:700 }'
 
-    /* Agenda */
     + '.calg-empty { text-align:center; padding:30px; color:#94a3b8 }'
     + '.calg-agev:hover { background:#e0ecf8 !important }'
 
-    /* Legend */
     + '.calg-legend { display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; background:#fafcff; border-top:1px solid var(--border); font-size:.74rem; font-weight:700 }'
     + '.calg-legend label { display:flex; align-items:center; gap:5px; cursor:pointer }'
     + '.calg-legend .lg-dot { width:10px; height:10px; border-radius:3px }'
 
-    /* Modal */
     + '.calg-mo { position:fixed; inset:0; background:rgba(15,23,42,.55); backdrop-filter:blur(4px); z-index:880; opacity:0; visibility:hidden; transition:all .25s }'
     + '.calg-mo.show { opacity:1; visibility:visible }'
     + '.calg-mp { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.92); width:min(500px,94vw); max-height:88vh; background:#fff; border-radius:18px; z-index:885; opacity:0; visibility:hidden; transition:all .25s cubic-bezier(.34,1.56,.64,1); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,.35) }'
@@ -123,7 +114,7 @@ window.calEnsurePage = calEnsurePage;
 
     + '@media (max-width:640px) { .calg-mcell { min-height:60px; padding:4px } .calg-mcell .cev { display:none } }';
     document.head.appendChild(s);
-    console.log('✅ [v41.2] CSS پایه‌ی تقویم تزریق شد');
+    console.log('✅ [v41.3] CSS پایه‌ی تقویم تزریق شد');
 })();
 
 /* ═════════════════════════════════════════════════════════
@@ -141,9 +132,9 @@ window.calEnsurePage = calEnsurePage;
                         a.label = '🥇 طلای دسته دوم (گرم)';
                     }
                 });
-                console.log('✅ [v41.2] نرخ‌ها اصلاح شدند (priceto غیرفعال)');
+                console.log('✅ [v41.3] نرخ‌ها اصلاح شدند (priceto غیرفعال)');
             }
-        } catch(e) { console.warn('❌ [v41.2] fixRates:', e); }
+        } catch(e) { console.warn('❌ [v41.3] fixRates:', e); }
         try {
             var c = DB.load('liveRatesCache', null);
             if (c && c.values) { c.values.gold_mini_size = 0; DB.save('liveRatesCache', c); }
@@ -169,8 +160,8 @@ window.calEnsurePage = calEnsurePage;
           +   'word-break:break-all!important;line-height:1.3!important}'
           + '@media(max-width:520px){#avalai-credit-result{grid-template-columns:1fr!important}}';
         document.head.appendChild(s);
-        console.log('✅ [v41.2] CSS اعتبار AvalAI اضافه شد');
-    } catch(e) { console.warn('❌ [v41.2] credit style:', e); }
+        console.log('✅ [v41.3] CSS اعتبار AvalAI اضافه شد');
+    } catch(e) { console.warn('❌ [v41.3] credit style:', e); }
 })();
 
 /* ═════════════════════════════════════════════════════════
@@ -201,13 +192,13 @@ function rebuildCalCats41() {
     try {
         window.CAL_CATS = c;
     } catch (e) {
-        console.warn('⚠️ [v41.2] CAL_CATS assign failed, using fallback');
+        console.warn('⚠️ [v41.3] CAL_CATS assign failed, using fallback');
         window.CAL_CATS_V41 = c;
     }
     return c;
 }
 rebuildCalCats41();
-console.log('✅ [v41.2] دسته‌بندی‌ها بازسازی شدند');
+console.log('✅ [v41.3] دسته‌بندی‌ها بازسازی شدند');
 
 /* ═════════════════════════════════════════════════════════
    ۴) تبدیل ساعت به فارسی
@@ -230,6 +221,10 @@ var CAL41 = {
     colWidths: DB.load('cal41.colWidths', {}),
     externalEvents: []
 };
+
+/* ★★★ CRITICAL: Expose CAL41 globally for widgets to access ★★★ */
+window.CAL41 = CAL41;
+
 (function initCursor41() {
     try {
         var t = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
@@ -430,11 +425,9 @@ function calRenderMultiDay41(events, numDays, viewKey) {
     var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
     var EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    /* ★★★ نمای ۳ روز آتی: با ساعت در ستون سمت راست (مشابه نمای روز) ★★★ */
     if (viewKey === '3day') {
         var html3 = '<div style="display:grid;grid-template-columns:70px repeat(' + numDays + ',minmax(0,1fr));border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-solid)">';
 
-        /* ردیف سرصفحه: گوشه خالی + هدر هر روز */
         html3 += '<div style="padding:8px 4px;background:var(--card-alt);border-bottom:2px solid var(--border);border-left:1px solid var(--border)"></div>';
         for (var dh = 0; dh < numDays; dh++) {
             var dsH = addJalaliDays(startJ, dh);
@@ -453,7 +446,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
                   + '</div>';
         }
 
-        /* ردیف‌های ساعتی ۵ تا ۲۳ */
         for (var h = 5; h <= 23; h++) {
             var hourStr = pad2(h) + ':00';
             html3 += '<div class="calg-md-hour-label" style="padding:10px 6px;text-align:center;font-weight:900;font-size:.78rem;background:var(--card-alt);border-bottom:1px solid var(--border);direction:ltr;color:var(--primary-dark);font-family:monospace;border-left:1px solid var(--border)">' + toFaTime(hourStr) + '</div>';
@@ -479,7 +471,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
         return html3;
     }
 
-    /* ★ نمای هفته: همان حالت قبلی (ستونی) */
     var html = '<div class="calg-multi" data-view="' + viewKey + '" style="display:grid;grid-template-columns:repeat(' + numDays + ',minmax(0,1fr));gap:5px">';
 
     for (var d2 = 0; d2 < numDays; d2++) {
@@ -633,7 +624,7 @@ window.calRender = function () {
     if (!page) {
         if (typeof calEnsurePage === 'function') calEnsurePage();
         page = document.getElementById('page-jalali-calendar');
-        if (!page) { console.warn('❌ [v41.2] صفحه تقویم یافت نشد'); return; }
+        if (!page) { console.warn('❌ [v41.3] صفحه تقویم یافت نشد'); return; }
     }
     rebuildCalCats41();
     if (!CAL41.cursor || isNaN(CAL41.cursor.y)) {
@@ -643,7 +634,6 @@ window.calRender = function () {
     var all = calBuildAllEvents();
     var active = all.filter(function (e) { return CAL41.filterCats[e.cat] !== false; });
 
-    /* ★ عنوان صفحه: «مدیریت تقویم» */
     var html = '<h2>📅 مدیریت تقویم</h2><div class="calg-wrap">';
 
     html += '<div class="calg-bar">';
@@ -685,7 +675,7 @@ window.calRender = function () {
     page.innerHTML = html;
 
     bindCalEvents41(active);
-    console.log('✅ [v41.2] تقویم رندر شد (' + active.length + ' رویداد)');
+    console.log('✅ [v41.3] تقویم رندر شد (' + active.length + ' رویداد)');
 };
 
 /* ═════════════════════════════════════════════════════════
@@ -750,7 +740,6 @@ function bindCalEvents41(active) {
         };
     });
 
-    /* ★ سلول‌های ساعتی در نمای ۳ روز آتی */
     document.querySelectorAll('.calg-md-hour-cell').forEach(function (cell) {
         cell.onclick = function (e) {
             if (e.target.closest('.calg-md-hour-ev')) return;
@@ -1142,6 +1131,10 @@ function openEventModal41(ev, defaultDate, defaultHour) {
         calSaveUserEvents(list);
         close();
         calRender();
+        /* ★ بروزرسانی ویجت‌های صفحه اصلی */
+        if (typeof updateHomeWidgets === 'function') {
+            try { updateHomeWidgets(); } catch(e) {}
+        }
         showToast('✅ رویداد ذخیره شد');
     };
 
@@ -1152,6 +1145,10 @@ function openEventModal41(ev, defaultDate, defaultHour) {
             calSaveUserEvents(l);
             close();
             calRender();
+            /* ★ بروزرسانی ویجت‌ها */
+            if (typeof updateHomeWidgets === 'function') {
+                try { updateHomeWidgets(); } catch(e) {}
+            }
             showToast('🗑 حذف شد');
         };
     }
@@ -1321,7 +1318,7 @@ window.openEventModal41 = openEventModal41;
             openTimePicker(function (t) { document.getElementById('cfs-time').value = t; },
                 document.getElementById('cfs-time').value || '21:00');
         });
-        console.log('✅ [v41.2] ساعت به فرم منابع دریافتنی اضافه شد');
+        console.log('✅ [v41.3] ساعت به فرم منابع دریافتنی اضافه شد');
     }
     setTimeout(inject, 1500);
     setTimeout(inject, 3000);
@@ -1354,7 +1351,6 @@ window.openEventModal41 = openEventModal41;
    ═════════════════════════════════════════════════════════ */
 (function boot41() {
     function init() {
-        /* ★ ساخت صفحه و آیتم منو از ابتدا برای نام‌گذاری صحیح تب */
         if (typeof calEnsurePage === 'function') calEnsurePage();
 
         if (!window._cal41Patched && typeof window.goToPage === 'function') {
@@ -1364,7 +1360,7 @@ window.openEventModal41 = openEventModal41;
                 orig.apply(this, arguments);
                 if (name === 'jalali-calendar') setTimeout(calRender, 80);
             };
-            console.log('✅ [v41.2] goToPage پچ شد');
+            console.log('✅ [v41.3] goToPage پچ شد');
         }
         var page = document.getElementById('page-jalali-calendar');
         if (page && page.classList.contains('active')) {
@@ -1378,6 +1374,7 @@ window.openEventModal41 = openEventModal41;
     }
     setTimeout(init, 3500);
 })();
+
 /* ═════════════════════════════════════════════════════════
    ۲۲) رفع z-index تقویم داخل مودال‌ها
    ═════════════════════════════════════════════════════════ */
@@ -1426,8 +1423,8 @@ window.openEventModal41 = openEventModal41;
                 if (overlay) overlay.style.zIndex = '';
             };
         }
-        console.log('✅ [v41.2] پچ z-index تقویم داخل مودال اعمال شد');
+        console.log('✅ [v41.3] پچ z-index تقویم داخل مودال اعمال شد');
     }
     patch();
 })();
-console.log('✅ [v41.2] پارسیس — پچ جامع تقویم نسخه ۱.۲ بارگذاری شد');
+console.log('✅ [v41.3] پارسیس — پچ جامع تقویم نسخه ۱.۳ بارگذاری شد');
