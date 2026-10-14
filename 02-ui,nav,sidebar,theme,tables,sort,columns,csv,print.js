@@ -1,7 +1,50 @@
 /* پارسیس — رابط کاربری: ناوبری، تم، جدول‌ها، مرتب‌سازی، CSV، چاپ */
 'use strict';
 
-/* ==================== Form Usage / Frequent Nav ==================== */
+/* =====================================================================
+   ★ دیکشنری عنوان فارسی فرم‌ها — برای استفاده در تب‌ها
+   ===================================================================== */
+var PAGE_TITLES_FA = {
+    'home': { icon: '🏠', title: 'صفحه اصلی' },
+    'language': { icon: '🌐', title: 'زبان' },
+    'account-types': { icon: '📑', title: 'لیست نوع حساب' },
+    'bank-types': { icon: '🏦', title: 'انواع حساب بانکی' },
+    'cash-types': { icon: '💰', title: 'انواع صندوق' },
+    'currency': { icon: '💱', title: 'ارز و واحد پول' },
+    'fiscal': { icon: '📅', title: 'دوره مالی' },
+    'chart-define': { icon: '✏️', title: 'تعریف حساب‌ها' },
+    'persons': { icon: '👥', title: 'اشخاص' },
+    'companies': { icon: '🏢', title: 'شرکت‌ها' },
+    'bank-accounts': { icon: '🏦', title: 'حساب‌های بانکی' },
+    'cash-boxes': { icon: '💰', title: 'صندوق‌ها' },
+    'projects': { icon: '📁', title: 'پروژه‌ها' },
+    'estimate-daily': { icon: '📝', title: 'برآورد هزینه‌های روزانه' },
+    'cashflow-sources': { icon: '📌', title: 'برآورد منابع دریافتنی' },
+    'facilities': { icon: '🏦', title: 'تسهیلات' },
+    'voucher-list': { icon: '📄', title: 'فهرست اسناد' },
+    'voucher-new': { icon: '✏️', title: 'صدور سند' },
+    'templates': { icon: '🧩', title: 'الگوهای سند و شرح استاندارد' },
+    'notes': { icon: '📔', title: 'دفترچه یادداشت' },
+    'sms': { icon: '📱', title: 'پیامک بانکی' },
+    'dashboard': { icon: '🎯', title: 'داشبورد مالی' },
+    'report-cashflow': { icon: '💵', title: 'وضعیت نقدینگی' },
+    'report-cashflow-desc': { icon: '💸', title: 'گردش وجه نقد' },
+    'report-account': { icon: '📒', title: 'مرور حساب‌ها' },
+    'report-trial': { icon: '⚖️', title: 'تراز آزمایشی' },
+    'report-incomplete': { icon: '🔍', title: 'تراکنش‌های تکمیل نشده' },
+    'report-facility': { icon: '🏦', title: 'خلاصه تسهیلات' },
+    'report-facility-full': { icon: '📊', title: 'گزارش جامع تسهیلات' },
+    'report-rates': { icon: '📈', title: 'گزارش نرخ ارز و طلا' },
+    'report-compare': { icon: '📊', title: 'گزارش مقایسه‌ای' },
+    'daily-close': { icon: '📅', title: 'قیمت پایانی روز' },
+    'jalali-calendar': { icon: '📅', title: 'مدیریت تقویم' }
+};
+window.PAGE_TITLES_FA = PAGE_TITLES_FA;
+
+/* =====================================================================
+   ★ Form Usage / Frequent Nav
+   ★ حذف badge تعداد باز شدن
+   ===================================================================== */
 function trackFormUsage(pageName) {
     if (!pageName || pageName === 'home') return;
     state.formUsage[pageName] = (state.formUsage[pageName] || 0) + 1;
@@ -51,7 +94,8 @@ function renderFrequentNav() {
         'account-types':          { label:'📑 لیست نوع حساب' },
         'bank-types':             { label:'🏦 انواع حساب بانکی' },
         'cash-types':             { label:'💰 انواع صندوق' },
-        'currency':               { label:'💱 ارز و واحد پول' }
+        'currency':               { label:'💱 ارز و واحد پول' },
+        'jalali-calendar':        { label:'📅 مدیریت تقویم' }
     };
     container.innerHTML = '';
     var clearBtn = document.createElement('button');
@@ -70,7 +114,8 @@ function renderFrequentNav() {
         var m = meta[e.page] || { label: '📄 ' + e.page };
         var b = document.createElement('button');
         b.setAttribute('data-page', e.page);
-        b.innerHTML = '<span>' + m.label + '</span><span class="count-badge" style="padding:2px 8px;font-size:0.7rem">' + toFa(e.count) + '</span>';
+        /* ★ حذف badge تعداد باز شدن */
+        b.innerHTML = '<span>' + m.label + '</span>';
         b.addEventListener('click', function() { goToPage(e.page); });
         container.appendChild(b);
     });
@@ -167,6 +212,14 @@ function goToPage(name) {
     if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
+
+    /* ★ اعمال ترتیب ستون‌های ذخیره‌شده */
+    setTimeout(function() {
+        var allTables = document.querySelectorAll('table[data-table-id]');
+        for (var i = 0; i < allTables.length; i++) {
+            applyColumnOrder(allTables[i].id);
+        }
+    }, 100);
 }
 
 function updateUnitChips() {
@@ -287,7 +340,7 @@ function initHomeSwipe() {
 }
 
 /* =====================================================================
-   ============ Table resize (نسخه اصلاح‌شده — بدون minWidth) ============
+   ============ Table resize ============
    ===================================================================== */
 var colWidths = DB.load('colWidths', {});
 function saveColWidths() { DB.save('colWidths', colWidths); }
@@ -319,6 +372,8 @@ function makeTableResizable(table) {
     table.dataset.resizable = '1';
     var tableId = table.id;
     if (!tableId) return;
+    /* ★ علامت‌گذاری برای applyColumnOrder */
+    table.setAttribute('data-table-id', tableId);
 
     var MIN_W = 50;
     var MAX_W = 600;
@@ -414,7 +469,171 @@ function resetColumnWidths(tableId) {
     showToast('↔ عرض ستون‌ها فیت شد.');
 }
 
-/* ==================== Column visibility ==================== */
+/* =====================================================================
+   ★★★ جابجایی ستون‌ها — Column Reorder
+   ===================================================================== */
+var columnOrders = DB.load('columnOrders', {});
+function saveColumnOrders() { DB.save('columnOrders', columnOrders); }
+
+/* ★ گرفتن ترتیب فعلی ستون‌ها از DOM */
+function getCurrentColumnOrder(tableId) {
+    var table = document.getElementById(tableId);
+    if (!table) return [];
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (!headerRow) return [];
+    var ths = headerRow.querySelectorAll('th');
+    var order = [];
+    for (var i = 0; i < ths.length; i++) {
+        var idx = ths[i].getAttribute('data-orig-index');
+        if (idx === null) {
+            idx = String(i);
+            ths[i].setAttribute('data-orig-index', idx);
+        }
+        order.push(parseInt(idx, 10));
+    }
+    return order;
+}
+
+/* ★ اعمال ترتیب ستون‌های ذخیره‌شده */
+function applyColumnOrder(tableId) {
+    if (!tableId) return;
+    var savedOrder = columnOrders[tableId];
+    if (!savedOrder || !Array.isArray(savedOrder) || savedOrder.length === 0) return;
+
+    var table = document.getElementById(tableId);
+    if (!table) return;
+
+    /* برای اطمینان: ابتدا ایندکس اصلی هر th/td را بگیر و ثبت کن */
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (!headerRow) return;
+    var headerThs = headerRow.querySelectorAll('th');
+
+    /* اگر data-orig-index ندارد، از موقعیت فعلی بگیر */
+    for (var i = 0; i < headerThs.length; i++) {
+        if (headerThs[i].getAttribute('data-orig-index') === null) {
+            headerThs[i].setAttribute('data-orig-index', String(i));
+        }
+    }
+
+    /* اعمال روی همه سطرهای جدول — thead + filter row + tbody + tfoot */
+    var allRows = table.querySelectorAll('tr');
+    for (var r = 0; r < allRows.length; r++) {
+        var row = allRows[r];
+        var cells = Array.from(row.children);
+        if (cells.length <= 1) continue; /* رد شدن از colspan */
+
+        /* ساخت نقشه‌ی orig-index → cell */
+        var map = {};
+        var unindexed = [];
+        for (var c = 0; c < cells.length; c++) {
+            var oi = cells[c].getAttribute('data-orig-index');
+            if (oi !== null) {
+                map[oi] = cells[c];
+            } else {
+                unindexed.push({ idx: c, cell: cells[c] });
+            }
+        }
+
+        /* اگر تعداد سلول‌ها با ترتیب ذخیره‌شده نمی‌خواند، skip */
+        if (Object.keys(map).length < savedOrder.length) continue;
+
+        /* ساخت آرایه‌ی جدید بر اساس ترتیب ذخیره‌شده */
+        for (var s = 0; s < savedOrder.length; s++) {
+            var cell = map[savedOrder[s]];
+            if (cell) row.appendChild(cell);
+        }
+        /* سلول‌های ایندکس‌نشده در آخر (مثلاً عملیات) */
+        for (var u = 0; u < unindexed.length; u++) {
+            if (unindexed[u].cell.parentNode) row.appendChild(unindexed[u].cell);
+        }
+    }
+}
+
+/* ★ ذخیره ترتیب جدید */
+function captureColumnOrder(tableId) {
+    var order = getCurrentColumnOrder(tableId);
+    columnOrders[tableId] = order;
+    saveColumnOrders();
+}
+
+/* ★ بازگشت ترتیب ستون‌ها به پیش‌فرض */
+function resetColumnOrder(tableId) {
+    if (!tableId) return;
+    delete columnOrders[tableId];
+    saveColumnOrders();
+    var table = document.getElementById(tableId);
+    if (!table) return;
+
+    /* مرتب‌سازی سلول‌ها بر اساس data-orig-index اصلی */
+    var allRows = table.querySelectorAll('tr');
+    for (var r = 0; r < allRows.length; r++) {
+        var row = allRows[r];
+        var cells = Array.from(row.children);
+        if (cells.length <= 1) continue;
+
+        var map = {};
+        var unindexed = [];
+        for (var c = 0; c < cells.length; c++) {
+            var oi = cells[c].getAttribute('data-orig-index');
+            if (oi !== null) {
+                map[oi] = cells[c];
+            } else {
+                unindexed.push(cells[c]);
+            }
+        }
+
+        /* مرتب بر اساس شماره اصلی */
+        var keys = Object.keys(map).map(Number).sort(function(a, b) { return a - b; });
+        for (var k = 0; k < keys.length; k++) {
+            row.appendChild(map[keys[k]]);
+        }
+        for (var u = 0; u < unindexed.length; u++) {
+            row.appendChild(unindexed[u]);
+        }
+    }
+    showToast('↺ ترتیب ستون‌ها به پیش‌فرض بازگشت.');
+}
+
+/* ★ انتقال ستون به چپ/راست */
+function moveColumnInTable(tableId, colIdx, direction) {
+    /* direction: -1 = انتقال به چپ (قبل‌تر)، +1 = انتقال به راست (بعدتر) */
+    var table = document.getElementById(tableId);
+    if (!table) return;
+
+    /* ابتدا ایندکس‌های اصلی را تثبیت کن */
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (!headerRow) return;
+    var headerThs = headerRow.querySelectorAll('th');
+    for (var i = 0; i < headerThs.length; i++) {
+        if (headerThs[i].getAttribute('data-orig-index') === null) {
+            headerThs[i].setAttribute('data-orig-index', String(i));
+        }
+    }
+
+    /* ترتیب فعلی بر اساس موقعیت DOM */
+    var currentOrder = getCurrentColumnOrder(tableId);
+    var pos = currentOrder.indexOf(colIdx);
+    if (pos < 0) return;
+    var newPos = pos + direction;
+    if (newPos < 0 || newPos >= currentOrder.length) return;
+
+    /* جابجایی در آرایه */
+    var tmp = currentOrder[pos];
+    currentOrder[pos] = currentOrder[newPos];
+    currentOrder[newPos] = tmp;
+
+    /* ذخیره */
+    columnOrders[tableId] = currentOrder;
+    saveColumnOrders();
+
+    /* اعمال فوری */
+    applyColumnOrder(tableId);
+    applyColVisibility(tableId);
+}
+
+/* =====================================================================
+   ==================== Column visibility ====================
+   ===================================================================== */
 var colSettings = DB.load('columnSettings', {});
 function getHiddenCols(tableId) { return colSettings[tableId] || []; }
 function setHiddenCols(tableId, arr) { colSettings[tableId] = arr; DB.save('columnSettings', colSettings); }
@@ -426,7 +645,12 @@ function applyColVisibility(tableId) {
     for (var r = 0; r < rows.length; r++) {
         var cells = rows[r].children;
         if (cells.length === 1 && cells[0].hasAttribute('colspan')) continue;
-        for (var c = 0; c < cells.length; c++) cells[c].style.display = hidden.indexOf(c) !== -1 ? 'none' : '';
+        for (var c = 0; c < cells.length; c++) {
+            /* ★ با اعمال data-orig-index */
+            var origIdx = cells[c].getAttribute('data-orig-index');
+            var idx = origIdx !== null ? parseInt(origIdx, 10) : c;
+            cells[c].style.display = hidden.indexOf(idx) !== -1 ? 'none' : '';
+        }
     }
     updateTableMinWidth(table);
 }
@@ -440,7 +664,7 @@ function makeAllTablesResizable() {
 }
 
 /* =====================================================================
-   ============ Column menu popup (اصلاح‌شده) ============
+   ============ Column menu popup — با دکمه‌های جابجایی
    ===================================================================== */
 function showColMenu(tableId, btn) {
     var menu = document.getElementById('col-menu');
@@ -450,30 +674,60 @@ function showColMenu(tableId, btn) {
     var thead = table.querySelector('thead');
     if (!thead) return;
 
-    /* ★ فقط ردیف اصلی هدر، نه ردیف فیلترها */
     var headerRow = thead.querySelector('tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
 
-    var hidden = getHiddenCols(tableId);
-    var html = '<div class="col-menu-head">👁 نمایش ستون‌ها</div><div class="col-menu-body">';
-    for (var i = 0; i < ths.length; i++) {
-        var th = ths[i];
-        var label = String(th.textContent || '').replace(/[⇅▲▼]/g, '').trim() || ('ستون ' + (i+1));
-        var checked = hidden.indexOf(i) === -1 ? 'checked' : '';
-        html += '<label class="col-menu-item"><input type="checkbox" data-table="' + tableId + '" data-col="' + i + '" ' + checked + '><span>' + esc(label) + '</span></label>';
+    /* تثبیت ایندکس‌های اصلی */
+    for (var ii = 0; ii < ths.length; ii++) {
+        if (ths[ii].getAttribute('data-orig-index') === null) {
+            ths[ii].setAttribute('data-orig-index', String(ii));
+        }
     }
-    html += '</div><div class="col-menu-foot"><button type="button" class="col-menu-reset">بازنشانی</button><button type="button" class="col-menu-close">بستن</button></div>';
+
+    var hidden = getHiddenCols(tableId);
+    var currentOrder = getCurrentColumnOrder(tableId);
+
+    var html = '<div class="col-menu-head">👁 نمایش و ترتیب ستون‌ها</div>';
+    html += '<div class="col-menu-body">';
+
+    /* نمایش ستون‌ها به ترتیب فعلی */
+    for (var i = 0; i < currentOrder.length; i++) {
+        var origIdx = currentOrder[i];
+        var th = headerRow.children[origIdx];
+        if (!th) continue;
+        var label = String(th.textContent || '').replace(/[⇅▲▼]/g, '').trim() || ('ستون ' + (origIdx + 1));
+        var checked = hidden.indexOf(origIdx) === -1 ? 'checked' : '';
+        html += '<div class="col-menu-item" style="display:flex;gap:6px;align-items:center;padding:6px 10px">'
+             +    '<input type="checkbox" data-table="' + tableId + '" data-col="' + origIdx + '" ' + checked + ' style="flex-shrink:0">'
+             +    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.82rem">' + esc(label) + '</span>'
+             +    '<button type="button" class="col-move-btn" data-table="' + tableId + '" data-col="' + origIdx + '" data-dir="-1" '
+             +       (i === 0 ? 'disabled ' : '')
+             +       'style="width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--card-solid);color:var(--primary-dark);font-weight:800;cursor:pointer;padding:0;flex-shrink:0' + (i === 0 ? ';opacity:0.35;cursor:not-allowed' : '') + '">↑</button>'
+             +    '<button type="button" class="col-move-btn" data-table="' + tableId + '" data-col="' + origIdx + '" data-dir="1" '
+             +       (i === currentOrder.length - 1 ? 'disabled ' : '')
+             +       'style="width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--card-solid);color:var(--primary-dark);font-weight:800;cursor:pointer;padding:0;flex-shrink:0' + (i === currentOrder.length - 1 ? ';opacity:0.35;cursor:not-allowed' : '') + '">↓</button>'
+             +  '</div>';
+    }
+    html += '</div>';
+    html += '<div class="col-menu-foot">'
+         +    '<button type="button" class="col-menu-reset">بازنشانی نمایش</button>'
+         +    '<button type="button" class="col-menu-order-reset">↺ بازگشت ترتیب</button>'
+         +    '<button type="button" class="col-menu-close">بستن</button>'
+         +  '</div>';
     menu.innerHTML = html;
     menu.classList.remove('hidden');
     var rect = btn.getBoundingClientRect();
-    var menuW = 220;
+    var menuW = 280;
     var top = rect.bottom + window.scrollY + 6;
     var left = rect.left + window.scrollX - menuW + rect.width;
     if (left < 8) left = 8;
     if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
     menu.style.top = top + 'px';
     menu.style.left = left + 'px';
+    menu.style.minWidth = menuW + 'px';
+
+    /* چک‌باکس‌های نمایش */
     menu.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
         cb.addEventListener('change', function() {
             var tid = this.getAttribute('data-table');
@@ -485,8 +739,24 @@ function showColMenu(tableId, btn) {
             applyColVisibility(tid);
         });
     });
+
+    /* دکمه‌های جابجایی */
+    menu.querySelectorAll('.col-move-btn').forEach(function(b) {
+        b.addEventListener('click', function() {
+            var tid = this.getAttribute('data-table');
+            var col = Number(this.getAttribute('data-col'));
+            var dir = Number(this.getAttribute('data-dir'));
+            moveColumnInTable(tid, col, dir);
+            showColMenu(tid, btn); /* refresh */
+        });
+    });
+
     menu.querySelector('.col-menu-reset').addEventListener('click', function() {
         setHiddenCols(tableId, []); applyColVisibility(tableId); showColMenu(tableId, btn);
+    });
+    menu.querySelector('.col-menu-order-reset').addEventListener('click', function() {
+        resetColumnOrder(tableId);
+        showColMenu(tableId, btn);
     });
     menu.querySelector('.col-menu-close').addEventListener('click', function() { menu.classList.add('hidden'); });
 }
@@ -614,7 +884,7 @@ function buildHeaderButtons() {
                 var btn = document.createElement('button');
                 btn.className = 'col-toggle-btn';
                 btn.type = 'button';
-                btn.title = 'ستون‌ها';
+                btn.title = 'ستون‌ها (نمایش و ترتیب)';
                 btn.innerHTML = '⚙';
                 btn.addEventListener('click', function(ev) { ev.stopPropagation(); showColMenu(tableId, btn); });
                 h.appendChild(btn);
@@ -630,7 +900,10 @@ function autoAttachReportHelpers() {
         makeAllTablesResizable();
         ['cf-table','cfd-table','rt-table','ri-table','rf-table','rff-table','rr-table','dc-table','turnover-table','rc-table'].forEach(function(id) {
             var t = document.getElementById(id);
-            if (t) applyColVisibility(id);
+            if (t) {
+                applyColVisibility(id);
+                if (columnOrders[id]) applyColumnOrder(id);
+            }
         });
         buildHeaderButtons();
         attachDatePickers();
@@ -768,12 +1041,20 @@ function buildFilterRow(table) {
     var ths = headerRow.querySelectorAll('th');
     if (ths.length === 0) return;
 
+    /* تثبیت ایندکس اصلی */
+    for (var ii = 0; ii < ths.length; ii++) {
+        if (ths[ii].getAttribute('data-orig-index') === null) {
+            ths[ii].setAttribute('data-orig-index', String(ii));
+        }
+    }
+
     var filterTr = document.createElement('tr');
     filterTr.className = 'column-filter-row';
     for (var i = 0; i < ths.length; i++) {
         (function (idx) {
             var td = document.createElement('th');
             td.className = 'column-filter-cell';
+            td.setAttribute('data-orig-index', String(idx));
             td.style.cssText = 'padding:4px 6px;background:var(--card-alt);border-bottom:1px solid var(--border);font-weight:normal';
             var wrap = document.createElement('div');
             wrap.style.cssText = 'display:flex;gap:2px;align-items:center';
@@ -1143,8 +1424,10 @@ function attachFilterRowsToAllTables() {
         max: 12
     };
 
+    /* ★ استفاده از دیکشنری عنوان فارسی */
     function getPageMeta(pageId) {
-        if (pageId === 'home') return { title: 'صفحه اصلی', icon: '🏠' };
+        if (PAGE_TITLES_FA[pageId]) return PAGE_TITLES_FA[pageId];
+        /* fallback: خواندن از nav button */
         var btn = document.querySelector('.nav-group-items button[data-page="' + pageId + '"]');
         if (!btn) return { title: pageId, icon: '📄' };
         var clone = btn.cloneNode(true);
@@ -1152,6 +1435,9 @@ function attachFilterRowsToAllTables() {
         if (badge) badge.remove();
         var txt = (clone.textContent || '').trim().replace(/\s+/g, ' ');
         if (!txt) return { title: pageId, icon: '📄' };
+        /* تلاش برای جدا کردن ایموجی */
+        var m = txt.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*(.+)$/u);
+        if (m) return { icon: m[1], title: m[2] };
         var parts = txt.split(' ');
         var icon = parts[0];
         var title = parts.slice(1).join(' ') || txt;
@@ -1230,6 +1516,8 @@ function attachFilterRowsToAllTables() {
 
             tab.appendChild(icon);
             tab.appendChild(title);
+
+            /* ★ حذف هر بج یا count که در تب نشان داده می‌شود */
 
             if (t.id !== 'home') {
                 var closeBtn = document.createElement('button');
@@ -1435,6 +1723,11 @@ function attachFilterRowsToAllTables() {
             if (needsRefresh) setTimeout(function () {
                 attachFilterRowsToAllTables();
                 if (window._enhanceGlobalSorting) window._enhanceGlobalSorting();
+                /* ★ اعمال ترتیب ستون‌ها روی جداول جدید */
+                var allTables = document.querySelectorAll('table[data-table-id]');
+                for (var i = 0; i < allTables.length; i++) {
+                    if (columnOrders[allTables[i].id]) applyColumnOrder(allTables[i].id);
+                }
             }, 80);
         });
         observer.observe(document.body, { childList: true, subtree: true });
@@ -1460,7 +1753,6 @@ function attachFilterRowsToAllTables() {
    ============ ۱۸) اشتراک‌گذاری گزارش‌ها و ویجت‌ها ============
    ===================================================================== */
 
-/* اشتراک‌گذاری متنی (پشتیبان) */
 function shareAsText(title, text) {
     var fullText = '📊 ' + title + '\n\n' + text;
     if (navigator.share) {
@@ -1494,8 +1786,6 @@ function reportToText(containerEl) {
 /* =====================================================================
    ============ ۱۹) اشتراک‌گذاری به‌صورت تصویر (PNG) ============
    ===================================================================== */
-
-/* بارگذاری تنبل html2canvas از CDN */
 var _html2canvasLoadPromise = null;
 function loadHtml2Canvas() {
     if (window.html2canvas) return Promise.resolve(window.html2canvas);
@@ -1528,7 +1818,6 @@ function loadHtml2Canvas() {
     return _html2canvasLoadPromise;
 }
 
-/* گرفتن اسکرین‌شات از یک عنصر DOM و اشتراک‌گذاری آن به‌صورت تصویر */
 async function shareAsImage(el, title, filename) {
     if (!el) { showToast('محتوایی برای اشتراک نیست.'); return; }
     showToast('📸 در حال آماده‌سازی تصویر...');
@@ -1611,7 +1900,6 @@ async function shareAsImage(el, title, filename) {
 }
 window.shareAsImage = shareAsImage;
 
-/* ساخت دکمه‌های اشتراک روی هدرهای لیست و ویجت‌ها */
 function buildShareButtons() {
     document.querySelectorAll('.list-header').forEach(function(h) {
         if (h.querySelector('.share-btn')) return;
@@ -1749,4 +2037,32 @@ window.shareAsText = shareAsText;
             console.log('✅ Event Delegation دکمه‌های هدر فعال شد.');
         }
     }, 1500);
+})();
+
+/* =====================================================================
+   ★★★ Migration: افزودن data-orig-index به همه جداول موجود
+   ===================================================================== */
+(function initColumnOrders() {
+    function boot() {
+        var tables = document.querySelectorAll('table.data-table, table.report-table');
+        tables.forEach(function(t) {
+            if (!t.id) return;
+            if (!t.getAttribute('data-table-id')) t.setAttribute('data-table-id', t.id);
+            var headerRow = t.querySelector('thead tr:not(.column-filter-row)');
+            if (!headerRow) return;
+            var ths = headerRow.querySelectorAll('th');
+            for (var i = 0; i < ths.length; i++) {
+                if (ths[i].getAttribute('data-orig-index') === null) {
+                    ths[i].setAttribute('data-orig-index', String(i));
+                }
+            }
+            /* اعمال ترتیب ذخیره‌شده اگر بود */
+            if (columnOrders[t.id]) applyColumnOrder(t.id);
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(boot, 2000); });
+    } else {
+        setTimeout(boot, 2000);
+    }
 })();
