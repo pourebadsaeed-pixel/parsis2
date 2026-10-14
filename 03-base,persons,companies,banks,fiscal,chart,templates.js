@@ -568,13 +568,20 @@ function findAccountByNameHint(hint) {
     if (pa) return pa.id;
     return '';
 }
+
+/* =====================================================================
+   ★ فرم تعریف الگو — با جستجوی حساب معین
+   ===================================================================== */
 var templateLines = [];
 function renderTemplateLines() {
     var box = document.getElementById('tpl-lines');
     if (!box) return;
     box.innerHTML = '';
     if (templateLines.length === 0) templateLines.push({ side: 'debit', account: '', details: {}, desc: '', fixedAmount: 0 });
-    var leaves = getLeafAccounts();
+    /* ★ استفاده از حساب‌های معین مرتب‌شده بر اساس کد */
+    var leaves = (typeof getLeafAccountsSortedByCode === 'function')
+        ? getLeafAccountsSortedByCode()
+        : getLeafAccounts();
     var accounts = DB.load('accounts', []);
     for (var i = 0; i < templateLines.length; i++) {
         (function(idx) {
@@ -611,20 +618,48 @@ function renderTemplateLines() {
             });
             row1.appendChild(inpF);
             wrap.appendChild(row1);
+
+            /* ★ ردیف ۲: جستجوی معین + select مرتب‌شده */
             var row2 = document.createElement('div');
+            row2.className = 'ln-search-row';
             row2.style.marginTop = '8px';
+
+            var sSearch = document.createElement('input');
+            sSearch.type = 'text';
+            sSearch.className = 'ln-search';
+            sSearch.placeholder = '🔍 جستجوی معین...';
+
             var selAcc = document.createElement('select');
-            selAcc.innerHTML = '<option value="">— حساب —</option>';
-            for (var k = 0; k < leaves.length; k++) {
-                var o = document.createElement('option');
-                o.value = leaves[k].id;
-                o.textContent = getAccountLabel(leaves[k].id, accounts);
-                if (ln.account === leaves[k].id) o.selected = true;
-                selAcc.appendChild(o);
-            }
+
+            var fillTplAcc = function(q) {
+                var cur = ln.account;
+                var f = leaves.filter(function(l) {
+                    if (!q) return true;
+                    return getAccountSearchText(l.id, accounts).indexOf(q) !== -1;
+                });
+                selAcc.innerHTML = '';
+                var ph = document.createElement('option');
+                ph.value = ''; ph.textContent = '— حساب معین —';
+                selAcc.appendChild(ph);
+                for (var k = 0; k < f.length; k++) {
+                    var o = document.createElement('option');
+                    o.value = f[k].id;
+                    o.textContent = getAccountLabel(f[k].id, accounts);
+                    if (cur === f[k].id) o.selected = true;
+                    selAcc.appendChild(o);
+                }
+            };
+            fillTplAcc('');
+
+            sSearch.addEventListener('input', function() {
+                fillTplAcc(normalizeDigits(this.value.trim().toLowerCase()));
+            });
             selAcc.addEventListener('change', function() { ln.account = this.value; ln.details = {}; renderTemplateLines(); });
+
+            row2.appendChild(sSearch);
             row2.appendChild(selAcc);
             wrap.appendChild(row2);
+
             var acc = accounts.find(function(a) { return a.id === ln.account; });
             if (acc && acc.links && acc.links.length > 0) {
                 for (var li = 0; li < acc.links.length; li++) {
@@ -683,6 +718,10 @@ function renderTemplateLines() {
         })(i);
     }
 }
+
+/* =====================================================================
+   ★ فهرست الگوها — با فلش بالا/پایین برای جابجایی ترتیب
+   ===================================================================== */
 function renderTemplateList() {
     var list = DB.load('voucherTemplates', []);
     var box = document.getElementById('tpl-list-body');
@@ -694,15 +733,74 @@ function renderTemplateList() {
         return;
     }
     for (var i = 0; i < list.length; i++) {
-        (function(t) {
+        (function(t, idx) {
             var row = document.createElement('div');
             row.className = 'tpl-row';
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '8px';
+            row.style.flexWrap = 'nowrap';
             var lc = (t.lines || []).length;
             var ha = (t.lines || []).some(function(l){ return l.fixedAmount; });
             var sub = toFa(lc) + ' قلم' + (ha ? ' — دارای مبلغ' : '');
-            row.innerHTML = '<div style="flex:1;min-width:0"><div class="tpl-name">' + esc(t.name) + '</div><div class="tpl-desc">' + sub + '</div></div><div class="row-actions"><button class="row-btn open tpl-use" data-id="' + t.id + '">⚡</button><button class="row-btn edit tpl-edit" data-id="' + t.id + '">✎</button><button class="row-btn del tpl-del" data-id="' + t.id + '">×</button></div>';
+
+            /* ★ دکمه‌های بالا/پایین */
+            var upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'row-btn';
+            upBtn.textContent = '↑';
+            upBtn.title = 'انتقال به بالا';
+            upBtn.style.cssText = 'background:#e0ecf8;color:#1e40af;border:none;border-radius:8px;width:32px;height:32px;font-size:0.95rem;font-weight:800;cursor:pointer;flex-shrink:0';
+            if (idx === 0) upBtn.disabled = true;
+            if (idx === 0) upBtn.style.opacity = '0.35';
+            upBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (idx === 0) return;
+                var arr = DB.load('voucherTemplates', []);
+                var tmp = arr[idx]; arr[idx] = arr[idx-1]; arr[idx-1] = tmp;
+                DB.save('voucherTemplates', arr);
+                renderTemplateList();
+                refreshTemplateSelect();
+                showToast('↕ ترتیب الگوها بروزرسانی شد.');
+            });
+
+            var downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'row-btn';
+            downBtn.textContent = '↓';
+            downBtn.title = 'انتقال به پایین';
+            downBtn.style.cssText = 'background:#e0ecf8;color:#1e40af;border:none;border-radius:8px;width:32px;height:32px;font-size:0.95rem;font-weight:800;cursor:pointer;flex-shrink:0';
+            if (idx === list.length - 1) downBtn.disabled = true;
+            if (idx === list.length - 1) downBtn.style.opacity = '0.35';
+            downBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (idx === list.length - 1) return;
+                var arr = DB.load('voucherTemplates', []);
+                var tmp = arr[idx]; arr[idx] = arr[idx+1]; arr[idx+1] = tmp;
+                DB.save('voucherTemplates', arr);
+                renderTemplateList();
+                refreshTemplateSelect();
+                showToast('↕ ترتیب الگوها بروزرسانی شد.');
+            });
+
+            var orderWrap = document.createElement('div');
+            orderWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;flex-shrink:0';
+            orderWrap.appendChild(upBtn);
+            orderWrap.appendChild(downBtn);
+
+            var contentWrap = document.createElement('div');
+            contentWrap.style.cssText = 'flex:1;min-width:0';
+            contentWrap.innerHTML = '<div class="tpl-name">' + esc(t.name) + '</div><div class="tpl-desc">' + sub + '</div>';
+
+            var actWrap = document.createElement('div');
+            actWrap.className = 'row-actions';
+            actWrap.innerHTML = '<button class="row-btn open tpl-use" data-id="' + t.id + '" title="اعمال الگو">⚡</button><button class="row-btn edit tpl-edit" data-id="' + t.id + '" title="ویرایش">✎</button><button class="row-btn del tpl-del" data-id="' + t.id + '" title="حذف">×</button>';
+
+            row.appendChild(orderWrap);
+            row.appendChild(contentWrap);
+            row.appendChild(actWrap);
             box.appendChild(row);
-        })(list[i]);
+        })(list[i], i);
     }
     document.getElementById('tpl-count').textContent = toFa(list.length);
     var uses = box.querySelectorAll('.tpl-use'), edits = box.querySelectorAll('.tpl-edit'), dels = box.querySelectorAll('.tpl-del');
@@ -732,18 +830,38 @@ function renderTemplateList() {
         refreshTemplateSelect();
     });
 }
+
+/* =====================================================================
+   ★ شرح‌های استاندارد — با قابلیت جستجو
+   ===================================================================== */
 function renderStdDescChips() {
     var list = DB.load('standardDescriptions', getDefaultStdDescriptions());
     var box = document.getElementById('std-desc-chips');
     if (!box) return;
+
+    /* ★ فیلتر جستجو */
+    var searchEl = document.getElementById('std-desc-search');
+    var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
+
+    var filtered = list.filter(function(item) {
+        return !q || String(item).toLowerCase().indexOf(q) !== -1;
+    });
+
     box.innerHTML = '';
-    for (var i = 0; i < list.length; i++) {
-        (function(idx) {
+    if (filtered.length === 0) {
+        box.innerHTML = '<div class="muted" style="text-align:center;padding:16px;font-size:0.85rem">شرحی مطابق جستجو یافت نشد.</div>';
+        updateStdDescCounter(list.length, 0);
+        return;
+    }
+    for (var i = 0; i < filtered.length; i++) {
+        (function(item) {
             var chip = document.createElement('span');
             chip.className = 'chip';
-            chip.innerHTML = esc(list[idx]) + ' <button class="chip-del" data-i="' + idx + '">×</button>';
+            /* ★ ایندکس واقعی در لیست اصلی برای حذف */
+            var realIdx = list.indexOf(item);
+            chip.innerHTML = esc(item) + ' <button class="chip-del" data-i="' + realIdx + '">×</button>';
             box.appendChild(chip);
-        })(i);
+        })(filtered[i]);
     }
     var dels = box.querySelectorAll('.chip-del');
     for (var j = 0; j < dels.length; j++) dels[j].addEventListener('click', function() {
@@ -754,7 +872,16 @@ function renderStdDescChips() {
         renderStdDescChips();
         refreshStdDescDatalist();
     });
+    updateStdDescCounter(list.length, filtered.length);
 }
+
+function updateStdDescCounter(total, shown) {
+    var cnt = document.getElementById('std-desc-count');
+    if (!cnt) return;
+    if (total === shown) cnt.textContent = toFa(total) + ' شرح';
+    else cnt.textContent = toFa(shown) + ' از ' + toFa(total) + ' شرح';
+}
+
 function refreshStdDescDatalist() {
     var list = DB.load('standardDescriptions', getDefaultStdDescriptions());
     var dl = document.getElementById('std-desc-list');
