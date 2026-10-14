@@ -3,7 +3,7 @@
 
 /* ==================== Backup / Restore / Reset ==================== */
 
-/* ★ اصلاح‌شده: پشتیبان‌گیری از localStorage + تصاویر IndexedDB */
+/* ★ پشتیبان‌گیری از localStorage + تصاویر IndexedDB */
 function downloadBackup() {
     var data = {};
     for (var i = 0; i < localStorage.length; i++) {
@@ -89,31 +89,25 @@ function downloadBackup() {
     });
 }
 
-/* ★ اصلاح‌شده: بازیابی کامل با پاک کردن داده‌های قدیمی + حذف BOM + گزارش خطا */
+/* ★ بازیابی کامل با پاک کردن داده‌های قدیمی + حذف BOM + گزارش خطا */
 function restoreBackup(file) {
     var reader = new FileReader();
     reader.onload = function (e) {
         try {
             var text = String(e.target.result);
             if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-
             var parsed = JSON.parse(text);
             var data = parsed.data || parsed;
             var images = parsed.images || [];
-
             if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
                 alert('❌ فایل پشتیبان خالی یا نامعتبر است.');
                 return;
             }
-
-            var validKeys = Object.keys(data).filter(function (k) {
-                return k.indexOf(LS_PREFIX) === 0;
-            });
+            var validKeys = Object.keys(data).filter(function (k) { return k.indexOf(LS_PREFIX) === 0; });
             if (validKeys.length === 0) {
                 alert('❌ فایل پشتیبان شامل هیچ کلید پارسیس نیست.');
                 return;
             }
-
             var msg = '📦 محتوای پشتیبان:\n\n';
             msg += '• تاریخ: ' + (parsed.exportedAt || '—') + '\n';
             msg += '• نسخه: ' + (parsed.version || '—') + '\n';
@@ -122,15 +116,12 @@ function restoreBackup(file) {
             msg += '\n⚠️ همه داده‌های فعلی پاک و جایگزین می‌شوند.\nادامه؟';
             if (!confirm(msg)) return;
 
-            // پاک کردن همه کلیدهای فعلی
             var toRemove = [];
             for (var i = 0; i < localStorage.length; i++) {
                 var kk = localStorage.key(i);
                 if (kk && kk.indexOf(LS_PREFIX) === 0) toRemove.push(kk);
             }
             toRemove.forEach(function (k) { localStorage.removeItem(k); });
-
-            // نوشتن کلیدهای جدید
             var writeErrors = 0;
             validKeys.forEach(function (k) {
                 try { localStorage.setItem(k, data[k]); }
@@ -166,12 +157,8 @@ function restoreBackup(file) {
                             var blob = dataURLToBlob(img.dataUrl);
                             if (blob) {
                                 store.put({
-                                    id: img.id,
-                                    blob: blob,
-                                    name: img.name || '',
-                                    size: img.size || 0,
-                                    type: img.type || 'image/png',
-                                    isBlob: true
+                                    id: img.id, blob: blob, name: img.name || '',
+                                    size: img.size || 0, type: img.type || 'image/png', isBlob: true
                                 });
                             }
                         } catch (err) {}
@@ -194,20 +181,17 @@ function restoreBackup(file) {
             alert('❌ خطا در خواندن فایل:\n' + (err.message || err));
         }
     };
-    reader.onerror = function () {
-        alert('❌ خطا در خواندن فایل.');
-    };
+    reader.onerror = function () { alert('❌ خطا در خواندن فایل.'); };
     reader.readAsText(file, 'UTF-8');
 }
 
-/* ★ اصلاح‌شده: پاک کردن تصاویر IndexedDB نیز */
+/* ★ پاک کردن تصاویر IndexedDB نیز */
 function resetAllData() {
     var pwd = prompt('رمز ریست:');
     if (pwd === null) return;
     if (String(pwd).trim() !== '1234') { alert('رمز اشتباه.'); return; }
     if (!confirm('⚠️ همه داده‌ها (شامل تصاویر یادداشت‌ها) پاک شود؟')) return;
 
-    // localStorage
     var ks = [];
     for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
@@ -215,7 +199,6 @@ function resetAllData() {
     }
     ks.forEach(function (k) { localStorage.removeItem(k); });
 
-    // IndexedDB
     try {
         var req = indexedDB.open('parsisNoteImages', 1);
         req.onupgradeneeded = function (e) {
@@ -717,7 +700,7 @@ function bindVoucherForm() {
     if (vsrch) vsrch.addEventListener('input', renderVoucherList);
 }
 
-/* ==================== Template form ==================== */
+/* ==================== Template form — ★ اصلاح‌شده با جستجوی شرح ==================== */
 function bindTemplateForm() {
     document.getElementById('tpl-add-line').addEventListener('click', function() {
         templateLines.push({ side: 'debit', account: '', details: {}, desc: '', fixedAmount: 0 });
@@ -788,6 +771,14 @@ function bindTemplateForm() {
         renderStdDescChips();
         refreshStdDescDatalist();
     });
+
+    /* ★★★ رفع باگ: listener جستجوی شرح‌های استاندارد ★★★ */
+    var stdSearch = document.getElementById('std-desc-search');
+    if (stdSearch) {
+        stdSearch.addEventListener('input', function() {
+            if (typeof renderStdDescChips === 'function') renderStdDescChips();
+        });
+    }
 }
 
 /* ==================== Report buttons ==================== */
@@ -799,7 +790,7 @@ function bindReportButtons() {
         document.getElementById('cf-to').value = addJalaliDays(t, 30);
         runCashFlowReport();
     });
-    document.getElementById('cf-print').addEventListener('click', function() { printHtmlReport('#cf-result', 'وضعیت نقدینگی'); });
+    document.getElementById('cf-print').addEventListener('click', function() { printHtmlReport('#cf-result', 'پیش‌بینی روزانه نقدینگی'); });
     document.getElementById('cf-export').addEventListener('click', function() { exportReportTable('#cf-result', 'cash-flow'); });
 
     document.getElementById('cfd-run').addEventListener('click', runCashFlowByDescReport);
@@ -811,6 +802,14 @@ function bindReportButtons() {
     });
     document.getElementById('cfd-print').addEventListener('click', function() { printHtmlReport('#cfd-result', 'گردش وجه نقد'); });
     document.getElementById('cfd-export').addEventListener('click', function() { exportReportTable('#cfd-result', 'cash-flow-by-desc'); });
+
+    /* ★ چک‌باکس فقط دارای مانده در گردش وجه نقد */
+    var cfdOnlyBal = document.getElementById('cfd-only-balance');
+    if (cfdOnlyBal) {
+        cfdOnlyBal.addEventListener('change', function() {
+            runCashFlowByDescReport();
+        });
+    }
 
     var rcRunBtn = document.getElementById('rc-run');
     if (rcRunBtn) rcRunBtn.addEventListener('click', runComparisonReport);
@@ -927,6 +926,8 @@ function bindNotesForm() {
         this.value = '';
     });
     document.getElementById('notes-filter').addEventListener('input', renderNotesList);
+    var catFilter = document.getElementById('notes-cat-filter');
+    if (catFilter) catFilter.addEventListener('change', renderNotesList);
     var notesViewBtns = document.querySelectorAll('[data-notes-view]');
     for (var nv = 0; nv < notesViewBtns.length; nv++) {
         notesViewBtns[nv].addEventListener('click', function() {
@@ -1061,16 +1062,7 @@ function init() {
         updateTopbarPeriod();
     }, 60000);
 
-    (function initCompareDefaults() {
-        var f1 = document.getElementById('rc-from1');
-        if (!f1) return;
-        var t = todayJalaliStr();
-        var y = t.split('/')[0];
-        f1.value = y + '/01/01';
-        document.getElementById('rc-to1').value   = y + '/06/31';
-        document.getElementById('rc-from2').value = y + '/07/01';
-        document.getElementById('rc-to2').value   = t;
-    })();
+    /* ★ حذف شد: initCompareDefaults — تاریخ‌های مقایسه‌ای پیش‌فرض ست نمی‌شوند */
 
     newVoucherForm();
     attachDatePickers();
