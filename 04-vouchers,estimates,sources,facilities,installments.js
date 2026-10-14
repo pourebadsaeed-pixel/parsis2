@@ -20,6 +20,37 @@ window._voucherSaved_backup = null;
     document.head.appendChild(s);
 })();
 
+/* =====================================================================
+   ★ توابع کمکی جدید: مرتب‌سازی حساب‌های معین بر اساس کد
+   ===================================================================== */
+function sortAccountsByCode(arr) {
+    return arr.slice().sort(function(a, b) {
+        var ca = String(a.code || '');
+        var cb = String(b.code || '');
+        // مقایسه عددی برای هر بخش کد جدا شده با "-"
+        var pa = ca.split('-').map(function(x) { return parseInt(x, 10) || 0; });
+        var pb = cb.split('-').map(function(x) { return parseInt(x, 10) || 0; });
+        var n = Math.max(pa.length, pb.length);
+        for (var i = 0; i < n; i++) {
+            var va = pa[i] || 0;
+            var vb = pb[i] || 0;
+            if (va !== vb) return va - vb;
+        }
+        return ca.localeCompare(cb, 'fa');
+    });
+}
+window.sortAccountsByCode = sortAccountsByCode;
+
+/* ★ برگرداندن حساب‌های معین مرتب‌شده بر اساس کد */
+function getLeafAccountsSortedByCode() {
+    var accounts = DB.load('accounts', []);
+    var leaves = accounts.filter(function(a) {
+        return !accounts.some(function(x) { return x.parent === a.id; });
+    });
+    return sortAccountsByCode(leaves);
+}
+window.getLeafAccountsSortedByCode = getLeafAccountsSortedByCode;
+
 /* ★ ساخت/بروزرسانی نوار وضعیت سند */
 function getOrCreateVoucherStatusBar() {
     var bar = document.getElementById('voucher-status-bar');
@@ -79,7 +110,8 @@ function renderVoucherLines() {
     if (!box) return;
     box.innerHTML = '';
     if (voucherLines.length === 0) voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
-    var leaves = getLeafAccounts();
+    /* ★ استفاده از حساب‌های معین مرتب‌شده بر اساس کد */
+    var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
     for (var i = 0; i < voucherLines.length; i++) (function(idx) {
         var line = voucherLines[idx];
@@ -102,6 +134,7 @@ function renderVoucherLines() {
         var selA = document.createElement('select');
         var fillA = function(q) {
             var cur = line.account;
+            /* ★ مرتب‌سازی حفظ می‌شود، فیلتر روی همان لیست مرتب‌شده */
             var f = leaves.filter(function(l) {
                 if (!q) return true;
                 return getAccountSearchText(l.id, accounts).indexOf(q) !== -1;
@@ -623,20 +656,13 @@ function persistVoucher(approve) {
         setVoucherStatusBar('approved', vch.id);
         goToPage('voucher-list');
     } else {
-        /* ★ ذخیره پیش‌نویس — فرم در همان حالت باقی می‌ماند */
         showToast('✅ پیش‌نویس ذخیره شد.');
-
-        // به‌روزرسانی فیلدهای مخفی/قابل‌ویرایش برای ویرایش‌های بعدی
         document.getElementById('v-id').value = vch.id;
         document.getElementById('v-number').value = vch.number;
         document.getElementById('v-date').value = vch.date;
         document.getElementById('v-desc').value = vch.desc;
         currentVoucherStatus = 'draft';
-
-        // نمایش نوار وضعیت
         setVoucherStatusBar('draft', vch.id);
-
-        // علامت: سند ذخیره‌شده و بدون تغییر
         window._voucherFormSavedAndClean = true;
     }
     updateHomeWidgets();
@@ -648,12 +674,10 @@ function persistVoucher(approve) {
 (function attachVoucherDirtyListener() {
     function markDirty(e) {
         if (!window._voucherFormSavedAndClean) return;
-        // فقط تغییرات کاربر واقعی (نه تغییرات برنامه‌ای)
         if (e.isTrusted === false) return;
         var page = document.getElementById('page-voucher-new');
         if (!page || !page.contains(e.target)) return;
         window._voucherFormSavedAndClean = false;
-        // تغییر ظاهر نوار وضعیت به حالت «ویرایش‌شده»
         var bar = document.getElementById('voucher-status-bar');
         if (bar) {
             bar.style.background = 'linear-gradient(135deg,#dbeafe,#bfdbfe)';
@@ -671,11 +695,8 @@ function persistVoucher(approve) {
 
 /* =====================================================================
    ★ مدیریت بستن تب سند
-   اگر سند ذخیره شده و بدون تغییر باشد، هنگام بستن تب هشدار داده نمی‌شود.
    ===================================================================== */
 (function patchVoucherTabCloseBehavior() {
-    // ★ Capture phase: قبل از هندلر فایل ۰۲، فرم را موقتاً "خالی" می‌کنیم
-    //   تا hasUnsavedData = false شود و بستن تب بدون هشدار انجام شود.
     document.addEventListener('click', function(e) {
         var btn = e.target.closest && e.target.closest('.ft-close');
         if (!btn) return;
@@ -692,7 +713,6 @@ function persistVoucher(approve) {
         voucherLines = [];
     }, true);
 
-    // ★ Bubble phase: بعد از اجرای هندلر فایل ۰۲، اگر تب بسته نشد، بازگردان
     document.addEventListener('click', function(e) {
         var btn = e.target.closest && e.target.closest('.ft-close');
         if (!btn) return;
@@ -700,7 +720,6 @@ function persistVoucher(approve) {
         setTimeout(function() {
             var stillOpen = document.querySelector('.form-tab[data-page="voucher-new"]');
             if (stillOpen) {
-                // تب بسته نشد → داده‌ها را برگردان
                 var desc = document.getElementById('v-desc');
                 if (desc && window._voucherSaved_backup) {
                     desc.value = window._voucherSaved_backup.desc;
@@ -709,7 +728,6 @@ function persistVoucher(approve) {
                     voucherLines = window._voucherSaved_backup.lines;
                 }
             } else {
-                // تب بسته شد → فرم را کاملاً تمیز کن
                 var desc2 = document.getElementById('v-desc');
                 if (desc2) desc2.value = '';
                 voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
@@ -1068,8 +1086,9 @@ function refreshCfsMoeinSelect() {
     var sel = document.getElementById('cfs-moein');
     if (!sel) return;
     var v = sel.value;
+    /* ★ استفاده از حساب‌های معین مرتب‌شده بر اساس کد */
+    var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
-    var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
     sel.innerHTML = '<option value="">— ابتدا معین را انتخاب کنید —</option>';
     leaves.forEach(function(a) {
         var o = document.createElement('option');
@@ -1103,6 +1122,8 @@ function onCfsMoeinChange() {
     }
     wrap.innerHTML = html;
 }
+
+/* ★ renderCfsList با دکمه کپی */
 function renderCfsList() {
     var list = DB.load('cashFlowSources', []);
     var filter = (document.getElementById('cfs-filter').value || '').toLowerCase();
@@ -1131,29 +1152,71 @@ function renderCfsList() {
         shown++;
         var s = r.s;
         var tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + esc(r.moein) + '</td><td>' + esc(r.detail) + (s.linkType ? ' <span class="muted" style="font-size:0.7rem">(' + linkTypeName(s.linkType) + ')</span>' : '') + '</td><td dir="ltr">' + toFa(esc(s.expectedDate || '—')) + '</td><td class="num" style="font-weight:bold;color:#1e9e6a">' + fmtFor(s.amount || 0, 'cfs-list') + ' ' + currencyLabel() + '</td><td>' + esc(s.notes || '—') + '</td><td><div class="row-actions"><button class="row-btn edit" data-id="' + s.id + '">✎</button><button class="row-btn del" data-id="' + s.id + '">×</button></div></td>';
+        /* ★ افزودن دکمه کپی در کنار ویرایش و حذف */
+        tr.innerHTML = '<td>' + esc(r.moein) + '</td><td>' + esc(r.detail) + (s.linkType ? ' <span class="muted" style="font-size:0.7rem">(' + linkTypeName(s.linkType) + ')</span>' : '') + '</td><td dir="ltr">' + toFa(esc(s.expectedDate || '—')) + '</td><td class="num" style="font-weight:bold;color:#1e9e6a">' + fmtFor(s.amount || 0, 'cfs-list') + ' ' + currencyLabel() + '</td><td>' + esc(s.notes || '—') + '</td><td><div class="row-actions"><button class="row-btn edit" data-id="' + s.id + '" data-action="edit" title="ویرایش">✎</button><button class="row-btn copy" data-id="' + s.id + '" data-action="copy" title="کپی">📋</button><button class="row-btn del" data-id="' + s.id + '" data-action="delete" title="حذف">×</button></div></td>';
         tb.appendChild(tr);
     });
     if (shown === 0) tb.innerHTML = '<tr><td colspan="6" class="empty-row">موردی ثبت نشده.</td></tr>';
     document.getElementById('cfs-count').textContent = toFa(shown);
-    attachRowActions(tb, 'cashFlowSources', renderCfsList, function(s) {
-        document.getElementById('cfs-id').value = s.id;
-        document.getElementById('cfs-moein').value = s.moeinId || '';
-        onCfsMoeinChange();
-        if (s.linkType && s.detailId) {
-            var sel = document.getElementById('cfs-detail-' + s.linkType);
-            if (sel) sel.value = s.detailId;
+
+    /* ★ رویدادهای سفارشی برای منابع دریافتنی (شامل کپی) */
+    var btns = tb.querySelectorAll('.row-btn');
+    for (var b = 0; b < btns.length; b++) btns[b].addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        var action = this.getAttribute('data-action');
+        var allList = DB.load('cashFlowSources', []);
+        var s = allList.find(function(x) { return x.id === id; });
+        if (!s) return;
+
+        if (action === 'edit') {
+            document.getElementById('cfs-id').value = s.id;
+            document.getElementById('cfs-moein').value = s.moeinId || '';
+            onCfsMoeinChange();
+            if (s.linkType && s.detailId) {
+                var sel = document.getElementById('cfs-detail-' + s.linkType);
+                if (sel) sel.value = s.detailId;
+            }
+            document.getElementById('cfs-date').value = s.expectedDate || '';
+            document.getElementById('cfs-amount').value = s.amount ? formatRaw(s.amount) : '';
+            document.getElementById('cfs-notes').value = s.notes || '';
+            document.querySelector('[data-tab="cfs-add"]').click();
+            return;
         }
-        document.getElementById('cfs-date').value = s.expectedDate || '';
-        document.getElementById('cfs-amount').value = s.amount ? formatRaw(s.amount) : '';
-        document.getElementById('cfs-notes').value = s.notes || '';
-        document.querySelector('[data-tab="cfs-add"]').click();
+
+        if (action === 'copy') {
+            /* ★ ساخت کپی از منبع */
+            var copyItem = {
+                id: uid(),
+                moeinId: s.moeinId,
+                linkType: s.linkType,
+                detailId: s.detailId,
+                expectedDate: s.expectedDate,
+                amount: Number(s.amount) || 0,
+                notes: s.notes ? (s.notes + ' (کپی)') : 'کپی'
+            };
+            allList.push(copyItem);
+            DB.save('cashFlowSources', allList);
+            renderCfsList();
+            showToast('📋 منبع کپی شد.');
+            return;
+        }
+
+        if (action === 'delete') {
+            if (!confirm('حذف شود؟')) return;
+            var l2 = allList.filter(function(x) { return x.id !== id; });
+            DB.save('cashFlowSources', l2);
+            renderCfsList();
+            updateHomeWidgets();
+            return;
+        }
     });
+
     applyColVisibility('cfs-table');
     makeTableResizable(document.getElementById('cfs-table'));
     attachTableSorting('cfs-table', renderCfsList);
     applySortIndicator('cfs-table');
 }
+
 function clearCfsForm() {
     ['cfs-id','cfs-moein','cfs-date','cfs-amount','cfs-notes'].forEach(function(x) { document.getElementById(x).value = ''; });
     document.getElementById('cfs-details-wrap').innerHTML = '';
@@ -1433,7 +1496,6 @@ function clearFacForm() {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
-                // اگر صفحه سند باز است و v-id پر است، وضعیت را نمایش بده
                 var vId = document.getElementById('v-id');
                 if (vId && vId.value) {
                     var v = findVoucherById(vId.value);
