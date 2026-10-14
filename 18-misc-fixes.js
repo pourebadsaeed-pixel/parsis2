@@ -14,7 +14,7 @@
     }
     setTimeout(cleanup, 1000);
     setInterval(cleanup, 5000);
-    console.log('✅ [v41] reminder قدیمی غیرفعال شد — فقط notifStack41 فعال است');
+    console.log('✅ [v42] reminder قدیمی غیرفعال شد — فقط notifStack41 فعال است');
 })();
 
 (function collapseSettings() {
@@ -66,7 +66,7 @@
             body.querySelectorAll('details.settings-details').forEach(function(d) { d.open = false; });
         });
 
-        console.log('✅ [v41] تنظیمات کولاپس شد');
+        console.log('✅ [v42] تنظیمات کولاپس شد');
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(convert, 1200); });
@@ -75,32 +75,43 @@
     }
 })();
 
+/* ★ اطمینان از وجود چک‌باکس برای ۳ ویجت جدید تقویم */
 (function ensureWidgetCheckboxes() {
     function patch() {
         if (typeof window.renderWidgetOrderUI !== 'function') {
             setTimeout(patch, 600);
             return;
         }
-        if (window._widgetCheckPatchedV41) return;
-        window._widgetCheckPatchedV41 = true;
+        if (window._widgetCheckPatchedV42) return;
+        window._widgetCheckPatchedV42 = true;
 
         window.renderWidgetOrderUI = function() {
             var box = document.getElementById('widget-order-list');
             if (!box) return;
             var names = {
-                calendar:'📅 تقویم', todayChecklist:'✅ چک‌لیست', bankTotal:'🏦 مانده کل بانک',
-                bankBalances:'🏦 مانده حساب‌ها', cashBalances:'💰 صندوق‌ها',
-                upcomingInstallments:'⏰ اقساط ۳ روز آینده', birthdays:'🎂 تولدها',
+                calendar:'📅 تقویم هفتگی',
+                calendarNext3:'📅 ۳ روز آتی',
+                calendarDay:'📆 روز جاری',
+                calendarAgenda:'📋 دستورکار',
+                todayChecklistPersonal:'⭐ چک‌لیست شخصی',
+                todayChecklistFamily:'🏠 چک‌لیست خانواده',
+                todayChecklistWork:'💼 چک‌لیست شغلی',
+                bankTotal:'🏦 مانده کل بانک',
+                bankBalances:'🏦 مانده حساب‌ها',
+                cashBalances:'💰 صندوق‌ها',
+                upcomingInstallments:'⏰ اقساط ۳ روز آینده',
+                birthdays:'🎂 تولدها',
                 liveRates:'💱 نرخ لحظه‌ای ارز و طلا'
             };
             var order = state.widgetOrder || [];
+            var MAX_PAGES = 4;
             box.innerHTML = '';
             order.forEach(function(key, idx) {
                 var row = document.createElement('div');
                 row.className = 'widget-order-row';
                 var curPage = state.widgetPages[key] || 1;
                 var sel = '<select class="wo-page" data-widget-page="' + key + '">';
-                for (var p = 1; p <= 3; p++)
+                for (var p = 1; p <= MAX_PAGES; p++)
                     sel += '<option value="' + p + '"' + (curPage === p ? ' selected' : '') + '>صفحه ' + toFa(p) + '</option>';
                 sel += '</select>';
                 var checked = state.widgets[key] ? 'checked' : '';
@@ -231,14 +242,10 @@
 
     function renderVoucherListV42() {
         var tb = document.getElementById('voucher-list-body');
-        if (!tb) {
-            console.warn('❌ [v42] voucher-list-body یافت نشد');
-            return;
-        }
+        if (!tb) return;
 
         try {
             var allVouchers = DB.load('vouchers', []);
-            console.log('📊 [v42] اسناد در دیتابیس:', allVouchers.length);
 
             if (!Array.isArray(allVouchers) || allVouchers.length === 0) {
                 tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است. برای ثبت، از «✏️ صدور سند» استفاده کنید.</td></tr>';
