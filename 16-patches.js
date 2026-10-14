@@ -1,11 +1,10 @@
-/* پارسیس — پچ‌های UI و فیکس‌ها (ادغام 16-ui-patches + 16-fixes-v38) */
+/* پارسیس — پچ‌های UI و فیکس‌ها (نسخه خودکفا) */
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════
-   بخش ۱ — ردیف سند با تفصیلی ترکیبی
-   ★★★ اصلاح‌شده: استفاده از getLeafAccountsSortedByCode ★★★
+   بخش ۱ — ردیف سند کامل (تفصیلی ترکیبی + moveto + clear-desc + auto-scroll)
    ═══════════════════════════════════════════════════════════════ */
-(function fixCombinedDetailCell() {
+(function fullRenderVoucherLines() {
     window.renderVoucherLines = function() {
         var box = document.getElementById('voucher-lines');
         if (!box) return;
@@ -13,7 +12,7 @@
         if (voucherLines.length === 0) {
             voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
         }
-        /* ★★★ اصلاح: مرتب‌سازی حساب‌های معین بر اساس کد ★★★ */
+        /* ★ مرتب‌سازی حساب‌های معین بر اساس کد */
         var leaves = (typeof getLeafAccountsSortedByCode === 'function')
             ? getLeafAccountsSortedByCode()
             : getLeafAccounts();
@@ -216,10 +215,12 @@
             r3.appendChild(iTD);
             wrap.appendChild(r3);
 
-            /* ردیف ۴: شرح */
+            /* ردیف ۴: شرح + 🧹 + ＋ */
             var r4 = document.createElement('div');
             r4.className = 'desc-row';
             r4.style.marginTop = '8px';
+            r4.style.gridTemplateColumns = '1fr auto auto';
+
             var iDsc = document.createElement('input');
             iDsc.type = 'text'; iDsc.placeholder = 'شرح قلم *';
             iDsc.value = line.description || '';
@@ -231,8 +232,11 @@
                 line.description = this.value;
                 this.classList.remove('desc-required');
             });
+
+            /* ★ دکمه clear-desc */
             var clearBtn = document.createElement('button');
             clearBtn.type = 'button'; clearBtn.className = 'desc-clear-btn';
+            clearBtn.title = 'خالی کردن شرح این قلم';
             clearBtn.textContent = '🧹';
             clearBtn.style.cssText = 'background:#fee2e2;color:#dc2626;border:none;border-radius:10px;width:38px;height:38px;font-size:1.05rem;font-weight:800;cursor:pointer;flex-shrink:0';
             clearBtn.addEventListener('click', function(e) {
@@ -240,33 +244,72 @@
                 iDsc.value = ''; line.description = '';
                 iDsc.classList.remove('desc-required'); iDsc.focus();
             });
+
             var btnAddDesc = document.createElement('button');
             btnAddDesc.type = 'button'; btnAddDesc.className = 'desc-add-btn'; btnAddDesc.textContent = '＋';
             btnAddDesc.addEventListener('click', function() { addDescriptionToStandard(iDsc.value); });
-            r4.appendChild(iDsc); r4.appendChild(clearBtn); r4.appendChild(btnAddDesc);
+
+            r4.appendChild(iDsc);
+            r4.appendChild(clearBtn);
+            r4.appendChild(btnAddDesc);
             wrap.appendChild(r4);
 
-            /* ردیف ۵: دکمه‌ها */
+            /* ردیف ۵: دکمه‌ها (شامل moveto) */
             var aW = document.createElement('div');
             aW.className = 'ln-actions';
+
             var bU = document.createElement('button');
-            bU.className = 'ln-btn'; bU.textContent = '↑';
+            bU.className = 'ln-btn'; bU.textContent = '↑'; bU.title = 'انتقال به بالا';
             if (idx === 0) bU.disabled = true;
             bU.addEventListener('click', function() { moveLine(idx, -1); });
+
             var bD = document.createElement('button');
-            bD.className = 'ln-btn'; bD.textContent = '↓';
+            bD.className = 'ln-btn'; bD.textContent = '↓'; bD.title = 'انتقال به پایین';
             if (idx === voucherLines.length - 1) bD.disabled = true;
             bD.addEventListener('click', function() { moveLine(idx, 1); });
+
             var bCp = document.createElement('button');
-            bCp.className = 'ln-btn ln-copy'; bCp.textContent = '📋 کپی';
+            bCp.className = 'ln-btn ln-copy'; bCp.textContent = '📋 کپی'; bCp.title = 'کپی ردیف';
             bCp.addEventListener('click', function() { copyVoucherLine(idx); });
+
             var bSwap = document.createElement('button');
-            bSwap.className = 'ln-btn ln-swap'; bSwap.textContent = '🔄 جابجایی';
+            bSwap.className = 'ln-btn ln-swap'; bSwap.textContent = '🔄 جابجایی'; bSwap.title = 'جابجایی بدهکار/بستانکار';
             bSwap.addEventListener('click', function() {
                 var tmp = line.debit; line.debit = line.credit; line.credit = tmp;
                 renderVoucherLines();
                 showToast('🔄 جابه‌جا شد.');
             });
+
+            /* ★ دکمه moveto */
+            var bMoveTo = document.createElement('button');
+            bMoveTo.className = 'ln-btn ln-moveto'; bMoveTo.textContent = '📍 انتقال به ردیف';
+            bMoveTo.title = 'انتقال به ردیف مشخص';
+            bMoveTo.addEventListener('click', function() {
+                var total = voucherLines.length;
+                if (total < 2) {
+                    if (typeof showToast === 'function') showToast('فقط یک ردیف موجود است.');
+                    return;
+                }
+                var ans = prompt(
+                    'این ردیف به کدام شماره ردیف منتقل شود؟ (۱ تا ' + toFa(total) + ')\nشماره فعلی: ' + toFa(idx + 1),
+                    String(idx + 1)
+                );
+                if (!ans) return;
+                var target = Number(normalizeDigits(ans));
+                if (isNaN(target) || target < 1 || target > total) {
+                    alert('شماره نامعتبر.');
+                    return;
+                }
+                target = target - 1;
+                if (target === idx) return;
+                var moved = voucherLines.splice(idx, 1)[0];
+                voucherLines.splice(target, 0, moved);
+                window._focusLineId = moved.id;
+                renderVoucherLines();
+                if (typeof showToast === 'function')
+                    showToast('📍 ردیف به ' + toFa(target + 1) + ' منتقل شد.');
+            });
+
             var bX = document.createElement('button');
             bX.className = 'ln-btn ln-del'; bX.textContent = '× حذف';
             bX.addEventListener('click', function() {
@@ -274,13 +317,36 @@
                 voucherLines.splice(idx, 1);
                 renderVoucherLines();
             });
-            aW.appendChild(bU); aW.appendChild(bD); aW.appendChild(bCp);
-            aW.appendChild(bSwap); aW.appendChild(bX);
+
+            aW.appendChild(bU);
+            aW.appendChild(bD);
+            aW.appendChild(bCp);
+            aW.appendChild(bSwap);
+            aW.appendChild(bMoveTo);
+            aW.appendChild(bX);
             wrap.appendChild(aW);
 
             box.appendChild(wrap);
         })(i);
+
         updateVoucherTotals();
+
+        /* ★ focusLineId: auto-scroll به ردیف کپی/جابجا شده */
+        if (window._focusLineId) {
+            var tid = window._focusLineId;
+            window._focusLineId = null;
+            setTimeout(function() {
+                var t = box.querySelector('[data-line-id="' + tid + '"]');
+                if (t) {
+                    t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    t.classList.add('focus-highlight');
+                    setTimeout(function() {
+                        t.classList.remove('focus-highlight');
+                    }, 1200);
+                }
+            }, 60);
+        }
+
         if (typeof attachDatePickers === 'function') attachDatePickers();
     };
 })();
@@ -1404,4 +1470,4 @@ window.openTimePicker = openTimePicker;
     setInterval(patchAnalyzeButton, 800);
 })();
 
-console.log('✅ پارسیس — 16-patches بارگذاری شد (UI + فیکس‌ها + مرتب‌سازی حساب‌ها)');
+console.log('✅ پارسیس — 16-patches بارگذاری شد (خودکفا — با moveto + clear-desc + auto-scroll + مرتب‌سازی)');
