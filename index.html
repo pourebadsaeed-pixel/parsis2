@@ -92,6 +92,7 @@
 
 <main class="content">
 
+<!-- ============ HOME ============ -->
 <section id="page-home" class="page active">
     <div class="home-page-tabs" id="home-page-tabs">
         <button class="home-page-tab active" data-home-page="1">صفحه ۱</button>
@@ -100,7 +101,21 @@
     </div>
     <div class="home-grid" id="home-grid">
         <div class="card widget-card" data-widget="calendar"><div id="home-cal-widget"></div></div>
-        <div class="card widget-card" data-widget="todayChecklist"><h3>✅ چک‌لیست‌ها</h3><div id="home-today-checklist"></div></div>
+
+        <!-- ★ ۳ ویجت چک‌لیست مستقل -->
+        <div class="card widget-card" data-widget="todayChecklistPersonal">
+            <h3>⭐ چک‌لیست شخصی</h3>
+            <div id="home-today-checklist-personal"></div>
+        </div>
+        <div class="card widget-card" data-widget="todayChecklistFamily">
+            <h3>🏠 چک‌لیست خانواده</h3>
+            <div id="home-today-checklist-family"></div>
+        </div>
+        <div class="card widget-card" data-widget="todayChecklistWork">
+            <h3>💼 چک‌لیست شغلی</h3>
+            <div id="home-today-checklist-work"></div>
+        </div>
+
         <div class="card widget-card" data-widget="bankTotal"><h3>🏦 مانده کل بانک</h3><div id="home-bank-total" style="font-size:1.5rem;font-weight:900;text-align:center;padding:16px;background:var(--gradient-accent);border-radius:14px;color:#fff;box-shadow:var(--shadow-glow)">۰</div></div>
         <div class="card widget-card" data-widget="cashBalances"><h3>💰 صندوق‌ها</h3><div id="home-cash-balances"></div></div>
         <div class="card widget-card" data-widget="bankBalances"><h3>🏦 مانده حساب‌ها</h3><div id="home-bank-balances"></div></div>
@@ -118,12 +133,14 @@
     <div class="home-page-dots" id="home-page-dots"></div>
 </section>
 
+<!-- ============ LANGUAGE ============ -->
 <section id="page-language" class="page"><h2>🌐 زبان</h2><div class="card"><div class="field"><label>انتخاب زبان</label><select id="set-language"><option value="fa">فارسی</option><option value="en">English</option></select></div></div></section>
 <section id="page-account-types" class="page"><h2>📑 لیست نوع حساب</h2><div class="card"><ul class="simple-list"><li>👥 اشخاص</li><li>🏢 شرکت‌ها</li><li>🏦 حساب‌های بانکی</li><li>💰 صندوق‌ها</li><li>📁 پروژه‌ها</li><li>🏦 تسهیلات</li></ul></div></section>
 <section id="page-bank-types" class="page"><h2>🏦 انواع حساب بانکی</h2><div class="card"><div class="field"><label>افزودن</label><input type="text" id="new-bank-type"></div><button id="add-bank-type" class="btn-primary">افزودن</button><div id="bank-types-list" class="chip-list"></div></div></section>
 <section id="page-cash-types" class="page"><h2>💰 انواع صندوق</h2><div class="card"><div class="field"><label>افزودن</label><input type="text" id="new-cash-type"></div><button id="add-cash-type" class="btn-primary">افزودن</button><div id="cash-types-list" class="chip-list"></div></div></section>
 <section id="page-currency" class="page"><h2>💱 ارز</h2><div class="card"><div class="field"><label>واحد پول</label><select id="set-currency"><option value="rial">ریال</option><option value="toman">تومان</option></select></div><div class="field"><label>نمایش</label><select id="set-currency-display"><option value="rial">ریال</option><option value="toman">تومان</option><option value="million">میلیون ریال</option></select></div></div></section>
 
+<!-- ============ FISCAL ============ -->
 <section id="page-fiscal" class="page"><h2>📅 دوره مالی</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="fiscal-list">📋 فهرست</button><button class="tab-btn" data-tab="fiscal-add">✏️ تعریف</button></div>
     <div id="tab-fiscal-list" class="tab-content active"><div class="card">
@@ -138,6 +155,7 @@
     </div></div>
 </section>
 
+<!-- ============ PERSONS ============ -->
 <section id="page-persons" class="page"><h2>👥 اشخاص</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="persons-list">📋 فهرست</button><button class="tab-btn" data-tab="persons-add">✏️ تعریف</button></div>
     <div id="tab-persons-list" class="tab-content active"><div class="card">
@@ -164,6 +182,7 @@
     </div></div>
 </section>
 
+<!-- ============ COMPANIES ============ -->
 <section id="page-companies" class="page"><h2>🏢 شرکت‌ها</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="comp-list">📋 فهرست</button><button class="tab-btn" data-tab="comp-add">✏️ تعریف</button></div>
     <div id="tab-comp-list" class="tab-content active"><div class="card">
@@ -183,6 +202,7 @@
     </div></div>
 </section>
 
+<!-- ============ BANK ACCOUNTS ============ -->
 <section id="page-bank-accounts" class="page"><h2>🏦 حساب‌های بانکی</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="ba-list">📋 فهرست</button><button class="tab-btn" data-tab="ba-add">✏️ تعریف</button></div>
     <div id="tab-ba-list" class="tab-content active"><div class="card">
@@ -206,6 +226,7 @@
     </div></div>
 </section>
 
+<!-- ============ CASH BOXES ============ -->
 <section id="page-cash-boxes" class="page"><h2>💰 صندوق‌ها</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="cb-list">📋 فهرست</button><button class="tab-btn" data-tab="cb-add">✏️ تعریف</button></div>
     <div id="tab-cb-list" class="tab-content active"><div class="card">
@@ -226,6 +247,7 @@
     </div></div>
 </section>
 
+<!-- ============ PROJECTS ============ -->
 <section id="page-projects" class="page"><h2>📁 پروژه‌ها</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="proj-list">📋 فهرست</button><button class="tab-btn" data-tab="proj-add">✏️ تعریف</button></div>
     <div id="tab-proj-list" class="tab-content active"><div class="card">
@@ -239,6 +261,7 @@
     </div></div>
 </section>
 
+<!-- ============ ESTIMATE DAILY ============ -->
 <section id="page-estimate-daily" class="page"><h2>📝 برآورد هزینه‌های روزانه</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="est-list">📋 فهرست</button><button class="tab-btn" data-tab="est-add">✏️ تعریف</button></div>
     <div id="tab-est-list" class="tab-content active"><div class="card">
@@ -258,6 +281,7 @@
     </div></div>
 </section>
 
+<!-- ============ CASHFLOW SOURCES ============ -->
 <section id="page-cashflow-sources" class="page"><h2>📌 برآورد منابع دریافتنی</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="cfs-list">📋 فهرست</button><button class="tab-btn" data-tab="cfs-add">✏️ تعریف</button></div>
     <div id="tab-cfs-list" class="tab-content active"><div class="card">
@@ -275,11 +299,12 @@
         <div class="field"><label>عنوان معین منبع *</label><select id="cfs-moein"><option value="">— ابتدا معین را انتخاب کنید —</option></select></div>
         <div id="cfs-details-wrap"></div>
         <div class="grid-2"><div class="field"><label>تاریخ احتمالی دریافت</label><input type="text" id="cfs-date" class="date-picker" dir="ltr"></div><div class="field"><label>مبلغ احتمالی</label><input type="text" id="cfs-amount" class="money-input" inputmode="numeric" dir="ltr"></div></div>
-        <div class="field"><label>توضیحات</label><input type="text" id="cfs-notes"></div>
+        <div class="field"><label>توضیحات (به‌عنوان عنوان دسته در گردش وجه نقد استفاده می‌شود)</label><input type="text" id="cfs-notes" placeholder="مثلاً: فروش محصولات"></div>
         <div class="form-buttons"><button id="save-cfs" class="btn-primary">💾 ذخیره</button><button id="new-cfs" class="btn-secondary">جدید</button></div>
     </div></div>
 </section>
 
+<!-- ============ FACILITIES ============ -->
 <section id="page-facilities" class="page"><h2>🏦 تسهیلات</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="fac-list">📋 فهرست</button><button class="tab-btn" data-tab="fac-add">✏️ تعریف</button></div>
     <div id="tab-fac-list" class="tab-content active"><div class="card">
@@ -305,6 +330,7 @@
     </div>
 </section>
 
+<!-- ============ CHART DEFINE ============ -->
 <section id="page-chart-define" class="page"><h2>✏️ تعریف حساب‌ها</h2>
     <div class="card">
         <div class="form-buttons" style="margin-bottom:12px"><button id="load-default-chart" class="btn-secondary btn-mini">📥 بارگذاری</button><button id="add-group" class="btn-primary btn-mini">+ گروه</button><button id="cd-expand" class="btn-secondary btn-mini">باز کردن</button><button id="cd-collapse" class="btn-secondary btn-mini">بستن</button></div>
@@ -330,11 +356,31 @@
     </div>
 </section>
 
+<!-- ============ VOUCHER LIST ============ -->
 <section id="page-voucher-list" class="page"><h2>📄 فهرست اسناد</h2><div class="card">
-    <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list"><span class="count-badge" id="vlist-count">۰</span><button class="export-btn" data-export="vouchers">📊 اکسل</button></div>
-    <div class="table-wrap"><table class="data-table" id="voucher-table-list"><thead><tr><th data-sortable data-sort-key="number">شماره <span class="sort-ind"></span></th><th data-sortable data-sort-key="date">تاریخ <span class="sort-ind"></span></th><th data-sortable data-sort-key="type">نوع <span class="sort-ind"></span></th><th data-sortable data-sort-key="periodName">دوره <span class="sort-ind"></span></th><th data-sortable data-sort-key="desc">شرح <span class="sort-ind"></span></th><th data-sortable data-sort-key="amount">مبلغ <span class="sort-ind"></span></th><th data-sortable data-sort-key="status">وضعیت <span class="sort-ind"></span></th><th>عملیات</th></tr></thead><tbody id="voucher-list-body"></tbody></table></div>
+    <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list">
+        <span class="count-badge" id="vlist-count">۰</span>
+        <select class="filter-input" id="vl-period-filter" style="flex:0 0 auto;max-width:180px"><option value="">همه دوره‌ها</option></select>
+        <select class="filter-input" id="vlist-status-filter" style="flex:0 0 auto;max-width:150px">
+            <option value="">همه وضعیت‌ها</option>
+            <option value="draft">پیش‌نویس</option>
+            <option value="approved">تأییدشده</option>
+        </select>
+        <input type="text" class="filter-input" id="vlist-search" placeholder="🔍 جستجو">
+        <button class="export-btn" data-export="vouchers">📊 اکسل</button>
+    </div>
+    <div class="table-wrap"><table class="data-table" id="voucher-table-list"><thead><tr>
+        <th data-sortable data-sort-key="number">شماره <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="date">تاریخ <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="type">نوع <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="periodName">دوره <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="desc">شرح <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="amount">مبلغ <span class="sort-ind"></span></th>
+        <th data-sortable data-sort-key="status">وضعیت <span class="sort-ind"></span></th>
+        <th>عملیات</th></tr></thead><tbody id="voucher-list-body"></tbody></table></div>
 </div></section>
 
+<!-- ============ VOUCHER NEW ============ -->
 <section id="page-voucher-new" class="page"><h2>✏️ صدور سند</h2>
     <div class="card" id="voucher-template-card">
         <div class="grid-2"><div class="field"><label>⚡ الگو</label><select id="v-template"></select></div><div class="field"><label>&nbsp;</label><button id="apply-template" class="btn-secondary" style="width:100%">اعمال الگو</button></div></div>
@@ -363,6 +409,7 @@
     </div>
 </section>
 
+<!-- ============ TEMPLATES ============ -->
 <section id="page-templates" class="page"><h2>🧩 الگوهای سند و شرح استاندارد</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="tpl-list">📋 الگوهای سند</button><button class="tab-btn" data-tab="tpl-add">✏️ تعریف الگو</button><button class="tab-btn" data-tab="desc-list">💬 شرح‌های استاندارد</button></div>
     <div id="tab-tpl-list" class="tab-content active"><div class="card">
@@ -379,22 +426,49 @@
         <div class="form-buttons"><button id="save-tpl" class="btn-primary">💾 ذخیره</button><button id="new-tpl" class="btn-secondary">جدید</button></div>
     </div></div>
     <div id="tab-desc-list" class="tab-content"><div class="card">
-        <div class="field"><label>افزودن شرح</label><input type="text" id="new-std-desc"></div>
+        <div class="field">
+            <label>جستجو در شرح‌های استاندارد</label>
+            <input type="text" id="std-desc-search" placeholder="🔍 جستجو...">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0">
+            <span id="std-desc-count" style="font-size:0.85rem;font-weight:800;color:var(--primary-dark)">۰ شرح</span>
+        </div>
+        <div class="field"><label>افزودن شرح جدید</label><input type="text" id="new-std-desc"></div>
         <button id="add-std-desc" class="btn-primary">افزودن</button>
         <div id="std-desc-chips" class="chip-list"></div>
     </div></div>
 </section>
 
+<!-- ============ NOTES ============ -->
 <section id="page-notes" class="page"><h2>📔 دفترچه یادداشت</h2>
     <div class="tabs"><button class="tab-btn active" data-tab="notes-list">📋 فهرست</button><button class="tab-btn" data-tab="notes-add">✏️ یادداشت جدید</button></div>
     <div id="tab-notes-list" class="tab-content active"><div class="card">
         <div class="tabs" style="margin-bottom:12px;background:var(--card-solid)"><button class="tab-btn active" data-notes-view="all">📋 همه یادداشت‌ها</button><button class="tab-btn" data-notes-view="archived">📦 آرشیو شده</button></div>
-        <div class="list-header" data-hide-key="notes-list"><span class="count-badge" id="notes-count">۰</span><input type="text" class="filter-input" id="notes-filter" placeholder="🔍 جستجو در عنوان"></div>
+        <div class="list-header" data-hide-key="notes-list">
+            <span class="count-badge" id="notes-count">۰</span>
+            <!-- ★ فیلتر دسته -->
+            <select class="filter-input" id="notes-cat-filter" style="flex:0 0 auto;max-width:160px">
+                <option value="">همه دسته‌ها</option>
+                <option value="personal">⭐ شخصی</option>
+                <option value="family">🏠 خانواده</option>
+                <option value="work">💼 شغلی</option>
+            </select>
+            <input type="text" class="filter-input" id="notes-filter" placeholder="🔍 جستجو در عنوان">
+        </div>
         <div id="notes-list-body" class="notes-grid"></div>
     </div></div>
     <div id="tab-notes-add" class="tab-content"><div class="card">
         <input type="hidden" id="nt-id">
         <div class="grid-2"><div class="field"><label>عنوان *</label><input type="text" id="nt-title" placeholder="عنوان یادداشت"></div><div class="field"><label>تاریخ</label><input type="text" id="nt-date" class="date-picker" dir="ltr"></div></div>
+        <!-- ★ دسته‌بندی یادداشت -->
+        <div class="field">
+            <label>دسته‌بندی *</label>
+            <select id="nt-category">
+                <option value="personal">⭐ شخصی</option>
+                <option value="family">🏠 خانواده</option>
+                <option value="work">💼 شغلی</option>
+            </select>
+        </div>
         <div class="field"><label>متن یادداشت</label><textarea id="nt-content" rows="5" placeholder="متن خود را وارد کنید..."></textarea></div>
         <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">✅ چک‌لیست</h3>
         <div id="nt-checklist"></div>
@@ -406,6 +480,7 @@
     </div></div>
 </section>
 
+<!-- ============ SMS ============ -->
 <section id="page-sms" class="page"><h2>📱 پیامک بانکی</h2>
     <div class="card">
         <div class="list-header">
@@ -432,6 +507,7 @@
     </div>
 </section>
 
+<!-- ============ DASHBOARD ============ -->
 <section id="page-dashboard" class="page"><h2>🎯 داشبورد مالی</h2>
     <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-lbl">💰 موجودی کل نقدینگی</div><div class="kpi-val" id="dash-liquidity">—</div><div class="kpi-sub" id="dash-liquidity-sub"></div></div>
@@ -442,6 +518,7 @@
     <div id="dash-grid-container" class="dash-cards-grid"></div>
 </section>
 
+<!-- ============ REPORT CASHFLOW ============ -->
 <section id="page-report-cashflow" class="page"><h2>💵 وضعیت نقدینگی</h2>
     <div class="card">
         <div class="grid-2"><div class="field"><label>از تاریخ</label><input type="text" id="cf-from" class="date-picker" dir="ltr"></div><div class="field"><label>تا تاریخ</label><input type="text" id="cf-to" class="date-picker" dir="ltr"></div></div>
@@ -451,6 +528,7 @@
     <div class="card"><div class="list-header" data-col-table="cf-table" data-hide-key="cf"><span class="count-badge" id="cf-count">۰</span><span class="unit-chip" id="cf-unit"></span></div><div id="cf-result"></div></div>
 </section>
 
+<!-- ============ REPORT CASHFLOW DESC ============ -->
 <section id="page-report-cashflow-desc" class="page"><h2>💸 گردش وجه نقد</h2>
     <p class="muted" style="margin-bottom:14px;font-size:0.8rem">این گزارش فقط معین‌هایی را که در «تعریف حساب‌ها» گزینه «موثر در گزارش گردش وجه نقد» دارند را در نظر می‌گیرد.</p>
     <div class="card">
@@ -480,6 +558,7 @@
     <div class="card"><div class="list-header" data-col-table="cfd-table" data-hide-key="cfd"><span class="count-badge" id="cfd-count">۰</span><span class="unit-chip" id="cfd-unit"></span></div><div id="cfd-result"></div></div>
 </section>
 
+<!-- ============ REPORT ACCOUNT ============ -->
 <section id="page-report-account" class="page"><h2>📒 مرور حساب‌ها</h2>
     <div class="card">
         <div class="grid-4"><div class="field"><label>از تاریخ</label><input type="text" id="ra-from" class="date-picker" dir="ltr"></div><div class="field"><label>تا تاریخ</label><input type="text" id="ra-to" class="date-picker" dir="ltr"></div><div class="field"><label>نوع</label><select id="ra-cat"><option value="">همه</option><option value="permanent">دائمی</option><option value="temporary">موقت</option><option value="none">مهم نیست</option></select></div><div class="field"><label>ماهیت</label><select id="ra-nature"><option value="">همه</option><option value="debit">بدهکار</option><option value="credit">بستانکار</option><option value="none">مهم نیست</option></select></div></div>
@@ -490,6 +569,7 @@
     <div class="card"><div class="list-header" data-col-table="ra-table" data-hide-key="ra"><span class="count-badge" id="ra-count">۰</span><span class="unit-chip" id="ra-unit"></span></div><div id="ra-result"></div></div>
 </section>
 
+<!-- ============ REPORT TRIAL ============ -->
 <section id="page-report-trial" class="page"><h2>⚖️ تراز آزمایشی</h2>
     <div class="card">
         <div class="grid-4"><div class="field"><label>از</label><input type="text" id="rt-from" class="date-picker" dir="ltr"></div><div class="field"><label>تا</label><input type="text" id="rt-to" class="date-picker" dir="ltr"></div><div class="field"><label>نوع</label><select id="rt-cat"><option value="">همه</option><option value="permanent">دائمی</option><option value="temporary">موقت</option><option value="none">مهم نیست</option></select></div><div class="field"><label>ماهیت</label><select id="rt-nature"><option value="">همه</option><option value="debit">بدهکار</option><option value="credit">بستانکار</option><option value="none">مهم نیست</option></select></div></div>
@@ -499,6 +579,7 @@
     <div class="card"><div class="list-header" data-col-table="rt-table" data-hide-key="rt"><span class="count-badge" id="rt-count">۰</span><span class="unit-chip" id="rt-unit"></span></div><div id="rt-result"></div></div>
 </section>
 
+<!-- ============ REPORT INCOMPLETE ============ -->
 <section id="page-report-incomplete" class="page"><h2>🔍 تراکنش‌های تکمیل نشده</h2>
     <div class="card">
         <div class="grid-2"><div class="field"><label>وضعیت</label><select id="ri-status"><option value="">همه</option><option value="draft">پیش‌نویس</option><option value="approved">تأیید شده</option></select></div><div class="field"><label>دوره</label><select id="ri-period"><option value="">همه</option></select></div></div>
@@ -507,6 +588,7 @@
     <div class="card"><div class="list-header" data-col-table="ri-table" data-hide-key="ri"><span class="count-badge" id="ri-count">۰</span><span class="unit-chip" id="ri-unit"></span></div><div id="ri-result"></div></div>
 </section>
 
+<!-- ============ REPORT FACILITY ============ -->
 <section id="page-report-facility" class="page"><h2>🏦 خلاصه تسهیلات</h2>
     <div class="card">
         <div class="grid-2"><div class="field"><label>دسته</label><select id="rf-category"><option value="">همه</option><option value="facility">تسهیلات</option><option value="scheduled">زمانبندی</option></select></div><div class="field"><label>وضعیت</label><select id="rf-status"><option value="">همه</option><option value="active">در جریان</option><option value="settled">تسویه</option></select></div></div>
@@ -515,6 +597,7 @@
     <div class="card"><div class="list-header" data-col-table="rf-table" data-hide-key="rf"><span class="count-badge" id="rf-count">۰</span><span class="unit-chip" id="rf-unit"></span></div><div id="rf-result"></div></div>
 </section>
 
+<!-- ============ REPORT FACILITY FULL ============ -->
 <section id="page-report-facility-full" class="page"><h2>📊 گزارش جامع تسهیلات</h2>
     <div class="card">
         <div class="tabs"><button class="tab-btn active" data-rff-view="summary">📋 کلی</button><button class="tab-btn" data-rff-view="detail">📖 جزئیات</button></div>
@@ -534,6 +617,7 @@
     <div class="card"><div class="list-header" data-col-table="rff-table" data-hide-key="rff"><span class="count-badge" id="rff-count">۰</span><span class="unit-chip" id="rff-unit"></span></div><div id="rff-result"></div></div>
 </section>
 
+<!-- ============ REPORT RATES ============ -->
 <section id="page-report-rates" class="page"><h2>📈 گزارش نرخ ارز و طلا</h2>
     <div class="card">
         <div class="grid-3">
@@ -572,6 +656,7 @@
     </div>
 </section>
 
+<!-- ============ REPORT COMPARE ============ -->
 <section id="page-report-compare" class="page"><h2>📊 گزارش مقایسه‌ای دوره‌ها</h2>
     <div class="card">
         <div class="grid-4">
@@ -581,16 +666,17 @@
             <div class="field"><label>تا تاریخ — دوره ۲</label><input type="text" id="rc-to2" class="date-picker" dir="ltr"></div>
         </div>
         <div class="grid-4">
-            <div class="field"><label>نوع</label><select id="rc-cat"><option value="">همه</option><option value="permanent">دائمی</option><option value="temporary">موقت</option><option value="none">مهم نیست</option></select></div>
+            <div class="field"><label>نوع</label><select id="rc-cat"><option value="">همه</option><option value="permanent">دائمی</option><option value="temporary" selected>موقت</option><option value="none">مهم نیست</option></select></div>
             <div class="field"><label>ماهیت</label><select id="rc-nature"><option value="">همه</option><option value="debit">بدهکار</option><option value="credit">بستانکار</option><option value="none">مهم نیست</option></select></div>
             <div class="field"><label>نوع سند</label><select id="rc-vtype"><option value="general" selected>عمومی</option><option value="">همه اسناد</option><option value="opening">افتتاحیه</option><option value="establishment">افتتاحیه استقرار</option><option value="closing">بستن حساب</option><option value="final">اختتامیه</option></select></div>
-            <div class="field"><label>سطح</label><select id="rc-level"><option value="2">کل</option><option value="3" selected>معین</option></select></div>
+            <div class="field"><label>سطح</label><select id="rc-level"><option value="2" selected>کل</option><option value="3">معین</option></select></div>
         </div>
         <div class="form-buttons"><button id="rc-run" class="btn-primary">🔍 اجرا</button><button id="rc-print" class="btn-secondary">🖨 چاپ</button><button id="rc-export" class="btn-secondary">📊 اکسل</button></div>
     </div>
     <div class="card"><div class="list-header" data-col-table="rc-table" data-hide-key="rc"><span class="count-badge" id="rc-count">۰</span><span class="unit-chip" id="rc-unit"></span></div><div id="rc-result"></div></div>
 </section>
 
+<!-- ============ DAILY CLOSE ============ -->
 <section id="page-daily-close" class="page">
     <h2>📅 قیمت پایانی روز</h2>
     <div class="card">
@@ -653,7 +739,10 @@
 
         <div class="modal-section"><h3>📊 ویجت‌ها (فعال/غیرفعال)</h3><div class="checkbox-grid">
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendar"> <span>📅 تقویم</span></label>
-            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklist"> <span>✅ چک‌لیست</span></label>
+            <!-- ★ ۳ چک‌لیست مستقل -->
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistPersonal"> <span>⭐ چک‌لیست شخصی</span></label>
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistFamily"> <span>🏠 چک‌لیست خانواده</span></label>
+            <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistWork"> <span>💼 چک‌لیست شغلی</span></label>
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="bankTotal"> <span>🏦 مانده کل</span></label>
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="bankBalances"> <span>🏦 تفکیکی</span></label>
             <label class="checkbox-item"><input type="checkbox" data-widget-toggle="cashBalances"> <span>💰 صندوق</span></label>
