@@ -950,9 +950,11 @@ window.openTimePicker = openTimePicker;
 
 /* ═══════════════════════════════════════════════════════════════
    بخش ۸ — دو ستون جدید در خلاصه تسهیلات
-   ★ اصلاح‌شده: جابجایی ستون‌ها (مغایرت قبل از مانده)
+   ★ اصلاح نهایی: مانده حسابداری (اول، با واحد) + مغایرت (دوم)
    ═══════════════════════════════════════════════════════════════ */
 (function augmentFacilitySummary() {
+
+    /* محاسبه مانده حسابداری هر تسهیلات از روی معین وصلشده */
     function computeFacilityBalances() {
         var facilities = DB.load('facilities', []);
         var vouchers = DB.load('vouchers', []);
@@ -964,8 +966,18 @@ window.openTimePicker = openTimePicker;
                     if (v.status !== 'approved') return;
                     (v.lines || []).forEach(function(l) {
                         if (l.account !== f.moeinId) return;
-                        if (l.details && l.details.facility === f.id) {
+                        /* ★ فقط خطوطی که تفصیلی تسهیلات = همین تسهیلات دارند */
+                        var hasFacilityDetail = l.details && l.details.facility;
+                        if (hasFacilityDetail === f.id) {
+                            /* برای حساب بدهی: credit - debit = مانده */
                             bal += (Number(l.credit) || 0) - (Number(l.debit) || 0);
+                        } else if (!hasFacilityDetail) {
+                            /* اگر خط تفصیلی تسهیلات ندارد ولی روی همین معین است،
+                               فقط زمانی حساب میکنیم که این تسهیلات تکمیل باشد */
+                            var siblings = facilities.filter(function(x){ return x.moeinId === f.moeinId; });
+                            if (siblings.length === 1) {
+                                bal += (Number(l.credit) || 0) - (Number(l.debit) || 0);
+                            }
                         }
                     });
                 });
@@ -985,6 +997,12 @@ window.openTimePicker = openTimePicker;
     function augment() {
         var table = document.getElementById('rf-table');
         if (!table) return;
+
+        /* ★ جلوگیری از اجرای دوباره */
+        if (table.querySelector('th[data-aug-bal="1"]')) {
+            table.dataset.augV38 = '1';
+            return;
+        }
         if (table.dataset.augV38 === '1') return;
         table.dataset.augV38 = '1';
 
@@ -992,6 +1010,7 @@ window.openTimePicker = openTimePicker;
         if (!headerRow) return;
         var ths = Array.from(headerRow.querySelectorAll('th'));
 
+        /* پیدا کردن ستون «مبلغ باقی» */
         var remIdx = -1;
         ths.forEach(function(th, i) {
             if ((th.textContent || '').indexOf('مبلغ باقی') !== -1 && remIdx === -1) remIdx = i;
@@ -1001,25 +1020,28 @@ window.openTimePicker = openTimePicker;
         var balMap = computeFacilityBalances();
         var facilities = DB.load('facilities', []);
         var hide = getHideState('rf');
+        var unit = currencyLabel();
 
-        /* ★ ترتیب جدید: مغایرت اول، بعد مانده */
+        /* ★ سرستون: مانده حسابداری اول، مغایرت دوم */
+        var thA = document.createElement('th');
+        thA.setAttribute('data-aug-bal', '1');
+        thA.textContent = 'مانده حسابداری (' + unit + ')';
+        thA.style.background = 'linear-gradient(180deg,#dbeafe,#bfdbfe)';
+        thA.style.color = '#1e40af';
+
         var thB = document.createElement('th');
+        thB.setAttribute('data-aug-var', '1');
         thB.textContent = 'مغایرت با حسابداری';
         thB.style.background = 'linear-gradient(180deg,#fef3c7,#fde68a)';
         thB.style.color = '#92400e';
 
-        var thA = document.createElement('th');
-        thA.textContent = 'مانده حسابداری';
-        thA.style.background = 'linear-gradient(180deg,#dbeafe,#bfdbfe)';
-        thA.style.color = '#1e40af';
-
         var refTh = ths[remIdx];
         if (refTh) {
-            /* ★ مغایرت اول درج می‌شود، بعد مانده */
-            refTh.parentNode.insertBefore(thB, refTh.nextSibling);
-            refTh.parentNode.insertBefore(thA, thB.nextSibling);
+            refTh.parentNode.insertBefore(thA, refTh.nextSibling); // مانده
+            refTh.parentNode.insertBefore(thB, thA.nextSibling);   // مغایرت
         }
 
+        /* بدنه */
         var tbody = table.querySelector('tbody');
         var totalBal = 0, totalVar = 0;
         tbody.querySelectorAll('tr').forEach(function(tr) {
@@ -1027,61 +1049,54 @@ window.openTimePicker = openTimePicker;
             if (cells.length < 6) return;
             var name = (cells[0].textContent || '').trim();
             var f = facilities.find(function(x) { return x.name === name; });
-            if (!f) {
-                /* ★ ترتیب: مغایرت اول، بعد مانده */
-                var eB = document.createElement('td'); eB.className = 'num'; eB.textContent = '—';
-                var eA = document.createElement('td'); eA.className = 'num'; eA.textContent = '—';
-                var rc = cells[remIdx];
-                rc.parentNode.insertBefore(eB, rc.nextSibling);
-                rc.parentNode.insertBefore(eA, eB.nextSibling);
-                return;
-            }
+
             var remTxt = cells[remIdx] ? cells[remIdx].textContent : '';
             var rem = (remTxt && remTxt !== '—') ? parseNumTxt(remTxt) : 0;
-            var bal = balMap[f.id] || 0;
+
+            var bal = f ? (balMap[f.id] || 0) : 0;
             var variance = bal - rem;
             totalBal += bal; totalVar += variance;
 
-            /* ★ سلول مغایرت (اول) */
+            /* ★ ستون ۱: مانده حسابداری — با واحد ریال */
+            var tdA = document.createElement('td');
+            tdA.className = 'num';
+            tdA.style.color = '#1e40af';
+            tdA.style.fontWeight = '800';
+            tdA.innerHTML = hide ? '—' : ((typeof moneyHtml === 'function' ? moneyHtml(bal) : formatMoney(bal)) + ' ' + unit);
+
+            /* ★ ستون ۲: مغایرت */
             var tdB = document.createElement('td');
             tdB.className = 'num';
             tdB.style.fontWeight = '800';
             tdB.style.color = Math.abs(variance) > 1 ? '#dc2626' : '#059669';
             tdB.innerHTML = hide ? '—' : (typeof moneyHtml === 'function' ? moneyHtml(variance) : formatMoney(variance));
 
-            /* ★ سلول مانده (دوم) */
-            var tdA = document.createElement('td');
-            tdA.className = 'num';
-            tdA.style.color = '#1e40af';
-            tdA.style.fontWeight = '800';
-            tdA.innerHTML = hide ? '—' : (typeof moneyHtml === 'function' ? moneyHtml(bal) : formatMoney(bal));
-
             var refCell = cells[remIdx];
             if (refCell) {
-                refCell.parentNode.insertBefore(tdB, refCell.nextSibling);
-                refCell.parentNode.insertBefore(tdA, tdB.nextSibling);
+                refCell.parentNode.insertBefore(tdA, refCell.nextSibling);
+                refCell.parentNode.insertBefore(tdB, tdA.nextSibling);
             }
         });
 
+        /* پاصفحه */
         var tfoot = table.querySelector('tfoot tr');
         if (tfoot) {
             var fcs = tfoot.querySelectorAll('td');
             if (fcs.length > remIdx) {
-                /* ★ ترتیب: مغایرت (اول)، مانده (دوم) */
+                var fcA = document.createElement('td');
+                fcA.className = 'num';
+                fcA.style.color = '#1e40af';
+                fcA.innerHTML = hide ? '—' : ((typeof moneyHtml === 'function' ? moneyHtml(totalBal) : formatMoney(totalBal)) + ' ' + unit);
+
                 var fcB = document.createElement('td');
                 fcB.className = 'num';
                 fcB.style.color = Math.abs(totalVar) > 1 ? '#dc2626' : '#059669';
                 fcB.innerHTML = hide ? '—' : moneyHtml(totalVar);
 
-                var fcA = document.createElement('td');
-                fcA.className = 'num';
-                fcA.style.color = '#1e40af';
-                fcA.innerHTML = hide ? '—' : moneyHtml(totalBal);
-
                 var refFc = fcs[remIdx];
                 if (refFc) {
-                    refFc.parentNode.insertBefore(fcB, refFc.nextSibling);
-                    refFc.parentNode.insertBefore(fcA, fcB.nextSibling);
+                    refFc.parentNode.insertBefore(fcA, refFc.nextSibling);
+                    refFc.parentNode.insertBefore(fcB, fcA.nextSibling);
                 }
             }
         }
