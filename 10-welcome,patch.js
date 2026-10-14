@@ -149,6 +149,8 @@ window.isFacilityUsed = isFacilityUsed;
 
 /* =====================================================================
    ★ بخش ۳: پچ رسم ستون تفصیلی ترکیبی در فرم سند
+   ★ توجه: این پچ روی نسخه فایل ۰۴ اعمال می‌شود ولی فایل ۱۶ نسخه
+   نهایی را جایگزین می‌کند و این پچ عملاً override می‌شود.
    ===================================================================== */
 (function patchCombinedDetailColumn() {
     var _orig = window.renderVoucherLines;
@@ -304,10 +306,6 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۶: جلوگیری از حذف در چارت — پچ buildNode از طریق renderChartTree
-   ===================================================================== */
-
-/* =====================================================================
    ★ بخش ۷: ستون رفرنس دوره مالی در فهرست اسناد
    ===================================================================== */
 (function patchVoucherListFiscalRef() {
@@ -324,12 +322,6 @@ window.isFacilityUsed = isFacilityUsed;
         var vMap = {};
         vouchers.forEach(function(v) { vMap[v.id] = v; });
 
-        var thead = document.querySelector('#voucher-table-list thead tr');
-        if (thead && !thead.querySelector('[data-fiscal-ref]')) {
-            var ths = thead.querySelectorAll('th');
-            thead.setAttribute('data-fiscal-ref', '1');
-        }
-
         Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr) {
             var firstCell = tr.querySelector('td');
             if (!firstCell) return;
@@ -344,6 +336,7 @@ window.isFacilityUsed = isFacilityUsed;
 
 /* =====================================================================
    ★ بخش ۹: جابجایی دکمه 🧹 شرح به قبل از +
+   ★ توجه: فایل ۱۶ نسخه نهایی را جایگزین می‌کند و این پچ عملاً override می‌شود.
    ===================================================================== */
 (function patchDescRowButtons() {
     var _orig = window.renderVoucherLines;
@@ -358,6 +351,8 @@ window.isFacilityUsed = isFacilityUsed;
                 row.dataset.reordered = '1';
                 var addBtn = row.querySelector('.desc-add-btn');
                 if (!addBtn) return;
+                /* ★ اگر از قبل دکمه‌ی clear-desc وجود داشت، پچ نکن */
+                if (row.querySelector('.desc-clear-btn')) return;
                 var clearBtn = document.createElement('button');
                 clearBtn.type = 'button';
                 clearBtn.className = 'desc-clear-btn';
@@ -489,7 +484,6 @@ window.isFacilityUsed = isFacilityUsed;
             items.forEach(function(it) {
                 var isConv = it.classList.contains('status-converted');
                 var isIgn = it.classList.contains('status-ignored');
-                var isNew = it.classList.contains('status-new');
                 var show = true;
                 if (status === 'converted') show = isConv;
                 else if (status === 'ignored') show = isIgn;
@@ -509,7 +503,6 @@ window.isFacilityUsed = isFacilityUsed;
         window._refreshSmsTabCounts = function() {
             var pc = (typeof getPendingSmsCount === 'function') ? getPendingSmsCount() : 0;
             var inbox = (typeof getSmsInbox === 'function') ? getSmsInbox() : [];
-            var converted = inbox.filter(function(s) { return s.status === 'converted'; }).length;
             var el1 = document.getElementById('sms-pending-count-tab');
             var el2 = document.getElementById('sms-inbox-count-tab');
             if (el1) el1.textContent = toFa(pc);
@@ -592,267 +585,10 @@ window.isFacilityUsed = isFacilityUsed;
 })();
 
 /* =====================================================================
-   ★ بخش ۱۴: نمایش فقط حساب‌های دارای مانده
-   ★ بخش «مرور حساب‌ها» حذف شد (در 11-fixes-v29.js ساخته می‌شود)
+   ★★★ بخش ۱۴ (حذف شده): تنها مانده / فقط حساب‌های دارای مانده
+   ★ چک‌باکس‌های rt-only-balance و rc-only-balance دیگر ساخته نمی‌شوند.
+   ★ چک‌باکس ra-only-balance در فایل ۱۵ مدیریت می‌شود.
    ===================================================================== */
-(function patchOnlyBalanceOption() {
-    setTimeout(function() {
-        // تراز آزمایشی
-        var rtCard = document.querySelector('#page-report-trial .card');
-        if (rtCard) {
-            var p2 = rtCard.querySelector('.form-buttons');
-            if (p2 && !document.getElementById('rt-only-balance')) {
-                var lbl2 = document.createElement('label');
-                lbl2.className = 'checkbox-item';
-                lbl2.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light);display:inline-flex';
-                lbl2.innerHTML = '<input type="checkbox" id="rt-only-balance"> <span>فقط حساب‌های دارای مانده</span>';
-                p2.parentNode.insertBefore(lbl2, p2.nextSibling);
-                lbl2.querySelector('input').addEventListener('change', function() {
-                    if (typeof runTrialBalance === 'function') runTrialBalance();
-                });
-            }
-        }
-        // مقایسه‌ای
-        var rcCard = document.querySelector('#page-report-compare .card');
-        if (rcCard) {
-            var p3 = rcCard.querySelector('.form-buttons');
-            if (p3 && !document.getElementById('rc-only-balance')) {
-                var lbl3 = document.createElement('label');
-                lbl3.className = 'checkbox-item';
-                lbl3.style.cssText = 'margin-top:8px;background:var(--primary-soft);border:1px solid var(--primary-light);display:inline-flex';
-                lbl3.innerHTML = '<input type="checkbox" id="rc-only-balance"> <span>فقط حساب‌های دارای مانده</span>';
-                p3.parentNode.insertBefore(lbl3, p3.nextSibling);
-                lbl3.querySelector('input').addEventListener('change', function() {
-                    if (typeof runComparisonReport === 'function') runComparisonReport();
-                });
-            }
-        }
-    }, 1000);
-})();
-
-/* =====================================================================
-   ★ بخش ۱۵: پچ runAccountReport — فیلتر فقط-مانده + جمع فیلترشده
-   ===================================================================== */
-(function patchAccountReport() {
-    var _orig = window.runAccountReport;
-    if (typeof _orig !== 'function') return;
-    window.runAccountReport = function() {
-        _orig.apply(this, arguments);
-        setTimeout(function() {
-            var box = document.getElementById('ra-result');
-            if (!box) return;
-            var onlyBalance = document.getElementById('ra-only-balance');
-            var shouldFilter = onlyBalance && onlyBalance.checked;
-            if (shouldFilter) {
-                box.querySelectorAll('.rt-node').forEach(function(node) {
-                    var amtTxt = node.querySelector('.amt.net');
-                    if (!amtTxt) return;
-                    var t = amtTxt.textContent.replace(/[^\d\-]/g, '');
-                    var v = Number(normalizeDigits(t).replace(/[^\d\-]/g, ''));
-                    if (!v || v === 0) node.style.display = 'none';
-                });
-            } else {
-                box.querySelectorAll('.rt-node').forEach(function(node) { node.style.display = ''; });
-            }
-        }, 200);
-    };
-})();
-
-/* =====================================================================
-   ★ بخش ۱۶: پچ runTrialBalance — سطح گروه + فقط-مانده + جمع فیلترشده
-   ===================================================================== */
-(function patchTrialBalance() {
-    var _orig = window.runTrialBalance;
-    if (typeof _orig !== 'function') return;
-    setTimeout(function() {
-        var sel = document.getElementById('rt-level');
-        if (sel && !sel.querySelector('option[value="1"]')) {
-            var o = document.createElement('option');
-            o.value = '1'; o.textContent = 'گروه';
-            sel.insertBefore(o, sel.firstChild);
-        }
-    }, 800);
-
-    window.runTrialBalance = function() {
-        _orig.apply(this, arguments);
-        setTimeout(function() {
-            var box = document.getElementById('rt-result');
-            if (!box) return;
-            var onlyBalance = document.getElementById('rt-only-balance');
-            if (onlyBalance && onlyBalance.checked) {
-                var tbody = box.querySelector('tbody');
-                if (!tbody) return;
-                var kept = 0;
-                tbody.querySelectorAll('tr').forEach(function(tr) {
-                    var cells = tr.querySelectorAll('td');
-                    if (cells.length < 6) return;
-                    var md = cells[4].textContent.trim();
-                    var mc = cells[5].textContent.trim();
-                    var hasBalance = (md && md !== '—' && md !== '۰' && md !== '0') ||
-                                     (mc && mc !== '—' && mc !== '۰' && mc !== '0');
-                    tr.style.display = hasBalance ? '' : 'none';
-                    if (hasBalance) kept++;
-                });
-                recalcTrialFooter(box);
-            } else {
-                recalcTrialFooter(box);
-            }
-        }, 120);
-    };
-
-    function recalcTrialFooter(box) {
-        var tbody = box.querySelector('tbody');
-        if (!tbody) return;
-        var sums = { d: 0, c: 0, md: 0, mc: 0 };
-        tbody.querySelectorAll('tr').forEach(function(tr) {
-            if (tr.style.display === 'none') return;
-            var cells = tr.querySelectorAll('td');
-            if (cells.length < 6) return;
-            sums.d += parseNum(cells[2].textContent);
-            sums.c += parseNum(cells[3].textContent);
-            sums.md += parseNum(cells[4].textContent);
-            sums.mc += parseNum(cells[5].textContent);
-        });
-        var tfoot = box.querySelector('tfoot');
-        if (!tfoot) return;
-        var footCells = tfoot.querySelectorAll('td');
-        if (footCells.length < 6) return;
-        footCells[2].textContent = moneyText(sums.d);
-        footCells[3].textContent = moneyText(sums.c);
-        footCells[4].textContent = moneyText(sums.md);
-        footCells[5].textContent = moneyText(sums.mc);
-    }
-    function parseNum(txt) {
-        var t = normalizeDigits(String(txt || '')).replace(/[^\d\-]/g, '');
-        return Number(t) || 0;
-    }
-    function moneyText(n) {
-        if (typeof moneyHtml === 'function') return moneyHtml(n);
-        return formatMoney(n);
-    }
-})();
-
-/* =====================================================================
-   ★ بخش ۱۷: پچ runComparisonReport — فقط-مانده + جمع فیلترشده
-   ===================================================================== */
-(function patchComparisonReport() {
-    var _orig = window.runComparisonReport;
-    if (typeof _orig !== 'function') return;
-    window.runComparisonReport = function() {
-        _orig.apply(this, arguments);
-        setTimeout(function() {
-            var box = document.getElementById('rc-result');
-            if (!box) return;
-            var ob = document.getElementById('rc-only-balance');
-            var tbody = box.querySelector('tbody');
-            if (!tbody) return;
-            if (ob && ob.checked) {
-                tbody.querySelectorAll('tr').forEach(function(tr) {
-                    var cells = tr.querySelectorAll('td');
-                    if (cells.length < 5) return;
-                    var n1 = cells[2].textContent.trim();
-                    var n2 = cells[3].textContent.trim();
-                    var has = (n1 && n1 !== '—' && n1 !== '۰') || (n2 && n2 !== '—' && n2 !== '۰');
-                    tr.style.display = has ? '' : 'none';
-                });
-            }
-            recalcCompareFooter(box);
-        }, 120);
-    };
-    function recalcCompareFooter(box) {
-        var tbody = box.querySelector('tbody');
-        if (!tbody) return;
-        var t1 = 0, t2 = 0;
-        tbody.querySelectorAll('tr').forEach(function(tr) {
-            if (tr.style.display === 'none') return;
-            var cells = tr.querySelectorAll('td');
-            if (cells.length < 5) return;
-            t1 += parseNum(cells[2].textContent);
-            t2 += parseNum(cells[3].textContent);
-        });
-        var tfoot = box.querySelector('tfoot');
-        if (!tfoot) return;
-        var fc = tfoot.querySelectorAll('td');
-        if (fc.length < 5) return;
-        fc[2].textContent = moneyHtml(t1);
-        fc[3].textContent = moneyHtml(t2);
-        var diff = t2 - t1;
-        var pct = t1 !== 0 ? (diff / Math.abs(t1) * 100) : (t2 !== 0 ? 100 : 0);
-        var cls = pct > 0 ? 'cr' : (pct < 0 ? 'dr' : '');
-        var sign = pct > 0 ? '▲ +' : (pct < 0 ? '▼ ' : '');
-        fc[4].textContent = sign + toFa(Math.abs(pct).toFixed(2)) + '٪';
-        fc[4].className = 'num ' + cls;
-    }
-    function parseNum(txt) {
-        return Number(normalizeDigits(String(txt || '')).replace(/[^\d\-]/g, '')) || 0;
-    }
-})();
-
-/* =====================================================================
-   ★ بخش ۱۸: پچ گردش وجه نقد — جمع فیلترشده
-   ===================================================================== */
-(function patchCashFlowByDescSum() {
-    setInterval(function() {
-        var box = document.getElementById('cfd-result');
-        if (!box) return;
-        var tbody = box.querySelector('tbody');
-        if (!tbody) return;
-        var hasHidden = false;
-        tbody.querySelectorAll('tr').forEach(function(tr) {
-            if (tr.style.display === 'none') hasHidden = true;
-        });
-        if (!hasHidden) return;
-        var sig = Array.prototype.map.call(tbody.querySelectorAll('tr'), function(tr) {
-            return tr.style.display === 'none' ? '0' : '1';
-        }).join('');
-        if (box.dataset.lastFilterSig === sig) return;
-        box.dataset.lastFilterSig = sig;
-
-        var table = box.querySelector('table#cfd-table');
-        if (!table) return;
-        var tfoot = table.querySelector('tfoot');
-        if (!tfoot) return;
-        var tIn = 0, tOut = 0;
-        tbody.querySelectorAll('tr').forEach(function(tr) {
-            if (tr.style.display === 'none') return;
-            var cells = tr.querySelectorAll('td');
-            if (cells.length < 5) return;
-            tIn += Number(normalizeDigits(cells[2].textContent).replace(/[^\d\-]/g, '')) || 0;
-            tOut += Number(normalizeDigits(cells[3].textContent).replace(/[^\d\-]/g, '')) || 0;
-        });
-        var fc = tfoot.querySelectorAll('td');
-        if (fc.length < 7) return;
-        fc[2].innerHTML = moneyHtml(tIn);
-        fc[3].innerHTML = moneyHtml(tOut);
-        fc[4].innerHTML = moneyHtml(tIn - tOut);
-    }, 800);
-})();
-
-/* =====================================================================
-   ★ بخش ۱۹: گزارش مرور حساب — نمایش ستونی هم‌راستا
-   ===================================================================== */
-(function patchAccountReportAlignment() {
-    var css = ''
-        + '.rt-node { display: grid !important; '
-        +   'grid-template-columns: 28px minmax(140px, 1fr) auto auto auto auto; '
-        +   'align-items: center; gap: 10px; }'
-        + '.rt-node .rt-amounts { display: contents; }'
-        + '.rt-node .rt-amounts .amt { justify-self: end; min-width: 120px; text-align: center; }'
-        + '.rt-node .rt-name { grid-column: 2; }'
-        + '.rt-node .rt-level-badge { grid-column: 3; justify-self: start; }'
-        + '.rt-node.level-1 { padding: 14px 18px; }'
-        + '.rt-node.level-2 { padding: 12px 16px; }'
-        + '.rt-node.level-3 { padding: 10px 14px; }'
-        + '.rt-node.level-4 { padding: 8px 12px; }'
-        + '@media (max-width: 720px) {'
-        +   '.rt-node { grid-template-columns: 24px 1fr; }'
-        +   '.rt-node .rt-level-badge { grid-column: 2; }'
-        +   '.rt-node .rt-amounts { grid-column: 1 / -1; display: flex !important; flex-wrap: wrap; gap: 6px; margin-top: 4px; }'
-        + '}';
-    var s = document.createElement('style');
-    s.textContent = css;
-    document.head.appendChild(s);
-})();
 
 /* =====================================================================
    ★ بخش ۲۰: پرداخت قسط + ساخت سند خودکار
