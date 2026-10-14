@@ -1,9 +1,6 @@
 /* پارسیس — رابط کاربری: ناوبری، تم، جدول‌ها، مرتب‌سازی، CSV، چاپ */
 'use strict';
 
-/* =====================================================================
-   ★ دیکشنری عنوان فارسی فرم‌ها — برای استفاده در تب‌ها
-   ===================================================================== */
 var PAGE_TITLES_FA = {
     'home': { icon: '🏠', title: 'صفحه اصلی' },
     'language': { icon: '🌐', title: 'زبان' },
@@ -27,7 +24,8 @@ var PAGE_TITLES_FA = {
     'notes': { icon: '📔', title: 'دفترچه یادداشت' },
     'sms': { icon: '📱', title: 'پیامک بانکی' },
     'dashboard': { icon: '🎯', title: 'داشبورد مالی' },
-    'report-cashflow': { icon: '💵', title: 'وضعیت نقدینگی' },
+    /* ★ تغییر: عنوان جدید */
+    'report-cashflow': { icon: '💵', title: 'پیش‌بینی روزانه نقدینگی' },
     'report-cashflow-desc': { icon: '💸', title: 'گردش وجه نقد' },
     'report-account': { icon: '📒', title: 'مرور حساب‌ها' },
     'report-trial': { icon: '⚖️', title: 'تراز آزمایشی' },
@@ -41,10 +39,7 @@ var PAGE_TITLES_FA = {
 };
 window.PAGE_TITLES_FA = PAGE_TITLES_FA;
 
-/* =====================================================================
-   ★ Form Usage / Frequent Nav
-   ★ حذف badge تعداد باز شدن
-   ===================================================================== */
+/* ==================== Form Usage / Frequent Nav ==================== */
 function trackFormUsage(pageName) {
     if (!pageName || pageName === 'home') return;
     state.formUsage[pageName] = (state.formUsage[pageName] || 0) + 1;
@@ -62,7 +57,6 @@ function renderFrequentNav() {
         .slice(0, 6);
     if (entries.length === 0) { group.style.display = 'none'; return; }
     group.style.display = '';
-
     var meta = {
         'voucher-new':            { label:'✏️ صدور سند جدید' },
         'voucher-list':           { label:'📄 فهرست اسناد' },
@@ -73,7 +67,8 @@ function renderFrequentNav() {
         'projects':               { label:'📁 پروژه‌ها' },
         'notes':                  { label:'📔 یادداشت‌ها' },
         'dashboard':              { label:'🎯 داشبورد مالی' },
-        'report-cashflow':        { label:'💵 وضعیت نقدینگی' },
+        /* ★ تغییر: عنوان جدید */
+        'report-cashflow':        { label:'💵 پیش‌بینی روزانه نقدینگی' },
         'report-cashflow-desc':   { label:'💸 گردش وجه نقد' },
         'report-account':         { label:'📒 مرور حساب‌ها' },
         'report-trial':           { label:'⚖️ تراز آزمایشی' },
@@ -114,7 +109,6 @@ function renderFrequentNav() {
         var m = meta[e.page] || { label: '📄 ' + e.page };
         var b = document.createElement('button');
         b.setAttribute('data-page', e.page);
-        /* ★ حذف badge تعداد باز شدن */
         b.innerHTML = '<span>' + m.label + '</span>';
         b.addEventListener('click', function() { goToPage(e.page); });
         container.appendChild(b);
@@ -147,7 +141,6 @@ function goToPage(name) {
     }
     closeSidebar();
     trackFormUsage(name);
-
     var dispatch = {
         'chart-define': function() { renderChartTree('chart-tree', true); },
         'voucher-list': function() { refreshPeriodFilters(); renderVoucherList(); },
@@ -166,17 +159,21 @@ function goToPage(name) {
         'facilities': function() { renderFacilitiesList(); refreshFacBankSelect(); },
         'dashboard': function() { renderDashboard(); },
         'report-cashflow': function() {
+            /* ★ تاریخ پیش‌فرض = شروع سال مالی فعال */
             if (!document.getElementById('cf-from').value) {
+                var start = getActiveFiscalYearStart();
                 var t = todayJalaliStr();
-                document.getElementById('cf-from').value = t;
+                document.getElementById('cf-from').value = start || t;
                 document.getElementById('cf-to').value = addJalaliDays(t, 30);
             }
             runCashFlowReport();
         },
         'report-cashflow-desc': function() {
+            /* ★ تاریخ پیش‌فرض = شروع سال مالی فعال */
             if (!document.getElementById('cfd-from').value) {
+                var start2 = getActiveFiscalYearStart();
                 var t2 = todayJalaliStr();
-                document.getElementById('cfd-from').value = t2;
+                document.getElementById('cfd-from').value = start2 || t2;
                 document.getElementById('cfd-to').value = addJalaliDays(t2, 30);
             }
             runCashFlowByDescReport();
@@ -188,21 +185,13 @@ function goToPage(name) {
         'report-facility-full': function() { refreshRffBankSelect(); runFacilityFullReport(); },
         'report-rates': function() { runRatesReport(); },
         'report-compare': function() {
-            if (!document.getElementById('rc-from1').value) {
-                var t3 = todayJalaliStr();
-                var y = t3.split('/')[0];
-                document.getElementById('rc-from1').value = y + '/01/01';
-                document.getElementById('rc-to1').value   = y + '/06/31';
-                document.getElementById('rc-from2').value = y + '/07/01';
-                document.getElementById('rc-to2').value   = t3;
-            }
+            /* ★ دیگر تاریخ پیش‌فرض ست نمی‌کنیم */
             runComparisonReport();
         },
         'daily-close': function() { renderDailyClosePage(); },
         'home': function() { updateHomeWidgets(); }
     };
     if (dispatch[name]) dispatch[name]();
-
     attachDatePickers();
     updateTopbarPeriod();
     applyColVisibilityAll();
@@ -212,8 +201,6 @@ function goToPage(name) {
     if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
-
-    /* ★ اعمال ترتیب ستون‌های ذخیره‌شده */
     setTimeout(function() {
         var allTables = document.querySelectorAll('table[data-table-id]');
         for (var i = 0; i < allTables.length; i++) {
@@ -221,6 +208,17 @@ function goToPage(name) {
         }
     }, 100);
 }
+
+/* ★ ابزار: شروع سال مالی فعال (YYYY/01/01) */
+function getActiveFiscalYearStart() {
+    var periods = DB.load('fiscalPeriods', []);
+    var p = periods.find(function(x) { return x.id === state.activePeriodId; });
+    if (!p || !p.from) return '';
+    var parts = String(p.from).split('/');
+    if (parts.length !== 3) return '';
+    return parts[0] + '/01/01';
+}
+window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 
 function updateUnitChips() {
     ['ra-unit','rt-unit','rf-unit','ri-unit','rff-unit','cf-unit','cfd-unit','rr-unit','dc-unit','rc-unit'].forEach(function(id) {
@@ -334,7 +332,9 @@ function initHomeSwipe() {
         var dx = e.changedTouches[0].clientX - startX;
         var dy = e.changedTouches[0].clientY - startY;
         if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
-        if (dx < 0) { if (state.homePage < 3) { state.homePage++; saveState('homePage'); applyWidgetVisibility(); } }
+        /* ★ ۴ صفحه */
+        var maxPage = 4;
+        if (dx < 0) { if (state.homePage < maxPage) { state.homePage++; saveState('homePage'); applyWidgetVisibility(); } }
         else { if (state.homePage > 1) { state.homePage--; saveState('homePage'); applyWidgetVisibility(); } }
     }, { passive: true });
 }
@@ -351,48 +351,33 @@ function applyColWidths(tableId) {
     var widths = colWidths[tableId] || [];
     var ths = table.querySelectorAll('thead th');
     for (var i = 0; i < ths.length; i++) {
-        if (widths[i]) {
-            ths[i].style.width = widths[i] + 'px';
-        } else {
-            ths[i].style.width = '';
-        }
+        if (widths[i]) ths[i].style.width = widths[i] + 'px';
+        else ths[i].style.width = '';
         ths[i].style.minWidth = '';
         ths[i].style.maxWidth = '';
     }
     table.style.minWidth = '';
 }
-
-function updateTableMinWidth(table) {
-    if (!table) return;
-    table.style.minWidth = '';
-}
+function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
 function makeTableResizable(table) {
     if (!table || table.dataset.resizable === '1') return;
     table.dataset.resizable = '1';
     var tableId = table.id;
     if (!tableId) return;
-    /* ★ علامت‌گذاری برای applyColumnOrder */
     table.setAttribute('data-table-id', tableId);
-
-    var MIN_W = 50;
-    var MAX_W = 600;
+    var MIN_W = 50, MAX_W = 600;
     var ths = table.querySelectorAll('thead th');
-
     for (var i = 0; i < ths.length; i++) {
         (function(th, idx) {
             if (th.querySelector('.col-resizer')) return;
             var res = document.createElement('div');
             res.className = 'col-resizer';
-            res.title = 'بکش تا عرض تغییر کند • دابل‌کلیک: بازنشانی این ستون';
+            res.title = 'بکش تا عرض تغییر کند • دابل‌کلیک: بازنشانی';
             th.appendChild(res);
-
             var startX = 0, startW = 0, isDragging = false;
-
             function start(x) {
-                isDragging = true;
-                startX = x;
-                startW = th.offsetWidth;
+                isDragging = true; startX = x; startW = th.offsetWidth;
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
@@ -402,8 +387,7 @@ function makeTableResizable(table) {
                 var diff = startX - x;
                 var w = Math.max(MIN_W, Math.min(MAX_W, startW + diff));
                 th.style.width = w + 'px';
-                th.style.minWidth = '';
-                th.style.maxWidth = '';
+                th.style.minWidth = ''; th.style.maxWidth = '';
             }
             function end() {
                 if (!isDragging) return;
@@ -415,43 +399,24 @@ function makeTableResizable(table) {
                 colWidths[tableId][idx] = th.offsetWidth;
                 saveColWidths();
             }
-
             res.addEventListener('dblclick', function(e) {
                 e.preventDefault(); e.stopPropagation();
-                th.style.width = '';
-                th.style.minWidth = '';
-                th.style.maxWidth = '';
-                if (colWidths[tableId]) {
-                    delete colWidths[tableId][idx];
-                    saveColWidths();
-                }
+                th.style.width = ''; th.style.minWidth = ''; th.style.maxWidth = '';
+                if (colWidths[tableId]) { delete colWidths[tableId][idx]; saveColWidths(); }
                 showToast('↔ عرض ستون بازنشانی شد.');
             });
-
             res.addEventListener('click', function(e) { e.stopPropagation(); });
-            res.addEventListener('mousedown', function(e) {
-                e.preventDefault(); e.stopPropagation();
-                start(e.pageX);
-            });
-            res.addEventListener('touchstart', function(e) {
-                e.preventDefault(); e.stopPropagation();
-                start(e.touches[0].pageX);
-            }, { passive: false });
-
-            document.addEventListener('mousemove', function(e) {
-                if (isDragging) move(e.pageX);
-            });
+            res.addEventListener('mousedown', function(e) { e.preventDefault(); e.stopPropagation(); start(e.pageX); });
+            res.addEventListener('touchstart', function(e) { e.preventDefault(); e.stopPropagation(); start(e.touches[0].pageX); }, { passive: false });
+            document.addEventListener('mousemove', function(e) { if (isDragging) move(e.pageX); });
             document.addEventListener('mouseup', end);
-            document.addEventListener('touchmove', function(e) {
-                if (isDragging) { move(e.touches[0].pageX); e.preventDefault(); }
-            }, { passive: false });
+            document.addEventListener('touchmove', function(e) { if (isDragging) { move(e.touches[0].pageX); e.preventDefault(); } }, { passive: false });
             document.addEventListener('touchend', end);
         })(ths[i], i);
     }
     applyColWidths(tableId);
 }
 
-/* ★ بازنشانی همه عرض ستون‌ها */
 function resetColumnWidths(tableId) {
     if (!tableId) return;
     delete colWidths[tableId];
@@ -460,22 +425,19 @@ function resetColumnWidths(tableId) {
     if (!table) return;
     var ths = table.querySelectorAll('thead th');
     for (var i = 0; i < ths.length; i++) {
-        ths[i].style.width = '';
-        ths[i].style.minWidth = '';
-        ths[i].style.maxWidth = '';
+        ths[i].style.width = ''; ths[i].style.minWidth = ''; ths[i].style.maxWidth = '';
     }
-    table.style.minWidth = '';
-    table.style.width = '';
+    table.style.minWidth = ''; table.style.width = '';
     showToast('↔ عرض ستون‌ها فیت شد.');
 }
 
 /* =====================================================================
-   ★★★ جابجایی ستون‌ها — Column Reorder
+   ★★★ جابجایی ستون‌ها — نسخه اصلاح‌شده
    ===================================================================== */
 var columnOrders = DB.load('columnOrders', {});
 function saveColumnOrders() { DB.save('columnOrders', columnOrders); }
 
-/* ★ گرفتن ترتیب فعلی ستون‌ها از DOM */
+/* گرفتن ترتیب فعلی ستون‌ها بر اساس DOM (نه data-orig-index) */
 function getCurrentColumnOrder(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return [];
@@ -494,7 +456,33 @@ function getCurrentColumnOrder(tableId) {
     return order;
 }
 
-/* ★ اعمال ترتیب ستون‌های ذخیره‌شده */
+/* ★ تابع کمکی: پیدا کردن th بر اساس orig-index */
+function findThByOrigIndex(headerRow, origIdx) {
+    var ths = headerRow.querySelectorAll('th');
+    for (var i = 0; i < ths.length; i++) {
+        if (parseInt(ths[i].getAttribute('data-orig-index'), 10) === origIdx) return ths[i];
+    }
+    return null;
+}
+
+/* ★ تابع کمکی: همگام‌سازی orig-index سلول‌های body با هدر */
+function syncBodyOrigIndices(table, headerRow) {
+    var headerThs = headerRow.querySelectorAll('th');
+    var allRows = table.querySelectorAll('tr');
+    for (var r = 0; r < allRows.length; r++) {
+        var row = allRows[r];
+        if (row === headerRow) continue;
+        var cells = row.children;
+        if (cells.length <= 1) continue;
+        for (var c = 0; c < cells.length; c++) {
+            if (cells[c].getAttribute('data-orig-index') === null && headerThs[c]) {
+                cells[c].setAttribute('data-orig-index', headerThs[c].getAttribute('data-orig-index'));
+            }
+        }
+    }
+}
+
+/* ★ اعمال ترتیب ذخیره‌شده — نسخه اصلاح‌شده */
 function applyColumnOrder(tableId) {
     if (!tableId) return;
     var savedOrder = columnOrders[tableId];
@@ -503,68 +491,21 @@ function applyColumnOrder(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return;
 
-    /* برای اطمینان: ابتدا ایندکس اصلی هر th/td را بگیر و ثبت کن */
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var headerThs = headerRow.querySelectorAll('th');
 
-    /* اگر data-orig-index ندارد، از موقعیت فعلی بگیر */
+    /* اطمینان از وجود data-orig-index روی هدر */
     for (var i = 0; i < headerThs.length; i++) {
         if (headerThs[i].getAttribute('data-orig-index') === null) {
             headerThs[i].setAttribute('data-orig-index', String(i));
         }
     }
 
-    /* اعمال روی همه سطرهای جدول — thead + filter row + tbody + tfoot */
-    var allRows = table.querySelectorAll('tr');
-    for (var r = 0; r < allRows.length; r++) {
-        var row = allRows[r];
-        var cells = Array.from(row.children);
-        if (cells.length <= 1) continue; /* رد شدن از colspan */
+    /* ★ همگام‌سازی data-orig-index سلول‌های body با هدر قبل از جابجایی */
+    syncBodyOrigIndices(table, headerRow);
 
-        /* ساخت نقشه‌ی orig-index → cell */
-        var map = {};
-        var unindexed = [];
-        for (var c = 0; c < cells.length; c++) {
-            var oi = cells[c].getAttribute('data-orig-index');
-            if (oi !== null) {
-                map[oi] = cells[c];
-            } else {
-                unindexed.push({ idx: c, cell: cells[c] });
-            }
-        }
-
-        /* اگر تعداد سلول‌ها با ترتیب ذخیره‌شده نمی‌خواند، skip */
-        if (Object.keys(map).length < savedOrder.length) continue;
-
-        /* ساخت آرایه‌ی جدید بر اساس ترتیب ذخیره‌شده */
-        for (var s = 0; s < savedOrder.length; s++) {
-            var cell = map[savedOrder[s]];
-            if (cell) row.appendChild(cell);
-        }
-        /* سلول‌های ایندکس‌نشده در آخر (مثلاً عملیات) */
-        for (var u = 0; u < unindexed.length; u++) {
-            if (unindexed[u].cell.parentNode) row.appendChild(unindexed[u].cell);
-        }
-    }
-}
-
-/* ★ ذخیره ترتیب جدید */
-function captureColumnOrder(tableId) {
-    var order = getCurrentColumnOrder(tableId);
-    columnOrders[tableId] = order;
-    saveColumnOrders();
-}
-
-/* ★ بازگشت ترتیب ستون‌ها به پیش‌فرض */
-function resetColumnOrder(tableId) {
-    if (!tableId) return;
-    delete columnOrders[tableId];
-    saveColumnOrders();
-    var table = document.getElementById(tableId);
-    if (!table) return;
-
-    /* مرتب‌سازی سلول‌ها بر اساس data-orig-index اصلی */
+    /* اعمال روی همه ردیف‌ها */
     var allRows = table.querySelectorAll('tr');
     for (var r = 0; r < allRows.length; r++) {
         var row = allRows[r];
@@ -575,32 +516,56 @@ function resetColumnOrder(tableId) {
         var unindexed = [];
         for (var c = 0; c < cells.length; c++) {
             var oi = cells[c].getAttribute('data-orig-index');
-            if (oi !== null) {
-                map[oi] = cells[c];
-            } else {
-                unindexed.push(cells[c]);
-            }
+            if (oi !== null) map[oi] = cells[c];
+            else unindexed.push(cells[c]);
         }
 
-        /* مرتب بر اساس شماره اصلی */
-        var keys = Object.keys(map).map(Number).sort(function(a, b) { return a - b; });
-        for (var k = 0; k < keys.length; k++) {
-            row.appendChild(map[keys[k]]);
+        /* ★ دیگر شرط skip نداریم — با آنچه داریم کار می‌کنیم */
+        for (var s = 0; s < savedOrder.length; s++) {
+            var cell = map[String(savedOrder[s])];
+            if (cell) row.appendChild(cell);
         }
         for (var u = 0; u < unindexed.length; u++) {
             row.appendChild(unindexed[u]);
         }
     }
+}
+
+function captureColumnOrder(tableId) {
+    var order = getCurrentColumnOrder(tableId);
+    columnOrders[tableId] = order;
+    saveColumnOrders();
+}
+
+function resetColumnOrder(tableId) {
+    if (!tableId) return;
+    delete columnOrders[tableId];
+    saveColumnOrders();
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var allRows = table.querySelectorAll('tr');
+    for (var r = 0; r < allRows.length; r++) {
+        var row = allRows[r];
+        var cells = Array.from(row.children);
+        if (cells.length <= 1) continue;
+        var map = {};
+        var unindexed = [];
+        for (var c = 0; c < cells.length; c++) {
+            var oi = cells[c].getAttribute('data-orig-index');
+            if (oi !== null) map[oi] = cells[c];
+            else unindexed.push(cells[c]);
+        }
+        var keys = Object.keys(map).map(Number).sort(function(a, b) { return a - b; });
+        for (var k = 0; k < keys.length; k++) row.appendChild(map[keys[k]]);
+        for (var u = 0; u < unindexed.length; u++) row.appendChild(unindexed[u]);
+    }
     showToast('↺ ترتیب ستون‌ها به پیش‌فرض بازگشت.');
 }
 
-/* ★ انتقال ستون به چپ/راست */
+/* ★ انتقال ستون */
 function moveColumnInTable(tableId, colIdx, direction) {
-    /* direction: -1 = انتقال به چپ (قبل‌تر)، +1 = انتقال به راست (بعدتر) */
     var table = document.getElementById(tableId);
     if (!table) return;
-
-    /* ابتدا ایندکس‌های اصلی را تثبیت کن */
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var headerThs = headerRow.querySelectorAll('th');
@@ -609,24 +574,16 @@ function moveColumnInTable(tableId, colIdx, direction) {
             headerThs[i].setAttribute('data-orig-index', String(i));
         }
     }
-
-    /* ترتیب فعلی بر اساس موقعیت DOM */
     var currentOrder = getCurrentColumnOrder(tableId);
     var pos = currentOrder.indexOf(colIdx);
     if (pos < 0) return;
     var newPos = pos + direction;
     if (newPos < 0 || newPos >= currentOrder.length) return;
-
-    /* جابجایی در آرایه */
     var tmp = currentOrder[pos];
     currentOrder[pos] = currentOrder[newPos];
     currentOrder[newPos] = tmp;
-
-    /* ذخیره */
     columnOrders[tableId] = currentOrder;
     saveColumnOrders();
-
-    /* اعمال فوری */
     applyColumnOrder(tableId);
     applyColVisibility(tableId);
 }
@@ -646,7 +603,6 @@ function applyColVisibility(tableId) {
         var cells = rows[r].children;
         if (cells.length === 1 && cells[0].hasAttribute('colspan')) continue;
         for (var c = 0; c < cells.length; c++) {
-            /* ★ با اعمال data-orig-index */
             var origIdx = cells[c].getAttribute('data-orig-index');
             var idx = origIdx !== null ? parseInt(origIdx, 10) : c;
             cells[c].style.display = hidden.indexOf(idx) !== -1 ? 'none' : '';
@@ -664,7 +620,7 @@ function makeAllTablesResizable() {
 }
 
 /* =====================================================================
-   ============ Column menu popup — با دکمه‌های جابجایی
+   ★ منوی ستون‌ها — نسخه اصلاح‌شده (پیدا کردن th با data-orig-index)
    ===================================================================== */
 function showColMenu(tableId, btn) {
     var menu = document.getElementById('col-menu');
@@ -673,12 +629,11 @@ function showColMenu(tableId, btn) {
     if (!table) return;
     var thead = table.querySelector('thead');
     if (!thead) return;
-
     var headerRow = thead.querySelector('tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
 
-    /* تثبیت ایندکس‌های اصلی */
+    /* تثبیت orig-index */
     for (var ii = 0; ii < ths.length; ii++) {
         if (ths[ii].getAttribute('data-orig-index') === null) {
             ths[ii].setAttribute('data-orig-index', String(ii));
@@ -691,10 +646,10 @@ function showColMenu(tableId, btn) {
     var html = '<div class="col-menu-head">👁 نمایش و ترتیب ستون‌ها</div>';
     html += '<div class="col-menu-body">';
 
-    /* نمایش ستون‌ها به ترتیب فعلی */
     for (var i = 0; i < currentOrder.length; i++) {
         var origIdx = currentOrder[i];
-        var th = headerRow.children[origIdx];
+        /* ★ استفاده از تابع کمکی — نه children[origIdx] */
+        var th = findThByOrigIndex(headerRow, origIdx);
         if (!th) continue;
         var label = String(th.textContent || '').replace(/[⇅▲▼]/g, '').trim() || ('ستون ' + (origIdx + 1));
         var checked = hidden.indexOf(origIdx) === -1 ? 'checked' : '';
@@ -727,7 +682,6 @@ function showColMenu(tableId, btn) {
     menu.style.left = left + 'px';
     menu.style.minWidth = menuW + 'px';
 
-    /* چک‌باکس‌های نمایش */
     menu.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
         cb.addEventListener('change', function() {
             var tid = this.getAttribute('data-table');
@@ -740,19 +694,20 @@ function showColMenu(tableId, btn) {
         });
     });
 
-    /* دکمه‌های جابجایی */
     menu.querySelectorAll('.col-move-btn').forEach(function(b) {
         b.addEventListener('click', function() {
             var tid = this.getAttribute('data-table');
             var col = Number(this.getAttribute('data-col'));
             var dir = Number(this.getAttribute('data-dir'));
             moveColumnInTable(tid, col, dir);
-            showColMenu(tid, btn); /* refresh */
+            showColMenu(tid, btn);
         });
     });
 
     menu.querySelector('.col-menu-reset').addEventListener('click', function() {
-        setHiddenCols(tableId, []); applyColVisibility(tableId); showColMenu(tableId, btn);
+        setHiddenCols(tableId, []);
+        applyColVisibility(tableId);
+        showColMenu(tableId, btn);
     });
     menu.querySelector('.col-menu-order-reset').addEventListener('click', function() {
         resetColumnOrder(tableId);
@@ -874,10 +829,7 @@ function buildHeaderButtons() {
                 rBtn.className = 'col-reset-btn';
                 rBtn.title = 'فیت کردن عرض ستون‌ها';
                 rBtn.innerHTML = '↔';
-                rBtn.addEventListener('click', function(ev) {
-                    ev.stopPropagation();
-                    resetColumnWidths(tableId);
-                });
+                rBtn.addEventListener('click', function(ev) { ev.stopPropagation(); resetColumnWidths(tableId); });
                 h.appendChild(rBtn);
             }
             if (tableId && !h.querySelector('.col-toggle-btn')) {
@@ -965,14 +917,8 @@ var FILTER_OPS = [
     { key: 'empty',       label: 'خالی' },
     { key: 'notEmpty',    label: 'غیرخالی' }
 ];
-
 function normalizeCellText(s) {
-    return String(s || '')
-        .replace(/[\u200c\u200e\u200f]/g, ' ')
-        .replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک')
-        .replace(/\u066C/g, ',')
-        .replace(/\s+/g, ' ')
-        .trim().toLowerCase();
+    return String(s || '').replace(/[\u200c\u200e\u200f]/g, ' ').replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک').replace(/\u066C/g, ',').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 function cellToNumber(s) {
     var t = normalizeDigits(String(s || '')).replace(/[^\d\-\.]/g, '');
@@ -1013,10 +959,7 @@ function applyColumnFiltersToTable(tableId) {
     var tbody = table.querySelector('tbody');
     if (!tbody) return;
     var rows = tbody.querySelectorAll('tr');
-    if (!hasAny) {
-        rows.forEach(function (tr) { tr.style.display = ''; });
-        return;
-    }
+    if (!hasAny) { rows.forEach(function (tr) { tr.style.display = ''; }); return; }
     rows.forEach(function (tr) {
         var tds = tr.children;
         if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; }
@@ -1040,14 +983,11 @@ function buildFilterRow(table) {
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     if (ths.length === 0) return;
-
-    /* تثبیت ایندکس اصلی */
     for (var ii = 0; ii < ths.length; ii++) {
         if (ths[ii].getAttribute('data-orig-index') === null) {
             ths[ii].setAttribute('data-orig-index', String(ii));
         }
     }
-
     var filterTr = document.createElement('tr');
     filterTr.className = 'column-filter-row';
     for (var i = 0; i < ths.length; i++) {
@@ -1059,30 +999,18 @@ function buildFilterRow(table) {
             var wrap = document.createElement('div');
             wrap.style.cssText = 'display:flex;gap:2px;align-items:center';
             var inp = document.createElement('input');
-            inp.type = 'text';
-            inp.placeholder = '🔍';
+            inp.type = 'text'; inp.placeholder = '🔍';
             inp.style.cssText = 'width:100%;padding:4px 6px;font-size:.72rem;border:1px solid var(--border);border-radius:6px;background:var(--card-solid);font-family:inherit;outline:none;min-width:0';
             var funnel = document.createElement('button');
-            funnel.type = 'button';
-            funnel.textContent = '▼';
-            funnel.title = 'عملگر فیلتر';
+            funnel.type = 'button'; funnel.textContent = '▼'; funnel.title = 'عملگر فیلتر';
             funnel.style.cssText = 'background:var(--primary-soft);color:var(--primary-dark);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-size:.6rem;cursor:pointer;flex-shrink:0';
-            funnel.addEventListener('click', function (e) {
-                e.stopPropagation();
-                openFilterMenu(table.id, idx, inp, funnel);
-            });
-            wrap.appendChild(inp);
-            wrap.appendChild(funnel);
-            td.appendChild(wrap);
-            filterTr.appendChild(td);
-
+            funnel.addEventListener('click', function (e) { e.stopPropagation(); openFilterMenu(table.id, idx, inp, funnel); });
+            wrap.appendChild(inp); wrap.appendChild(funnel); td.appendChild(wrap); filterTr.appendChild(td);
             var existing = (COLUMN_FILTERS[table.id] || {})[idx];
             if (existing) {
                 if (existing.op !== 'empty' && existing.op !== 'notEmpty') inp.value = existing.val || '';
                 if (existing.op && existing.op !== 'contains') {
-                    funnel.style.background = 'var(--primary)';
-                    funnel.style.color = '#fff';
-                    funnel.textContent = '▼*';
+                    funnel.style.background = 'var(--primary)'; funnel.style.color = '#fff'; funnel.textContent = '▼*';
                 }
             }
             inp.addEventListener('input', function () {
@@ -1090,9 +1018,7 @@ function buildFilterRow(table) {
                 if (!COLUMN_FILTERS[table.id]) COLUMN_FILTERS[table.id] = {};
                 if (!v) {
                     var cur = COLUMN_FILTERS[table.id][idx];
-                    if (!cur || (cur.op !== 'empty' && cur.op !== 'notEmpty')) {
-                        delete COLUMN_FILTERS[table.id][idx];
-                    }
+                    if (!cur || (cur.op !== 'empty' && cur.op !== 'notEmpty')) delete COLUMN_FILTERS[table.id][idx];
                 } else {
                     var cur2 = COLUMN_FILTERS[table.id][idx] || {};
                     COLUMN_FILTERS[table.id][idx] = { op: cur2.op || 'contains', val: v };
@@ -1111,7 +1037,6 @@ function openFilterMenu(tableId, colIdx, inp, anchor) {
     menu.style.cssText = 'position:fixed;z-index:2000;background:var(--card-solid);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:6px;min-width:170px;direction:rtl';
     var cur = (COLUMN_FILTERS[tableId] || {})[colIdx];
     var curOp = cur ? cur.op : 'contains';
-
     FILTER_OPS.forEach(function (o) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -1125,19 +1050,14 @@ function openFilterMenu(tableId, colIdx, inp, anchor) {
             COLUMN_FILTERS[tableId][colIdx] = { op: o.key, val: v };
             applyColumnFiltersToTable(tableId);
             if (o.key !== 'contains' && o.key !== 'empty' && o.key !== 'notEmpty') {
-                anchor.style.background = 'var(--primary)';
-                anchor.style.color = '#fff';
-                anchor.textContent = '▼*';
+                anchor.style.background = 'var(--primary)'; anchor.style.color = '#fff'; anchor.textContent = '▼*';
             } else {
-                anchor.style.background = 'var(--primary-soft)';
-                anchor.style.color = 'var(--primary-dark)';
-                anchor.textContent = '▼';
+                anchor.style.background = 'var(--primary-soft)'; anchor.style.color = 'var(--primary-dark)'; anchor.textContent = '▼';
             }
             menu.remove();
         });
         menu.appendChild(btn);
     });
-
     var clr = document.createElement('button');
     clr.type = 'button';
     clr.style.cssText = 'display:block;width:100%;padding:7px 12px;text-align:right;background:#fee2e2;color:#dc2626;border:none;font-family:inherit;font-size:.8rem;cursor:pointer;border-radius:6px;margin-top:4px;font-weight:800';
@@ -1152,7 +1072,6 @@ function openFilterMenu(tableId, colIdx, inp, anchor) {
         menu.remove();
     });
     menu.appendChild(clr);
-
     document.body.appendChild(menu);
     var rect = anchor.getBoundingClientRect();
     var top = rect.bottom + 4;
@@ -1221,11 +1140,7 @@ function attachFilterRowsToAllTables() {
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
                     var cur = th.dataset.globalSortDir || '';
                     var newDir = cur === 'asc' ? 'desc' : 'asc';
-                    ths.forEach(function (o) {
-                        delete o.dataset.globalSortDir;
-                        var ind = o.querySelector('.global-sort-ind');
-                        if (ind) ind.remove();
-                    });
+                    ths.forEach(function (o) { delete o.dataset.globalSortDir; var ind = o.querySelector('.global-sort-ind'); if (ind) ind.remove(); });
                     th.dataset.globalSortDir = newDir;
                     var arrow = document.createElement('span');
                     arrow.className = 'global-sort-ind';
@@ -1245,22 +1160,13 @@ function attachFilterRowsToAllTables() {
    ===================================================================== */
 (function () {
     var STORAGE_KEY = 'parsis.tableFiltersVisible';
-
     var css = ''
         + 'tr.column-filter-row { display: none; }'
         + 'body.show-table-filters tr.column-filter-row { display: table-row; }'
-        + '.filters-toggle-btn {'
-        +   'background: var(--card-solid); color: var(--primary-dark);'
-        +   'border: 1.5px solid var(--border); width: 36px; height: 34px;'
-        +   'border-radius: 10px; font-size: 1rem; cursor: pointer; padding: 0;'
-        +   'display: inline-flex; align-items: center; justify-content: center;'
-        +   'transition: all 0.25s;'
-        + '}'
+        + '.filters-toggle-btn { background: var(--card-solid); color: var(--primary-dark); border: 1.5px solid var(--border); width: 36px; height: 34px; border-radius: 10px; font-size: 1rem; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; transition: all 0.25s; }'
         + '.filters-toggle-btn:hover { border-color: var(--primary); background: var(--primary-soft); }'
         + '.filters-toggle-btn.active { background: var(--gradient-accent); color: #fff; border-color: transparent; }'
-        + 'body.show-table-filters .filters-toggle-btn {'
-        +   'background: var(--gradient-accent); color: #fff; border-color: transparent;'
-        + '}'
+        + 'body.show-table-filters .filters-toggle-btn { background: var(--gradient-accent); color: #fff; border-color: transparent; }'
         + '@media print { tr.column-filter-row, .filters-toggle-btn { display: none !important; } }';
     var styleEl = document.createElement('style');
     styleEl.textContent = css;
@@ -1281,9 +1187,7 @@ function attachFilterRowsToAllTables() {
             var headerRow = null;
             var allTrs = thead.querySelectorAll('tr');
             for (var i = 0; i < allTrs.length; i++) {
-                if (!allTrs[i].classList.contains('column-filter-row')) {
-                    headerRow = allTrs[i]; break;
-                }
+                if (!allTrs[i].classList.contains('column-filter-row')) { headerRow = allTrs[i]; break; }
             }
             if (!headerRow) return;
             var headerThs = headerRow.children;
@@ -1299,14 +1203,12 @@ function attachFilterRowsToAllTables() {
             }
         });
     }
-
     function addToggleButtons() {
         var headers = document.querySelectorAll('.list-header');
         headers.forEach(function (h) {
             if (h.querySelector('.filters-toggle-btn')) return;
             var card = h.closest('.card');
             if (card && !card.querySelector('table.data-table, table.report-table, table.cf-table')) return;
-
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'filters-toggle-btn';
@@ -1324,63 +1226,40 @@ function attachFilterRowsToAllTables() {
     }
     function updateButtons() {
         var visible = document.body.classList.contains('show-table-filters');
-        document.querySelectorAll('.filters-toggle-btn').forEach(function (b) {
-            b.classList.toggle('active', visible);
-        });
+        document.querySelectorAll('.filters-toggle-btn').forEach(function (b) { b.classList.toggle('active', visible); });
     }
-
     function restoreState() {
-        try {
-            if (localStorage.getItem(STORAGE_KEY) === '1') {
-                document.body.classList.add('show-table-filters');
-            }
-        } catch (err) {}
+        try { if (localStorage.getItem(STORAGE_KEY) === '1') document.body.classList.add('show-table-filters'); } catch (err) {}
         updateButtons();
     }
-
     var observer = null;
     function startObserver() {
         if (observer) return;
         observer = new MutationObserver(function (mutations) {
-            var needsClean = false;
-            var needsBtn = false;
+            var needsClean = false, needsBtn = false;
             for (var i = 0; i < mutations.length; i++) {
                 var m = mutations[i];
                 if (m.type !== 'childList') continue;
                 var t = m.target;
                 if (!t || !t.querySelector) continue;
-                if (t.tagName === 'THEAD' || t.querySelector('tr.column-filter-row')) {
-                    needsClean = true;
-                }
-                if (t.classList && t.classList.contains('list-header')) {
-                    needsBtn = true;
-                }
-                if (t.querySelector && t.querySelector('.list-header')) {
-                    needsBtn = true;
-                }
+                if (t.tagName === 'THEAD' || t.querySelector('tr.column-filter-row')) needsClean = true;
+                if (t.classList && t.classList.contains('list-header')) needsBtn = true;
+                if (t.querySelector && t.querySelector('.list-header')) needsBtn = true;
             }
             if (needsClean) setTimeout(cleanActionsColumn, 50);
             if (needsBtn) setTimeout(addToggleButtons, 50);
         });
         observer.observe(document.body, { childList: true, subtree: true });
     }
-
     function init13() {
         restoreState();
         cleanActionsColumn();
         addToggleButtons();
         startObserver();
-        setInterval(function () {
-            cleanActionsColumn();
-            addToggleButtons();
-        }, 1500);
+        setInterval(function () { cleanActionsColumn(); addToggleButtons(); }, 1500);
     }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(init13, 1200); });
-    } else {
-        setTimeout(init13, 1200);
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init13, 1200); });
+    else setTimeout(init13, 1200);
 })();
 
 /* =====================================================================
@@ -1388,32 +1267,18 @@ function attachFilterRowsToAllTables() {
    ===================================================================== */
 (function () {
     var css = ''
-        + '.form-tabs-bar{display:flex;gap:4px;padding:6px 10px;background:var(--card-solid);'
-        + 'border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;'
-        + 'position:sticky;z-index:49;scrollbar-width:thin;-webkit-overflow-scrolling:touch;'
-        + 'box-shadow:0 2px 6px rgba(15,23,42,.04)}'
+        + '.form-tabs-bar{display:flex;gap:4px;padding:6px 10px;background:var(--card-solid);border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;position:sticky;z-index:49;scrollbar-width:thin;-webkit-overflow-scrolling:touch;box-shadow:0 2px 6px rgba(15,23,42,.04)}'
         + '.form-tabs-bar::-webkit-scrollbar{height:4px}'
         + '.form-tabs-bar::-webkit-scrollbar-thumb{background:var(--primary-light);border-radius:2px}'
-        + '.form-tab{display:flex;align-items:center;gap:6px;padding:6px 10px;'
-        + 'background:var(--card-alt);border:1px solid var(--border);border-radius:8px;'
-        + 'font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text-muted);'
-        + 'cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;'
-        + 'user-select:none;max-width:220px}'
+        + '.form-tab{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--card-alt);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text-muted);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;user-select:none;max-width:220px}'
         + '.form-tab:hover{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-dark);transform:translateY(-1px)}'
-        + '.form-tab.active{background:var(--gradient-accent);color:#fff;border-color:transparent;'
-        + 'box-shadow:0 2px 8px rgba(99,102,241,.25)}'
+        + '.form-tab.active{background:var(--gradient-accent);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(99,102,241,.25)}'
         + '.form-tab .ft-icon{font-size:.9rem;line-height:1}'
         + '.form-tab .ft-title{overflow:hidden;text-overflow:ellipsis;max-width:130px}'
-        + '.form-tab .ft-close{background:rgba(0,0,0,.08);color:inherit;border:none;'
-        + 'width:18px;height:18px;border-radius:4px;font-size:.9rem;line-height:1;'
-        + 'cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;'
-        + 'margin-right:-4px;transition:background .15s}'
+        + '.form-tab .ft-close{background:rgba(0,0,0,.08);color:inherit;border:none;width:18px;height:18px;border-radius:4px;font-size:.9rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;margin-right:-4px;transition:background .15s}'
         + '.form-tab.active .ft-close{background:rgba(255,255,255,.25)}'
         + '.form-tab .ft-close:hover{background:rgba(220,38,38,.85);color:#fff}'
-        + '@media (max-width:480px){'
-        + '.form-tab .ft-title{max-width:80px}'
-        + '.form-tab{padding:5px 8px;font-size:.72rem}'
-        + '}';
+        + '@media (max-width:480px){.form-tab .ft-title{max-width:80px}.form-tab{padding:5px 8px;font-size:.72rem}}';
     var styleEl = document.createElement('style');
     styleEl.textContent = css;
     document.head.appendChild(styleEl);
@@ -1423,11 +1288,8 @@ function attachFilterRowsToAllTables() {
         active: 'home',
         max: 12
     };
-
-    /* ★ استفاده از دیکشنری عنوان فارسی */
     function getPageMeta(pageId) {
         if (PAGE_TITLES_FA[pageId]) return PAGE_TITLES_FA[pageId];
-        /* fallback: خواندن از nav button */
         var btn = document.querySelector('.nav-group-items button[data-page="' + pageId + '"]');
         if (!btn) return { title: pageId, icon: '📄' };
         var clone = btn.cloneNode(true);
@@ -1435,7 +1297,6 @@ function attachFilterRowsToAllTables() {
         if (badge) badge.remove();
         var txt = (clone.textContent || '').trim().replace(/\s+/g, ' ');
         if (!txt) return { title: pageId, icon: '📄' };
-        /* تلاش برای جدا کردن ایموجی */
         var m = txt.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*(.+)$/u);
         if (m) return { icon: m[1], title: m[2] };
         var parts = txt.split(' ');
@@ -1467,12 +1328,9 @@ function attachFilterRowsToAllTables() {
     }
     function clearFormData(pageId) {
         if (pageId === 'voucher-new') {
-            try {
-                if (typeof newVoucherForm === 'function') newVoucherForm();
-            } catch (e) { console.warn('clearFormData error:', e); }
+            try { if (typeof newVoucherForm === 'function') newVoucherForm(); } catch (e) {}
         }
     }
-
     function ensureTabBar() {
         var bar = document.getElementById('form-tabs-bar');
         if (bar) return bar;
@@ -1483,9 +1341,7 @@ function attachFilterRowsToAllTables() {
         bar.className = 'form-tabs-bar';
         bar.style.display = 'none';
         topbar.parentNode.insertBefore(bar, topbar.nextSibling);
-        function setStickyTop() {
-            try { bar.style.top = topbar.offsetHeight + 'px'; } catch (e) {}
-        }
+        function setStickyTop() { try { bar.style.top = topbar.offsetHeight + 'px'; } catch (e) {} }
         setStickyTop();
         window.addEventListener('resize', setStickyTop);
         return bar;
@@ -1493,58 +1349,40 @@ function attachFilterRowsToAllTables() {
     function renderTabs() {
         var bar = ensureTabBar();
         if (!bar) return;
-        if (TAB_STATE.tabs.length <= 1) {
-            bar.style.display = 'none';
-            return;
-        }
+        if (TAB_STATE.tabs.length <= 1) { bar.style.display = 'none'; return; }
         bar.style.display = '';
         bar.innerHTML = '';
-
         TAB_STATE.tabs.forEach(function (t) {
             var tab = document.createElement('div');
             tab.className = 'form-tab' + (t.id === TAB_STATE.active ? ' active' : '');
             tab.dataset.page = t.id;
             tab.title = t.title;
-
             var icon = document.createElement('span');
             icon.className = 'ft-icon';
             icon.textContent = t.icon || '📄';
-
             var title = document.createElement('span');
             title.className = 'ft-title';
             title.textContent = t.title || t.id;
-
             tab.appendChild(icon);
             tab.appendChild(title);
-
-            /* ★ حذف هر بج یا count که در تب نشان داده می‌شود */
-
             if (t.id !== 'home') {
                 var closeBtn = document.createElement('button');
                 closeBtn.type = 'button';
                 closeBtn.className = 'ft-close';
                 closeBtn.textContent = '×';
                 closeBtn.title = 'بستن این تب';
-                closeBtn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    closeTab(t.id);
-                });
+                closeBtn.addEventListener('click', function (e) { e.stopPropagation(); closeTab(t.id); });
                 tab.appendChild(closeBtn);
             }
-
             tab.addEventListener('click', function () {
                 if (TAB_STATE.active === t.id) return;
                 switchToTab(t.id);
             });
-
             bar.appendChild(tab);
         });
-
         setTimeout(function () {
             var activeEl = bar.querySelector('.form-tab.active');
-            if (activeEl && activeEl.scrollIntoView) {
-                try { activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
-            }
+            if (activeEl && activeEl.scrollIntoView) { try { activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
         }, 30);
     }
     function switchToTab(pageId) {
@@ -1556,19 +1394,14 @@ function attachFilterRowsToAllTables() {
     function closeTab(pageId) {
         if (pageId === 'home') return;
         var idx = -1;
-        for (var i = 0; i < TAB_STATE.tabs.length; i++) {
-            if (TAB_STATE.tabs[i].id === pageId) { idx = i; break; }
-        }
+        for (var i = 0; i < TAB_STATE.tabs.length; i++) if (TAB_STATE.tabs[i].id === pageId) { idx = i; break; }
         if (idx === -1) return;
-
         if (hasUnsavedData(pageId)) {
             if (!confirm('این فرم داده‌های ذخیره‌نشده دارد.\n\nOK = بستن و از دست دادن داده‌ها\nCancel = انصراف')) return;
             clearFormData(pageId);
         }
-
         var wasActive = TAB_STATE.active === pageId;
         TAB_STATE.tabs.splice(idx, 1);
-
         if (wasActive) {
             var prevIdx = Math.min(idx - 1, TAB_STATE.tabs.length - 1);
             if (prevIdx < 0) prevIdx = 0;
@@ -1579,71 +1412,35 @@ function attachFilterRowsToAllTables() {
     }
     function closeAllTabs() {
         var nonHome = TAB_STATE.tabs.filter(function (t) { return t.id !== 'home'; });
-        if (nonHome.length === 0) {
-            if (typeof showToast === 'function') showToast('فرم بازی وجود ندارد');
-            return;
-        }
+        if (nonHome.length === 0) { if (typeof showToast === 'function') showToast('فرم بازی وجود ندارد'); return; }
         var anyDirty = false;
         nonHome.forEach(function (t) { if (hasUnsavedData(t.id)) anyDirty = true; });
-
-        if (anyDirty) {
-            if (!confirm('بعضی فرم‌ها داده‌های ذخیره‌نشده دارند.\n\nOK = بستن همه و از دست دادن داده‌ها\nCancel = انصراف')) return;
-        }
+        if (anyDirty) { if (!confirm('بعضی فرم‌ها داده‌های ذخیره‌نشده دارند.\n\nOK = بستن همه\nCancel = انصراف')) return; }
         nonHome.forEach(function (t) { clearFormData(t.id); });
-
         TAB_STATE.tabs = [{ id: 'home', title: 'صفحه اصلی', icon: '🏠' }];
         TAB_STATE.active = 'home';
         switchToTab('home');
         if (typeof showToast === 'function') showToast('🧹 همه فرم‌ها بسته شد');
     }
-
     function injectCloseAllButton() {
         if (document.getElementById('close-all-forms-btn')) return true;
         var searchBox = document.querySelector('.sidebar-search');
         if (!searchBox) return false;
-
         var wrap = document.createElement('div');
-        wrap.className = 'sidebar-close-all-wrap';
         wrap.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--border)';
-
         var btn = document.createElement('button');
         btn.id = 'close-all-forms-btn';
         btn.type = 'button';
         btn.innerHTML = '🧹 بستن همه فرم‌ها';
         btn.title = 'بستن همه تب‌های فرم بدون رفرش';
-        btn.style.cssText = [
-            'width:100%',
-            'padding:10px 14px',
-            'background:linear-gradient(135deg,#fee2e2,#fecaca)',
-            'color:#991b1b',
-            'border:1px solid #fca5a5',
-            'border-radius:10px',
-            'font-family:inherit',
-            'font-size:.82rem',
-            'font-weight:800',
-            'cursor:pointer',
-            'transition:transform .2s,box-shadow .2s'
-        ].join(';');
-
-        btn.addEventListener('mouseenter', function () {
-            btn.style.transform = 'translateY(-1px)';
-            btn.style.boxShadow = '0 6px 16px rgba(220,38,38,.2)';
-        });
-        btn.addEventListener('mouseleave', function () {
-            btn.style.transform = '';
-            btn.style.boxShadow = '';
-        });
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            closeAllTabs();
-        });
-
+        btn.style.cssText = ['width:100%','padding:10px 14px','background:linear-gradient(135deg,#fee2e2,#fecaca)','color:#991b1b','border:1px solid #fca5a5','border-radius:10px','font-family:inherit','font-size:.82rem','font-weight:800','cursor:pointer','transition:transform .2s,box-shadow .2s'].join(';');
+        btn.addEventListener('mouseenter', function () { btn.style.transform = 'translateY(-1px)'; btn.style.boxShadow = '0 6px 16px rgba(220,38,38,.2)'; });
+        btn.addEventListener('mouseleave', function () { btn.style.transform = ''; btn.style.boxShadow = ''; });
+        btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeAllTabs(); });
         wrap.appendChild(btn);
         searchBox.parentNode.insertBefore(wrap, searchBox.nextSibling);
         return true;
     }
-
     function installGoToPageOverride() {
         if (typeof window.goToPage !== 'function') return false;
         if (window._origGoToPage) return true;
@@ -1652,16 +1449,12 @@ function attachFilterRowsToAllTables() {
         window.goToPage = function (name) {
             if (!name) return;
             var exists = false;
-            for (var i = 0; i < TAB_STATE.tabs.length; i++) {
-                if (TAB_STATE.tabs[i].id === name) { exists = true; break; }
-            }
+            for (var i = 0; i < TAB_STATE.tabs.length; i++) if (TAB_STATE.tabs[i].id === name) { exists = true; break; }
             if (!exists) {
                 while (TAB_STATE.tabs.length >= TAB_STATE.max) {
                     var toRemove = -1;
                     for (var j = 1; j < TAB_STATE.tabs.length; j++) {
-                        if (TAB_STATE.tabs[j].id !== name && TAB_STATE.tabs[j].id !== TAB_STATE.active) {
-                            toRemove = j; break;
-                        }
+                        if (TAB_STATE.tabs[j].id !== name && TAB_STATE.tabs[j].id !== TAB_STATE.active) { toRemove = j; break; }
                     }
                     if (toRemove === -1) break;
                     TAB_STATE.tabs.splice(toRemove, 1);
@@ -1675,7 +1468,6 @@ function attachFilterRowsToAllTables() {
         };
         return true;
     }
-
     function init14() {
         var tries = 0;
         var interval = setInterval(function () {
@@ -1683,19 +1475,11 @@ function attachFilterRowsToAllTables() {
             var ok1 = installGoToPageOverride();
             var ok2 = injectCloseAllButton();
             var ok3 = !!ensureTabBar();
-            if ((ok1 && ok2 && ok3) || tries > 20) {
-                clearInterval(interval);
-                renderTabs();
-            }
+            if ((ok1 && ok2 && ok3) || tries > 20) { clearInterval(interval); renderTabs(); }
         }, 300);
     }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(init14, 500); });
-    } else {
-        setTimeout(init14, 500);
-    }
-
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init14, 500); });
+    else setTimeout(init14, 500);
     window.closeAllTabs = closeAllTabs;
 })();
 
@@ -1706,7 +1490,6 @@ function attachFilterRowsToAllTables() {
     function init() {
         attachFilterRowsToAllTables();
         if (window._enhanceGlobalSorting) window._enhanceGlobalSorting();
-
         var observer = new MutationObserver(function (mutations) {
             var needsRefresh = false;
             for (var i = 0; i < mutations.length; i++) {
@@ -1715,15 +1498,12 @@ function attachFilterRowsToAllTables() {
                 var t = m.target;
                 if (t && t.tagName === 'TBODY') { needsRefresh = true; break; }
                 if (t && t.querySelector) {
-                    if (t.querySelector('table.data-table, table.report-table, table.cf-table')) {
-                        needsRefresh = true; break;
-                    }
+                    if (t.querySelector('table.data-table, table.report-table, table.cf-table')) { needsRefresh = true; break; }
                 }
             }
             if (needsRefresh) setTimeout(function () {
                 attachFilterRowsToAllTables();
                 if (window._enhanceGlobalSorting) window._enhanceGlobalSorting();
-                /* ★ اعمال ترتیب ستون‌ها روی جداول جدید */
                 var allTables = document.querySelectorAll('table[data-table-id]');
                 for (var i = 0; i < allTables.length; i++) {
                     if (columnOrders[allTables[i].id]) applyColumnOrder(allTables[i].id);
@@ -1731,7 +1511,6 @@ function attachFilterRowsToAllTables() {
             }, 80);
         });
         observer.observe(document.body, { childList: true, subtree: true });
-
         setInterval(function () {
             var tables = document.querySelectorAll('table.data-table, table.report-table, table.cf-table');
             tables.forEach(function (t) {
@@ -1742,28 +1521,19 @@ function attachFilterRowsToAllTables() {
             });
         }, 900);
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 900); });
-    } else {
-        setTimeout(init, 900);
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 900); });
+    else setTimeout(init, 900);
 })();
 
 /* =====================================================================
    ============ ۱۸) اشتراک‌گذاری گزارش‌ها و ویجت‌ها ============
    ===================================================================== */
-
 function shareAsText(title, text) {
     var fullText = '📊 ' + title + '\n\n' + text;
-    if (navigator.share) {
-        navigator.share({ title: title, text: fullText }).catch(function() {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(fullText).then(function() {
-            showToast('📋 متن گزارش کپی شد. در تلگرام پیست کن.');
-        }).catch(function() { prompt('متن گزارش:', fullText); });
-    } else {
-        prompt('متن گزارش:', fullText);
-    }
+    if (navigator.share) navigator.share({ title: title, text: fullText }).catch(function() {});
+    else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullText).then(function() { showToast('📋 متن گزارش کپی شد.'); }).catch(function() { prompt('متن گزارش:', fullText); });
+    } else prompt('متن گزارش:', fullText);
 }
 function reportToText(containerEl) {
     if (!containerEl) return '';
@@ -1777,9 +1547,7 @@ function reportToText(containerEl) {
             cells.forEach(function(c) { row.push((c.textContent || '').trim()); });
             if (row.length) lines.push(row.join(' | '));
         });
-    } else {
-        lines.push((containerEl.textContent || '').trim());
-    }
+    } else lines.push((containerEl.textContent || '').trim());
     return lines.join('\n');
 }
 
@@ -1798,18 +1566,10 @@ function loadHtml2Canvas() {
         ];
         var idx = 0;
         function tryNext() {
-            if (idx >= urls.length) {
-                _html2canvasLoadPromise = null;
-                reject(new Error('بارگذاری html2canvas ناموفق بود (اتصال اینترنت را چک کن)'));
-                return;
-            }
+            if (idx >= urls.length) { _html2canvasLoadPromise = null; reject(new Error('بارگذاری html2canvas ناموفق بود')); return; }
             var s = document.createElement('script');
-            s.src = urls[idx++];
-            s.async = true;
-            s.onload = function() {
-                if (window.html2canvas) resolve(window.html2canvas);
-                else tryNext();
-            };
+            s.src = urls[idx++]; s.async = true;
+            s.onload = function() { if (window.html2canvas) resolve(window.html2canvas); else tryNext(); };
             s.onerror = function() { tryNext(); };
             document.head.appendChild(s);
         }
@@ -1817,85 +1577,55 @@ function loadHtml2Canvas() {
     });
     return _html2canvasLoadPromise;
 }
-
 async function shareAsImage(el, title, filename) {
     if (!el) { showToast('محتوایی برای اشتراک نیست.'); return; }
     showToast('📸 در حال آماده‌سازی تصویر...');
     var h2c;
-    try {
-        h2c = await loadHtml2Canvas();
-    } catch (e) {
+    try { h2c = await loadHtml2Canvas(); }
+    catch (e) {
         showToast('⚠️ ' + (e.message || 'خطا در بارگذاری کتابخانه') + ' — سوئیچ به متن');
-        if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
-            shareAsText(title || 'گزارش پارسیس', reportToText(el));
-        }
+        if (typeof shareAsText === 'function' && typeof reportToText === 'function') shareAsText(title || 'گزارش پارسیس', reportToText(el));
         return;
     }
-
     var hidden = [];
     var selectors = '.share-btn, .widget-share-btn, .col-resizer, .col-reset-btn, .col-toggle-btn, .eye-toggle-btn, .filters-toggle-btn, .card-collapse-btn, .column-filter-row, .col-filter-menu, #col-filter-menu';
     el.querySelectorAll(selectors).forEach(function (node) {
-        if (node.style.display !== 'none') {
-            hidden.push({ el: node, old: node.style.display });
-            node.style.display = 'none';
-        }
+        if (node.style.display !== 'none') { hidden.push({ el: node, old: node.style.display }); node.style.display = 'none'; }
     });
-
     var canvas;
     try {
         canvas = await h2c(el, {
             backgroundColor: '#ffffff',
             scale: Math.min(Math.max(window.devicePixelRatio || 1, 2), 3),
-            useCORS: true,
-            allowTaint: false,
-            logging: false,
-            scrollX: 0,
-            scrollY: -window.scrollY,
-            windowWidth: el.scrollWidth,
-            windowHeight: el.scrollHeight
+            useCORS: true, allowTaint: false, logging: false,
+            scrollX: 0, scrollY: -window.scrollY,
+            windowWidth: el.scrollWidth, windowHeight: el.scrollHeight
         });
     } catch (e) {
         console.error('html2canvas error:', e);
         showToast('⚠️ خطا در ساخت تصویر — سوئیچ به متن');
         hidden.forEach(function (x) { x.el.style.display = x.old; });
-        if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
-            shareAsText(title || 'گزارش پارسیس', reportToText(el));
-        }
+        if (typeof shareAsText === 'function' && typeof reportToText === 'function') shareAsText(title || 'گزارش پارسیس', reportToText(el));
         return;
-    } finally {
-        hidden.forEach(function (x) { x.el.style.display = x.old; });
-    }
-
+    } finally { hidden.forEach(function (x) { x.el.style.display = x.old; }); }
     canvas.toBlob(async function (blob) {
         if (!blob) { showToast('❌ ساخت تصویر ناموفق بود'); return; }
         var safeName = (filename || 'parsis-report') + '-' + todayJalaliStr().replace(/\//g, '-') + '.png';
         var file = new File([blob], safeName, { type: 'image/png' });
         var shareTitle = title || 'گزارش پارسیس';
-
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
-                await navigator.share({
-                    files: [file],
-                    title: shareTitle,
-                    text: shareTitle
-                });
+                await navigator.share({ files: [file], title: shareTitle, text: shareTitle });
                 showToast('✅ تصویر اشتراک شد.');
                 return;
-            } catch (e) {
-                if (e && e.name === 'AbortError') return;
-                console.warn('Web Share failed:', e);
-            }
+            } catch (e) { if (e && e.name === 'AbortError') return; }
         }
-
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
-        a.href = url;
-        a.download = safeName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        a.href = url; a.download = safeName;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
-        showToast('💾 تصویر دانلود شد — در تلگرام پیست کن.');
+        showToast('💾 تصویر دانلود شد.');
     }, 'image/png', 0.95);
 }
 window.shareAsImage = shareAsImage;
@@ -1904,8 +1634,7 @@ function buildShareButtons() {
     document.querySelectorAll('.list-header').forEach(function(h) {
         if (h.querySelector('.share-btn')) return;
         var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'share-btn';
+        btn.type = 'button'; btn.className = 'share-btn';
         btn.title = 'اشتراک‌گذاری گزارش (تصویر)';
         btn.innerHTML = '📤';
         h.appendChild(btn);
@@ -1913,8 +1642,7 @@ function buildShareButtons() {
     document.querySelectorAll('.widget-card').forEach(function(w) {
         if (w.querySelector('.widget-share-btn')) return;
         var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'widget-share-btn';
+        btn.type = 'button'; btn.className = 'widget-share-btn';
         btn.title = 'اشتراک‌گذاری ویجت (تصویر)';
         btn.innerHTML = '📤';
         if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
@@ -1925,122 +1653,71 @@ window.buildShareButtons = buildShareButtons;
 window.shareAsText = shareAsText;
 
 /* =====================================================================
-   ============ ۲۰) Event Delegation برای دکمه‌های هدر و ویجت ============
+   ============ ۲۰) Event Delegation ============
    ===================================================================== */
 (function() {
     function handleHeaderButtonClick(e) {
         var target = e.target;
         var btn;
-
-        /* ⚙ منوی ستون‌ها */
         btn = target.closest ? target.closest('.col-toggle-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var h = btn.closest('.list-header');
             var tableId = h ? h.getAttribute('data-col-table') : null;
-            if (tableId) {
-                if (typeof showColMenu === 'function') showColMenu(tableId, btn);
-            }
+            if (tableId && typeof showColMenu === 'function') showColMenu(tableId, btn);
             return;
         }
-
-        /* ↔ بازنشانی عرض ستون‌ها */
         btn = target.closest ? target.closest('.col-reset-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var h2 = btn.closest('.list-header');
             var tableId2 = h2 ? h2.getAttribute('data-col-table') : null;
-            if (tableId2) {
-                if (typeof resetColumnWidths === 'function') resetColumnWidths(tableId2);
-                else showToast('⚠️ تابع بازنشانی یافت نشد.');
-            } else {
-                showToast('⚠️ جدولی برای این هدر تعریف نشده.');
-            }
+            if (tableId2 && typeof resetColumnWidths === 'function') resetColumnWidths(tableId2);
             return;
         }
-
-        /* 👁/🙈 چشمی — مخفی/نمایش مبالغ */
         btn = target.closest ? target.closest('.eye-toggle-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var key = btn.getAttribute('data-hide-key');
-            if (key) {
-                toggleHideState(key);
-                if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
-            }
+            if (key) { toggleHideState(key); if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage(); }
             return;
         }
-
-        /* 🔍 دکمه فیلترها */
         btn = target.closest ? target.closest('.filters-toggle-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var visible = document.body.classList.toggle('show-table-filters');
             try { localStorage.setItem('parsis.tableFiltersVisible', visible ? '1' : '0'); } catch (err) {}
-            document.querySelectorAll('.filters-toggle-btn').forEach(function(b) {
-                b.classList.toggle('active', visible);
-            });
+            document.querySelectorAll('.filters-toggle-btn').forEach(function(b) { b.classList.toggle('active', visible); });
             return;
         }
-
-        /* 📤 اشتراک‌گذاری گزارش — تصویر PNG */
         btn = target.closest ? target.closest('.share-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var card = btn.closest('.card');
             var target_el = card || (btn.closest('.list-header') ? btn.closest('.list-header').parentElement : null);
             var titleEl = document.querySelector('.page.active > h2');
             var title = titleEl ? titleEl.textContent : 'گزارش پارسیس';
-            if (typeof shareAsImage === 'function') {
-                shareAsImage(target_el, title.trim(), 'parsis-report');
-            } else if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
-                shareAsText(title.trim(), reportToText(target_el));
-            }
+            if (typeof shareAsImage === 'function') shareAsImage(target_el, title.trim(), 'parsis-report');
+            else if (typeof shareAsText === 'function' && typeof reportToText === 'function') shareAsText(title.trim(), reportToText(target_el));
             return;
         }
-
-        /* 📤 اشتراک‌گذاری ویجت — تصویر PNG */
         btn = target.closest ? target.closest('.widget-share-btn') : null;
         if (btn) {
-            e.stopPropagation();
-            e.preventDefault();
+            e.stopPropagation(); e.preventDefault();
             var w = btn.closest('.widget-card');
             if (w) {
                 var wTitle = (w.querySelector('h3') || {}).textContent || 'ویجت پارسیس';
-                if (typeof shareAsImage === 'function') {
-                    shareAsImage(w, wTitle.trim(), 'parsis-widget');
-                } else if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
-                    shareAsText(wTitle.trim(), reportToText(w));
-                }
+                if (typeof shareAsImage === 'function') shareAsImage(w, wTitle.trim(), 'parsis-widget');
+                else if (typeof shareAsText === 'function' && typeof reportToText === 'function') shareAsText(wTitle.trim(), reportToText(w));
             }
             return;
         }
     }
-
     document.addEventListener('click', handleHeaderButtonClick, true);
-
-    setTimeout(function() {
-        var missing = [];
-        if (typeof showColMenu !== 'function') missing.push('showColMenu');
-        if (typeof resetColumnWidths !== 'function') missing.push('resetColumnWidths');
-        if (typeof toggleHideState !== 'function') missing.push('toggleHideState');
-        if (typeof shareAsText !== 'function') missing.push('shareAsText');
-        if (typeof shareAsImage !== 'function') missing.push('shareAsImage');
-        if (missing.length > 0) {
-            console.warn('⚠️ توابع گمشده:', missing.join(', '));
-        } else {
-            console.log('✅ Event Delegation دکمه‌های هدر فعال شد.');
-        }
-    }, 1500);
 })();
 
 /* =====================================================================
-   ★★★ Migration: افزودن data-orig-index به همه جداول موجود
+   ★ Migration: افزودن data-orig-index به همه جداول
    ===================================================================== */
 (function initColumnOrders() {
     function boot() {
@@ -2052,17 +1729,13 @@ window.shareAsText = shareAsText;
             if (!headerRow) return;
             var ths = headerRow.querySelectorAll('th');
             for (var i = 0; i < ths.length; i++) {
-                if (ths[i].getAttribute('data-orig-index') === null) {
-                    ths[i].setAttribute('data-orig-index', String(i));
-                }
+                if (ths[i].getAttribute('data-orig-index') === null) ths[i].setAttribute('data-orig-index', String(i));
             }
-            /* اعمال ترتیب ذخیره‌شده اگر بود */
+            /* ★ همگام‌سازی body با هدر */
+            syncBodyOrigIndices(t, headerRow);
             if (columnOrders[t.id]) applyColumnOrder(t.id);
         });
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(boot, 2000); });
-    } else {
-        setTimeout(boot, 2000);
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { setTimeout(boot, 2000); });
+    else setTimeout(boot, 2000);
 })();
