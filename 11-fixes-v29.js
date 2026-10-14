@@ -1,4 +1,4 @@
-/* پارسیس — پچ فیکس: تسهیلات، مرور حساب، خوش‌آمدگویی، تقویم */
+/* پارسیس — پچ فیکس: تسهیلات، خوش‌آمدگویی، تقویم */
 'use strict';
 
 /* =====================================================================
@@ -22,9 +22,7 @@
    ★ بخش ۱: رفع ذخیره معین تسهیلات + حفظ اقساط
    ===================================================================== */
 
-/* نگه‌داری مقادیر aقساط اصلی هنگام لود فرم ویرایش تسهیلات */
 function loadFacilityIntoForm_Enhanced(f) {
-    // ★ بارگذاری aقساط در متغیر global برای حفظ آن‌ها هنگام ذخیره
     currentFacilityId = f.id;
     currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
 
@@ -37,7 +35,6 @@ function loadFacilityIntoForm_Enhanced(f) {
     document.getElementById('fc-paid').value = f.paid ? formatRaw(f.paid) : '';
     document.getElementById('fac-installments-card').style.display = 'none';
 
-    // ★ بارگذاری select معین
     if (typeof window._refreshFacilityMoein === 'function') window._refreshFacilityMoein();
     var sel = document.getElementById('fc-moein');
     if (sel) sel.value = f.moeinId || '';
@@ -51,14 +48,12 @@ function saveFacilityEnhanced() {
     var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
     if (!init) { alert('مبلغ اولیه اجباری.'); return; }
 
-    // ★ اقساط فعلی را نگه دار
     var ins = currentInstallments || [];
     var tp = ins.reduce(function(s, x) {
         return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
     }, 0);
     var ap = ins.length > 0 && ins.every(function(x) { return x.status === 'paid'; });
 
-    // ★ معین تسهیلات
     var moeinSel = document.getElementById('fc-moein');
     var moeinId = moeinSel ? moeinSel.value : '';
 
@@ -120,7 +115,6 @@ window.saveFacilityEnhanced = saveFacilityEnhanced;
         if (typeof window.loadFacilityIntoForm === 'function') {
             window.loadFacilityIntoForm = loadFacilityIntoForm_Enhanced;
         }
-        // نسخه اقساط دست‌نخورده باقی می‌ماند اما معین را بارگذاری می‌کند
         var _origIns = window.loadFacilityForInstallments;
         if (typeof _origIns === 'function') {
             window.loadFacilityForInstallments = function(f) {
@@ -155,7 +149,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
     var bankMoein = (typeof getBankMoeinId === 'function') ? getBankMoeinId() : '';
     if (!bankMoein) { alert('معین بانک در چارت تعریف نشده.'); return; }
 
-    // ★ اگر معین تسهیلات ندارد، از کاربر بگیر
     var facMoeinId = f.moeinId || '';
     var facDetailId = '';
     if (!facMoeinId) {
@@ -172,20 +165,16 @@ async function payInstallmentV2(facilityId, installmentIdx) {
         if (isNaN(idx) || idx < 0 || idx >= leaves.length) { alert('نامعتبر.'); return; }
         facMoeinId = leaves[idx].id;
 
-        // ذخیره در تسهیلات
         facilities.forEach(function(ff) {
             if (ff.id === facilityId) ff.moeinId = facMoeinId;
         });
         DB.save('facilities', facilities);
 
-        // اگر معین لینک facility دارد، تفصیلی این تسهیلات انتخاب می‌شود
         var facAcc = accounts.find(function(a) { return a.id === facMoeinId; });
         if (facAcc && facAcc.links && facAcc.links.length > 0) {
-            // اگر لینک facility دارد، تسهیلات فعلی را انتخاب کن
             if (facAcc.links.indexOf('facility') !== -1) {
                 facDetailId = facilityId;
             } else if (facAcc.links.length === 1) {
-                // اگر فقط یک لینک دارد و تسهیلات نیست، از کاربر بگیر
                 var lt = facAcc.links[0];
                 var items = getLinkedItems(lt);
                 if (items.length > 0) {
@@ -199,7 +188,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
             }
         }
     } else {
-        // معین هست — اگر لینک facility دارد، تسهیلات را auto-fill کن
         var facAcc2 = accounts.find(function(a) { return a.id === facMoeinId; });
         if (facAcc2 && facAcc2.links && facAcc2.links.indexOf('facility') !== -1) {
             facDetailId = facilityId;
@@ -217,7 +205,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
         }
     }
 
-    // تاییدیه
     var bank = DB.load('bankAccounts', []).find(function(b) { return b.id === f.bankId; });
     var bankTitle = bank ? (bank.bank + ' — ' + (bank.account || '')) : '—';
     var facAcc3 = accounts.find(function(a) { return a.id === facMoeinId; });
@@ -230,15 +217,12 @@ async function payInstallmentV2(facilityId, installmentIdx) {
         '\nسند خودکار ساخته شود؟';
     if (!confirm(msg)) return;
 
-    // اعتبارسنجی تاریخ
     var dv = validateDateInActivePeriod(ins.date);
     if (!dv.ok) { alert('⚠️ ' + dv.msg); return; }
 
-    // ساخت سند
     var description = 'پرداخت قسط ' + ins.date + ' — ' + f.name;
     var lines = [];
 
-    // ردیف بدهکار: معین تسهیلات
     var facDetails = {};
     if (facDetailId) facDetails.facility = facDetailId;
     lines.push({
@@ -250,7 +234,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
         description: description
     });
 
-    // ردیف بستانکار: معین بانک
     lines.push({
         id: uid(),
         account: bankMoein,
@@ -275,7 +258,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
         status: 'draft'
     };
 
-    // به‌روزرسانی اقساط
     facilities.forEach(function(ff) {
         if (ff.id === facilityId) {
             ff.installments[installmentIdx].status = 'paid';
@@ -294,7 +276,6 @@ async function payInstallmentV2(facilityId, installmentIdx) {
     vouchers.push(v);
     DB.save('vouchers', vouchers);
 
-    // ریفرش فرم جاری
     currentInstallments = JSON.parse(JSON.stringify(
         facilities.find(function(ff) { return ff.id === facilityId; }).installments
     ));
@@ -352,276 +333,7 @@ window.payInstallment = payInstallmentV2;
 })();
 
 /* =====================================================================
-   ★ بخش ۳: بازطراحی گزارش مرور حساب‌ها به شکل جدول درختی هم‌راستا
-   ===================================================================== */
-
-/* CSS برای جدول درختی */
-(function injectAccountReportTableStyle() {
-    if (document.getElementById('rt-tree-style')) return;
-    var s = document.createElement('style');
-    s.id = 'rt-tree-style';
-    s.textContent = ''
-        + '.acct-tree-table { width:100%; border-collapse:collapse; background:var(--card-solid); }'
-        + '.acct-tree-table thead th {'
-        +   'background:linear-gradient(180deg, var(--primary-light), var(--primary-soft));'
-        +   'color:var(--primary-dark); padding:12px 14px; text-align:right;'
-        +   'font-weight:800; font-size:0.82rem; border-bottom:2px solid var(--primary);'
-        +   'white-space:nowrap; position:sticky; top:0; z-index:2;'
-        + '}'
-        + '.acct-tree-table tbody td {'
-        +   'padding:10px 14px; border-bottom:1px solid var(--border);'
-        +   'white-space:nowrap; font-size:0.86rem;'
-        + '}'
-        + '.acct-tree-table tbody tr:hover { background:var(--primary-soft); }'
-        + '.acct-tree-table tbody tr.acct-row { cursor:pointer; }'
-        + '.acct-tree-table .acct-num { text-align:center; font-variant-numeric:tabular-nums; font-weight:800; }'
-        + '.acct-tree-table .acct-code { font-family: monospace; direction:ltr; color:var(--primary-dark); font-weight:800; }'
-        + '.acct-tree-table .acct-name { font-weight:700; }'
-        + '.acct-tree-table .acct-toggle {'
-        +   'display:inline-flex; align-items:center; justify-content:center;'
-        +   'width:22px; height:22px; border-radius:6px; background:var(--card-alt);'
-        +   'font-size:0.7rem; font-weight:900; color:var(--primary-dark);'
-        +   'cursor:pointer; margin-left:6px; user-select:none; transition:all 0.2s;'
-        + '}'
-        + '.acct-tree-table .acct-toggle:hover { background:var(--primary); color:#fff; }'
-        + '.acct-tree-table .acct-toggle.empty { visibility:hidden; }'
-        + '.acct-tree-table .acct-indent { display:inline-block; }'
-        + '.acct-tree-table .acct-badge {'
-        +   'display:inline-block; font-size:0.66rem; padding:2px 8px;'
-        +   'border-radius:8px; margin-right:6px; font-weight:800;'
-        + '}'
-        + '.acct-tree-table .ab-l1 { background:#e0e7ff; color:#3730a3; }'
-        + '.acct-tree-table .ab-l2 { background:#d1fae5; color:#065f46; }'
-        + '.acct-tree-table .ab-l3 { background:#fef3c7; color:#92400e; }'
-        + '.acct-tree-table .ab-l4 { background:#f1f5f9; color:#475569; }'
-        + '.acct-tree-table .acct-level-1 td { background:linear-gradient(90deg, var(--primary-soft) 0%, var(--card-solid) 100%); font-weight:900; }'
-        + '.acct-tree-table .acct-level-2 td { background:var(--card-alt); }'
-        + '.acct-tree-table .acct-level-3 td { background:var(--card-solid); }'
-        + '.acct-tree-table .acct-level-4 td { background:var(--card-alt); font-size:0.82rem; }'
-        + '.acct-tree-table .acct-hidden { display:none !important; }'
-        + '.acct-tree-table .num-pos { color:#059669; }'
-        + '.acct-tree-table .num-neg { color:#dc2626; }';
-    document.head.appendChild(s);
-})();
-
-/* ★ تابع اصلی render درخت حسابداری به شکل جدول */
-function renderAccountReportTreeTable() {
-    var opts = {
-        from: document.getElementById('ra-from').value,
-        to: document.getElementById('ra-to').value,
-        vtype: document.getElementById('ra-vtype').value,
-        periodId: document.getElementById('ra-period').value,
-        cat: document.getElementById('ra-cat').value,
-        nature: document.getElementById('ra-nature').value,
-        level: Number(document.getElementById('ra-level').value) || 3
-    };
-    var accounts = DB.load('accounts', []);
-    var result = computeAccountBalances(opts);
-    var rolled = rollupBalances(accounts, result.balances);
-    var hide = getHideState('ra');
-    var tL = opts.level;
-    var onlyBalance = document.getElementById('ra-only-balance');
-    var shouldFilterByBalance = onlyBalance && onlyBalance.checked;
-
-    state.reportExpandedNodes = state.reportExpandedNodes || {};
-
-    var box = document.getElementById('ra-result');
-    if (!box) return;
-
-    var dM = {};
-    if (tL >= 4) {
-        Object.keys(result.detailBalances).forEach(function(did) {
-            var d = result.detailBalances[did];
-            if (!dM[d.parent]) dM[d.parent] = [];
-            dM[d.parent].push({ id: did, linkType: d.linkType, debit: d.debit, credit: d.credit });
-        });
-    }
-
-    var html = '<div class="table-wrap"><table class="acct-tree-table" id="acct-tree-tbl"><thead><tr>';
-    html += '<th style="width:110px">کد معین</th>';
-    html += '<th>عنوان معین</th>';
-    html += '<th style="width:130px">گردش بدهکار</th>';
-    html += '<th style="width:130px">گردش بستانکار</th>';
-    html += '<th style="width:130px">مانده بدهکار</th>';
-    html += '<th style="width:130px">مانده بستانکار</th>';
-    html += '</tr></thead><tbody>';
-
-    var totalD = 0, totalC = 0, shown = 0;
-    var hasData = false;
-
-    function childrenOf(pid) {
-        return accounts.filter(function(a) { return a.parent === pid; });
-    }
-
-    function hasAnyBalance(nodeId) {
-        var b = rolled[nodeId] || { debit: 0, credit: 0 };
-        return b.debit !== 0 || b.credit !== 0;
-    }
-
-    function renderRow(node, level) {
-        var b = rolled[node.id] || { debit: 0, credit: 0 };
-        var net = b.debit - b.credit;
-        var md = net > 0 ? net : 0;
-        var mc = net < 0 ? -net : 0;
-
-        // ★ فیلتر فقط مانده‌دار
-        if (shouldFilterByBalance && !hasAnyBalance(node.id)) {
-            // بررسی: آیا فرزندی با مانده دارد؟
-            var kids = childrenOf(node.id);
-            var anyKidHasBalance = false;
-            function checkDesc(pid) {
-                var ks = childrenOf(pid);
-                for (var i = 0; i < ks.length; i++) {
-                    if (hasAnyBalance(ks[i].id)) { anyKidHasBalance = true; return; }
-                    checkDesc(ks[i].id);
-                    if (anyKidHasBalance) return;
-                }
-            }
-            checkDesc(node.id);
-            if (!anyKidHasBalance) return;
-        }
-
-        var levelName = level === 1 ? 'گروه' : level === 2 ? 'کل' : level === 3 ? 'معین' : 'تفصیلی';
-        var badgeCls = 'ab-l' + level;
-        var isExpanded = state.reportExpandedNodes[node.id] !== false;
-        var hasChildren = childrenOf(node.id).length > 0;
-        if (level === 3 && tL >= 4 && dM[node.id] && dM[node.id].length > 0) hasChildren = true;
-
-        var toggleHtml = hasChildren
-            ? '<span class="acct-toggle" data-toggle-id="' + node.id + '">' + (isExpanded ? '▼' : '◀') + '</span>'
-            : '<span class="acct-toggle empty">•</span>';
-
-        var indent = new Array(level).join('&nbsp;&nbsp;&nbsp;&nbsp;');
-        var codeStr = node.code || '';
-        var nameStr = (node.name || '');
-
-        html += '<tr class="acct-row acct-level-' + level + '" data-node-id="' + node.id + '" data-level="' + level + '">';
-        html += '<td class="acct-code">' + esc(codeStr) + '</td>';
-        html += '<td class="acct-name">' + indent + toggleHtml + esc(nameStr) + ' <span class="acct-badge ' + badgeCls + '">' + levelName + '</span></td>';
-        html += '<td class="acct-num">' + (hide ? '—' : (b.debit ? moneyHtml(b.debit) : '—')) + '</td>';
-        html += '<td class="acct-num">' + (hide ? '—' : (b.credit ? moneyHtml(b.credit) : '—')) + '</td>';
-        html += '<td class="acct-num num-pos">' + (hide ? '—' : (md ? moneyHtml(md) : '—')) + '</td>';
-        html += '<td class="acct-num num-neg">' + (hide ? '—' : (mc ? moneyHtml(mc) : '—')) + '</td>';
-        html += '</tr>';
-
-        totalD += b.debit;
-        totalC += b.credit;
-        shown++;
-
-        // فرزندان
-        if (isExpanded && hasChildren) {
-            var kids2 = childrenOf(node.id);
-            if (level < tL) {
-                for (var i = 0; i < kids2.length; i++) renderRow(kids2[i], level + 1);
-            } else if (level === 3 && tL >= 4 && dM[node.id]) {
-                // سطح ۴
-                var ds = dM[node.id];
-                for (var di = 0; di < ds.length; di++) {
-                    var d = ds[di];
-                    var dn = d.debit - d.credit;
-                    var dmd = dn > 0 ? dn : 0;
-                    var dmc = dn < 0 ? -dn : 0;
-                    html += '<tr class="acct-row acct-level-4" data-detail-id="' + d.id + '" data-parent-id="' + node.id + '">';
-                    html += '<td class="acct-code">—</td>';
-                    html += '<td class="acct-name">' + new Array(4).join('&nbsp;&nbsp;&nbsp;&nbsp;') + '<span class="acct-toggle empty">•</span>' + esc(getDetailLabel(d.linkType, d.id)) + ' <span class="acct-badge ab-l4">' + linkTypeName(d.linkType) + '</span></td>';
-                    html += '<td class="acct-num">' + (hide ? '—' : (d.debit ? moneyHtml(d.debit) : '—')) + '</td>';
-                    html += '<td class="acct-num">' + (hide ? '—' : (d.credit ? moneyHtml(d.credit) : '—')) + '</td>';
-                    html += '<td class="acct-num num-pos">' + (hide ? '—' : (dmd ? moneyHtml(dmd) : '—')) + '</td>';
-                    html += '<td class="acct-num num-neg">' + (hide ? '—' : (dmc ? moneyHtml(dmc) : '—')) + '</td>';
-                    html += '</tr>';
-                    totalD += d.debit;
-                    totalC += d.credit;
-                    shown++;
-                }
-            }
-        }
-    }
-
-    var roots = accounts.filter(function(a) { return !a.parent; });
-    for (var i = 0; i < roots.length; i++) renderRow(roots[i], 1);
-
-    if (shown === 0) {
-        html += '<tr><td colspan="6" class="empty-row">داده‌ای مطابق فیلترها یافت نشد.</td></tr>';
-    }
-
-    html += '</tbody>';
-    html += '<tfoot><tr>';
-    html += '<td colspan="2" style="text-align:left;font-weight:800">جمع کل</td>';
-    html += '<td class="acct-num">' + (hide ? '—' : moneyHtml(totalD)) + '</td>';
-    html += '<td class="acct-num">' + (hide ? '—' : moneyHtml(totalC)) + '</td>';
-    html += '<td class="acct-num" colspan="2">' + (hide ? '—' : moneyHtml(totalD - totalC)) + '</td>';
-    html += '</tr></tfoot>';
-    html += '</table></div>';
-
-    box.innerHTML = html;
-
-    // رویدادها
-    box.querySelectorAll('[data-toggle-id]').forEach(function(t) {
-        t.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var id = this.getAttribute('data-toggle-id');
-            state.reportExpandedNodes[id] = !state.reportExpandedNodes[id];
-            renderAccountReportTreeTable();
-        });
-    });
-    box.querySelectorAll('tr.acct-row').forEach(function(tr) {
-        tr.addEventListener('click', function(e) {
-            if (e.target.closest('.acct-toggle')) return;
-            var nodeId = this.getAttribute('data-node-id');
-            var detailId = this.getAttribute('data-detail-id');
-            var parentId = this.getAttribute('data-parent-id');
-            if (nodeId) {
-                openAccountTurnover(nodeId, null);
-            } else if (detailId && parentId) {
-                var accountsAll = DB.load('accounts', []);
-                var pAcc = accountsAll.find(function(a) { return a.id === parentId; });
-                var lt = pAcc && pAcc.links ? pAcc.links[0] : 'person';
-                openAccountTurnover(parentId, { linkType: lt, detailId: detailId });
-            }
-        });
-    });
-
-    document.getElementById('ra-count').textContent = toFa(shown);
-    var unitEl = document.getElementById('ra-unit');
-    if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
-    if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
-    if (typeof applyColVisibility === 'function') applyColVisibility('ra-table');
-}
-
-/* ★ Override runAccountReport با نسخه جدید */
-(function patchRunAccountReport() {
-    function apply() {
-        window.runAccountReport = renderAccountReportTreeTable;
-        window._renderAccountReportTree = renderAccountReportTreeTable;
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(apply, 2200); });
-    } else {
-        setTimeout(apply, 2200);
-    }
-})();
-
-/* ★ رفع دکمه «فقط حساب‌های دارای مانده» */
-(function patchOnlyBalanceCheckbox() {
-    function apply() {
-        var cb = document.getElementById('ra-only-balance');
-        if (!cb || cb.dataset.bound === '1') return;
-        cb.dataset.bound = '1';
-        var newCb = cb.cloneNode(true);
-        cb.parentNode.replaceChild(newCb, cb);
-        newCb.addEventListener('change', function() {
-            renderAccountReportTreeTable();
-        });
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(apply, 2500); });
-    } else {
-        setTimeout(apply, 2500);
-    }
-})();
-
-/* =====================================================================
-   ★ بخش ۴: خوش‌آمدگویی — قبل از برنامه + فونت Btitr + تاریخ میلادی روز-ماه
+   ★ بخش ۳: خوش‌آمدگویی — قبل از برنامه + فونت Btitr + تاریخ میلادی روز-ماه
    ===================================================================== */
 
 /* حذف نسخه قبلی خوش‌آمد (اگر وجود دارد) */
@@ -633,7 +345,6 @@ function renderAccountReportTreeTable() {
 
 /* ساخت خوش‌آمد جدید + هک نمایش زودهنگام */
 (function buildWelcomeV2() {
-    // ★ هک: بلافاصله body را مخفی می‌کنیم و overlay خوش‌آمد می‌سازیم
     function hijackBody() {
         if (document.body) {
             document.body.style.visibility = 'hidden';
@@ -666,7 +377,6 @@ function renderAccountReportTreeTable() {
             + '<div class="welcome-hint">👆 برای ورود کلیک کنید</div>';
         document.body.appendChild(el);
 
-        // ★ آزادسازی body پس از کلیک
         el.addEventListener('click', function() {
             el.classList.add('welcome-out');
             setTimeout(function() {
@@ -674,13 +384,6 @@ function renderAccountReportTreeTable() {
                 el.style.display = 'none';
             }, 500);
         });
-
-        // ★ ایمنی: اگر به هر دلیلی کلیک نشد، بعد از 15 ثانیه آزاد شود
-        setTimeout(function() {
-            if (!document.body.style.visibility || document.body.style.visibility === 'hidden') {
-                // هیچ کاری نکن — کاربر باید کلیک کند
-            }
-        }, 15000);
     }
 
     function renderDate() {
@@ -693,7 +396,6 @@ function renderAccountReportTreeTable() {
                 toFa(j[2]) + ' ' + JALALI_MONTHS[j[1] - 1] + ' ' + toFa(j[0]);
         }
         if (gEl) {
-            // ★ میلادی: روز قبل از ماه
             gEl.textContent = d.getDate() + ' ' + GREG_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
         }
     }
@@ -746,9 +448,7 @@ function renderAccountReportTreeTable() {
         svg += '<linearGradient id="wg-expense" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f87171"/><stop offset="100%" stop-color="#dc2626"/></linearGradient>';
         svg += '</defs>';
         svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="32"/>';
-        // لایه اول: هزینه (کامل) — با تاخیر 1s
         svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="url(#wg-expense)" stroke-width="32" stroke-dasharray="' + circ + ' ' + circ + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" style="stroke-dashoffset:' + circ + '; animation: wgDraw 1s ease forwards; animation-delay: 0.3s; --dash-target: 0;"/>';
-        // لایه دوم: درآمد — با تاخیر 1.3s
         svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="url(#wg-income)" stroke-width="32" stroke-dasharray="' + incLen + ' ' + (circ - incLen) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" style="stroke-dashoffset:0; opacity:0; animation: wgFadeIn 0.5s ease forwards; animation-delay: 1.3s;"/>';
         svg += '<text x="' + cx + '" y="' + (cy - 6) + '" text-anchor="middle" font-size="14" fill="rgba(255,255,255,0.7)" font-family="Btitr, Tahoma">مجموع</text>';
         svg += '<text x="' + cx + '" y="' + (cy + 18) + '" text-anchor="middle" font-size="18" font-weight="bold" fill="#fff" font-family="Btitr, Tahoma" style="opacity:0; animation: wgFadeIn 0.5s ease forwards; animation-delay: 2.5s">' + toFa(total.toLocaleString('fa-IR')) + '</text>';
@@ -770,7 +470,6 @@ function renderAccountReportTreeTable() {
             + '</div>';
     }
 
-    // ★ تزریق CSS مخصوص خوش‌آمد V2 با فونت Btitr
     function injectStyle() {
         if (document.getElementById('welcome-v2-style')) return;
         var s = document.createElement('style');
@@ -845,16 +544,14 @@ function renderAccountReportTreeTable() {
 /* =====================================================================
    ★ بخش ۶: ابطال کش رویدادهای تقویم هنگام تغییر داده‌ها
    ===================================================================== */
-['vouchers', 'facilities', 'notes', 'cashFlowSources'].forEach(function(k) {
-    // هر بار goToPage تقویم صدا زده می‌شود، cache ریست می‌شود
-});
+/* این بخش در فایل ۱۴ مدیریت می‌شود و نیازی به تغییر نیست */
 
 /* =====================================================================
    ★ پایان پچ
    ===================================================================== */
 (function finalBoot() {
     function boot() {
-        console.log('🎉 پارسیس v29 — پچ رفع مشکلات اعمال شد.');
+        console.log('🎉 پارسیس v29 — پچ رفع مشکلات اعمال شد (بدون dead code).');
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(boot, 2000); });
