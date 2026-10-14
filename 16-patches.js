@@ -933,9 +933,6 @@ window.openTimePicker = openTimePicker;
         observeTable('cfd-table', recalcCfd);
     }, 1500);
 
-    document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'rt-only-balance') setTimeout(recalcTrial, 200);
-    }, true);
     document.addEventListener('click', function(e) {
         if (e.target && e.target.id === 'rt-run') setTimeout(recalcTrial, 400);
         if (e.target && e.target.id === 'cfd-run') setTimeout(recalcCfd, 400);
@@ -953,6 +950,7 @@ window.openTimePicker = openTimePicker;
 
 /* ═══════════════════════════════════════════════════════════════
    بخش ۸ — دو ستون جدید در خلاصه تسهیلات
+   ★ اصلاح‌شده: جابجایی ستون‌ها (مغایرت قبل از مانده)
    ═══════════════════════════════════════════════════════════════ */
 (function augmentFacilitySummary() {
     function computeFacilityBalances() {
@@ -1004,19 +1002,22 @@ window.openTimePicker = openTimePicker;
         var facilities = DB.load('facilities', []);
         var hide = getHideState('rf');
 
-        var thA = document.createElement('th');
-        thA.textContent = 'مانده حسابداری';
-        thA.style.background = 'linear-gradient(180deg,#dbeafe,#bfdbfe)';
-        thA.style.color = '#1e40af';
+        /* ★ ترتیب جدید: مغایرت اول، بعد مانده */
         var thB = document.createElement('th');
         thB.textContent = 'مغایرت با حسابداری';
         thB.style.background = 'linear-gradient(180deg,#fef3c7,#fde68a)';
         thB.style.color = '#92400e';
 
+        var thA = document.createElement('th');
+        thA.textContent = 'مانده حسابداری';
+        thA.style.background = 'linear-gradient(180deg,#dbeafe,#bfdbfe)';
+        thA.style.color = '#1e40af';
+
         var refTh = ths[remIdx];
         if (refTh) {
-            refTh.parentNode.insertBefore(thA, refTh.nextSibling);
+            /* ★ مغایرت اول درج می‌شود، بعد مانده */
             refTh.parentNode.insertBefore(thB, refTh.nextSibling);
+            refTh.parentNode.insertBefore(thA, thB.nextSibling);
         }
 
         var tbody = table.querySelector('tbody');
@@ -1027,11 +1028,12 @@ window.openTimePicker = openTimePicker;
             var name = (cells[0].textContent || '').trim();
             var f = facilities.find(function(x) { return x.name === name; });
             if (!f) {
-                var e1 = document.createElement('td'); e1.className = 'num'; e1.textContent = '—';
-                var e2 = document.createElement('td'); e2.className = 'num'; e2.textContent = '—';
+                /* ★ ترتیب: مغایرت اول، بعد مانده */
+                var eB = document.createElement('td'); eB.className = 'num'; eB.textContent = '—';
+                var eA = document.createElement('td'); eA.className = 'num'; eA.textContent = '—';
                 var rc = cells[remIdx];
-                rc.parentNode.insertBefore(e1, rc.nextSibling);
-                rc.parentNode.insertBefore(e2, rc.nextSibling);
+                rc.parentNode.insertBefore(eB, rc.nextSibling);
+                rc.parentNode.insertBefore(eA, eB.nextSibling);
                 return;
             }
             var remTxt = cells[remIdx] ? cells[remIdx].textContent : '';
@@ -1040,22 +1042,24 @@ window.openTimePicker = openTimePicker;
             var variance = bal - rem;
             totalBal += bal; totalVar += variance;
 
-            var tdA = document.createElement('td');
-            tdA.className = 'num';
-            tdA.style.color = '#1e40af';
-            tdA.style.fontWeight = '800';
-            tdA.innerHTML = hide ? '—' : (typeof moneyHtml === 'function' ? moneyHtml(bal) : formatMoney(bal));
-
+            /* ★ سلول مغایرت (اول) */
             var tdB = document.createElement('td');
             tdB.className = 'num';
             tdB.style.fontWeight = '800';
             tdB.style.color = Math.abs(variance) > 1 ? '#dc2626' : '#059669';
             tdB.innerHTML = hide ? '—' : (typeof moneyHtml === 'function' ? moneyHtml(variance) : formatMoney(variance));
 
+            /* ★ سلول مانده (دوم) */
+            var tdA = document.createElement('td');
+            tdA.className = 'num';
+            tdA.style.color = '#1e40af';
+            tdA.style.fontWeight = '800';
+            tdA.innerHTML = hide ? '—' : (typeof moneyHtml === 'function' ? moneyHtml(bal) : formatMoney(bal));
+
             var refCell = cells[remIdx];
             if (refCell) {
-                refCell.parentNode.insertBefore(tdA, refCell.nextSibling);
                 refCell.parentNode.insertBefore(tdB, refCell.nextSibling);
+                refCell.parentNode.insertBefore(tdA, tdB.nextSibling);
             }
         });
 
@@ -1063,18 +1067,21 @@ window.openTimePicker = openTimePicker;
         if (tfoot) {
             var fcs = tfoot.querySelectorAll('td');
             if (fcs.length > remIdx) {
-                var fcA = document.createElement('td');
-                fcA.className = 'num';
-                fcA.style.color = '#1e40af';
-                fcA.innerHTML = hide ? '—' : moneyHtml(totalBal);
+                /* ★ ترتیب: مغایرت (اول)، مانده (دوم) */
                 var fcB = document.createElement('td');
                 fcB.className = 'num';
                 fcB.style.color = Math.abs(totalVar) > 1 ? '#dc2626' : '#059669';
                 fcB.innerHTML = hide ? '—' : moneyHtml(totalVar);
+
+                var fcA = document.createElement('td');
+                fcA.className = 'num';
+                fcA.style.color = '#1e40af';
+                fcA.innerHTML = hide ? '—' : moneyHtml(totalBal);
+
                 var refFc = fcs[remIdx];
                 if (refFc) {
-                    refFc.parentNode.insertBefore(fcA, refFc.nextSibling);
                     refFc.parentNode.insertBefore(fcB, refFc.nextSibling);
+                    refFc.parentNode.insertBefore(fcA, fcB.nextSibling);
                 }
             }
         }
@@ -1103,9 +1110,8 @@ window.openTimePicker = openTimePicker;
     function apply() {
         var ap = getActivePeriod();
         if (!ap) return;
+        /* ★ فقط بعضی جفت‌ها — مقایسه‌ای دیگر اینجا ست نمی‌شود */
         var pairs = [
-            ['cf-from', 'cf-to'],
-            ['cfd-from', 'cfd-to'],
             ['ra-from', 'ra-to'],
             ['rt-from', 'rt-to'],
             ['rff-from', 'rff-to']
@@ -1124,9 +1130,7 @@ window.openTimePicker = openTimePicker;
         var id = active.id;
         if (id === lastPage) return;
         lastPage = id;
-        if (id && id.indexOf('report-') === 0) {
-            apply();
-        }
+        if (id && id.indexOf('report-') === 0) apply();
     }, 400);
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(apply, 2000); });
@@ -1218,27 +1222,17 @@ window.openTimePicker = openTimePicker;
         timeInp.dataset.minReady = '1';
         timeInp.setAttribute('placeholder', 'HH:MM');
         timeInp.setAttribute('maxlength', '5');
-
         timeInp.addEventListener('input', function() {
             var v = this.value.replace(/[^\d:]/g, '');
-            if (/^\d{2}$/.test(v)) {
-                this.value = v + ':';
-                return;
-            }
-            if (/^\d{2}:\d{2}$/.test(v)) {
-                this.value = v;
-            } else {
-                this.value = v;
-            }
+            if (/^\d{2}$/.test(v)) { this.value = v + ':'; return; }
+            this.value = v;
         });
-
         timeInp.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && /^\d{2}$/.test(this.value)) {
                 e.preventDefault();
                 this.value = this.value + ':';
             }
         });
-
         timeInp.addEventListener('focus', function() {
             if (!this.value) this.value = '';
         });
@@ -1247,26 +1241,23 @@ window.openTimePicker = openTimePicker;
 })();
 
 /* ═══════════════════════════════════════════════════════════════
-   بخش ۱۲ — بهبود اسکن سند (تشخیص معین/تفصیلی + بستانکار پیش‌فرض)
+   بخش ۱۲ — بهبود اسکن سند
    ═══════════════════════════════════════════════════════════════ */
 (function improveScan() {
     async function analyzeWithContext(dataUrl) {
         if (typeof AI === 'undefined' || !AI.apiKey) throw new Error('کلید API تنظیم نشده');
-
         var accounts = DB.load('accounts', []);
         var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
         var accountList = leaves.map(function(a) {
             var lk = (a.links && a.links.length) ? ' [لینک: ' + a.links.join(',') + ']' : '';
             return a.code + ' = ' + a.name + lk;
         }).join('\n');
-
         var persons = DB.load('persons', []).map(function(p) { return (p.first || '') + ' ' + (p.last || ''); }).filter(Boolean).slice(0, 60).join(' | ');
         var companies = DB.load('companies', []).map(function(c) { return c.name; }).filter(Boolean).slice(0, 40).join(' | ');
         var banks = DB.load('bankAccounts', []).map(function(b) { return (b.bank || '') + (b.account ? ' - ' + b.account : ''); }).join(' | ');
         var cashboxes = DB.load('cashBoxes', []).map(function(c) { return c.title; }).join(' | ');
         var projects = DB.load('projects', []).map(function(p) { return p.name; }).join(' | ');
         var facilities = DB.load('facilities', []).map(function(f) { return f.name; }).join(' | ');
-
         var prompt = 'این تصویر یک سند/فاکتور/رسید/پوز است. تمام اطلاعات را دقیق استخراج کن و فقط یک JSON خالص برگردان (بدون توضیح، بدون ```):\n\n'
             + '{\n'
             + '  "date": "<تاریخ شمسی YYYY/MM/DD یا خالی>",\n'
@@ -1300,20 +1291,17 @@ window.openTimePicker = openTimePicker;
             + '═══ صندوق‌ها ═══\n' + (cashboxes || '(خالی)') + '\n\n'
             + '═══ پروژه‌ها ═══\n' + (projects || '(خالی)') + '\n\n'
             + '═══ تسهیلات ═══\n' + (facilities || '(خالی)');
-
         var result = await aiCallAPI(prompt, { dataUrl: dataUrl, name: 'scan.jpg' });
         var content = (result && result.content) || '';
         var m = content.match(/\{[\s\S]*\}/);
         if (!m) throw new Error('پاسخ AI قابل تجزیه نبود');
         return JSON.parse(m[0]);
     }
-
     function findMoeinByCode(code) {
         var accounts = DB.load('accounts', []);
         var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
         return leaves.find(function(a) { return String(a.code) === String(code); });
     }
-
     function fuzzyFindDetail(linkType, hint) {
         if (!hint) return '';
         var items = getLinkedItems(linkType);
@@ -1338,7 +1326,6 @@ window.openTimePicker = openTimePicker;
         }
         return '';
     }
-
     function findDefaultCreditMoein() {
         var accounts = DB.load('accounts', []);
         var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
@@ -1351,9 +1338,7 @@ window.openTimePicker = openTimePicker;
             if (cbMoein) return { acc: cbMoein, type: 'cashbox', detail: walletCb.id };
         }
         var cbAcc = leaves.find(function(a) { return a.links && a.links.indexOf('cashbox') !== -1; });
-        if (cbAcc && cashboxes.length > 0) {
-            return { acc: cbAcc, type: 'cashbox', detail: cashboxes[0].id };
-        }
+        if (cbAcc && cashboxes.length > 0) return { acc: cbAcc, type: 'cashbox', detail: cashboxes[0].id };
         var bankMoeinId = (typeof getBankMoeinId === 'function') ? getBankMoeinId() : '';
         if (bankMoeinId) {
             var bankAcc = accounts.find(function(a) { return a.id === bankMoeinId; });
@@ -1362,7 +1347,6 @@ window.openTimePicker = openTimePicker;
         }
         return null;
     }
-
     function applyScanData(data) {
         if (data.date && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(data.date)) {
             var dt = document.getElementById('v-date');
@@ -1372,22 +1356,18 @@ window.openTimePicker = openTimePicker;
             var d = document.getElementById('v-desc');
             if (d) d.value = String(data.description).trim();
         }
-
         var lines = [];
         var totalAmt = 0;
         var debitLines = Array.isArray(data.debit_lines) ? data.debit_lines : [];
         if (debitLines.length === 0 && (data.total_amount || data.amount)) {
             debitLines = [{ amount: data.total_amount || data.amount, description: data.description || 'اسکن شده' }];
         }
-
         debitLines.forEach(function(dl) {
             var amt = Number(dl.amount) || 0;
             if (amt <= 0) return;
             totalAmt += amt;
-
             var acc = dl.account_code ? findMoeinByCode(dl.account_code) : null;
             var accId = acc ? acc.id : '';
-
             var details = {};
             if (acc && acc.links) {
                 acc.links.forEach(function(lt) {
@@ -1397,54 +1377,40 @@ window.openTimePicker = openTimePicker;
                     if (foundId) details[lt] = foundId;
                 });
             }
-
             lines.push({
-                id: uid(),
-                account: accId,
-                details: details,
-                debit: amt,
-                credit: 0,
+                id: uid(), account: accId, details: details,
+                debit: amt, credit: 0,
                 description: dl.description || data.description || ''
             });
         });
-
         if (lines.length === 0) {
             lines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
             voucherLines = lines;
             renderVoucherLines();
             return;
         }
-
         var def = findDefaultCreditMoein();
         if (def && def.acc && totalAmt > 0) {
             var credDetails = {};
             if (def.type === 'cashbox' && def.detail) credDetails.cashbox = def.detail;
             else if (def.type === 'bank' && def.detail) credDetails.bank = def.detail;
-
             var credDesc = 'پرداخت از ' + (def.acc.name || 'کیف پول');
             lines.push({
-                id: uid(),
-                account: def.acc.id,
-                details: credDetails,
-                debit: 0,
-                credit: totalAmt,
-                description: credDesc
+                id: uid(), account: def.acc.id, details: credDetails,
+                debit: 0, credit: totalAmt, description: credDesc
             });
         }
-
         voucherLines = lines;
         renderVoucherLines();
         goToPage('voucher-new');
         showToast('📷 اسکن انجام شد — ' + toFa(lines.length) + ' قلم تشخیص داده شد');
     }
-
     function patchAnalyzeButton() {
         var analyzeBtn = document.getElementById('vsc-analyze');
         if (!analyzeBtn || analyzeBtn.dataset.patched === 'v38') return;
         analyzeBtn.dataset.patched = 'v38';
         var newBtn = analyzeBtn.cloneNode(true);
         analyzeBtn.parentNode.replaceChild(newBtn, analyzeBtn);
-
         newBtn.addEventListener('click', async function() {
             var preview = document.querySelector('#vsc-preview img');
             if (!preview || !preview.src) { alert('ابتدا عکس بگیر'); return; }
@@ -1466,8 +1432,7 @@ window.openTimePicker = openTimePicker;
             }
         });
     }
-
     setInterval(patchAnalyzeButton, 800);
 })();
 
-console.log('✅ پارسیس — 16-patches بارگذاری شد (خودکفا — با moveto + clear-desc + auto-scroll + مرتب‌سازی)');
+console.log('✅ پارسیس — 16-patches بارگذاری شد (خودکفا — با moveto + clear-desc + auto-scroll + مرتب‌سازی + جابجایی ستون‌های تسهیلات)');
