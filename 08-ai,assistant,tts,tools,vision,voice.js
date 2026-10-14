@@ -64,7 +64,8 @@ var AI_NAVIGABLE_PAGES = {
     'fiscal': 'دوره‌های مالی', 'chart-define': 'تعریف حساب‌ها', 'facilities': 'تسهیلات',
     'cashflow-sources': 'منابع دریافتنی', 'estimate-daily': 'برآورد هزینه‌های روزانه',
     'templates': 'الگوهای سند', 'notes': 'دفترچه یادداشت', 'sms': 'پیامک بانکی',
-    'report-cashflow': 'وضعیت نقدینگی', 'report-cashflow-desc': 'گردش وجه نقد',
+    'report-cashflow': 'پیش‌بینی روزانه نقدینگی',   /* ★ تغییر یافت */
+    'report-cashflow-desc': 'گردش وجه نقد',
     'report-account': 'مرور حساب‌ها', 'report-trial': 'تراز آزمایشی',
     'report-incomplete': 'تراکنش‌های تکمیل نشده', 'report-facility': 'خلاصه تسهیلات',
     'report-facility-full': 'گزارش جامع تسهیلات', 'report-rates': 'گزارش نرخ ارز و طلا',
