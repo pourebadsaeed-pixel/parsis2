@@ -26,7 +26,6 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     + '.ar-tb-bc a:hover { background:#dbeafe }'
     + '.ar-tb-bc .sep { color:#cbd5e1; margin:0 4px }'
     + '.ar-main { display:flex; min-height:460px }'
-    /* sidebar */
     + '.ar-side { width:170px; flex-shrink:0; border-left:1px solid var(--border); background:#f7fafd; display:flex; flex-direction:column }'
     + '.ar-side-head { padding:11px 14px; font-weight:900; color:#1e40af; font-size:.8rem; '
     +   'background:linear-gradient(180deg,#dbe7f6,#c8dcef); border-bottom:1px solid var(--border); text-align:center }'
@@ -41,7 +40,6 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     + '.ar-lvl.active { background:linear-gradient(135deg,#1e40af,#1e3a8a); color:#fff; '
     +   'border-color:#1e40af; box-shadow:0 4px 14px rgba(30,64,175,.35); transform:scale(1.05) }'
     + '@keyframes arPulse { 0%,100% { box-shadow:0 0 0 0 rgba(59,130,246,.5) } 50% { box-shadow:0 0 0 8px rgba(59,130,246,0) } }'
-    /* body */
     + '.ar-body { flex:1; min-width:0; display:flex; flex-direction:column; background:#fff }'
     + '.ar-toolbar { margin:0 !important; border-radius:0 !important; border-bottom:1px solid var(--border) !important; '
     +   'padding:8px 12px !important; box-shadow:none !important }'
@@ -72,7 +70,6 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     +   'padding:12px; font-weight:900; text-align:center; border:1px solid #b9cfe5; '
     +   'position:sticky; bottom:0; z-index:3 }'
     + '.ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }'
-    /* دکمه گردش */
     + '.ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; '
     +   'width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; '
     +   'border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; '
@@ -89,7 +86,6 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     +   '.ar-tbl thead th, .ar-tbl tbody td { padding:7px 8px }'
     +   '.ar-turnover-btn { width:22px; height:22px; font-size:.72rem }'
     + '}'
-    /* filter panel */
     + '#ra-clean-panel { margin-bottom:12px; background:#fff; border:1px solid var(--border); border-radius:14px; overflow:hidden }'
     + '#ra-clean-head { display:flex; align-items:center; gap:10px; padding:12px 16px; '
     +   'background:linear-gradient(180deg,#e8f0fb,#f4f8fd); cursor:pointer; user-select:none }'
@@ -118,13 +114,11 @@ function rebuildAccountFilterPanel() {
         to: (document.getElementById('ra-to') || {}).value || '',
         vtype: (document.getElementById('ra-vtype') || {}).value || '',
         cat: (document.getElementById('ra-cat') || {}).value || '',
-        nature: (document.getElementById('ra-nature') || {}).value || '',
-        onlyBal: document.getElementById('ra-only-balance') ? document.getElementById('ra-only-balance').checked : false
+        nature: (document.getElementById('ra-nature') || {}).value || ''
     };
 
     firstCard.innerHTML = '';
 
-    // ★ اطمینان از وجود ra-period و ra-level (مخفی) برای openAccountTurnover
     if (!document.getElementById('ra-period')) {
         var hp = document.createElement('input');
         hp.type = 'hidden';
@@ -176,7 +170,7 @@ function rebuildAccountFilterPanel() {
         +     '</select></div>'
         +     '<div class="field" style="display:flex; align-items:flex-end">'
         +       '<label class="checkbox-item" style="margin:0; padding:11px 14px; background:#eaf4fd; border:1.5px solid #93c5fd; border-radius:12px; width:100%">'
-        +         '<input type="checkbox" id="ra-only-balance"' + (oldV.onlyBal ? ' checked' : '') + '> '
+        +         '<input type="checkbox" id="ra-only-balance"> '
         +         '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
         +       '</label>'
         +     '</div>'
@@ -291,7 +285,6 @@ function renderAccountReview() {
 
     var html = '<div class="ar-wrap">';
 
-    // titlebar
     html += '<div class="ar-tb">';
     html += '<div class="ar-tb-title">گزارش مرور حساب‌ها</div>';
     html += '<div class="ar-tb-bc">' + _arBreadcrumb(_AR.path, accounts) + '</div>';
@@ -299,7 +292,6 @@ function renderAccountReview() {
 
     html += '<div class="ar-main">';
 
-    // سایدبار
     html += '<div class="ar-side">';
     html += '<div class="ar-side-head">سطوح حساب</div>';
     html += '<div class="ar-levels">';
@@ -315,25 +307,24 @@ function renderAccountReview() {
     html += '</div>';
     html += '</div>';
 
-    // بدنه
     html += '<div class="ar-body">';
 
-    // toolbar
+    /* ★ هدر با کلیدهای ستون — data-table-id و data-col-table برای پشتیبانی از جابجایی ستون */
     html += '<div class="list-header ar-toolbar" data-col-table="ra-acc-table" data-hide-key="ra">';
     html += '<span class="count-badge" id="ra-count">۰</span>';
     html += '<span style="flex:1"></span>';
     html += '</div>';
 
-    // جدول — تنها ۶ ستون معتبر
     html += '<div class="ar-tw">';
-    html += '<table class="ar-tbl" id="ra-acc-table">';
+    /* ★ data-table-id برای سیستم ترتیب ستون */
+    html += '<table class="ar-tbl" id="ra-acc-table" data-table-id="ra-acc-table">';
     html += '<thead><tr>';
-    html += '<th style="width:150px">کد و گردش</th>';
-    html += '<th class="ar-th-name">عنوان</th>';
-    html += '<th style="width:170px">گردش بدهکار</th>';
-    html += '<th style="width:170px">گردش بستانکار</th>';
-    html += '<th style="width:170px">مانده بدهکار</th>';
-    html += '<th style="width:170px">مانده بستانکار</th>';
+    html += '<th style="width:150px" data-orig-index="0">کد و گردش</th>';
+    html += '<th class="ar-th-name" data-orig-index="1">عنوان</th>';
+    html += '<th style="width:170px" data-orig-index="2">گردش بدهکار</th>';
+    html += '<th style="width:170px" data-orig-index="3">گردش بستانکار</th>';
+    html += '<th style="width:170px" data-orig-index="4">مانده بدهکار</th>';
+    html += '<th style="width:170px" data-orig-index="5">مانده بستانکار</th>';
     html += '</tr></thead>';
     html += '<tbody>';
 
@@ -361,7 +352,7 @@ function renderAccountReview() {
              +  (a.isDetail ? 'data-detail-id="' + a.id + '" data-parent-id="' + a.parentId + '" data-link="' + a.linkType + '"' : '')
              +  '>';
 
-        html += '<td class="ar-code">';
+        html += '<td class="ar-code" data-orig-index="0">';
         html += '<button type="button" class="ar-turnover-btn" '
              +  'data-turnover-acc="' + turnoverAcc + '"'
              +  turnoverDetailAttr
@@ -370,11 +361,11 @@ function renderAccountReview() {
         html += '<span>' + esc(a.code || '—') + '</span>';
         html += '</td>';
 
-        html += '<td class="ar-name">' + esc(a.name || '') + (a.isDetail ? '' : ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>') + '</td>';
-        html += '<td class="ar-num' + (b.debit ? '' : ' zero') + '">' + (hide ? '—' : moneyHtml(b.debit)) + '</td>';
-        html += '<td class="ar-num' + (b.credit ? '' : ' zero') + '">' + (hide ? '—' : moneyHtml(b.credit)) + '</td>';
-        html += '<td class="ar-num md' + (md ? '' : ' zero') + '">' + (hide ? '—' : moneyHtml(md)) + '</td>';
-        html += '<td class="ar-num mc' + (mc ? '' : ' zero') + '">' + (hide ? '—' : moneyHtml(mc)) + '</td>';
+        html += '<td class="ar-name" data-orig-index="1">' + esc(a.name || '') + (a.isDetail ? '' : ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>') + '</td>';
+        html += '<td class="ar-num' + (b.debit ? '' : ' zero') + '" data-orig-index="2">' + (hide ? '—' : moneyHtml(b.debit)) + '</td>';
+        html += '<td class="ar-num' + (b.credit ? '' : ' zero') + '" data-orig-index="3">' + (hide ? '—' : moneyHtml(b.credit)) + '</td>';
+        html += '<td class="ar-num md' + (md ? '' : ' zero') + '" data-orig-index="4">' + (hide ? '—' : moneyHtml(md)) + '</td>';
+        html += '<td class="ar-num mc' + (mc ? '' : ' zero') + '" data-orig-index="5">' + (hide ? '—' : moneyHtml(mc)) + '</td>';
         html += '</tr>';
         tD += b.debit; tC += b.credit; tMD += md; tMC += mc; shown++;
     });
@@ -386,12 +377,12 @@ function renderAccountReview() {
     }
 
     html += '</tbody><tfoot><tr>';
-    html += '<td></td>';
-    html += '<td style="text-align:right; padding-right:20px">جمع کل</td>';
-    html += '<td>' + (hide ? '—' : moneyHtml(tD)) + '</td>';
-    html += '<td>' + (hide ? '—' : moneyHtml(tC)) + '</td>';
-    html += '<td>' + (hide ? '—' : moneyHtml(tMD)) + '</td>';
-    html += '<td>' + (hide ? '—' : moneyHtml(tMC)) + '</td>';
+    html += '<td data-orig-index="0"></td>';
+    html += '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>';
+    html += '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(tD)) + '</td>';
+    html += '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(tC)) + '</td>';
+    html += '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(tMD)) + '</td>';
+    html += '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(tMC)) + '</td>';
     html += '</tr></tfoot>';
     html += '</table></div>';
     html += '</div></div></div>';
@@ -401,16 +392,19 @@ function renderAccountReview() {
     var cnt = document.getElementById('ra-count');
     if (cnt) cnt.textContent = toFa(shown);
 
-    /* ★ پاک‌سازی دفاعی: حذف هر سلول یا ستون اضافی که عنوان ندارد */
     cleanEmptyColumns(box);
-
     bindAccountReviewEvents(accounts, box);
 
+    /* ★ اعمال تنظیمات ستون (ترتیب، عرض، مخفی) */
     setTimeout(function() {
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-        if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ra-acc-table'));
-    }, 30);
+        if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
+        /* ★ اعمال ترتیب ذخیره‌شده */
+        if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
+        /* ★ اعمال عرض‌های ذخیره‌شده */
+        if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
+    }, 50);
 }
 
 /* =====================================================================
@@ -428,13 +422,11 @@ function cleanEmptyColumns(box) {
     var ths = thead.querySelectorAll('th');
     var totalCols = ths.length;
 
-    // اگر ستونی هم عنوان خالی داشت و هم کل داده‌هایش خالی بود، حذف کن
     for (var c = totalCols - 1; c >= 0; c--) {
         var th = ths[c];
         var titleText = (th.textContent || '').replace(/[⇅▲▼\s]/g, '').trim();
         if (titleText !== '') continue;
 
-        // بررسی: آیا همه سطرها در این ستون خالی هستند؟
         var allEmpty = true;
         if (tbody) {
             var trs = tbody.querySelectorAll('tr');
@@ -447,7 +439,6 @@ function cleanEmptyColumns(box) {
         }
 
         if (allEmpty) {
-            // حذف این ستون از همه سطرها
             if (thead.children[c]) thead.removeChild(thead.children[c]);
             if (tbody) {
                 var trs2 = tbody.querySelectorAll('tr');
@@ -479,7 +470,6 @@ function _arLevelState(lvl) {
    ★ رویدادها
    ===================================================================== */
 function bindAccountReviewEvents(accounts, box) {
-    // سطوح سایدبار
     box.querySelectorAll('.ar-lvl').forEach(function(el) {
         el.addEventListener('click', function() {
             if (this.classList.contains('disabled')) return;
@@ -500,7 +490,6 @@ function bindAccountReviewEvents(accounts, box) {
         });
     });
 
-    // breadcrumb
     box.querySelectorAll('[data-goto]').forEach(function(a) {
         a.addEventListener('click', function() {
             var id = this.getAttribute('data-goto');
@@ -523,7 +512,6 @@ function bindAccountReviewEvents(accounts, box) {
         });
     });
 
-    // کلیک روی سطر → انتخاب
     box.querySelectorAll('.ar-row').forEach(function(tr) {
         tr.addEventListener('click', function(e) {
             if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
@@ -545,7 +533,7 @@ function bindAccountReviewEvents(accounts, box) {
 }
 
 /* =====================================================================
-   ★ تابع جهانی برای باز کردن گردش (از onclick صدا زده می‌شود)
+   ★ تابع جهانی برای باز کردن گردش
    ===================================================================== */
 window._AR_openTurnover = function(btn) {
     try {
@@ -565,7 +553,7 @@ window._AR_openTurnover = function(btn) {
         }
 
         if (typeof openAccountTurnover !== 'function') {
-            alert('⚠️ تابع گردش حساب در دسترس نیست. لطفاً فایل ۰۵ را بررسی کنید.');
+            alert('⚠️ تابع گردش حساب در دسترس نیست.');
             return;
         }
 
@@ -581,50 +569,39 @@ window._AR_openTurnover = function(btn) {
 };
 
 /* =====================================================================
-   ★ باز کردن گردش + افزودن دکمه ویرایش به هر ردیف
+   ★ باز کردن گردش + افزودن دکمه ویرایش
    ===================================================================== */
 function _openTurnoverSafe(accountId, detailInfo) {
-    // ★ رفع خطای null — اطمینان از وجود المان‌های مورد نیاز openAccountTurnover
     if (!document.getElementById('ra-period')) {
         var tp = document.createElement('input');
-        tp.type = 'hidden';
-        tp.id = 'ra-period';
-        tp.value = '';
+        tp.type = 'hidden'; tp.id = 'ra-period'; tp.value = '';
         document.body.appendChild(tp);
     }
     if (!document.getElementById('ra-level')) {
         var tl = document.createElement('input');
-        tl.type = 'hidden';
-        tl.id = 'ra-level';
-        tl.value = '3';
+        tl.type = 'hidden'; tl.id = 'ra-level'; tl.value = '3';
         document.body.appendChild(tl);
     }
     if (!document.getElementById('ra-from')) {
         var tf = document.createElement('input');
-        tf.type = 'hidden';
-        tf.id = 'ra-from';
-        tf.value = '';
+        tf.type = 'hidden'; tf.id = 'ra-from'; tf.value = '';
         document.body.appendChild(tf);
     }
     if (!document.getElementById('ra-to')) {
         var tt = document.createElement('input');
-        tt.type = 'hidden';
-        tt.id = 'ra-to';
-        tt.value = '';
+        tt.type = 'hidden'; tt.id = 'ra-to'; tt.value = '';
         document.body.appendChild(tt);
     }
     if (!document.getElementById('ra-vtype')) {
         var tv = document.createElement('input');
-        tv.type = 'hidden';
-        tv.id = 'ra-vtype';
-        tv.value = '';
+        tv.type = 'hidden'; tv.id = 'ra-vtype'; tv.value = '';
         document.body.appendChild(tv);
     }
 
     console.log('🔍 _openTurnoverSafe:', accountId, detailInfo);
 
     if (typeof openAccountTurnover !== 'function') {
-        alert('تابع گردش حساب در دسترس نیست. فایل ۰۵ را بررسی کنید.');
+        alert('تابع گردش حساب در دسترس نیست.');
         return;
     }
 
@@ -638,12 +615,11 @@ function _openTurnoverSafe(accountId, detailInfo) {
 
     setTimeout(function() {
         var body = document.getElementById('turnover-body');
-        if (!body) { console.warn('turnover-body یافت نشد'); return; }
+        if (!body) return;
         var thead = body.querySelector('thead tr');
         var tbody = body.querySelector('tbody');
-        if (!thead || !tbody) { console.warn('thead/tbody یافت نشد'); return; }
+        if (!thead || !tbody) return;
 
-        // ستون عملیات در هدر
         if (!thead.querySelector('[data-action-col]')) {
             var th = document.createElement('th');
             th.setAttribute('data-action-col', '1');
@@ -652,7 +628,6 @@ function _openTurnoverSafe(accountId, detailInfo) {
             thead.appendChild(th);
         }
 
-        // دکمه ویرایش در هر ردیف
         tbody.querySelectorAll('tr').forEach(function(tr) {
             if (tr.dataset.editAdded === '1') return;
             tr.dataset.editAdded = '1';
@@ -699,6 +674,7 @@ function _openTurnoverSafe(accountId, detailInfo) {
         };
         window._renderAccountReportTree = renderAccountReview;
 
+        /* ★ افزودن جدول به لیست جدول‌های مدیریت‌شده */
         var page = document.getElementById('page-report-account');
         if (page) {
             var observer = new MutationObserver(function() {
@@ -714,4 +690,4 @@ function _openTurnoverSafe(accountId, detailInfo) {
     else setTimeout(apply, 2500);
 })();
 
-console.log('✅ گزارش مرور حساب‌ها v36 — رفع خطای null + پاک‌سازی ستون‌های خالی');
+console.log('✅ گزارش مرور حساب‌ها v37 — پشتیبانی از ترتیب و جابجایی ستون‌ها');
