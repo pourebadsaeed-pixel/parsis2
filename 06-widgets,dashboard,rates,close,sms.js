@@ -593,7 +593,7 @@ function getNext3DaysList() {
     return out;
 }
 
-/* ★ رندر ویجت ۳ روز آتی */
+/* ★ رندر ویجت ۳ روز آتی — نمای ساعتی با ۳ ستون روز */
 function renderCalendarNext3Widget() {
     var meta = CALENDAR_VIEW_WIDGETS.find(function(w) { return w.key === 'calendarNext3'; });
     if (!meta) return;
@@ -602,131 +602,102 @@ function renderCalendarNext3Widget() {
 
     var dates = getNext3DaysList();
     var events = buildWidgetEvents();
-    var byDate = {};
+
+    /* گروهبندی رویدادها بر اساس تاریخ + ساعت */
+    var byDateHour = {};
+    var noTimeByDate = {};
     events.forEach(function(e) {
         var d = e.startDate || e.date;
-        if (!byDate[d]) byDate[d] = [];
-        byDate[d].push(e);
-    });
-    Object.keys(byDate).forEach(function(d) {
-        byDate[d].sort(function(a, b) {
-            return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
-        });
+        if (!d || dates.indexOf(d) === -1) return;
+        var t = e.startTime || e.time || '';
+        if (t) {
+            var hh = String(t).substring(0, 2);
+            var key = d + '_' + hh;
+            if (!byDateHour[key]) byDateHour[key] = [];
+            byDateHour[key].push(e);
+        } else {
+            if (!noTimeByDate[d]) noTimeByDate[d] = [];
+            noTimeByDate[d].push(e);
+        }
     });
 
     var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
     var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+    var EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    var html = '';
-    var total = 0;
+    var totalEvents = 0;
+    Object.keys(byDateHour).forEach(function(k) { totalEvents += byDateHour[k].length; });
+    Object.keys(noTimeByDate).forEach(function(k) { totalEvents += noTimeByDate[k].length; });
 
-    dates.forEach(function(ds, dayIdx) {
-        var evs = byDate[ds] || [];
-        if (evs.length === 0 && dayIdx > 0) return; /* فقط روز جاری حتی اگر خالی نمایش داده شود */
+    if (totalEvents === 0) {
+        el.innerHTML = '<div class="widget-empty">📅 در ۳ روز آتی رویدادی نیست.</div>';
+        return;
+    }
 
+    var html = '<div style="max-height:440px;overflow-y:auto;border-radius:12px;border:1px solid var(--border);background:var(--card-solid)">';
+    html += '<div style="display:grid;grid-template-columns:58px repeat(3,minmax(0,1fr));font-size:0.72rem">';
+
+    /* ★ سرستون روزها */
+    html += '<div style="padding:6px 4px;background:var(--card-alt);border-bottom:2px solid var(--border);border-left:1px solid var(--border);position:sticky;top:0;z-index:2"></div>';
+    dates.forEach(function(ds, i) {
         var p = ds.split('/').map(Number);
         var gd = jalaliToGregorian(p[0], p[1], p[2]);
         var dt = new Date(gd[0], gd[1] - 1, gd[2]);
-        var dowName = WEEKDAYS_FA[dt.getDay()];
         var isToday = ds === todayStr;
-        var dayLabel = isToday ? 'امروز' : (dayIdx === 1 ? 'فردا' : 'پس‌فردا');
-        var headBg = isToday ? 'linear-gradient(135deg,#dbeafe,#bfdbfe)' : 'var(--card-alt)';
-        var headColor = isToday ? '#1e40af' : 'var(--primary-dark)';
+        var dayLabel = isToday ? 'امروز' : (i === 1 ? 'فردا' : 'پس‌فردا');
+        var bg = isToday ? 'linear-gradient(135deg,#dbeafe,#bfdbfe)' : '#eef4fb';
+        var color = isToday ? '#1e3a8a' : '#1e40af';
+        html += '<div style="padding:6px 4px;text-align:center;background:' + bg + ';border-bottom:2px solid var(--border);border-left:1px solid var(--border);position:sticky;top:0;z-index:2">'
+             +   '<div style="font-size:0.66rem;font-weight:900;color:' + color + '">' + dayLabel + '</div>'
+             +   '<div style="font-size:0.76rem;font-weight:900;color:' + color + ';margin-top:1px">' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1] - 1] + '</div>'
+             +   '<div style="font-size:0.58rem;color:#94a3b8;direction:ltr;margin-top:1px">' + dt.getDate() + ' ' + EN_MONTHS[dt.getMonth()] + '</div>'
+             + '</div>';
+    });
 
-        html += '<div style="margin-bottom:10px;border-radius:12px;border:1px solid var(--border);overflow:hidden">'
-            +   '<div style="padding:8px 12px;background:' + headBg + ';display:flex;justify-content:space-between;align-items:center">'
-            +     '<span style="font-weight:900;font-size:0.82rem;color:' + headColor + '">' + dayLabel + ' — ' + dowName + '</span>'
-            +     '<span style="font-size:0.72rem;color:var(--text-muted);direction:ltr">' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1]-1] + '</span>'
-            +   '</div>';
-
-        if (evs.length === 0) {
-            html += '<div style="padding:10px 12px;font-size:0.75rem;color:var(--text-muted);text-align:center">رویدادی نیست</div>';
-        } else {
+    /* ★ ردیف‌های ساعتی از ۵ صبح تا ۲۳ */
+    for (var h = 5; h <= 23; h++) {
+        var hourStr = pad2(h) + ':00';
+        html += '<div style="padding:5px 4px;text-align:center;font-weight:900;font-size:0.68rem;background:var(--card-alt);border-bottom:1px solid var(--border);direction:ltr;color:var(--primary-dark);font-family:monospace;border-left:1px solid var(--border)">' + toFaTime(hourStr) + '</div>';
+        for (var d = 0; d < 3; d++) {
+            var ds2 = dates[d];
+            var key2 = ds2 + '_' + pad2(h);
+            var evs = byDateHour[key2] || [];
+            html += '<div style="padding:3px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);min-height:30px">';
             evs.forEach(function(e) {
-                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1', icon: '📌' };
-                var t = e.time || e.startTime || '';
-                html += '<div class="balance-row cal-widget-event" data-ev-id="' + esc(e.id) + '" '
-                    +  'style="cursor:pointer;border-radius:0;border:none;border-bottom:1px solid var(--border);margin:0;padding:9px 12px">'
-                    +   '<div style="flex:1;min-width:0">'
-                    +     '<div style="font-weight:700;font-size:0.82rem;display:flex;align-items:center;gap:6px">'
-                    +       '<span style="width:8px;height:8px;border-radius:2px;background:' + cat.color + ';flex-shrink:0"></span>'
-                    +       esc(e.title)
-                    +     '</div>'
-                    +     (e.location ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">📍 ' + esc(e.location) + '</div>' : '')
-                    +   '</div>'
-                    +   (t ? '<span style="font-size:0.72rem;color:var(--primary-dark);font-weight:800;direction:ltr;font-family:monospace;flex-shrink:0">' + toFa(t) + '</span>' : '')
-                    + '</div>';
-                total++;
+                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1' };
+                html += '<div class="cal-widget-event" data-ev-id="' + esc(e.id) + '" '
+                     +  'title="' + esc(e.title) + '" '
+                     +  'style="cursor:pointer;background:' + cat.color + '18;border-right:3px solid ' + cat.color + ';padding:3px 5px;border-radius:5px;margin-bottom:2px;font-size:0.66rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+                     +   esc(e.title)
+                     + '</div>';
             });
+            html += '</div>';
         }
-        html += '</div>';
-    });
-
-    if (total === 0) {
-        html = '<div class="widget-empty">📅 در ۳ روز آتی رویدادی نیست.</div>';
     }
-    el.innerHTML = html;
 
-    /* ★ اتصال کلیک — ناوبری به تقویم */
-    el.querySelectorAll('.cal-widget-event').forEach(function(row) {
-        row.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var evId = this.getAttribute('data-ev-id');
-            if (evId) navigateToCalendarEvent(evId);
-        });
-    });
-}
-
-/* ★ رندر ویجت روز جاری */
-function renderCalendarDayWidget() {
-    var meta = CALENDAR_VIEW_WIDGETS.find(function(w) { return w.key === 'calendarDay'; });
-    if (!meta) return;
-    var el = document.getElementById(meta.elId);
-    if (!el) return;
-
-    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
-    var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
-
-    var events = buildWidgetEvents();
-    var dayEvs = events.filter(function(e) {
-        var d = e.startDate || e.date;
-        return d === todayStr;
-    }).sort(function(a, b) {
-        return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
-    });
-
-    var gd = jalaliToGregorian(today[0], today[1], today[2]);
-    var dt = new Date(gd[0], gd[1] - 1, gd[2]);
-    var enMon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
-
-    var html = '<div style="padding:8px 12px;background:var(--primary-soft);border-radius:10px;margin-bottom:10px;text-align:center">'
-        +   '<div style="font-weight:900;font-size:0.85rem;color:var(--primary-dark)">'
-        +     WEEKDAYS_FA[dt.getDay()] + '، ' + toFa(today[2]) + ' ' + JALALI_MONTHS[today[1]-1] + ' ' + toFa(today[0])
-        +   '</div>'
-        +   '<div style="font-size:0.7rem;color:var(--text-muted);direction:ltr;margin-top:2px">' + dt.getDate() + ' ' + enMon + ' ' + dt.getFullYear() + '</div>'
-        + '</div>';
-
-    if (dayEvs.length === 0) {
-        html += '<div class="widget-empty" style="padding:14px">📆 امروز رویدادی ثبت نشده.</div>';
-    } else {
-        dayEvs.forEach(function(e) {
-            var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1', icon: '📌' };
-            var t = e.time || e.startTime || '';
-            html += '<div class="balance-row cal-widget-event" data-ev-id="' + esc(e.id) + '" '
-                +  'style="cursor:pointer;margin-bottom:6px;padding:9px 12px">'
-                +   '<div style="flex:1;min-width:0">'
-                +     '<div style="font-weight:700;font-size:0.82rem;display:flex;align-items:center;gap:6px">'
-                +       '<span style="width:8px;height:8px;border-radius:2px;background:' + cat.color + ';flex-shrink:0"></span>'
-                +       esc(e.title)
-                +     '</div>'
-                +     (e.location ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">📍 ' + esc(e.location) + '</div>' : '')
-                +   '</div>'
-                +   (t ? '<span style="font-size:0.72rem;color:var(--primary-dark);font-weight:800;direction:ltr;font-family:monospace;flex-shrink:0">' + toFa(t) + '</span>' : '')
-                + '</div>';
+    /* ★ ردیف رویدادهای بدون ساعت */
+    var hasNoTime = dates.some(function(ds) { return noTimeByDate[ds] && noTimeByDate[ds].length > 0; });
+    if (hasNoTime) {
+        html += '<div style="padding:5px 4px;text-align:center;font-weight:900;font-size:0.68rem;background:var(--card-alt);border-bottom:1px solid var(--border);color:var(--text-muted);border-left:1px solid var(--border)">—</div>';
+        dates.forEach(function(ds) {
+            var evs = noTimeByDate[ds] || [];
+            html += '<div style="padding:3px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);min-height:26px">';
+            evs.forEach(function(e) {
+                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1' };
+                html += '<div class="cal-widget-event" data-ev-id="' + esc(e.id) + '" '
+                     +  'title="' + esc(e.title) + '" '
+                     +  'style="cursor:pointer;background:' + cat.color + '18;border-right:3px solid ' + cat.color + ';padding:3px 5px;border-radius:5px;margin-bottom:2px;font-size:0.66rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+                     +   esc(e.title)
+                     + '</div>';
+            });
+            html += '</div>';
         });
     }
 
+    html += '</div></div>';
     el.innerHTML = html;
+
+    /* ★ اتصال کلیک روی رویدادها */
     el.querySelectorAll('.cal-widget-event').forEach(function(row) {
         row.addEventListener('click', function(e) {
             e.stopPropagation();
