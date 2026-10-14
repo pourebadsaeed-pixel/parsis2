@@ -324,7 +324,7 @@ function renderAccountReview() {
     html += '<span style="flex:1"></span>';
     html += '</div>';
 
-    // جدول
+    // جدول — تنها ۶ ستون معتبر
     html += '<div class="ar-tw">';
     html += '<table class="ar-tbl" id="ra-acc-table">';
     html += '<thead><tr>';
@@ -401,6 +401,9 @@ function renderAccountReview() {
     var cnt = document.getElementById('ra-count');
     if (cnt) cnt.textContent = toFa(shown);
 
+    /* ★ پاک‌سازی دفاعی: حذف هر سلول یا ستون اضافی که عنوان ندارد */
+    cleanEmptyColumns(box);
+
     bindAccountReviewEvents(accounts, box);
 
     setTimeout(function() {
@@ -408,6 +411,53 @@ function renderAccountReview() {
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ra-acc-table'));
     }, 30);
+}
+
+/* =====================================================================
+   ★ حذف ستون‌های خالی احتمالی
+   ===================================================================== */
+function cleanEmptyColumns(box) {
+    if (!box) return;
+    var table = box.querySelector('table.ar-tbl');
+    if (!table) return;
+    var thead = table.querySelector('thead tr');
+    var tbody = table.querySelector('tbody');
+    var tfoot = table.querySelector('tfoot tr');
+    if (!thead) return;
+
+    var ths = thead.querySelectorAll('th');
+    var totalCols = ths.length;
+
+    // اگر ستونی هم عنوان خالی داشت و هم کل داده‌هایش خالی بود، حذف کن
+    for (var c = totalCols - 1; c >= 0; c--) {
+        var th = ths[c];
+        var titleText = (th.textContent || '').replace(/[⇅▲▼\s]/g, '').trim();
+        if (titleText !== '') continue;
+
+        // بررسی: آیا همه سطرها در این ستون خالی هستند؟
+        var allEmpty = true;
+        if (tbody) {
+            var trs = tbody.querySelectorAll('tr');
+            for (var i = 0; i < trs.length; i++) {
+                var cell = trs[i].children[c];
+                if (!cell) continue;
+                if ((cell.textContent || '').trim() !== '') { allEmpty = false; break; }
+                if (cell.querySelector('input, button')) { allEmpty = false; break; }
+            }
+        }
+
+        if (allEmpty) {
+            // حذف این ستون از همه سطرها
+            if (thead.children[c]) thead.removeChild(thead.children[c]);
+            if (tbody) {
+                var trs2 = tbody.querySelectorAll('tr');
+                for (var j = 0; j < trs2.length; j++) {
+                    if (trs2[j].children[c]) trs2[j].removeChild(trs2[j].children[c]);
+                }
+            }
+            if (tfoot && tfoot.children[c]) tfoot.removeChild(tfoot.children[c]);
+        }
+    }
 }
 
 /* =====================================================================
@@ -549,7 +599,6 @@ function _openTurnoverSafe(accountId, detailInfo) {
         tl.value = '3';
         document.body.appendChild(tl);
     }
-    // ★ همچنین ra-from، ra-to، ra-vtype مورد نیازند
     if (!document.getElementById('ra-from')) {
         var tf = document.createElement('input');
         tf.type = 'hidden';
@@ -665,4 +714,4 @@ function _openTurnoverSafe(accountId, detailInfo) {
     else setTimeout(apply, 2500);
 })();
 
-console.log('✅ گزارش مرور حساب‌ها v36 — رفع خطای null');
+console.log('✅ گزارش مرور حساب‌ها v36 — رفع خطای null + پاک‌سازی ستون‌های خالی');
