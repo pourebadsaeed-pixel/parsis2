@@ -5,6 +5,13 @@
    ============ بخش A: ویجت‌ها ============
    ===================================================================== */
 
+/* ★ کلیدهای چک‌لیست — سه دسته */
+var CHECKLIST_CATEGORIES = [
+    { key: 'personal', label: 'شخصی',  emoji: '⭐', widget: 'todayChecklistPersonal', elId: 'home-today-checklist-personal' },
+    { key: 'family',   label: 'خانواده', emoji: '🏠', widget: 'todayChecklistFamily',   elId: 'home-today-checklist-family' },
+    { key: 'work',     label: 'شغلی',  emoji: '💼', widget: 'todayChecklistWork',     elId: 'home-today-checklist-work' }
+];
+
 /* ==================== Widgets visibility & order ==================== */
 function applyWidgetVisibility() {
     var cards = document.querySelectorAll('.widget-card');
@@ -54,7 +61,11 @@ function renderWidgetOrderUI() {
     var box = document.getElementById('widget-order-list');
     if (!box) return;
     var names = {
-        calendar:'📅 تقویم', todayChecklist:'✅ چک‌لیست', bankTotal:'🏦 مانده کل بانک',
+        calendar:'📅 تقویم',
+        todayChecklistPersonal:'✅ چک‌لیست شخصی',
+        todayChecklistFamily:'🏠 چک‌لیست خانواده',
+        todayChecklistWork:'💼 چک‌لیست شغلی',
+        bankTotal:'🏦 مانده کل بانک',
         bankBalances:'🏦 مانده حساب‌ها', cashBalances:'💰 صندوق‌ها',
         upcomingInstallments:'⏰ اقساط ۳ روز آینده', birthdays:'🎂 تولدها',
         liveRates:'💱 نرخ لحظه‌ای ارز و طلا'
@@ -122,6 +133,15 @@ function getCashBoxBalance(cbId) {
     });
     return total;
 }
+
+/* ★ بررسی نمایش در ویجت/داشبورد (پیش‌فرض: true) */
+function isVisibleInDash(item) {
+    if (!item) return false;
+    if (typeof item.showInDash === 'undefined') return true;
+    return item.showInDash !== false;
+}
+window.isVisibleInDash = isVisibleInDash;
+
 function getBirthdayInfo(birthStr) {
     if (!birthStr) return null;
     var parts = normalizeDigits(birthStr).split('/').map(Number);
@@ -147,12 +167,14 @@ function getBirthdayInfo(birthStr) {
     return { birthMonth: bM, birthDay: bD, dow: dow, daysRemaining: daysRemaining, birthYear: birthYear };
 }
 
-/* ==================== Bank balances widget ==================== */
+/* ==================== Bank balances widget (با فیلتر showInDash) ==================== */
 function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
     if (!el) return;
     var banks = DB.load('bankAccounts', []);
-    if (banks.length === 0) { el.innerHTML = '<div class="widget-empty">حساب بانکی ثبت نشده.</div>'; return; }
+    /* ★ فیلتر بر اساس ستون نمایش */
+    banks = banks.filter(isVisibleInDash);
+    if (banks.length === 0) { el.innerHTML = '<div class="widget-empty">حساب بانکی برای نمایش ثبت نشده.</div>'; return; }
     banks = banks.slice().sort(function(a, b) {
         var oa = Number(a.order) || 9999, ob = Number(b.order) || 9999;
         if (oa !== ob) return oa - ob;
@@ -187,12 +209,14 @@ function renderBankBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ==================== Cash balances widget ==================== */
+/* ==================== Cash balances widget (با فیلتر showInDash) ==================== */
 function renderCashBalancesWidget() {
     var el = document.getElementById('home-cash-balances');
     if (!el) return;
     var cbs = DB.load('cashBoxes', []);
-    if (cbs.length === 0) { el.innerHTML = '<div class="widget-empty">صندوقی نیست.</div>'; return; }
+    /* ★ فیلتر بر اساس ستون نمایش */
+    cbs = cbs.filter(isVisibleInDash);
+    if (cbs.length === 0) { el.innerHTML = '<div class="widget-empty">صندوقی برای نمایش نیست.</div>'; return; }
     cbs = cbs.slice().sort(function(a, b) {
         var oa = Number(a.order) || 9999, ob = Number(b.order) || 9999;
         if (oa !== ob) return oa - ob;
@@ -214,7 +238,7 @@ function renderCashBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ==================== Birthdays widget ==================== */
+/* ==================== Birthdays widget (با فیلتر showInDash) ==================== */
 function renderBirthdaysWidget() {
     var el = document.getElementById('home-birthdays');
     if (!el) return;
@@ -223,11 +247,13 @@ function renderBirthdaysWidget() {
     for (var i = 0; i < persons.length; i++) {
         var p = persons[i];
         if (!p.birth) continue;
+        /* ★ فیلتر بر اساس ستون نمایش */
+        if (!isVisibleInDash(p)) continue;
         var info = getBirthdayInfo(p.birth);
         if (!info) continue;
         items.push({ person: p, info: info });
     }
-    if (items.length === 0) { el.innerHTML = '<div class="widget-empty">تاریخ تولدی نیست.</div>'; return; }
+    if (items.length === 0) { el.innerHTML = '<div class="widget-empty">تاریخ تولدی برای نمایش نیست.</div>'; return; }
     items.sort(function(a, b) { return a.info.daysRemaining - b.info.daysRemaining; });
     var html = '';
     for (var k = 0; k < items.length; k++) {
@@ -245,7 +271,7 @@ function renderBirthdaysWidget() {
     el.innerHTML = html;
 }
 
-/* ==================== Bank total widget ==================== */
+/* ==================== Bank total widget (با فیلتر showInDash) ==================== */
 function updateHomeBankTotal() {
     var el = document.getElementById('home-bank-total');
     if (!el) return;
@@ -254,6 +280,8 @@ function updateHomeBankTotal() {
     for (var i = 0; i < banks.length; i++) {
         var b = banks[i];
         if (b.status === 'inactive' || b.active === false) continue;
+        /* ★ فیلتر بر اساس ستون نمایش */
+        if (!isVisibleInDash(b)) continue;
         total += getBankBalance(b.id);
     }
     el.innerHTML = moneyHtml(total) + ' ' + currencyLabel();
@@ -330,7 +358,6 @@ function updateHomeUpcomingInstallments() {
 }
 
 /* ==================== Calendar widget ==================== */
-/* ★ اصلاح‌شده طبق درخواست ۴: حذف نوار مادِل */
 function renderCalendarWidget() {
     var el = document.getElementById('home-cal-widget');
     if (!el) return;
@@ -359,15 +386,27 @@ function renderCalendarWidget() {
     el.innerHTML = html;
 }
 
-/* ==================== Checklist widget ==================== */
-function renderTodayChecklistWidget() {
-    var el = document.getElementById('home-today-checklist');
+/* =====================================================================
+   ★★★ چک‌لیست‌ها — سه ویجت مستقل بر اساس دسته‌بندی یادداشت ★★★
+   ===================================================================== */
+function renderTodayChecklistWidget(category) {
+    /* ★ گرفتن elementId و دسته از پارامتر */
+    var meta = null;
+    for (var ci = 0; ci < CHECKLIST_CATEGORIES.length; ci++) {
+        if (CHECKLIST_CATEGORIES[ci].key === category) { meta = CHECKLIST_CATEGORIES[ci]; break; }
+    }
+    if (!meta) return;
+    var el = document.getElementById(meta.elId);
     if (!el) return;
+
     var today = todayJalaliStr();
     var notes = DB.load('notes', []);
     var allItems = [];
     notes.forEach(function(n) {
         if (n.archived) return;
+        /* ★ فیلتر بر اساس دسته */
+        var noteCat = n.category || 'personal';
+        if (noteCat !== category) return;
         (n.checklist || []).forEach(function(c) {
             if (!c.text) return;
             allItems.push({ note: n, item: c });
@@ -415,7 +454,7 @@ function renderTodayChecklistWidget() {
                 }
             }
             DB.save('notes', notes);
-            renderTodayChecklistWidget();
+            renderTodayChecklistWidget(category);
         });
         row.addEventListener('click', function(e) {
             if (e.target.tagName === 'INPUT') return;
@@ -430,7 +469,12 @@ function updateHomeWidgets() {
     applyWidgetOrder();
     applyWidgetVisibility();
     if (state.widgets.calendar) renderCalendarWidget();
-    if (state.widgets.todayChecklist) renderTodayChecklistWidget();
+
+    /* ★ سه چک‌لیست مستقل */
+    if (state.widgets.todayChecklistPersonal) renderTodayChecklistWidget('personal');
+    if (state.widgets.todayChecklistFamily)   renderTodayChecklistWidget('family');
+    if (state.widgets.todayChecklistWork)     renderTodayChecklistWidget('work');
+
     if (state.widgets.bankTotal) updateHomeBankTotal();
     if (state.widgets.bankBalances) renderBankBalancesWidget();
     if (state.widgets.cashBalances) renderCashBalancesWidget();
@@ -817,7 +861,6 @@ function getLastNMonths(n) {
     return out;
 }
 
-/* ★ افزودن کارت خلاصه گردش وجه نقد */
 if (typeof state.dashboards === 'undefined') {
     state.dashboards = DB.load('dashboards', {
         cashLiquidity: true, expenseDonut: true, assetDonut: true, trendBar: true,
@@ -989,9 +1032,18 @@ function renderDashboardContents() {
     });
     if (document.getElementById('dash-expense-donut')) renderDonutChart('dash-expense-donut', expByGroup, 'هزینه', hide);
 
+    /* ★ دارایی‌ها با فیلتر showInDash */
     var assets = {};
-    banks.forEach(function(b) { var bal = getBankBalance(b.id); if (bal > 0) assets['بانک ' + b.bank] = bal; });
-    cashBoxes.forEach(function(c) { var bal = getCashBoxBalance(c.id); if (bal > 0) assets['صندوق ' + c.title] = bal; });
+    banks.forEach(function(b) {
+        if (!isVisibleInDash(b)) return;
+        var bal = getBankBalance(b.id);
+        if (bal > 0) assets['بانک ' + b.bank] = bal;
+    });
+    cashBoxes.forEach(function(c) {
+        if (!isVisibleInDash(c)) return;
+        var bal = getCashBoxBalance(c.id);
+        if (bal > 0) assets['صندوق ' + c.title] = bal;
+    });
     if (document.getElementById('dash-asset-donut')) renderDonutChart('dash-asset-donut', assets, 'دارایی', hide);
 
     var months2 = getLastNMonths(6);
@@ -1077,6 +1129,7 @@ function renderDashboardContents() {
     if (nbEl) {
         var deficits = [];
         banks.forEach(function(b) {
+            if (!isVisibleInDash(b)) return;
             var bal = getBankBalance(b.id);
             var minB = Number(b.minBalance) || 0;
             if (bal < minB) deficits.push({ b: b, bal: bal, min: minB, def: bal - minB });
@@ -1105,8 +1158,10 @@ function renderDashboardContents() {
         });
         var arr = Object.keys(stats).map(function(pid) {
             var p = persons.find(function(x) { return x.id === pid; });
+            /* ★ فیلتر بر اساس ستون نمایش */
+            if (p && !isVisibleInDash(p)) return null;
             return { id: pid, name: p ? (p.first || '') + ' ' + (p.last || '') : pid, count: stats[pid].count, total: stats[pid].total };
-        }).sort(function(a, b) { return b.total - a.total; }).slice(0, 10);
+        }).filter(Boolean).sort(function(a, b) { return b.total - a.total; }).slice(0, 10);
         if (arr.length === 0) tpEl.innerHTML = '<div class="widget-empty">تراکنشی با اشخاص نیست.</div>';
         else {
             tpEl.innerHTML = '<div class="top-exp-list">' + arr.map(function(x, i) {
@@ -1115,7 +1170,6 @@ function renderDashboardContents() {
         }
     }
 
-    /* ★ خلاصه عوامل گردش وجه نقد */
     var cfSummaryEl = document.getElementById('dash-cf-summary');
     if (cfSummaryEl && typeof buildCashFlowDescSummaryForDash === 'function') {
         var cfSummary = buildCashFlowDescSummaryForDash();
@@ -2285,7 +2339,8 @@ window.readClipboardAndAdd = function (auto) {
 };
 
 /* =====================================================================
-   ============ بخش P: مودال مدیریت الگوها + ویرایش ============
+   ============ بخش P: مودال مدیریت الگوها + ویرایش
+   ★★★ رفع مشکل ویرایش: افزودن کلاس show ★★★
    ===================================================================== */
 function ensureSmsPatternsModal() {
     if (document.getElementById('sms-patterns-modal')) return;
@@ -2414,6 +2469,7 @@ function renderSmsPatternsManagerBody() {
 }
 window.renderSmsPatternsManagerBody = renderSmsPatternsManagerBody;
 
+/* ★★★ رفع مشکل ویرایش الگو: افزودن کلاس show به overlay و modal ★★★ */
 function openEditSmsPattern(patternId) {
     try {
         var patterns = loadSmsPatterns();
@@ -2435,9 +2491,10 @@ function openEditSmsPattern(patternId) {
         var dirOut = p.direction === 'out' ? 'checked' : '';
         var preview = (p.tokens || []).join(' ');
 
+        /* ★★★ توجه: کلاس show اضافه شد تا مودال دیده شود ★★★ */
         var html = ''
-            + '<div id="sms-edit-overlay" class="overlay" style="z-index:1400"></div>'
-            + '<div id="sms-edit-modal" class="modal" style="max-width:560px;z-index:1410">'
+            + '<div id="sms-edit-overlay" class="overlay show" style="z-index:1400"></div>'
+            + '<div id="sms-edit-modal" class="modal show" style="max-width:560px;z-index:1410">'
             +   '<div class="modal-head"><h2>✏️ ویرایش الگوی پیامک</h2>'
             +     '<button type="button" id="sms-edit-close" class="close-btn">×</button></div>'
             +   '<div class="modal-body">'
@@ -2655,7 +2712,6 @@ function initSmsPatternSystem() {
     console.log('🧠 SMS Pattern System v3 — patterns:', loadSmsPatterns().length, '| pending:', getPendingSmsCount());
 }
 
-/* راه‌اندازی */
 (function () {
     function boot() {
         initSmsPatternSystem();
@@ -2668,6 +2724,206 @@ function initSmsPatternSystem() {
     } else {
         setTimeout(boot, 400);
     }
+})();
+
+/* =====================================================================
+   ★ Migration: تبدیل todayChecklist قدیمی به ۳ دسته
+   ===================================================================== */
+(function migrateChecklistWidgets() {
+    try {
+        var w = DB.load('widgets', null);
+        if (!w) return;
+        /* اگر todayChecklist قدیمی وجود داشت */
+        if (typeof w.todayChecklist !== 'undefined' && typeof w.todayChecklistPersonal === 'undefined') {
+            var oldVal = !!w.todayChecklist;
+            w.todayChecklistPersonal = oldVal;
+            w.todayChecklistFamily   = oldVal;
+            w.todayChecklistWork     = oldVal;
+            delete w.todayChecklist;
+            DB.save('widgets', w);
+            /* به‌روزرسانی state */
+            state.widgets = w;
+        }
+        /* افزودن ۳ دسته چک‌لیست اگر نبود */
+        var allCheckCats = ['todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork'];
+        var changed = false;
+        allCheckCats.forEach(function(k) {
+            if (typeof state.widgets[k] === 'undefined') {
+                state.widgets[k] = true;
+                changed = true;
+            }
+        });
+        /* حذف کلید قدیمی از state */
+        if (typeof state.widgets.todayChecklist !== 'undefined') {
+            delete state.widgets.todayChecklist;
+            changed = true;
+        }
+        if (changed) DB.save('widgets', state.widgets);
+
+        /* به‌روزرسانی widgetOrder */
+        var order = DB.load('widgetOrder', null);
+        if (order && Array.isArray(order)) {
+            var hasOld = order.indexOf('todayChecklist');
+            if (hasOld !== -1) {
+                order.splice(hasOld, 1, 'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork');
+                DB.save('widgetOrder', order);
+                state.widgetOrder = order;
+            }
+            /* افزودن ۳ دسته اگر نبودند */
+            var needAdd = false;
+            allCheckCats.forEach(function(k) {
+                if (order.indexOf(k) === -1) { order.push(k); needAdd = true; }
+            });
+            if (needAdd) {
+                DB.save('widgetOrder', order);
+                state.widgetOrder = order;
+            }
+        }
+
+        /* به‌روزرسانی widgetPages */
+        var pages = DB.load('widgetPages', null);
+        if (pages) {
+            var pagesChanged = false;
+            var oldPage = pages.todayChecklist;
+            if (typeof oldPage !== 'undefined') {
+                pages.todayChecklistPersonal = oldPage;
+                pages.todayChecklistFamily   = oldPage;
+                pages.todayChecklistWork     = oldPage;
+                delete pages.todayChecklist;
+                pagesChanged = true;
+            }
+            allCheckCats.forEach(function(k) {
+                if (typeof pages[k] === 'undefined') { pages[k] = 1; pagesChanged = true; }
+            });
+            if (pagesChanged) {
+                DB.save('widgetPages', pages);
+                state.widgetPages = pages;
+            }
+        }
+    } catch(e) { console.warn('migrateChecklistWidgets:', e); }
+})();
+
+/* =====================================================================
+   ★★★ Patch: افزودن ستون «نمایش در ویجت/داشبورد» به لیست‌های اشخاص، بانک و صندوق
+   ===================================================================== */
+(function patchShowInDashColumn() {
+    /* ستون نمایش به‌صورت داینامیک به ۳ جدول اضافه می‌شود */
+
+    function ensureCheckboxInRow(tr, id, storageKey) {
+        /* بررسی وجود چک‌باکس */
+        if (tr.querySelector('[data-show-dash]')) return;
+        var cells = tr.querySelectorAll('td');
+        if (cells.length < 1) return;
+        /* ستون نمایش — قبل از ستون عملیات اضافه می‌شود */
+        var actionCell = cells[cells.length - 1];
+        if (!actionCell) return;
+        var newCell = document.createElement('td');
+        newCell.style.textAlign = 'center';
+        newCell.setAttribute('data-show-col', '1');
+
+        var list = DB.load(storageKey, []);
+        var item = list.find(function(x) { return x.id === id; });
+        var checked = item ? (item.showInDash !== false) : true;
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.setAttribute('data-show-dash', '1');
+        cb.setAttribute('data-id', id);
+        cb.setAttribute('data-storage', storageKey);
+        cb.checked = checked;
+        cb.style.cssText = 'width:18px;height:18px;accent-color:var(--primary);cursor:pointer';
+        cb.title = 'نمایش در ویجت و داشبورد';
+        cb.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var idv = this.getAttribute('data-id');
+            var stk = this.getAttribute('data-storage');
+            var l = DB.load(stk, []);
+            for (var i = 0; i < l.length; i++) {
+                if (l[i].id === idv) {
+                    l[i].showInDash = this.checked;
+                    break;
+                }
+            }
+            DB.save(stk, l);
+            if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+            if (typeof renderDashboard === 'function') renderDashboard();
+            showToast(this.checked ? '👁 در ویجت/داشبورد نمایش داده می‌شود' : '🚫 از ویجت/داشبورد مخفی شد');
+        });
+        newCell.appendChild(cb);
+        tr.insertBefore(newCell, actionCell);
+    }
+
+    function ensureHeader(tableId) {
+        var table = document.getElementById(tableId);
+        if (!table) return;
+        var headerRow = table.querySelector('thead tr');
+        if (!headerRow) return;
+        if (headerRow.querySelector('[data-show-th]')) return;
+        var ths = headerRow.querySelectorAll('th');
+        var actionTh = ths[ths.length - 1];
+        if (!actionTh) return;
+        var newTh = document.createElement('th');
+        newTh.setAttribute('data-show-th', '1');
+        newTh.textContent = '👁 نمایش';
+        newTh.title = 'نمایش در ویجت و داشبورد';
+        newTh.style.width = '70px';
+        newTh.style.textAlign = 'center';
+        headerRow.insertBefore(newTh, actionTh);
+    }
+
+    /* پچ در سه تابع render */
+    var _origPersons = window.renderPersonsList;
+    if (typeof _origPersons === 'function') {
+        window.renderPersonsList = function() {
+            _origPersons.apply(this, arguments);
+            ensureHeader('persons-table');
+            var tb = document.getElementById('persons-list-body');
+            if (!tb) return;
+            tb.querySelectorAll('tr').forEach(function(tr) {
+                if (tr.querySelector('.empty-row')) return;
+                var editBtn = tr.querySelector('.row-btn.edit');
+                if (!editBtn) return;
+                var id = editBtn.getAttribute('data-id');
+                if (id) ensureCheckboxInRow(tr, id, 'persons');
+            });
+        };
+    }
+
+    var _origBA = window.renderBankAccountsList;
+    if (typeof _origBA === 'function') {
+        window.renderBankAccountsList = function() {
+            _origBA.apply(this, arguments);
+            ensureHeader('ba-table');
+            var tb = document.getElementById('ba-list-body');
+            if (!tb) return;
+            tb.querySelectorAll('tr').forEach(function(tr) {
+                if (tr.querySelector('.empty-row')) return;
+                var editBtn = tr.querySelector('.row-btn.edit');
+                if (!editBtn) return;
+                var id = editBtn.getAttribute('data-id');
+                if (id) ensureCheckboxInRow(tr, id, 'bankAccounts');
+            });
+        };
+    }
+
+    var _origCB = window.renderCashBoxesList;
+    if (typeof _origCB === 'function') {
+        window.renderCashBoxesList = function() {
+            _origCB.apply(this, arguments);
+            ensureHeader('cb-table');
+            var tb = document.getElementById('cb-list-body');
+            if (!tb) return;
+            tb.querySelectorAll('tr').forEach(function(tr) {
+                if (tr.querySelector('.empty-row')) return;
+                var editBtn = tr.querySelector('.row-btn.edit');
+                if (!editBtn) return;
+                var id = editBtn.getAttribute('data-id');
+                if (id) ensureCheckboxInRow(tr, id, 'cashBoxes');
+            });
+        };
+    }
+
+    console.log('✅ [v42] پچ ستون «نمایش در ویجت/داشبورد» نصب شد');
 })();
 
 /* End of 06-widgets,dashboard,rates,close,sms.js */
