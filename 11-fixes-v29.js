@@ -89,6 +89,24 @@ function saveFacilityEnhanced() {
 }
 window.saveFacilityEnhanced = saveFacilityEnhanced;
 
+/* ★ نسخه بهبودیافته clearFacForm که moeinId را هم پاک می‌کند */
+function clearFacFormEnhanced() {
+    ['fc-id','fc-name','fc-date','fc-initial','fc-paid'].forEach(function(x) {
+        var el = document.getElementById(x);
+        if (el) el.value = '';
+    });
+    var catEl = document.getElementById('fc-category');
+    if (catEl) catEl.value = 'facility';
+    var bankEl = document.getElementById('fc-bank');
+    if (bankEl) bankEl.value = '';
+    var moeinEl = document.getElementById('fc-moein');
+    if (moeinEl) moeinEl.value = '';
+    var insCard = document.getElementById('fac-installments-card');
+    if (insCard) insCard.style.display = 'none';
+    currentFacilityId = null;
+    currentInstallments = [];
+}
+
 /* جایگزینی دکمه‌های save-fac و load با نسخه تقویت‌شده */
 (function patchFacilityButtons() {
     function rebind() {
@@ -100,7 +118,12 @@ window.saveFacilityEnhanced = saveFacilityEnhanced;
         newBtn.addEventListener('click', saveFacilityEnhanced);
 
         var newBtn2 = document.getElementById('new-fac');
-        if (newBtn2) newBtn2.dataset.patched = '1';
+        if (newBtn2 && !newBtn2.dataset.patched) {
+            newBtn2.dataset.patched = '1';
+            var cloneNew = newBtn2.cloneNode(true);
+            newBtn2.parentNode.replaceChild(cloneNew, newBtn2);
+            cloneNew.addEventListener('click', clearFacFormEnhanced);
+        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(rebind, 1500); });
