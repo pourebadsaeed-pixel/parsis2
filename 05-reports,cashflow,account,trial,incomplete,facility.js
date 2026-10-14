@@ -18,11 +18,7 @@ function moneyHtml(n, key) {
     return str;
 }
 window.moneyHtml = moneyHtml;
-
-window.fmtFor = function(n, key) {
-    if (getHideState(key)) return '—';
-    return moneyHtml(n);
-};
+window.fmtFor = function(n, key) { if (getHideState(key)) return '—'; return moneyHtml(n); };
 window.fmtRep = function(n, key) { return fmtFor(n, key); };
 window.formatMoneyHTML = function(n) { return moneyHtml(n); };
 window.moneyText = function(n) {
@@ -153,13 +149,8 @@ function refreshReportPeriodSelects() {
 }
 
 /* =====================================================================
-   ============ گزارش وضعیت نقدینگی ============
-   ★ تغییرات:
-   - تاریخ پیش‌فرض = امروز
-   - مانده بانک = آخرین مانده لحظه‌ای (نه تا تاریخ شروع)
+   ============ گزارش نقدینگی (پیش‌بینی روزانه نقدینگی) ============
    ===================================================================== */
-
-/* ★ آخرین مانده لحظه‌ای بانک‌ها (بدون محدودیت تاریخ) */
 function computeBankBalanceLatest() {
     var vouchers = DB.load('vouchers', []);
     var banks = DB.load('bankAccounts', []);
@@ -175,24 +166,30 @@ function computeBankBalanceLatest() {
     });
     return total;
 }
+function computeBankBalanceAtDate() { return computeBankBalanceLatest(); }
 
-/* نگهداری سازگاری با کدهای قدیمی */
-function computeBankBalanceAtDate() {
-    return computeBankBalanceLatest();
+/* ★ تابع کمکی: شروع سال مالی فعال */
+function getActiveFiscalYearStart() {
+    var periods = DB.load('fiscalPeriods', []);
+    var p = periods.find(function(x) { return x.id === state.activePeriodId; });
+    if (!p || !p.from) return '';
+    var parts = String(p.from).split('/');
+    if (parts.length !== 3) return '';
+    return parts[0] + '/01/01';
 }
+window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 
 function runCashFlowReport() {
-    /* ★ تاریخ پیش‌فرض = امروز */
     var fromDate = normalizeDigits((document.getElementById('cf-from').value || '').trim());
     var toDate = normalizeDigits((document.getElementById('cf-to').value || '').trim());
-    if (!fromDate) fromDate = todayJalaliStr();
-    if (!toDate) toDate = fromDate;
+    /* ★ تاریخ پیش‌فرض = شروع سال مالی فعال */
+    var yearStart = getActiveFiscalYearStart();
+    if (!fromDate) fromDate = yearStart || todayJalaliStr();
+    if (!toDate) toDate = todayJalaliStr();
     document.getElementById('cf-from').value = fromDate;
     document.getElementById('cf-to').value = toDate;
     if (fromDate > toDate) { alert('تاریخ شروع باید قبل از پایان باشد.'); return; }
     var hide = getHideState('cf');
-
-    /* ★ مانده بانک = آخرین مانده لحظه‌ای */
     var bankBalance = computeBankBalanceLatest();
 
     var sources = DB.load('cashFlowSources', []);
@@ -221,7 +218,6 @@ function runCashFlowReport() {
     });
 
     var items = [];
-    /* ★ عنوان دسته‌ها از توضیحات ثبت‌شده در فرم برآورد منابع دریافتنی خوانده می‌شود */
     sourcesInRange.forEach(function(s) {
         var sourceLabel = getSourceLabel(s);
         var titleFromNotes = (s.notes && String(s.notes).trim()) ? String(s.notes).trim() : '';
@@ -243,6 +239,7 @@ function runCashFlowReport() {
         items.push({ type: 'estimate', date: item.item.date, sortDate: item.item.date, amount: -Number(item.item.amount || 0), label: '📝 ' + esc(item.est.title || item.est.desc || 'برآورد'), notes: '' });
     });
     items.sort(function(a, b) { return compareVals(a.sortDate, b.sortDate); });
+
     var html = '<div class="cf-report"><div class="table-wrap">';
     html += '<table class="cf-table" id="cf-table"><thead><tr><th style="width:35%">عنوان دسته</th><th style="width:15%">تاریخ</th><th style="width:25%">مبلغ</th><th style="width:25%">مانده در خط</th></tr></thead><tbody>';
     var running = bankBalance;
@@ -279,14 +276,17 @@ function runCashFlowReport() {
 }
 
 /* =====================================================================
-   ============ گردش وجه نقد — بازنویسی کامل ============
+   ============ گردش وجه نقد — ★ اصلاح‌شده
+   - تاریخ پیش‌فرض = شروع سال مالی فعال
+   - چک‌باکس «فقط دارای مانده»
    ===================================================================== */
 function runCashFlowByDescReport() {
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
     var toD   = normalizeDigits((document.getElementById('cfd-to').value || '').trim());
-    /* ★ تاریخ پیش‌فرض = امروز */
-    if (!fromD) fromD = todayJalaliStr();
-    if (!toD) toD = fromD;
+    /* ★ تاریخ پیش‌فرض = شروع سال مالی فعال */
+    var yearStart = getActiveFiscalYearStart();
+    if (!fromD) fromD = yearStart || todayJalaliStr();
+    if (!toD) toD = todayJalaliStr();
     if (fromD > toD) { alert('تاریخ شروع باید قبل از پایان باشد.'); return; }
     document.getElementById('cfd-from').value = fromD;
     document.getElementById('cfd-to').value = toD;
@@ -294,6 +294,9 @@ function runCashFlowByDescReport() {
     var vtype    = document.getElementById('cfd-vtype').value;
     var viewMode = document.getElementById('cfd-view').value;
     var stripB   = document.getElementById('cfd-strip-babet').checked;
+    /* ★ فقط دارای مانده */
+    var onlyBalEl = document.getElementById('cfd-only-balance');
+    var onlyBal = onlyBalEl ? onlyBalEl.checked : false;
     var hide     = getHideState('cfd');
 
     var accounts = DB.load('accounts', []);
@@ -340,6 +343,12 @@ function runCashFlowByDescReport() {
     });
 
     var keys = Object.keys(buckets);
+    /* ★ فیلتر فقط دارای مانده */
+    if (onlyBal) {
+        keys = keys.filter(function(k) {
+            return Math.abs(buckets[k].in - buckets[k].out) > 0.5;
+        });
+    }
     keys.sort(function(a, b) { return compareVals(a, b); });
 
     if (keys.length === 0) {
@@ -369,11 +378,8 @@ function runCashFlowByDescReport() {
             var pct = (bal / grandAbs) * 100;
             var pctCls = pct >= 0 ? 'cr' : 'dr';
             var pctText;
-            if (pct < 0) {
-                pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
-            } else {
-                pctText = '+' + toFa(Math.abs(pct).toFixed(2)) + '٪';
-            }
+            if (pct < 0) pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
+            else pctText = '+' + toFa(Math.abs(pct).toFixed(2)) + '٪';
             html += '<tr><td class="num">' + toFa(i + 1) + '</td>'
                 + '<td><strong>' + esc(k) + '</strong></td>'
                 + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : (b.in ? moneyHtml(b.in) : '—')) + '</td>'
@@ -480,14 +486,58 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* =====================================================================
-   ============ گزارش مقایسه‌ای
-   ★ تغییرات:
+   ============ گزارش مقایسه‌ای — ★ اصلاح‌شده
    - تاریخ‌های پیش‌فرض خالی
-   - نوع پیش‌فرض = موقت (temporary)
-   - سطح پیش‌فرض = کل (level 2)
-   - درصد افت/رشد منفی داخل پرانتز قرمز
+   - باکس فیلتر قابل جمع/باز شدن (فلش)
    ===================================================================== */
+function initCompareFilterCollapse() {
+    var page = document.getElementById('page-report-compare');
+    if (!page) return;
+    var card = page.querySelector('.card');
+    if (!card) return;
+    if (card.dataset.collapseInit === '1') return;
+    card.dataset.collapseInit = '1';
+
+    /* ★ افزودن هدر با فلش */
+    var header = document.createElement('div');
+    header.className = 'rcc-collapse-header';
+    header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(180deg,#e8f0fb,#f4f8fd);cursor:pointer;user-select:none;border-radius:14px 14px 0 0;margin:-18px -18px 14px -18px;border-bottom:1px solid var(--border)';
+    header.innerHTML = '<span style="font-size:1rem">🔍</span>'
+                    + '<span style="flex:1;font-weight:900;color:#1e40af;font-size:.9rem">فیلترهای گزارش مقایسه‌ای</span>'
+                    + '<span class="rcc-arrow" style="font-size:.75rem;color:#1e40af;transition:transform .25s">▼</span>';
+    card.insertBefore(header, card.firstChild);
+
+    /* ★ پیدا کردن همه چیزهای داخلی کارت (به جز هدر) و بسته‌بندی در یک body */
+    var body = document.createElement('div');
+    body.className = 'rcc-collapse-body';
+    var children = Array.from(card.childNodes);
+    children.forEach(function(node) {
+        if (node === header) return;
+        if (node.classList && node.classList.contains('rcc-collapse-body')) return;
+        body.appendChild(node);
+    });
+    card.appendChild(body);
+
+    var collapsed = state.cardCollapsed['report-compare-filter'] === true;
+    if (collapsed) {
+        body.style.display = 'none';
+        header.querySelector('.rcc-arrow').style.transform = 'rotate(-90deg)';
+    }
+
+    header.addEventListener('click', function() {
+        var nowCollapsed = body.style.display === 'none' ? false : true;
+        body.style.display = nowCollapsed ? 'none' : '';
+        header.querySelector('.rcc-arrow').style.transform = nowCollapsed ? 'rotate(-90deg)' : '';
+        state.cardCollapsed['report-compare-filter'] = nowCollapsed;
+        DB.save('cardCollapsed', state.cardCollapsed);
+    });
+}
+window.initCompareFilterCollapse = initCompareFilterCollapse;
+
 function runComparisonReport() {
+    /* ★ اطمینان از اعمال کولپس */
+    initCompareFilterCollapse();
+
     var p1 = { from: normalizeDigits(document.getElementById('rc-from1').value.trim()),
                to:   normalizeDigits(document.getElementById('rc-to1').value.trim()) };
     var p2 = { from: normalizeDigits(document.getElementById('rc-from2').value.trim()),
@@ -545,13 +595,9 @@ function runComparisonReport() {
         var pct = row.net1 !== 0 ? (diff / Math.abs(row.net1) * 100) : (row.net2 !== 0 ? 100 : 0);
         var pctCls = pct > 0 ? 'cr' : (pct < 0 ? 'dr' : '');
         var pctText;
-        if (pct < 0) {
-            pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
-        } else if (pct > 0) {
-            pctText = '▲ +' + toFa(pct.toFixed(2)) + '٪';
-        } else {
-            pctText = '۰.۰۰٪';
-        }
+        if (pct < 0) pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
+        else if (pct > 0) pctText = '▲ +' + toFa(pct.toFixed(2)) + '٪';
+        else pctText = '۰.۰۰٪';
         var lN = row.level === 1 ? 'گروه' : (row.level === 2 ? 'کل' : (row.level === 3 ? 'معین' : 'تفصیلی'));
         html += '<tr><td>' + esc(row.name) + '</td><td>' + lN + '</td>'
             + '<td class="num">' + (hide ? '—' : moneyHtml(row.net1)) + '</td>'
@@ -562,13 +608,9 @@ function runComparisonReport() {
     var tPct = t1 !== 0 ? (tDiff / Math.abs(t1) * 100) : (t2 !== 0 ? 100 : 0);
     var tPctCls = tPct > 0 ? 'cr' : (tPct < 0 ? 'dr' : '');
     var tPctText;
-    if (tPct < 0) {
-        tPctText = '(' + toFa(Math.abs(tPct).toFixed(2)) + '٪)';
-    } else if (tPct > 0) {
-        tPctText = '▲ +' + toFa(tPct.toFixed(2)) + '٪';
-    } else {
-        tPctText = '۰.۰۰٪';
-    }
+    if (tPct < 0) tPctText = '(' + toFa(Math.abs(tPct).toFixed(2)) + '٪)';
+    else if (tPct > 0) tPctText = '▲ +' + toFa(tPct.toFixed(2)) + '٪';
+    else tPctText = '۰.۰۰٪';
     html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>'
         + '<td class="num">' + (hide ? '—' : moneyHtml(t1)) + '</td>'
         + '<td class="num">' + (hide ? '—' : moneyHtml(t2)) + '</td>'
@@ -804,6 +846,7 @@ function runTrialBalance() {
             return;
         }
         if (level === opts.level) {
+            /* ★ فقط حساب‌های دارای حرکت (گردش) نمایش داده می‌شوند */
             if (b.debit > 0 || b.credit > 0) rows.push({ name: node.name, level: level, debit: b.debit, credit: b.credit, md: net > 0 ? net : 0, mc: net < 0 ? -net : 0 });
             return;
         }
