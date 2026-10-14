@@ -152,15 +152,21 @@ function refreshReportPeriodSelects() {
     });
 }
 
-/* ==================== گزارش وضعیت نقدینگی ==================== */
-function computeBankBalanceAtDate(fromDate) {
+/* =====================================================================
+   ============ گزارش وضعیت نقدینگی ============
+   ★ تغییرات:
+   - تاریخ پیش‌فرض = امروز
+   - مانده بانک = آخرین مانده لحظه‌ای (نه تا تاریخ شروع)
+   ===================================================================== */
+
+/* ★ آخرین مانده لحظه‌ای بانک‌ها (بدون محدودیت تاریخ) */
+function computeBankBalanceLatest() {
     var vouchers = DB.load('vouchers', []);
     var banks = DB.load('bankAccounts', []);
     var bankIds = banks.map(function(b) { return b.id; });
     var total = 0;
     vouchers.forEach(function(v) {
         if (v.status !== 'approved') return;
-        if (v.date >= fromDate) return;
         (v.lines || []).forEach(function(line) {
             if (line.details && line.details.bank && bankIds.indexOf(line.details.bank) !== -1) {
                 total += (Number(line.debit) || 0) - (Number(line.credit) || 0);
@@ -169,7 +175,14 @@ function computeBankBalanceAtDate(fromDate) {
     });
     return total;
 }
+
+/* نگهداری سازگاری با کدهای قدیمی */
+function computeBankBalanceAtDate() {
+    return computeBankBalanceLatest();
+}
+
 function runCashFlowReport() {
+    /* ★ تاریخ پیش‌فرض = امروز */
     var fromDate = normalizeDigits((document.getElementById('cf-from').value || '').trim());
     var toDate = normalizeDigits((document.getElementById('cf-to').value || '').trim());
     if (!fromDate) fromDate = todayJalaliStr();
@@ -178,7 +191,10 @@ function runCashFlowReport() {
     document.getElementById('cf-to').value = toDate;
     if (fromDate > toDate) { alert('تاریخ شروع باید قبل از پایان باشد.'); return; }
     var hide = getHideState('cf');
-    var bankBalance = computeBankBalanceAtDate(fromDate);
+
+    /* ★ مانده بانک = آخرین مانده لحظه‌ای */
+    var bankBalance = computeBankBalanceLatest();
+
     var sources = DB.load('cashFlowSources', []);
     var sourcesInRange = sources.filter(function(s) {
         if (!s.expectedDate) return true;
@@ -203,15 +219,28 @@ function runCashFlowReport() {
             estimateItemsArr.push({ est: est, item: it });
         });
     });
+
     var items = [];
+    /* ★ عنوان دسته‌ها از توضیحات ثبت‌شده در فرم برآورد منابع دریافتنی خوانده می‌شود */
     sourcesInRange.forEach(function(s) {
-        items.push({ type: 'source', date: s.expectedDate || fromDate, sortDate: s.expectedDate || (fromDate + '~'), amount: Number(s.amount) || 0, label: '📥 ' + getSourceLabel(s), notes: s.notes || '' });
+        var sourceLabel = getSourceLabel(s);
+        var titleFromNotes = (s.notes && String(s.notes).trim()) ? String(s.notes).trim() : '';
+        var displayTitle = titleFromNotes || sourceLabel;
+        var metaLine = titleFromNotes ? ' <span class="muted" style="font-size:0.72rem">(' + esc(sourceLabel) + ')</span>' : '';
+        items.push({
+            type: 'source',
+            date: s.expectedDate || fromDate,
+            sortDate: s.expectedDate || (fromDate + '~'),
+            amount: Number(s.amount) || 0,
+            label: '📥 ' + esc(displayTitle) + metaLine,
+            notes: ''
+        });
     });
     facilityInsts.forEach(function(item) {
-        items.push({ type: 'facility', date: item.inst.date, sortDate: item.inst.date, amount: -Number(item.inst.amount || 0), label: '💸 قسط ' + item.f.name, notes: '' });
+        items.push({ type: 'facility', date: item.inst.date, sortDate: item.inst.date, amount: -Number(item.inst.amount || 0), label: '💸 قسط ' + esc(item.f.name), notes: '' });
     });
     estimateItemsArr.forEach(function(item) {
-        items.push({ type: 'estimate', date: item.item.date, sortDate: item.item.date, amount: -Number(item.item.amount || 0), label: '📝 ' + (item.est.title || item.est.desc || 'برآورد'), notes: '' });
+        items.push({ type: 'estimate', date: item.item.date, sortDate: item.item.date, amount: -Number(item.item.amount || 0), label: '📝 ' + esc(item.est.title || item.est.desc || 'برآورد'), notes: '' });
     });
     items.sort(function(a, b) { return compareVals(a.sortDate, b.sortDate); });
     var html = '<div class="cf-report"><div class="table-wrap">';
@@ -219,7 +248,7 @@ function runCashFlowReport() {
     var running = bankBalance;
     var bbCls = bankBalance < 0 ? 'cf-neg' : '';
     var bbText = hide ? '—' : (bankBalance < 0 ? '(' + formatMoney(Math.abs(bankBalance)) + ')' : formatMoney(bankBalance));
-    html += '<tr class="cf-bank-row"><td class="cf-cat">💰 مانده بانک ها</td><td dir="ltr">' + toFa(fromDate) + '</td><td class="num ' + bbCls + '">' + bbText + '</td><td class="num ' + bbCls + '">' + bbText + '</td></tr>';
+    html += '<tr class="cf-bank-row"><td class="cf-cat">💰 مانده بانک ها (آخرین مانده لحظه‌ای)</td><td dir="ltr">' + toFa(fromDate) + '</td><td class="num ' + bbCls + '">' + bbText + '</td><td class="num ' + bbCls + '">' + bbText + '</td></tr>';
     items.forEach(function(it) {
         running += it.amount;
         var amtCls = '';
@@ -234,7 +263,8 @@ function runCashFlowReport() {
         var balCls = running < 0 ? 'cf-neg' : '';
         var balText = hide ? '—' : (running < 0 ? '(' + formatMoney(Math.abs(running)) + ')' : formatMoney(running));
         var rowCls = it.type === 'facility' ? 'cf-fac-row' : (it.type === 'estimate' ? 'cf-est-row' : 'cf-source-row');
-        var label = it.label + (it.notes ? ' <span class="muted" style="font-size:0.72rem">(' + esc(it.notes) + ')</span>' : '');
+        var label = it.label;
+        if (it.notes) label += ' <span class="muted" style="font-size:0.72rem">(' + esc(it.notes) + ')</span>';
         html += '<tr class="' + rowCls + '"><td class="cf-cat">' + label + '</td><td dir="ltr">' + toFa(esc(it.date)) + '</td><td class="num ' + amtCls + '">' + amtText + '</td><td class="num ' + balCls + '">' + balText + '</td></tr>';
     });
     html += '</tbody>';
@@ -254,6 +284,7 @@ function runCashFlowReport() {
 function runCashFlowByDescReport() {
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
     var toD   = normalizeDigits((document.getElementById('cfd-to').value || '').trim());
+    /* ★ تاریخ پیش‌فرض = امروز */
     if (!fromD) fromD = todayJalaliStr();
     if (!toD) toD = fromD;
     if (fromD > toD) { alert('تاریخ شروع باید قبل از پایان باشد.'); return; }
@@ -325,7 +356,6 @@ function runCashFlowByDescReport() {
 
     var html = '';
 
-    /* -------- بخش ۱: گزارش اصلی -------- */
     if (viewMode === 'main' || viewMode === 'full') {
         html += '<div class="cfd-section-title">📋 گزارش اصلی</div>';
         html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table" id="cfd-table"><thead><tr>'
@@ -338,23 +368,29 @@ function runCashFlowByDescReport() {
             tIn += b.in; tOut += b.out;
             var pct = (bal / grandAbs) * 100;
             var pctCls = pct >= 0 ? 'cr' : 'dr';
-            var pctSign = pct > 0 ? '+' : '';
+            var pctText;
+            if (pct < 0) {
+                pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
+            } else {
+                pctText = '+' + toFa(Math.abs(pct).toFixed(2)) + '٪';
+            }
             html += '<tr><td class="num">' + toFa(i + 1) + '</td>'
                 + '<td><strong>' + esc(k) + '</strong></td>'
                 + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : (b.in ? moneyHtml(b.in) : '—')) + '</td>'
                 + '<td class="num" style="color:#c0392b">' + (hide ? '—' : (b.out ? moneyHtml(b.out) : '—')) + '</td>'
                 + '<td class="num" style="font-weight:bold">' + (hide ? '—' : moneyHtml(bal)) + '</td>'
                 + '<td class="num">' + toFa(b.details.length) + '</td>'
-                + '<td class="num ' + pctCls + '">' + (hide ? '—' : pctSign + toFa(Math.abs(pct).toFixed(2)) + '٪') + '</td></tr>';
+                + '<td class="num ' + pctCls + '">' + (hide ? '—' : pctText) + '</td></tr>';
         }
+        var totalBal = tIn - tOut;
+        var totalPctText = totalBal < 0 ? '(۱۰۰.۰۰٪)' : '+۱۰۰.۰۰٪';
         html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>'
             + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : moneyHtml(tIn)) + '</td>'
             + '<td class="num" style="color:#c0392b">' + (hide ? '—' : moneyHtml(tOut)) + '</td>'
             + '<td class="num">' + (hide ? '—' : moneyHtml(tIn - tOut)) + '</td><td></td>'
-            + '<td class="num">' + (hide ? '—' : toFa('100.00') + '٪') + '</td></tr></tfoot></table></div></div>';
+            + '<td class="num">' + (hide ? '—' : totalPctText) + '</td></tr></tfoot></table></div></div>';
     }
 
-    /* -------- بخش ۲: جزئیات -------- */
     if (viewMode === 'details' || viewMode === 'full') {
         if (viewMode === 'full') html += '<div class="cfd-section-title" style="margin-top:22px">📖 جزئیات اسناد</div>';
         for (var j = 0; j < keys.length; j++) {
@@ -444,7 +480,12 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* =====================================================================
-   ============ گزارش مقایسه‌ای (جدید) ============
+   ============ گزارش مقایسه‌ای
+   ★ تغییرات:
+   - تاریخ‌های پیش‌فرض خالی
+   - نوع پیش‌فرض = موقت (temporary)
+   - سطح پیش‌فرض = کل (level 2)
+   - درصد افت/رشد منفی داخل پرانتز قرمز
    ===================================================================== */
 function runComparisonReport() {
     var p1 = { from: normalizeDigits(document.getElementById('rc-from1').value.trim()),
@@ -454,7 +495,7 @@ function runComparisonReport() {
     var vtype  = document.getElementById('rc-vtype').value;
     var cat    = document.getElementById('rc-cat').value;
     var nature = document.getElementById('rc-nature').value;
-    var level  = Number(document.getElementById('rc-level').value) || 3;
+    var level  = Number(document.getElementById('rc-level').value) || 2;
     var hide   = getHideState('rc');
 
     if (!p1.from || !p1.to || !p2.from || !p2.to) { alert('هر چهار تاریخ اجباری است.'); return; }
@@ -503,22 +544,35 @@ function runComparisonReport() {
         var diff = row.net2 - row.net1;
         var pct = row.net1 !== 0 ? (diff / Math.abs(row.net1) * 100) : (row.net2 !== 0 ? 100 : 0);
         var pctCls = pct > 0 ? 'cr' : (pct < 0 ? 'dr' : '');
-        var pctSign = pct > 0 ? '▲ +' : (pct < 0 ? '▼ ' : '');
+        var pctText;
+        if (pct < 0) {
+            pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
+        } else if (pct > 0) {
+            pctText = '▲ +' + toFa(pct.toFixed(2)) + '٪';
+        } else {
+            pctText = '۰.۰۰٪';
+        }
         var lN = row.level === 1 ? 'گروه' : (row.level === 2 ? 'کل' : (row.level === 3 ? 'معین' : 'تفصیلی'));
         html += '<tr><td>' + esc(row.name) + '</td><td>' + lN + '</td>'
             + '<td class="num">' + (hide ? '—' : moneyHtml(row.net1)) + '</td>'
             + '<td class="num">' + (hide ? '—' : moneyHtml(row.net2)) + '</td>'
-            + '<td class="num ' + pctCls + '" style="font-weight:800">' + (hide ? '—' : pctSign + toFa(Math.abs(pct).toFixed(2)) + '٪') + '</td></tr>';
+            + '<td class="num ' + pctCls + '" style="font-weight:800">' + (hide ? '—' : pctText) + '</td></tr>';
     }
-    // ردیف جمع کل
     var tDiff = t2 - t1;
     var tPct = t1 !== 0 ? (tDiff / Math.abs(t1) * 100) : (t2 !== 0 ? 100 : 0);
     var tPctCls = tPct > 0 ? 'cr' : (tPct < 0 ? 'dr' : '');
-    var tPctSign = tPct > 0 ? '▲ +' : (tPct < 0 ? '▼ ' : '');
+    var tPctText;
+    if (tPct < 0) {
+        tPctText = '(' + toFa(Math.abs(tPct).toFixed(2)) + '٪)';
+    } else if (tPct > 0) {
+        tPctText = '▲ +' + toFa(tPct.toFixed(2)) + '٪';
+    } else {
+        tPctText = '۰.۰۰٪';
+    }
     html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>'
         + '<td class="num">' + (hide ? '—' : moneyHtml(t1)) + '</td>'
         + '<td class="num">' + (hide ? '—' : moneyHtml(t2)) + '</td>'
-        + '<td class="num ' + tPctCls + '" style="font-weight:800">' + (hide ? '—' : tPctSign + toFa(Math.abs(tPct).toFixed(2)) + '٪') + '</td></tr></tfoot></table></div>';
+        + '<td class="num ' + tPctCls + '" style="font-weight:800">' + (hide ? '—' : tPctText) + '</td></tr></tfoot></table></div>';
 
     document.getElementById('rc-result').innerHTML = html;
     document.getElementById('rc-count').textContent = toFa(rows.length);
@@ -585,7 +639,10 @@ function openAccountTurnover(accountId, detailInfo) {
                 }
             });
             var accLabel = getAccountLabel(l.account, accounts);
-            html += '<tr><td class="num">' + toFa(i + 1) + '</td><td dir="ltr">' + toFa(esc(v.date)) + '</td><td dir="ltr">' + toFa(esc(v.number)) + '</td><td>' + esc(v.desc || '') + '</td><td>' + esc(accLabel) + '</td><td>' + (detailsStr ? esc(detailsStr) : '—') + '</td><td>' + esc(l.description || '') + '</td><td class="num dr">' + (hide ? '—' : (d ? formatMoney(d) : '—')) + '</td><td class="num cr">' + (hide ? '—' : (c ? formatMoney(c) : '—')) + '</td><td class="num" style="font-weight:bold;color:' + (runBal >= 0 ? '#1e9e6a' : '#c0392b') + '">' + (hide ? '—' : formatMoney(runBal)) + '</td></tr>';
+            var balText = runBal < 0
+                ? '<span class="neg-money">(' + formatMoney(Math.abs(runBal)) + ')</span>'
+                : formatMoney(runBal);
+            html += '<tr><td class="num">' + toFa(i + 1) + '</td><td dir="ltr">' + toFa(esc(v.date)) + '</td><td dir="ltr">' + toFa(esc(v.number)) + '</td><td>' + esc(v.desc || '') + '</td><td>' + esc(accLabel) + '</td><td>' + (detailsStr ? esc(detailsStr) : '—') + '</td><td>' + esc(l.description || '') + '</td><td class="num dr">' + (hide ? '—' : (d ? formatMoney(d) : '—')) + '</td><td class="num cr">' + (hide ? '—' : (c ? formatMoney(c) : '—')) + '</td><td class="num" style="font-weight:bold">' + (hide ? '—' : balText) + '</td></tr>';
         }
         html += '</tbody></table></div>';
         body.innerHTML = html;
@@ -645,7 +702,7 @@ function runAccountReport() {
             if (level === 1) lB = '<span class="rt-level-badge l1">گروه</span>';
             else if (level === 2) lB = '<span class="rt-level-badge l2">کل</span>';
             else if (level === 3) lB = '<span class="rt-level-badge l3">معین</span>';
-            var nD = net === 0 ? '۰' : (hide ? '—' : fmtRep(Math.abs(net), 'ra'));
+            var nD = net === 0 ? '۰' : (hide ? '—' : (net < 0 ? '<span class="neg-money">(' + fmtRep(Math.abs(net), 'ra') + ')</span>' : fmtRep(Math.abs(net), 'ra')));
             div.innerHTML = th + '<span class="rt-name">' + esc(node.name) + '</span>' + lB + '<span class="rt-amounts"><span class="amt dr">بدهکار: ' + (hide ? '—' : fmtRep(b.debit, 'ra')) + '</span><span class="amt cr">بستانکار: ' + (hide ? '—' : fmtRep(b.credit, 'ra')) + '</span><span class="amt net">مانده: ' + nD + '</span></span>';
             var tEl = div.querySelector('[data-toggle]');
             if (tEl) tEl.addEventListener('click', function(e) {
@@ -672,7 +729,7 @@ function runAccountReport() {
                 for (var di = 0; di < ds.length; di++) {
                     (function(d) {
                         var dn = d.debit - d.credit;
-                        var dnD = dn === 0 ? '۰' : (hide ? '—' : fmtRep(Math.abs(dn), 'ra'));
+                        var dnD = dn === 0 ? '۰' : (hide ? '—' : (dn < 0 ? '<span class="neg-money">(' + fmtRep(Math.abs(dn), 'ra') + ')</span>' : fmtRep(Math.abs(dn), 'ra')));
                         var dD = document.createElement('div');
                         dD.className = 'rt-node level-4';
                         dD.style.cursor = 'pointer';
@@ -697,7 +754,10 @@ function runAccountReport() {
         for (var i = 0; i < roots.length; i++) renderNode(roots[i], 1, container);
         var footer = document.createElement('div');
         footer.style.cssText = 'margin-top:14px;padding:14px;background:var(--primary-soft);border-radius:14px;font-weight:bold;color:var(--primary-dark);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;border:1px solid var(--primary-light)';
-        var bt = (tD === tC) ? '✓ متوازن' : '⚠️ اختلاف: ' + (hide ? '—' : fmtRep(Math.abs(tD - tC), 'ra'));
+        var diff = Math.abs(tD - tC);
+        var bt;
+        if (tD === tC) bt = '✓ متوازن';
+        else bt = '⚠️ اختلاف: ' + (hide ? '—' : (diff < 0 ? fmtRep(diff, 'ra') : fmtRep(diff, 'ra')));
         footer.innerHTML = '<span>جمع بدهکار: ' + (hide ? '—' : fmtRep(tD, 'ra')) + '</span><span>جمع بستانکار: ' + (hide ? '—' : fmtRep(tC, 'ra')) + '</span><span>' + bt + '</span><span>واحد: ' + currencyLabel() + '</span>';
         container.appendChild(footer);
         document.getElementById('ra-count').textContent = toFa(shown);
