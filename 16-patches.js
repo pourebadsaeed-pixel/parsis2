@@ -3,6 +3,7 @@
 
 /* ═══════════════════════════════════════════════════════════════
    بخش ۱ — ردیف سند با تفصیلی ترکیبی
+   ★★★ اصلاح‌شده: استفاده از getLeafAccountsSortedByCode ★★★
    ═══════════════════════════════════════════════════════════════ */
 (function fixCombinedDetailCell() {
     window.renderVoucherLines = function() {
@@ -12,7 +13,10 @@
         if (voucherLines.length === 0) {
             voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
         }
-        var leaves = getLeafAccounts();
+        /* ★★★ اصلاح: مرتب‌سازی حساب‌های معین بر اساس کد ★★★ */
+        var leaves = (typeof getLeafAccountsSortedByCode === 'function')
+            ? getLeafAccountsSortedByCode()
+            : getLeafAccounts();
         var accounts = DB.load('accounts', []);
 
         for (var i = 0; i < voucherLines.length; i++) (function(idx) {
@@ -669,7 +673,6 @@ window.openTimePicker = openTimePicker;
         }
     };
 
-    /* Event Delegation (Capture Phase) به‌عنوان لایه پشتیبان */
     document.addEventListener('click', function(e) {
         var t = e.target;
         if (!t || !t.closest) return;
@@ -692,7 +695,6 @@ window.openTimePicker = openTimePicker;
         }
     }, true);
 
-    /* اجرای دوره‌ای */
     setTimeout(window.attachDatePickers, 300);
     setTimeout(window.attachDatePickers, 1000);
     setTimeout(window.attachDatePickers, 2500);
@@ -1004,7 +1006,6 @@ window.openTimePicker = openTimePicker;
                 fcB.style.color = Math.abs(totalVar) > 1 ? '#dc2626' : '#059669';
                 fcB.innerHTML = hide ? '—' : moneyHtml(totalVar);
                 var refFc = fcs[remIdx];
-                refCell = refFc;
                 if (refFc) {
                     refFc.parentNode.insertBefore(fcA, refFc.nextSibling);
                     refFc.parentNode.insertBefore(fcB, refFc.nextSibling);
@@ -1041,9 +1042,7 @@ window.openTimePicker = openTimePicker;
             ['cfd-from', 'cfd-to'],
             ['ra-from', 'ra-to'],
             ['rt-from', 'rt-to'],
-            ['rff-from', 'rff-to'],
-            ['rc-from1', 'rc-to1'],
-            ['rc-from2', 'rc-to2']
+            ['rff-from', 'rff-to']
         ];
         pairs.forEach(function(pair) {
             var f = document.getElementById(pair[0]);
@@ -1405,4 +1404,4 @@ window.openTimePicker = openTimePicker;
     setInterval(patchAnalyzeButton, 800);
 })();
 
-console.log('✅ پارسیس — 16-patches بارگذاری شد (UI + فیکس‌ها)');
+console.log('✅ پارسیس — 16-patches بارگذاری شد (UI + فیکس‌ها + مرتب‌سازی حساب‌ها)');
