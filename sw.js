@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (کش آفلاین) */
-var CACHE_NAME = 'parsis-v5';
+var CACHE_NAME = 'parsis-v6';
 
 var ASSETS = [
   './index.html',
