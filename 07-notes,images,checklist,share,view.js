@@ -4,6 +4,42 @@
 var noteChecklist = [];
 var noteImageRefs = [];
 
+/* ★ دسته‌بندی‌های یادداشت */
+var NOTE_CATEGORIES = [
+    { key: 'personal', label: 'شخصی',   icon: '⭐', color: '#8b5cf6', bg: '#f3e8ff' },
+    { key: 'family',   label: 'خانواده', icon: '🏠', color: '#ec4899', bg: '#fce7f3' },
+    { key: 'work',     label: 'شغلی',   icon: '💼', color: '#0ea5e9', bg: '#e0f2fe' }
+];
+function getNoteCategoryMeta(key) {
+    for (var i = 0; i < NOTE_CATEGORIES.length; i++) {
+        if (NOTE_CATEGORIES[i].key === key) return NOTE_CATEGORIES[i];
+    }
+    return NOTE_CATEGORIES[0];
+}
+window.getNoteCategoryMeta = getNoteCategoryMeta;
+window.NOTE_CATEGORIES = NOTE_CATEGORIES;
+
+/* =====================================================================
+   ★ Migration: افزودن category به یادداشت‌های قدیمی
+   ===================================================================== */
+(function migrateNoteCategories() {
+    try {
+        var notes = DB.load('notes', []);
+        if (!Array.isArray(notes) || notes.length === 0) return;
+        var changed = false;
+        notes.forEach(function(n) {
+            if (typeof n.category === 'undefined' || !n.category) {
+                n.category = 'personal';
+                changed = true;
+            }
+        });
+        if (changed) {
+            DB.save('notes', notes);
+            console.log('✅ یادداشت‌های قدیمی به دسته «شخصی» منتقل شدند');
+        }
+    } catch(e) { console.warn('migrateNoteCategories:', e); }
+})();
+
 /* ==================== IndexedDB برای فایل‌های تصویر ==================== */
 var _noteImageDB = {
     _db: null,
@@ -270,6 +306,9 @@ function clearNoteForm() {
     document.getElementById('nt-title').value = '';
     document.getElementById('nt-date').value = todayJalaliStr();
     document.getElementById('nt-content').value = '';
+    /* ★ پاک کردن دسته و برگشت به پیش‌فرض «شخصی» */
+    var catEl = document.getElementById('nt-category');
+    if (catEl) catEl.value = 'personal';
     noteChecklist = [];
     renderNoteChecklist();
     noteImageRefs = [];
@@ -281,6 +320,9 @@ function saveNote() {
     if (!title) { alert('عنوان اجباری است.'); return; }
     var date = normalizeDigits(document.getElementById('nt-date').value.trim());
     var content = document.getElementById('nt-content').value;
+    /* ★ خواندن دسته */
+    var categoryEl = document.getElementById('nt-category');
+    var category = categoryEl ? (categoryEl.value || 'personal') : 'personal';
     var checklist = noteChecklist.filter(function(c) { return c.text && c.text.trim(); });
     var existing = id ? DB.load('notes', []).find(function(x) { return x.id === id; }) : null;
     var note = {
@@ -288,6 +330,8 @@ function saveNote() {
         title: title,
         date: date,
         content: content,
+        /* ★ ذخیره دسته */
+        category: category,
         checklist: checklist,
         imageRefs: noteImageRefs.slice(),
         archived: existing ? !!existing.archived : false,
@@ -303,7 +347,7 @@ function saveNote() {
     document.querySelector('[data-tab="notes-list"]').click();
 }
 
-/* ==================== Notes list ==================== */
+/* ==================== Notes list (با دسته‌بندی) ==================== */
 function renderNotesList() {
     var list = DB.load('notes', []);
     var filter = (document.getElementById('notes-filter').value || '').toLowerCase();
@@ -311,6 +355,11 @@ function renderNotesList() {
     if (!box) return;
     box.innerHTML = '';
     var view = state.notesView || 'all';
+
+    /* ★ فیلتر دسته */
+    var catFilterEl = document.getElementById('notes-cat-filter');
+    var catFilter = catFilterEl ? (catFilterEl.value || '') : '';
+
     var tabs = document.querySelectorAll('[data-notes-view]');
     for (var ti = 0; ti < tabs.length; ti++) {
         tabs[ti].classList.toggle('active', tabs[ti].getAttribute('data-notes-view') === view);
@@ -320,14 +369,24 @@ function renderNotesList() {
     list.forEach(function(n) {
         if (view === 'archived' && !n.archived) return;
         if (view === 'all' && n.archived) return;
+
+        /* ★ فیلتر بر اساس دسته */
+        var noteCat = n.category || 'personal';
+        if (catFilter && noteCat !== catFilter) return;
+
         var txt = ((n.title || '') + ' ' + (n.content || '')).toLowerCase();
         if (filter && txt.indexOf(filter) === -1) return;
         shown++;
+
+        var catMeta = getNoteCategoryMeta(noteCat);
+        var catBadge = '<span class="note-cat-badge" style="background:' + catMeta.bg + ';color:' + catMeta.color + ';border:1px solid ' + catMeta.color + '40">' + catMeta.icon + ' ' + catMeta.label + '</span>';
+
         var row = document.createElement('div');
         row.className = 'note-compact-row' + (n.archived ? ' archived' : '');
         var archBadge = n.archived ? '<span class="nc-badge">📦 آرشیو</span>' : '';
         row.innerHTML = '<span style="font-size:1.1rem">📔</span>' +
             '<span class="nc-title">' + esc(n.title || 'بدون عنوان') + '</span>' +
+            catBadge +
             archBadge +
             '<span class="nc-date">' + toFa(esc(n.date || '—')) + '</span>' +
             '<span class="nc-actions">' +
@@ -359,6 +418,9 @@ function renderNotesList() {
         document.getElementById('nt-title').value = n.title || '';
         document.getElementById('nt-date').value = n.date || '';
         document.getElementById('nt-content').value = n.content || '';
+        /* ★ پر کردن دسته */
+        var catEl = document.getElementById('nt-category');
+        if (catEl) catEl.value = n.category || 'personal';
         noteChecklist = JSON.parse(JSON.stringify(n.checklist || []));
         noteImageRefs = (n.imageRefs || []).slice();
         renderNoteChecklist();
@@ -392,8 +454,14 @@ async function openNoteView(noteId) {
     if (!n) { showToast('یادداشت یافت نشد.'); return; }
     document.getElementById('noteview-title').textContent = '📔 ' + (n.title || 'یادداشت');
     var body = document.getElementById('noteview-body');
+    var noteCat = n.category || 'personal';
+    var catMeta = getNoteCategoryMeta(noteCat);
+
     var html = '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">' +
-        '<div><b>📅 ' + toFa(esc(n.date || '—')) + '</b></div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        '<b>📅 ' + toFa(esc(n.date || '—')) + '</b>' +
+        '<span class="note-cat-badge" style="background:' + catMeta.bg + ';color:' + catMeta.color + ';border:1px solid ' + catMeta.color + '40">' + catMeta.icon + ' ' + catMeta.label + '</span>' +
+        '</div>' +
         (n.archived ? '<span class="badge badge-archived">📦 آرشیو شده</span>' : '') + '</div>';
     if (n.content) {
         html += '<div style="background:var(--card-alt);padding:14px;border-radius:12px;font-size:0.9rem;white-space:pre-wrap;line-height:2;margin-bottom:14px;border:1px solid var(--border)">' + esc(n.content) + '</div>';
@@ -433,7 +501,6 @@ async function openNoteView(noteId) {
         closeNoteView();
         showToast(l.find(function(x) { return x.id === n.id; }).archived ? '📦 به آرشیو رفت' : '↩ از آرشیو خارج شد');
     };
-    /* ★ اصلاح‌شده طبق درخواست ۶: ویرایش از ویجت چک‌لیست به فرم می‌رود */
     document.getElementById('noteview-edit').onclick = function() {
         closeNoteView();
         goToPage('notes');
@@ -444,6 +511,9 @@ async function openNoteView(noteId) {
             document.getElementById('nt-title').value = note.title || '';
             document.getElementById('nt-date').value = note.date || '';
             document.getElementById('nt-content').value = note.content || '';
+            /* ★ پر کردن دسته */
+            var catEl = document.getElementById('nt-category');
+            if (catEl) catEl.value = note.category || 'personal';
             noteChecklist = JSON.parse(JSON.stringify(note.checklist || []));
             noteImageRefs = (note.imageRefs || []).slice();
             renderNoteChecklist();
@@ -455,7 +525,10 @@ async function openNoteView(noteId) {
     document.getElementById('noteview-share').onclick = function() {
         var list = (n.checklist || []).filter(function(c) { return c.text && c.text.trim(); });
         if (list.length === 0) { showToast('چک‌لیستی وجود ندارد.'); return; }
-        var text = '📔 ' + (n.title || 'یادداشت') + '\n📅 ' + toFa(n.date || '') + '\n\n' +
+        var catMeta2 = getNoteCategoryMeta(n.category || 'personal');
+        var text = '📔 ' + (n.title || 'یادداشت') + '\n' +
+            catMeta2.icon + ' ' + catMeta2.label + '\n' +
+            '📅 ' + toFa(n.date || '') + '\n\n' +
             list.map(function(c) { return (c.done ? '✅' : '⬜') + ' ' + c.text; }).join('\n');
         if (navigator.share) navigator.share({ title: n.title || 'یادداشت', text: text }).catch(function(){});
         else navigator.clipboard.writeText(text).then(function() { showToast('📋 متن کپی شد.'); }).catch(function() { alert(text); });
@@ -514,7 +587,10 @@ async function openNoteView(noteId) {
         var selected = updateShareState();
         if (selected.length === 0) return;
         var items = selected.map(function(i) { return n.checklist[i]; }).filter(Boolean);
-        var text = '📔 ' + (n.title || 'یادداشت') + '\n📅 ' + toFa(n.date || '') + '\n\n' +
+        var catMeta3 = getNoteCategoryMeta(n.category || 'personal');
+        var text = '📔 ' + (n.title || 'یادداشت') + '\n' +
+            catMeta3.icon + ' ' + catMeta3.label + '\n' +
+            '📅 ' + toFa(n.date || '') + '\n\n' +
             items.map(function(c, i) { return (i+1) + '. ' + (c.done ? '✅' : '⬜') + ' ' + c.text; }).join('\n');
         if (navigator.share) navigator.share({ title: n.title || 'یادداشت', text: text }).catch(function(){});
         else navigator.clipboard.writeText(text).then(function() { showToast('📋 متن کپی شد.'); }).catch(function() { alert(text); });
