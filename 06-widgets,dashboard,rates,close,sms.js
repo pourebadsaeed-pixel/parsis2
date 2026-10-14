@@ -12,6 +12,15 @@ var CHECKLIST_CATEGORIES = [
     { key: 'work',     label: 'شغلی',  emoji: '💼', widget: 'todayChecklistWork',     elId: 'home-today-checklist-work' }
 ];
 
+/* ★ ویجت‌های نمایشی تقویم — سه نمای جدید */
+var CALENDAR_VIEW_WIDGETS = [
+    { key: 'calendarNext3', label: '📅 ۳ روز آتی',  viewType: '3day',   elId: 'home-calendar-next3',   icon: '📅' },
+    { key: 'calendarDay',   label: '📅 روز جاری',   viewType: 'day',    elId: 'home-calendar-day',     icon: '📆' },
+    { key: 'calendarAgenda',label: '📋 دستورکار',   viewType: 'agenda', elId: 'home-calendar-agenda',  icon: '📋' }
+];
+
+var MAX_HOME_PAGES = 4;
+
 /* ==================== Widgets visibility & order ==================== */
 function applyWidgetVisibility() {
     var cards = document.querySelectorAll('.widget-card');
@@ -40,14 +49,50 @@ function renderHomePageDots() {
     var box = document.getElementById('home-page-dots');
     if (!box) return;
     box.innerHTML = '';
-    for (var p = 1; p <= 3; p++) {
+    for (var p = 1; p <= MAX_HOME_PAGES; p++) {
         var d = document.createElement('div');
         d.className = 'home-page-dot' + (p === state.homePage ? ' active' : '');
-        (function(pg) { d.addEventListener('click', function() { state.homePage = pg; saveState('homePage'); applyWidgetVisibility(); }); })(p);
+        (function(pg) {
+            d.addEventListener('click', function() {
+                state.homePage = pg;
+                saveState('homePage');
+                applyWidgetVisibility();
+            });
+        })(p);
         box.appendChild(d);
     }
 }
-function setHomePage(p) { state.homePage = p; saveState('homePage'); applyWidgetVisibility(); }
+
+/* ★ اطمینان از وجود تب صفحه ۴ در HTML */
+function ensurePage4Tab() {
+    var tabsBox = document.getElementById('home-page-tabs');
+    if (!tabsBox) return;
+    if (tabsBox.querySelector('[data-home-page="4"]')) return;
+    var btn = document.createElement('button');
+    btn.className = 'home-page-tab';
+    btn.setAttribute('data-home-page', '4');
+    btn.textContent = 'صفحه ۴';
+    tabsBox.appendChild(btn);
+    btn.addEventListener('click', function() {
+        setHomePage(4);
+    });
+    /* اتصال رویداد به تب‌های قبلی هم دوباره انجام بشه */
+    tabsBox.querySelectorAll('.home-page-tab').forEach(function(t) {
+        if (t.dataset.bound === '1') return;
+        t.dataset.bound = '1';
+        t.addEventListener('click', function() {
+            setHomePage(Number(this.getAttribute('data-home-page')));
+        });
+    });
+}
+
+function setHomePage(p) {
+    if (p < 1 || p > MAX_HOME_PAGES) return;
+    state.homePage = p;
+    saveState('homePage');
+    applyWidgetVisibility();
+}
+
 function applyWidgetOrder() {
     var grid = document.getElementById('home-grid');
     if (!grid) return;
@@ -57,17 +102,23 @@ function applyWidgetOrder() {
         if (card) grid.appendChild(card);
     });
 }
+
 function renderWidgetOrderUI() {
     var box = document.getElementById('widget-order-list');
     if (!box) return;
     var names = {
-        calendar:'📅 تقویم',
-        todayChecklistPersonal:'✅ چک‌لیست شخصی',
+        calendar:'📅 تقویم هفتگی',
+        calendarNext3:'📅 ۳ روز آتی',
+        calendarDay:'📆 روز جاری',
+        calendarAgenda:'📋 دستورکار',
+        todayChecklistPersonal:'⭐ چک‌لیست شخصی',
         todayChecklistFamily:'🏠 چک‌لیست خانواده',
         todayChecklistWork:'💼 چک‌لیست شغلی',
         bankTotal:'🏦 مانده کل بانک',
-        bankBalances:'🏦 مانده حساب‌ها', cashBalances:'💰 صندوق‌ها',
-        upcomingInstallments:'⏰ اقساط ۳ روز آینده', birthdays:'🎂 تولدها',
+        bankBalances:'🏦 مانده حساب‌ها',
+        cashBalances:'💰 صندوق‌ها',
+        upcomingInstallments:'⏰ اقساط ۳ روز آینده',
+        birthdays:'🎂 تولدها',
         liveRates:'💱 نرخ لحظه‌ای ارز و طلا'
     };
     var order = state.widgetOrder || [];
@@ -77,10 +128,15 @@ function renderWidgetOrderUI() {
         row.className = 'widget-order-row';
         var curPage = state.widgetPages[key] || 1;
         var pageSel = '<select class="wo-page" data-widget-page="' + key + '">';
-        for (var p = 1; p <= 3; p++) pageSel += '<option value="' + p + '"' + (curPage === p ? ' selected' : '') + '>صفحه ' + toFa(p) + '</option>';
+        for (var p = 1; p <= MAX_HOME_PAGES; p++) {
+            pageSel += '<option value="' + p + '"' + (curPage === p ? ' selected' : '') + '>صفحه ' + toFa(p) + '</option>';
+        }
         pageSel += '</select>';
         row.innerHTML = '<span class="wo-name">' + (names[key] || key) + '</span>' + pageSel +
-            '<div class="wo-btns"><button class="wo-btn" data-key="' + key + '" data-dir="-1"' + (idx === 0 ? ' disabled' : '') + '>↑</button><button class="wo-btn" data-key="' + key + '" data-dir="1"' + (idx === order.length - 1 ? ' disabled' : '') + '>↓</button></div>';
+            '<div class="wo-btns">' +
+            '<button class="wo-btn" data-key="' + key + '" data-dir="-1"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+            '<button class="wo-btn" data-key="' + key + '" data-dir="1"' + (idx === order.length - 1 ? ' disabled' : '') + '>↓</button>' +
+            '</div>';
         box.appendChild(row);
     });
     box.querySelectorAll('.wo-btn').forEach(function(b) {
@@ -172,7 +228,6 @@ function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
     if (!el) return;
     var banks = DB.load('bankAccounts', []);
-    /* ★ فیلتر بر اساس ستون نمایش */
     banks = banks.filter(isVisibleInDash);
     if (banks.length === 0) { el.innerHTML = '<div class="widget-empty">حساب بانکی برای نمایش ثبت نشده.</div>'; return; }
     banks = banks.slice().sort(function(a, b) {
@@ -214,7 +269,6 @@ function renderCashBalancesWidget() {
     var el = document.getElementById('home-cash-balances');
     if (!el) return;
     var cbs = DB.load('cashBoxes', []);
-    /* ★ فیلتر بر اساس ستون نمایش */
     cbs = cbs.filter(isVisibleInDash);
     if (cbs.length === 0) { el.innerHTML = '<div class="widget-empty">صندوقی برای نمایش نیست.</div>'; return; }
     cbs = cbs.slice().sort(function(a, b) {
@@ -247,7 +301,6 @@ function renderBirthdaysWidget() {
     for (var i = 0; i < persons.length; i++) {
         var p = persons[i];
         if (!p.birth) continue;
-        /* ★ فیلتر بر اساس ستون نمایش */
         if (!isVisibleInDash(p)) continue;
         var info = getBirthdayInfo(p.birth);
         if (!info) continue;
@@ -280,7 +333,6 @@ function updateHomeBankTotal() {
     for (var i = 0; i < banks.length; i++) {
         var b = banks[i];
         if (b.status === 'inactive' || b.active === false) continue;
-        /* ★ فیلتر بر اساس ستون نمایش */
         if (!isVisibleInDash(b)) continue;
         total += getBankBalance(b.id);
     }
@@ -357,7 +409,7 @@ function updateHomeUpcomingInstallments() {
     }
 }
 
-/* ==================== Calendar widget ==================== */
+/* ==================== Calendar widget (هفتگی) ==================== */
 function renderCalendarWidget() {
     var el = document.getElementById('home-cal-widget');
     if (!el) return;
@@ -387,10 +439,382 @@ function renderCalendarWidget() {
 }
 
 /* =====================================================================
+   ★★★ ویجت‌های تقویم — ۳ روز آتی، روز جاری، دستورکار
+   ===================================================================== */
+
+/* ★ ساخت رویدادها برای ویجت (fallback محلی در صورت نبود calBuildAllEvents) */
+function buildWidgetEvents() {
+    /* اگر فایل ۱۴ (تقویم) بارگذاری شده، از آن استفاده کن */
+    if (typeof window.calBuildAllEvents === 'function') {
+        try { return window.calBuildAllEvents() || []; }
+        catch (e) { console.warn('calBuildAllEvents error:', e); }
+    }
+
+    /* Fallback: ساخت محلی از DB */
+    var evs = [];
+    try {
+        DB.load('facilities', []).forEach(function(f) {
+            (f.installments || []).forEach(function(ins, i) {
+                if (!ins.date) return;
+                var t = ins.time || '21:00';
+                evs.push({
+                    id: 'i_' + f.id + '_' + i,
+                    cat: 'installment',
+                    date: ins.date,
+                    time: t,
+                    startDate: ins.date, startTime: t,
+                    title: (ins.status === 'paid' ? '✅ ' : '⏰ ') + 'قسط ' + f.name,
+                    sub: ins.status === 'paid' ? 'پرداخت‌شده' : 'پرداخت‌نشده',
+                    amount: +ins.amount || 0,
+                    ref: f.id,
+                    readonly: true
+                });
+            });
+        });
+    } catch (e) {}
+    try {
+        DB.load('cashFlowSources', []).forEach(function(s) {
+            if (!s.expectedDate) return;
+            var t = s.time || '21:00';
+            var lbl = (typeof getSourceLabel === 'function') ? getSourceLabel(s) : 'دریافتنی';
+            evs.push({
+                id: 's_' + s.id,
+                cat: 'source',
+                date: s.expectedDate,
+                time: t,
+                startDate: s.expectedDate, startTime: t,
+                title: '📥 ' + lbl,
+                sub: s.notes || '',
+                amount: +s.amount || 0,
+                ref: s.id,
+                readonly: true
+            });
+        });
+    } catch (e) {}
+    try {
+        DB.load('calendarUserEvents', []).forEach(function(u) {
+            var startD = u.startDate || u.date;
+            if (!startD) return;
+            var t = u.startTime || u.time || '21:00';
+            evs.push({
+                id: 'u_' + u.id,
+                rawId: u.id,
+                cat: u.cat || 'personal',
+                date: startD,
+                time: t,
+                startDate: startD, startTime: t,
+                endDate: u.endDate || startD,
+                endTime: u.endTime || t,
+                title: u.title || 'رویداد',
+                sub: u.desc || '',
+                desc: u.desc || '',
+                location: u.location || '',
+                persons: u.persons || [],
+                reminder: u.reminder || 0,
+                recurrence: u.recurrence,
+                readonly: false,
+                userEvent: true
+            });
+        });
+    } catch (e) {}
+    return evs;
+}
+
+/* ★ پیدا کردن رویداد از id برای ویرایش */
+function findWidgetEvent(eventId) {
+    if (!eventId) return null;
+    var evs = buildWidgetEvents();
+    return evs.find(function(e) { return e.id === eventId || e.rawId === eventId; }) || null;
+}
+
+/* ★ ناوبری از ویجت به رویداد در تقویم */
+function navigateToCalendarEvent(eventId) {
+    var ev = findWidgetEvent(eventId);
+    /* ۱) برو به صفحه تقویم */
+    if (typeof goToPage === 'function') goToPage('jalali-calendar');
+
+    setTimeout(function() {
+        /* ۲) اگر رویداد کاربری است، مودال ویرایش باز شود */
+        if (ev && ev.userEvent && typeof window.openEventModal41 === 'function') {
+            /* تنظیم cursor روی تاریخ رویداد */
+            if (typeof window.CAL41 !== 'undefined' && ev.date) {
+                var p = ev.date.split('/').map(Number);
+                if (p.length === 3) {
+                    window.CAL41.cursor = { y: p[0], m: p[1], d: p[2] };
+                }
+            }
+            /* پیدا کردن نسخه کامل raw برای ویرایش */
+            var rawList = (typeof calLoadUserEvents === 'function')
+                ? calLoadUserEvents()
+                : DB.load('calendarUserEvents', []);
+            var raw = rawList.find(function(x) { return x.id === ev.rawId; });
+            if (raw) {
+                var fullEv = {
+                    id: raw.id, rawId: raw.id, cat: raw.cat,
+                    startDate: raw.startDate || raw.date,
+                    startTime: raw.startTime || raw.time || '21:00',
+                    endDate: raw.endDate || raw.startDate || raw.date,
+                    endTime: raw.endTime || raw.startTime || raw.time || '21:00',
+                    title: raw.title, desc: raw.desc, location: raw.location,
+                    persons: raw.persons || [], reminder: raw.reminder || 0,
+                    recurrence: raw.recurrence
+                };
+                window.openEventModal41(fullEv, null);
+                return;
+            }
+        }
+        /* ۳) اگر رویداد سیستمی است، به صفحه مرتبط برود */
+        if (ev && ev.cat === 'installment') {
+            goToPage('facilities');
+        } else if (ev && ev.cat === 'source') {
+            goToPage('cashflow-sources');
+        } else if (ev && ev.date) {
+            /* فقط برو به آن تاریخ در تقویم */
+            if (typeof calRender === 'function') {
+                var p2 = ev.date.split('/').map(Number);
+                if (window.CAL41 && p2.length === 3) {
+                    window.CAL41.cursor = { y: p2[0], m: p2[1], d: p2[2] };
+                }
+                calRender();
+            }
+        }
+    }, 200);
+}
+window.navigateToCalendarEvent = navigateToCalendarEvent;
+
+/* ★ لیست ۳ روز آتی */
+function getNext3DaysList() {
+    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+    var out = [];
+    for (var i = 0; i < 3; i++) {
+        out.push(addJalaliDays(todayStr, i));
+    }
+    return out;
+}
+
+/* ★ رندر ویجت ۳ روز آتی */
+function renderCalendarNext3Widget() {
+    var meta = CALENDAR_VIEW_WIDGETS.find(function(w) { return w.key === 'calendarNext3'; });
+    if (!meta) return;
+    var el = document.getElementById(meta.elId);
+    if (!el) return;
+
+    var dates = getNext3DaysList();
+    var events = buildWidgetEvents();
+    var byDate = {};
+    events.forEach(function(e) {
+        var d = e.startDate || e.date;
+        if (!byDate[d]) byDate[d] = [];
+        byDate[d].push(e);
+    });
+    Object.keys(byDate).forEach(function(d) {
+        byDate[d].sort(function(a, b) {
+            return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
+        });
+    });
+
+    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+
+    var html = '';
+    var total = 0;
+
+    dates.forEach(function(ds, dayIdx) {
+        var evs = byDate[ds] || [];
+        if (evs.length === 0 && dayIdx > 0) return; /* فقط روز جاری حتی اگر خالی نمایش داده شود */
+
+        var p = ds.split('/').map(Number);
+        var gd = jalaliToGregorian(p[0], p[1], p[2]);
+        var dt = new Date(gd[0], gd[1] - 1, gd[2]);
+        var dowName = WEEKDAYS_FA[dt.getDay()];
+        var isToday = ds === todayStr;
+        var dayLabel = isToday ? 'امروز' : (dayIdx === 1 ? 'فردا' : 'پس‌فردا');
+        var headBg = isToday ? 'linear-gradient(135deg,#dbeafe,#bfdbfe)' : 'var(--card-alt)';
+        var headColor = isToday ? '#1e40af' : 'var(--primary-dark)';
+
+        html += '<div style="margin-bottom:10px;border-radius:12px;border:1px solid var(--border);overflow:hidden">'
+            +   '<div style="padding:8px 12px;background:' + headBg + ';display:flex;justify-content:space-between;align-items:center">'
+            +     '<span style="font-weight:900;font-size:0.82rem;color:' + headColor + '">' + dayLabel + ' — ' + dowName + '</span>'
+            +     '<span style="font-size:0.72rem;color:var(--text-muted);direction:ltr">' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1]-1] + '</span>'
+            +   '</div>';
+
+        if (evs.length === 0) {
+            html += '<div style="padding:10px 12px;font-size:0.75rem;color:var(--text-muted);text-align:center">رویدادی نیست</div>';
+        } else {
+            evs.forEach(function(e) {
+                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1', icon: '📌' };
+                var t = e.time || e.startTime || '';
+                html += '<div class="balance-row cal-widget-event" data-ev-id="' + esc(e.id) + '" '
+                    +  'style="cursor:pointer;border-radius:0;border:none;border-bottom:1px solid var(--border);margin:0;padding:9px 12px">'
+                    +   '<div style="flex:1;min-width:0">'
+                    +     '<div style="font-weight:700;font-size:0.82rem;display:flex;align-items:center;gap:6px">'
+                    +       '<span style="width:8px;height:8px;border-radius:2px;background:' + cat.color + ';flex-shrink:0"></span>'
+                    +       esc(e.title)
+                    +     '</div>'
+                    +     (e.location ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">📍 ' + esc(e.location) + '</div>' : '')
+                    +   '</div>'
+                    +   (t ? '<span style="font-size:0.72rem;color:var(--primary-dark);font-weight:800;direction:ltr;font-family:monospace;flex-shrink:0">' + toFa(t) + '</span>' : '')
+                    + '</div>';
+                total++;
+            });
+        }
+        html += '</div>';
+    });
+
+    if (total === 0) {
+        html = '<div class="widget-empty">📅 در ۳ روز آتی رویدادی نیست.</div>';
+    }
+    el.innerHTML = html;
+
+    /* ★ اتصال کلیک — ناوبری به تقویم */
+    el.querySelectorAll('.cal-widget-event').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var evId = this.getAttribute('data-ev-id');
+            if (evId) navigateToCalendarEvent(evId);
+        });
+    });
+}
+
+/* ★ رندر ویجت روز جاری */
+function renderCalendarDayWidget() {
+    var meta = CALENDAR_VIEW_WIDGETS.find(function(w) { return w.key === 'calendarDay'; });
+    if (!meta) return;
+    var el = document.getElementById(meta.elId);
+    if (!el) return;
+
+    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+
+    var events = buildWidgetEvents();
+    var dayEvs = events.filter(function(e) {
+        var d = e.startDate || e.date;
+        return d === todayStr;
+    }).sort(function(a, b) {
+        return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
+    });
+
+    var gd = jalaliToGregorian(today[0], today[1], today[2]);
+    var dt = new Date(gd[0], gd[1] - 1, gd[2]);
+    var enMon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
+
+    var html = '<div style="padding:8px 12px;background:var(--primary-soft);border-radius:10px;margin-bottom:10px;text-align:center">'
+        +   '<div style="font-weight:900;font-size:0.85rem;color:var(--primary-dark)">'
+        +     WEEKDAYS_FA[dt.getDay()] + '، ' + toFa(today[2]) + ' ' + JALALI_MONTHS[today[1]-1] + ' ' + toFa(today[0])
+        +   '</div>'
+        +   '<div style="font-size:0.7rem;color:var(--text-muted);direction:ltr;margin-top:2px">' + dt.getDate() + ' ' + enMon + ' ' + dt.getFullYear() + '</div>'
+        + '</div>';
+
+    if (dayEvs.length === 0) {
+        html += '<div class="widget-empty" style="padding:14px">📆 امروز رویدادی ثبت نشده.</div>';
+    } else {
+        dayEvs.forEach(function(e) {
+            var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1', icon: '📌' };
+            var t = e.time || e.startTime || '';
+            html += '<div class="balance-row cal-widget-event" data-ev-id="' + esc(e.id) + '" '
+                +  'style="cursor:pointer;margin-bottom:6px;padding:9px 12px">'
+                +   '<div style="flex:1;min-width:0">'
+                +     '<div style="font-weight:700;font-size:0.82rem;display:flex;align-items:center;gap:6px">'
+                +       '<span style="width:8px;height:8px;border-radius:2px;background:' + cat.color + ';flex-shrink:0"></span>'
+                +       esc(e.title)
+                +     '</div>'
+                +     (e.location ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">📍 ' + esc(e.location) + '</div>' : '')
+                +   '</div>'
+                +   (t ? '<span style="font-size:0.72rem;color:var(--primary-dark);font-weight:800;direction:ltr;font-family:monospace;flex-shrink:0">' + toFa(t) + '</span>' : '')
+                + '</div>';
+        });
+    }
+
+    el.innerHTML = html;
+    el.querySelectorAll('.cal-widget-event').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var evId = this.getAttribute('data-ev-id');
+            if (evId) navigateToCalendarEvent(evId);
+        });
+    });
+}
+
+/* ★ رندر ویجت دستورکار (رویدادهای پیش‌رو) */
+function renderCalendarAgendaWidget() {
+    var meta = CALENDAR_VIEW_WIDGETS.find(function(w) { return w.key === 'calendarAgenda'; });
+    if (!meta) return;
+    var el = document.getElementById(meta.elId);
+    if (!el) return;
+
+    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+
+    var events = buildWidgetEvents().filter(function(e) {
+        var d = e.startDate || e.date;
+        return d >= todayStr;
+    });
+
+    events.sort(function(a, b) {
+        var da = a.startDate || a.date, db = b.startDate || b.date;
+        var c = da.localeCompare(db);
+        if (c !== 0) return c;
+        return (a.startTime || a.time || '').localeCompare(b.startTime || b.time || '');
+    });
+
+    /* حذف تکراری‌ها بر اساس id */
+    var seen = {};
+    var unique = [];
+    events.forEach(function(e) {
+        var uid2 = e.id || (e.rawId + '_' + e.date);
+        if (seen[uid2]) return;
+        seen[uid2] = true;
+        unique.push(e);
+    });
+    unique = unique.slice(0, 15);
+
+    if (unique.length === 0) {
+        el.innerHTML = '<div class="widget-empty">📋 رویداد پیش‌رویی ثبت نشده.</div>';
+        return;
+    }
+
+    var html = '';
+    unique.forEach(function(e) {
+        var d = e.startDate || e.date;
+        var p = d.split('/').map(Number);
+        var gd = jalaliToGregorian(p[0], p[1], p[2]);
+        var dt = new Date(gd[0], gd[1] - 1, gd[2]);
+        var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1', icon: '📌' };
+        var t = e.time || e.startTime || '';
+        var dLeft = jalaliDiff(today[0], today[1], today[2], p[0], p[1], p[2]);
+        var dLeftTxt = dLeft === 0 ? 'امروز' : (dLeft === 1 ? 'فردا' : toFa(dLeft) + ' روز دیگر');
+
+        html += '<div class="balance-row cal-widget-event" data-ev-id="' + esc(e.id) + '" '
+            +  'style="cursor:pointer;margin-bottom:6px;padding:9px 12px">'
+            +   '<div style="flex:1;min-width:0">'
+            +     '<div style="font-weight:700;font-size:0.82rem;display:flex;align-items:center;gap:6px">'
+            +       '<span style="width:8px;height:8px;border-radius:2px;background:' + cat.color + ';flex-shrink:0"></span>'
+            +       esc(e.title)
+            +     '</div>'
+            +     '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">'
+            +       WEEKDAYS_FA[dt.getDay()] + ' ' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1]-1]
+            +       ' — <b style="color:var(--primary-dark)">' + dLeftTxt + '</b>'
+            +     '</div>'
+            +   '</div>'
+            +   (t ? '<span style="font-size:0.72rem;color:var(--primary-dark);font-weight:800;direction:ltr;font-family:monospace;flex-shrink:0">' + toFa(t) + '</span>' : '')
+            + '</div>';
+    });
+
+    el.innerHTML = html;
+    el.querySelectorAll('.cal-widget-event').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var evId = this.getAttribute('data-ev-id');
+            if (evId) navigateToCalendarEvent(evId);
+        });
+    });
+}
+
+/* =====================================================================
    ★★★ چک‌لیست‌ها — سه ویجت مستقل بر اساس دسته‌بندی یادداشت ★★★
    ===================================================================== */
 function renderTodayChecklistWidget(category) {
-    /* ★ گرفتن elementId و دسته از پارامتر */
     var meta = null;
     for (var ci = 0; ci < CHECKLIST_CATEGORIES.length; ci++) {
         if (CHECKLIST_CATEGORIES[ci].key === category) { meta = CHECKLIST_CATEGORIES[ci]; break; }
@@ -404,7 +828,6 @@ function renderTodayChecklistWidget(category) {
     var allItems = [];
     notes.forEach(function(n) {
         if (n.archived) return;
-        /* ★ فیلتر بر اساس دسته */
         var noteCat = n.category || 'personal';
         if (noteCat !== category) return;
         (n.checklist || []).forEach(function(c) {
@@ -468,7 +891,14 @@ function renderTodayChecklistWidget(category) {
 function updateHomeWidgets() {
     applyWidgetOrder();
     applyWidgetVisibility();
+
+    /* ★ تقویم هفتگی */
     if (state.widgets.calendar) renderCalendarWidget();
+
+    /* ★ ۳ ویجت جدید تقویم */
+    if (state.widgets.calendarNext3)  renderCalendarNext3Widget();
+    if (state.widgets.calendarDay)    renderCalendarDayWidget();
+    if (state.widgets.calendarAgenda) renderCalendarAgendaWidget();
 
     /* ★ سه چک‌لیست مستقل */
     if (state.widgets.todayChecklistPersonal) renderTodayChecklistWidget('personal');
@@ -1032,7 +1462,6 @@ function renderDashboardContents() {
     });
     if (document.getElementById('dash-expense-donut')) renderDonutChart('dash-expense-donut', expByGroup, 'هزینه', hide);
 
-    /* ★ دارایی‌ها با فیلتر showInDash */
     var assets = {};
     banks.forEach(function(b) {
         if (!isVisibleInDash(b)) return;
@@ -1158,7 +1587,6 @@ function renderDashboardContents() {
         });
         var arr = Object.keys(stats).map(function(pid) {
             var p = persons.find(function(x) { return x.id === pid; });
-            /* ★ فیلتر بر اساس ستون نمایش */
             if (p && !isVisibleInDash(p)) return null;
             return { id: pid, name: p ? (p.first || '') + ' ' + (p.last || '') : pid, count: stats[pid].count, total: stats[pid].total };
         }).filter(Boolean).sort(function(a, b) { return b.total - a.total; }).slice(0, 10);
@@ -2340,7 +2768,6 @@ window.readClipboardAndAdd = function (auto) {
 
 /* =====================================================================
    ============ بخش P: مودال مدیریت الگوها + ویرایش
-   ★★★ رفع مشکل ویرایش: افزودن کلاس show ★★★
    ===================================================================== */
 function ensureSmsPatternsModal() {
     if (document.getElementById('sms-patterns-modal')) return;
@@ -2469,7 +2896,6 @@ function renderSmsPatternsManagerBody() {
 }
 window.renderSmsPatternsManagerBody = renderSmsPatternsManagerBody;
 
-/* ★★★ رفع مشکل ویرایش الگو: افزودن کلاس show به overlay و modal ★★★ */
 function openEditSmsPattern(patternId) {
     try {
         var patterns = loadSmsPatterns();
@@ -2491,7 +2917,6 @@ function openEditSmsPattern(patternId) {
         var dirOut = p.direction === 'out' ? 'checked' : '';
         var preview = (p.tokens || []).join(' ');
 
-        /* ★★★ توجه: کلاس show اضافه شد تا مودال دیده شود ★★★ */
         var html = ''
             + '<div id="sms-edit-overlay" class="overlay show" style="z-index:1400"></div>'
             + '<div id="sms-edit-modal" class="modal show" style="max-width:560px;z-index:1410">'
@@ -2727,52 +3152,63 @@ function initSmsPatternSystem() {
 })();
 
 /* =====================================================================
-   ★ Migration: تبدیل todayChecklist قدیمی به ۳ دسته
+   ★ Migration: تبدیل todayChecklist قدیمی + افزودن ویجت‌های تقویم + صفحه ۴
    ===================================================================== */
-(function migrateChecklistWidgets() {
+(function migrateWidgetsV3() {
     try {
+        /* ۱) تبدیل todayChecklist قدیمی به ۳ دسته */
         var w = DB.load('widgets', null);
-        if (!w) return;
-        /* اگر todayChecklist قدیمی وجود داشت */
-        if (typeof w.todayChecklist !== 'undefined' && typeof w.todayChecklistPersonal === 'undefined') {
-            var oldVal = !!w.todayChecklist;
-            w.todayChecklistPersonal = oldVal;
-            w.todayChecklistFamily   = oldVal;
-            w.todayChecklistWork     = oldVal;
+        if (w) {
+            if (typeof w.todayChecklist !== 'undefined' && typeof w.todayChecklistPersonal === 'undefined') {
+                var oldVal = !!w.todayChecklist;
+                w.todayChecklistPersonal = oldVal;
+                w.todayChecklistFamily   = oldVal;
+                w.todayChecklistWork     = oldVal;
+                delete w.todayChecklist;
+            }
+            /* ★ افزودن ۳ ویجت جدید تقویم (پیش‌فرض: خاموش) */
+            var newCalWidgets = ['calendarNext3', 'calendarDay', 'calendarAgenda'];
+            newCalWidgets.forEach(function(k) {
+                if (typeof w[k] === 'undefined') {
+                    w[k] = false; /* پیش‌فرض خاموش */
+                }
+            });
+            /* ۳ چک‌لیست */
+            var allCheckCats = ['todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork'];
+            allCheckCats.forEach(function(k) {
+                if (typeof w[k] === 'undefined') w[k] = true;
+            });
             delete w.todayChecklist;
             DB.save('widgets', w);
-            /* به‌روزرسانی state */
             state.widgets = w;
         }
-        /* افزودن ۳ دسته چک‌لیست اگر نبود */
-        var allCheckCats = ['todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork'];
-        var changed = false;
-        allCheckCats.forEach(function(k) {
-            if (typeof state.widgets[k] === 'undefined') {
-                state.widgets[k] = true;
-                changed = true;
-            }
-        });
-        /* حذف کلید قدیمی از state */
-        if (typeof state.widgets.todayChecklist !== 'undefined') {
-            delete state.widgets.todayChecklist;
-            changed = true;
-        }
-        if (changed) DB.save('widgets', state.widgets);
 
-        /* به‌روزرسانی widgetOrder */
+        /* ۲) widgetOrder */
         var order = DB.load('widgetOrder', null);
         if (order && Array.isArray(order)) {
+            /* تبدیل کلید قدیمی */
             var hasOld = order.indexOf('todayChecklist');
             if (hasOld !== -1) {
                 order.splice(hasOld, 1, 'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork');
-                DB.save('widgetOrder', order);
-                state.widgetOrder = order;
             }
-            /* افزودن ۳ دسته اگر نبودند */
+            /* ★ افزودن ۳ ویجت تقویم جدید بعد از 'calendar' */
             var needAdd = false;
-            allCheckCats.forEach(function(k) {
-                if (order.indexOf(k) === -1) { order.push(k); needAdd = true; }
+            var calIdx = order.indexOf('calendar');
+            var newCalKeys = ['calendarNext3', 'calendarDay', 'calendarAgenda'];
+            newCalKeys.slice().reverse().forEach(function(k) {
+                if (order.indexOf(k) === -1) {
+                    if (calIdx !== -1) order.splice(calIdx + 1, 0, k);
+                    else order.push(k);
+                    needAdd = true;
+                }
+            });
+            /* ۳ چک‌لیست */
+            var allCheckCats2 = ['todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork'];
+            allCheckCats2.forEach(function(k) {
+                if (order.indexOf(k) === -1) {
+                    order.push(k);
+                    needAdd = true;
+                }
             });
             if (needAdd) {
                 DB.save('widgetOrder', order);
@@ -2780,10 +3216,11 @@ function initSmsPatternSystem() {
             }
         }
 
-        /* به‌روزرسانی widgetPages */
+        /* ۳) widgetPages */
         var pages = DB.load('widgetPages', null);
         if (pages) {
             var pagesChanged = false;
+            /* تبدیل کلید قدیمی */
             var oldPage = pages.todayChecklist;
             if (typeof oldPage !== 'undefined') {
                 pages.todayChecklistPersonal = oldPage;
@@ -2792,29 +3229,68 @@ function initSmsPatternSystem() {
                 delete pages.todayChecklist;
                 pagesChanged = true;
             }
-            allCheckCats.forEach(function(k) {
+            /* ۳ چک‌لیست */
+            var allCheckCats3 = ['todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork'];
+            allCheckCats3.forEach(function(k) {
                 if (typeof pages[k] === 'undefined') { pages[k] = 1; pagesChanged = true; }
+            });
+            /* ★ ۳ ویجت جدید تقویم — پیش‌فرض صفحه ۴ */
+            var newCalKeys2 = ['calendarNext3', 'calendarDay', 'calendarAgenda'];
+            newCalKeys2.forEach(function(k) {
+                if (typeof pages[k] === 'undefined') {
+                    pages[k] = 4;
+                    pagesChanged = true;
+                }
             });
             if (pagesChanged) {
                 DB.save('widgetPages', pages);
                 state.widgetPages = pages;
             }
         }
-    } catch(e) { console.warn('migrateChecklistWidgets:', e); }
+
+        /* ۴) اطمینان از عدد بودن homePage در بازه درست */
+        var hp = Number(state.homePage || 1);
+        if (hp < 1 || hp > MAX_HOME_PAGES) {
+            state.homePage = 1;
+            saveState('homePage');
+        }
+    } catch(e) { console.warn('migrateWidgetsV3:', e); }
+})();
+
+/* =====================================================================
+   ★ Init: اطمینان از وجود تب صفحه ۴ + بازنشانی homePage
+   ===================================================================== */
+(function initPage4() {
+    function setup() {
+        ensurePage4Tab();
+        /* اطمینان از اتصال رویداد روی تب‌های صفحه */
+        var tabs = document.querySelectorAll('.home-page-tab');
+        tabs.forEach(function(t) {
+            if (t.dataset.bound === '1') return;
+            t.dataset.bound = '1';
+            t.addEventListener('click', function() {
+                setHomePage(Number(this.getAttribute('data-home-page')));
+            });
+        });
+        renderHomePageDots();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(setup, 500); });
+    } else {
+        setTimeout(setup, 500);
+    }
+    /* بازنشانی مجدد در case دیرتر لود شدن */
+    setTimeout(setup, 2500);
 })();
 
 /* =====================================================================
    ★★★ Patch: افزودن ستون «نمایش در ویجت/داشبورد» به لیست‌های اشخاص، بانک و صندوق
    ===================================================================== */
 (function patchShowInDashColumn() {
-    /* ستون نمایش به‌صورت داینامیک به ۳ جدول اضافه می‌شود */
-
     function ensureCheckboxInRow(tr, id, storageKey) {
-        /* بررسی وجود چک‌باکس */
         if (tr.querySelector('[data-show-dash]')) return;
         var cells = tr.querySelectorAll('td');
         if (cells.length < 1) return;
-        /* ستون نمایش — قبل از ستون عملیات اضافه می‌شود */
         var actionCell = cells[cells.length - 1];
         if (!actionCell) return;
         var newCell = document.createElement('td');
