@@ -2,15 +2,28 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>تست فاز ۳</title>
+<title>تست فاز ۴</title>
 </head>
 <body>
-
-<h1>تست فاز ۳ (اطلاعات پایه)</h1>
+<h1>تست فاز ۴ (اسناد)</h1>
 <div id="result"></div>
 
 <header class="topbar"><h1>تاپ‌بار</h1></header>
 <div class="sidebar-search"><input placeholder="جستجو"></div>
+
+<div id="voucher-head-card">
+    <input type="hidden" id="v-id">
+    <input type="hidden" id="v-number">
+    <input type="text" id="v-date" class="date-picker" dir="ltr">
+    <select id="v-type"><option value="general">عمومی</option></select>
+    <input type="text" id="v-desc">
+</div>
+<div id="voucher-lines"></div>
+<div id="v-total-debit">0</div>
+<div id="v-total-credit">0</div>
+<div id="v-balance-status"></div>
+
+<datalist id="std-desc-list"></datalist>
 
 <script src="./js/core/db.js"></script>
 <script src="./js/core/constants.js"></script>
@@ -35,6 +48,7 @@
 <script src="./js/modules/accounts/cashboxes.js"></script>
 <script src="./js/modules/accounts/projects.js"></script>
 <script src="./js/modules/accounts/templates.js"></script>
+<script src="./js/modules/vouchers/form.js"></script>
 
 <script>
 var out = [];
@@ -42,45 +56,30 @@ function log(label, ok, extra) {
     out.push((ok ? '✅' : '❌') + ' ' + label + (extra ? ' → ' + extra : ''));
 }
 try {
-    /* fiscal */
-    log('renderFiscalList',         typeof renderFiscalList === 'function');
-    log('attachRowActions',         typeof attachRowActions === 'function');
+    log('voucherLines',                  typeof voucherLines !== 'undefined');
+    log('renderVoucherLines',            typeof renderVoucherLines === 'function');
+    log('newVoucherForm',                typeof newVoucherForm === 'function');
+    log('persistVoucher',                typeof persistVoucher === 'function');
+    log('loadVoucherForEdit',            typeof loadVoucherForEdit === 'function');
+    log('applyTemplate',                 typeof applyTemplate === 'function');
+    log('saveVoucherAsTemplate',         typeof saveVoucherAsTemplate === 'function');
+    log('bindVoucherForm',               typeof bindVoucherForm === 'function');
+    log('getNextVoucherNumberForPeriod', typeof getNextVoucherNumberForPeriod === 'function');
+    log('validateDateInActivePeriod',    typeof validateDateInActivePeriod === 'function');
+    log('getVoucherIssues',              typeof getVoucherIssues === 'function');
+    log('getVoucherAmount',              typeof getVoucherAmount === 'function');
 
-    /* chart */
-    log('renderChartTree',          typeof renderChartTree === 'function');
-    log('loadDefaultChart',         typeof loadDefaultChart === 'function');
-
-    /* persons */
-    log('renderPersonsList',        typeof renderPersonsList === 'function');
-    log('bindPersonsForm',          typeof bindPersonsForm === 'function');
-
-    /* companies */
-    log('renderCompaniesList',      typeof renderCompaniesList === 'function');
-
-    /* banks */
-    log('renderBankAccountsList',   typeof renderBankAccountsList === 'function');
-    log('refreshBankTypeSelect',    typeof refreshBankTypeSelect === 'function');
-
-    /* cashboxes */
-    log('renderCashBoxesList',      typeof renderCashBoxesList === 'function');
-
-    /* projects */
-    log('renderProjectsList',       typeof renderProjectsList === 'function');
-
-    /* templates */
-    log('getDefaultTemplates',      typeof getDefaultTemplates === 'function');
-    log('renderTemplateList',       typeof renderTemplateList === 'function');
-    log('renderStdDescChips',       typeof renderStdDescChips === 'function');
-    log('refreshTemplateSelect',    typeof refreshTemplateSelect === 'function');
-
-    /* تست عملی */
-    var dt = getDefaultTemplates();
-    log('تعداد الگوهای پیش‌فرض', dt.length === 5, dt.length);
-
-    var ds = getDefaultStdDescriptions();
-    log('تعداد شرح‌های پیش‌فرض', ds.length > 0, ds.length);
-
-    document.getElementById('result').innerHTML = out.join('<br>');
+    setTimeout(function () {
+        try {
+            bindVoucherForm();
+            newVoucherForm();
+            log('اجرای newVoucherForm', true, voucherLines.length + ' ردیف');
+            log('نوار وضعیت ساخته شد', !!document.getElementById('voucher-status-bar'));
+        } catch (e) {
+            log('اجرای newVoucherForm', false, e.message);
+        }
+        document.getElementById('result').innerHTML = out.join('<br>');
+    }, 500);
 } catch (e) {
     document.getElementById('result').innerHTML = out.join('<br>') + '<br>❌ ' + e.message;
 }
