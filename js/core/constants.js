@@ -1,14 +1,12 @@
 /* ============================================================
    پارسیس — ثابت‌های سراسری
    مسیر: js/core/constants.js
-   وابستگی: ندارد
    ============================================================ */
 'use strict';
 
 var APP_NAME    = 'پارسیس';
 var APP_VERSION = '2.0.0';
 
-/* ---------- نام ماه‌ها و روزها ---------- */
 var JALALI_MONTHS = [
     'فروردین', 'اردیبهشت', 'خرداد',
     'تیر', 'مرداد', 'شهریور',
@@ -26,7 +24,6 @@ var WEEKDAYS_FA = [
     'پنجشنبه', 'جمعه', 'شنبه'
 ];
 
-/* ---------- کلیدهای localStorage ---------- */
 var LS_KEYS = {
     THEME:            'theme',
     LANGUAGE:         'language',
@@ -58,7 +55,6 @@ var LS_KEYS = {
     CAL_USER_CATS:    'cal.userCats'
 };
 
-/* ---------- صفحات قابل ناوبری ---------- */
 var NAVIGABLE_PAGES = {
     'home':                 'صفحه اصلی',
     'dashboard':            'داشبورد مالی',
@@ -90,7 +86,6 @@ var NAVIGABLE_PAGES = {
     'jalali-calendar':      'مدیریت تقویم'
 };
 
-/* ---------- عناوین صفحات ---------- */
 var PAGE_TITLES_FA = {
     'home':                 { icon: '🏠', title: 'صفحه اصلی' },
     'language':             { icon: '🌐', title: 'زبان' },
@@ -127,7 +122,6 @@ var PAGE_TITLES_FA = {
     'jalali-calendar':      { icon: '📅', title: 'مدیریت تقویم' }
 };
 
-/* ---------- انواع لینک و برچسب ---------- */
 var LINK_TYPES = ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
 
 var LINK_TYPE_NAMES = {
@@ -139,7 +133,6 @@ var LINK_TYPE_NAMES = {
     facility: 'تسهیلات'
 };
 
-/* ---------- انواع سند ---------- */
 var VOUCHER_TYPES = ['general', 'opening', 'establishment', 'closing', 'final'];
 
 var VOUCHER_TYPE_NAMES = {
@@ -150,44 +143,40 @@ var VOUCHER_TYPE_NAMES = {
     final:         'اختتامیه'
 };
 
-/* ---------- دسته‌بندی تسهیلات ---------- */
 var FACILITY_CATEGORIES = {
     facility:  'تسهیلات',
     scheduled: 'زمان‌بندی شده'
 };
 
-/* ---------- دسته‌بندی یادداشت‌ها ---------- */
 var NOTE_CATEGORIES = [
     { key: 'personal', label: 'شخصی',   icon: '⭐', color: '#8b5cf6', bg: '#f3e8ff' },
     { key: 'family',   label: 'خانواده', icon: '🏠', color: '#ec4899', bg: '#fce7f3' },
     { key: 'work',     label: 'شغلی',   icon: '💼', color: '#0ea5e9', bg: '#e0f2fe' }
 ];
 
-/* ---------- دسته‌بندی چک‌لیست صفحه اصلی ---------- */
 var CHECKLIST_CATEGORIES = [
-    { key: 'personal', label: 'شخصی',  emoji: '⭐', widget: 'todayChecklistPersonal', elId: 'home-today-checklist-personal' },
+    { key: 'personal', label: 'شخصی',   emoji: '⭐', widget: 'todayChecklistPersonal', elId: 'home-today-checklist-personal' },
     { key: 'family',   label: 'خانواده', emoji: '🏠', widget: 'todayChecklistFamily',   elId: 'home-today-checklist-family' },
-    { key: 'work',     label: 'شغلی',  emoji: '💼', widget: 'todayChecklistWork',     elId: 'home-today-checklist-work' }
+    { key: 'work',     label: 'شغلی',   emoji: '💼', widget: 'todayChecklistWork',     elId: 'home-today-checklist-work' }
 ];
 
 var MAX_HOME_PAGES = 4;
 
-/* ---------- صادرسازی روی window ---------- */
-window.APP_NAME            = APP_NAME;
-window.APP_VERSION         = APP_VERSION;
-window.JALALI_MONTHS       = JALALI_MONTHS;
-window.GREG_MONTHS         = GREG_MONTHS;
-window.WEEKDAYS_FA         = WEEKDAYS_FA;
-window.LS_KEYS             = LS_KEYS;
-window.NAVIGABLE_PAGES     = NAVIGABLE_PAGES;
-window.PAGE_TITLES_FA      = PAGE_TITLES_FA;
-window.LINK_TYPES          = LINK_TYPES;
-window.LINK_TYPE_NAMES     = LINK_TYPE_NAMES;
-window.VOUCHER_TYPES       = VOUCHER_TYPES;
-window.VOUCHER_TYPE_NAMES  = VOUCHER_TYPE_NAMES;
-window.FACILITY_CATEGORIES = FACILITY_CATEGORIES;
-window.NOTE_CATEGORIES     = NOTE_CATEGORIES;
+window.APP_NAME             = APP_NAME;
+window.APP_VERSION          = APP_VERSION;
+window.JALALI_MONTHS        = JALALI_MONTHS;
+window.GREG_MONTHS          = GREG_MONTHS;
+window.WEEKDAYS_FA          = WEEKDAYS_FA;
+window.LS_KEYS              = LS_KEYS;
+window.NAVIGABLE_PAGES      = NAVIGABLE_PAGES;
+window.PAGE_TITLES_FA       = PAGE_TITLES_FA;
+window.LINK_TYPES           = LINK_TYPES;
+window.LINK_TYPE_NAMES      = LINK_TYPE_NAMES;
+window.VOUCHER_TYPES        = VOUCHER_TYPES;
+window.VOUCHER_TYPE_NAMES   = VOUCHER_TYPE_NAMES;
+window.FACILITY_CATEGORIES  = FACILITY_CATEGORIES;
+window.NOTE_CATEGORIES      = NOTE_CATEGORIES;
 window.CHECKLIST_CATEGORIES = CHECKLIST_CATEGORIES;
-window.MAX_HOME_PAGES      = MAX_HOME_PAGES;
+window.MAX_HOME_PAGES       = MAX_HOME_PAGES;
 
-console.log('✅ [core/constants.js] loaded');
+console.log('✅ [core/constants.js] loaded — LS_KEYS keys:', Object.keys(LS_KEYS).length);
