@@ -1,1 +1,463 @@
+/* ============================================================
+   پارسیس — اشتراک‌گذاری (متن + تصویر)
+   مسیر: js/ui/share.js
+   وابستگی: core/* + ui/toast.js
+   ============================================================ */
+'use strict';
 
+/* ============================================================
+   بخش ۱ — اشتراک‌گذاری متنی
+   ============================================================ */
+function shareAsText(title, text) {
+    var fullText = '📊 ' + title + '\n\n' + text;
+    if (navigator.share) {
+        navigator.share({ title: title, text: fullText }).catch(function () {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullText)
+            .then(function () { showToast('📋 متن گزارش کپی شد.'); })
+            .catch(function () { prompt('متن گزارش:', fullText); });
+    } else {
+        prompt('متن گزارش:', fullText);
+    }
+}
+
+function reportToText(containerEl) {
+    if (!containerEl) return '';
+    var lines = [];
+    var table = containerEl.querySelector('table');
+    if (table) {
+        var trs = table.querySelectorAll('tr');
+        trs.forEach(function (tr) {
+            var cells = tr.querySelectorAll('th, td');
+            var row = [];
+            cells.forEach(function (c) { row.push((c.textContent || '').trim()); });
+            if (row.length) lines.push(row.join(' | '));
+        });
+    } else {
+        lines.push((containerEl.textContent || '').trim());
+    }
+    return lines.join('\n');
+}
+
+/* ============================================================
+   بخش ۲ — بارگذاری html2canvas (به‌صورت lazy)
+   ============================================================ */
+var _html2canvasLoadPromise = null;
+
+function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    if (_html2canvasLoadPromise) return _html2canvasLoadPromise;
+
+    _html2canvasLoadPromise = new Promise(function (resolve, reject) {
+        var urls = [
+            'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+            'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+        ];
+        var idx = 0;
+        function tryNext() {
+            if (idx >= urls.length) {
+                _html2canvasLoadPromise = null;
+                reject(new Error('بارگذاری html2canvas ناموفق بود'));
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[idx++];
+            s.async = true;
+            s.onload = function () {
+                if (window.html2canvas) resolve(window.html2canvas);
+                else tryNext();
+            };
+            s.onerror = function () { tryNext(); };
+            document.head.appendChild(s);
+        }
+        tryNext();
+    });
+    return _html2canvasLoadPromise;
+}
+
+/* ============================================================
+   صادرسازی موقت (بخش ۲ در پیام بعد)
+   ============================================================ */
+window.shareAsText       = shareAsText;
+window.reportToText      = reportToText;
+window.loadHtml2Canvas   = loadHtml2Canvas;
+
+console.log('✅ [ui/share.js part 1] loaded');
+/* ============================================================
+   بخش ۳ — اشتراک‌گذاری به‌صورت تصویر (PNG)
+   ============================================================ */
+
+/* آزادسازی همه محدودیت‌های سرریز/ارتفاع/عرض روی یک المان */
+function unlockElement(el) {
+    if (!el || !el.style) return null;
+    var cs = window.getComputedStyle(el);
+    var saved = { el: el };
+    var changed = false;
+
+    if (cs.maxHeight && cs.maxHeight !== 'none') {
+        saved.maxHeight = el.style.maxHeight;
+        el.style.maxHeight = 'none';
+        changed = true;
+    }
+    if (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') {
+        saved.maxWidth = el.style.maxWidth;
+        el.style.maxWidth = 'none';
+        changed = true;
+    }
+    if (cs.overflow && cs.overflow !== 'visible') {
+        saved.overflow = el.style.overflow;
+        el.style.overflow = 'visible';
+        changed = true;
+    }
+    if (cs.overflowX && cs.overflowX !== 'visible') {
+        saved.overflowX = el.style.overflowX;
+        el.style.overflowX = 'visible';
+        changed = true;
+    }
+    if (cs.overflowY && cs.overflowY !== 'visible') {
+        saved.overflowY = el.style.overflowY;
+        el.style.overflowY = 'visible';
+        changed = true;
+    }
+    return changed ? saved : null;
+}
+
+function restoreElement(s) {
+    if (!s || !s.el || !s.el.style) return;
+    s.el.style.maxHeight = s.maxHeight || '';
+    s.el.style.maxWidth = s.maxWidth || '';
+    s.el.style.overflow = s.overflow || '';
+    s.el.style.overflowX = s.overflowX || '';
+    s.el.style.overflowY = s.overflowY || '';
+}
+
+/* اندازه‌ی واقعی عنصر با همه‌ی فرزندانش */
+function getFullSize(el) {
+    var w = Math.max(el.scrollWidth || 0, el.offsetWidth || 0, el.clientWidth || 0);
+    var h = Math.max(el.scrollHeight || 0, el.offsetHeight || 0, el.clientHeight || 0);
+
+    el.querySelectorAll('*').forEach(function (c) {
+        var cw = Math.max(c.scrollWidth || 0, c.offsetWidth || 0);
+        var ch = c.scrollHeight || 0;
+        var co = c.offsetTop || 0;
+        if (cw > w) w = cw;
+        if (ch + co > h) h = ch + co;
+    });
+    return { width: Math.ceil(w), height: Math.ceil(h) };
+}
+
+/* تابع اصلی اشتراک‌گذاری تصویر */
+async function shareAsImage(el, title, filename) {
+    if (!el) {
+        showToast('محتوایی برای اشتراک نیست.');
+        return;
+    }
+    if (typeof loadHtml2Canvas !== 'function') {
+        showToast('⚠️ کتابخانه یافت نشد');
+        return;
+    }
+
+    showToast('📸 آماده‌سازی تصویر با کیفیت بالا...');
+
+    var h2c;
+    try {
+        h2c = await loadHtml2Canvas();
+    } catch (e) {
+        showToast('⚠️ خطا در بارگذاری کتابخانه');
+        if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
+            shareAsText(title || 'گزارش پارسیس', reportToText(el));
+        }
+        return;
+    }
+
+    /* بازکردن کارت‌های جمع‌شده */
+    var collapsedCards = [];
+    el.querySelectorAll('.card.collapsed').forEach(function (card) {
+        collapsedCards.push(card);
+        card.classList.remove('collapsed');
+        var btn = card.querySelector('.card-collapse-btn');
+        if (btn) btn.classList.remove('collapsed');
+    });
+
+    /* بازکردن همه سرریزها */
+    var savedStyles = [];
+    el.querySelectorAll('*').forEach(function (node) {
+        var cs = window.getComputedStyle(node);
+        var needsUnlock =
+            (cs.maxHeight && cs.maxHeight !== 'none') ||
+            (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') ||
+            (cs.overflow && cs.overflow !== 'visible') ||
+            (cs.overflowX && cs.overflowX !== 'visible') ||
+            (cs.overflowY && cs.overflowY !== 'visible');
+        if (needsUnlock) {
+            var sn = unlockElement(node);
+            if (sn) savedStyles.push(sn);
+        }
+    });
+
+    var rootSaved = {
+        width:    el.style.width,
+        minWidth: el.style.minWidth,
+        maxWidth: el.style.maxWidth,
+        overflow: el.style.overflow,
+        overflowX: el.style.overflowX
+    };
+    el.style.width = 'max-content';
+    el.style.minWidth = 'max-content';
+    el.style.maxWidth = 'none';
+    el.style.overflow = 'visible';
+    el.style.overflowX = 'visible';
+
+    /* مخفی کردن دکمه‌های اضافی */
+    var hiddenNodes = [];
+    var hideSel = '.share-btn,.widget-share-btn,.col-resizer,.col-reset-btn,.col-toggle-btn,.eye-toggle-btn,.filters-toggle-btn,.card-collapse-btn,.column-filter-row,.col-filter-menu,#col-filter-menu,.row-actions';
+    el.querySelectorAll(hideSel).forEach(function (n) {
+        if (n.style.display !== 'none') {
+            hiddenNodes.push({ el: n, old: n.style.display });
+            n.style.display = 'none';
+        }
+    });
+
+    /* صبر برای رندر مجدد */
+    await new Promise(function (r) {
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                setTimeout(r, 150);
+            });
+        });
+    });
+
+    var size = getFullSize(el);
+    console.log('📸 [share] ابعاد:', size.width, '×', size.height);
+
+    var dpr = window.devicePixelRatio || 1;
+    var scale = Math.max(3, Math.ceil(dpr * 1.5));
+    var maxPixels = 60 * 1000 * 1000;
+    if (size.width * size.height * scale * scale > maxPixels) {
+        scale = Math.max(2, Math.sqrt(maxPixels / (size.width * size.height)));
+    }
+
+    var MAX_CHUNK_H = 3500;
+    var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
+    if (chunkCount < 1) chunkCount = 1;
+
+    var oncloneFn = function (clonedDoc, clonedEl) {
+        clonedEl.style.overflow = 'visible';
+        clonedEl.style.maxHeight = 'none';
+        clonedEl.style.maxWidth = 'none';
+        clonedEl.style.height = 'auto';
+        clonedEl.style.width = 'max-content';
+        clonedEl.style.minWidth = 'max-content';
+        clonedEl.querySelectorAll('*').forEach(function (node) {
+            var cs = window.getComputedStyle(node);
+            if (cs.overflow && cs.overflow !== 'visible') node.style.overflow = 'visible';
+            if (cs.overflowX && cs.overflowX !== 'visible') node.style.overflowX = 'visible';
+            if (cs.overflowY && cs.overflowY !== 'visible') node.style.overflowY = 'visible';
+            if (cs.maxHeight && cs.maxHeight !== 'none') {
+                node.style.maxHeight = 'none';
+                node.style.height = 'auto';
+            }
+            if (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') {
+                node.style.maxWidth = 'none';
+            }
+        });
+        clonedEl.querySelectorAll(hideSel).forEach(function (n) {
+            n.style.display = 'none';
+        });
+    };
+
+    var blobs = [];
+    var safeName = (filename || 'parsis-report') + '-' + todayJalaliStr().replace(/\//g, '-');
+
+    try {
+        for (var i = 0; i < chunkCount; i++) {
+            var y = i * MAX_CHUNK_H;
+            var h = Math.min(MAX_CHUNK_H, size.height - y);
+
+            if (chunkCount > 1) {
+                showToast('📸 تکه ' + toFa(i + 1) + ' از ' + toFa(chunkCount) + '...');
+            }
+
+            var canvas = await h2c(el, {
+                backgroundColor: '#ffffff',
+                scale: scale,
+                useCORS: true,
+                allowTaint: false,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: y,
+                width: size.width,
+                height: h,
+                windowWidth: size.width,
+                windowHeight: size.height,
+                onclone: oncloneFn
+            });
+
+            var blob = await new Promise(function (resolve, reject) {
+                canvas.toBlob(function (b) {
+                    if (b) resolve(b);
+                    else reject(new Error('toBlob failed'));
+                }, 'image/png');
+            });
+            blobs.push(blob);
+        }
+    } catch (e) {
+        console.error('❌ [share]', e);
+        /* بازگردانی */
+        savedStyles.forEach(restoreElement);
+        el.style.width = rootSaved.width || '';
+        el.style.minWidth = rootSaved.minWidth || '';
+        el.style.maxWidth = rootSaved.maxWidth || '';
+        el.style.overflow = rootSaved.overflow || '';
+        el.style.overflowX = rootSaved.overflowX || '';
+        collapsedCards.forEach(function (c) {
+            c.classList.add('collapsed');
+            var btn = c.querySelector('.card-collapse-btn');
+            if (btn) btn.classList.add('collapsed');
+        });
+        hiddenNodes.forEach(function (x) { x.el.style.display = x.old; });
+        showToast('⚠️ خطا در ساخت تصویر');
+        return;
+    }
+
+    /* بازگردانی همه استایل‌ها */
+    savedStyles.forEach(restoreElement);
+    el.style.width = rootSaved.width || '';
+    el.style.minWidth = rootSaved.minWidth || '';
+    el.style.maxWidth = rootSaved.maxWidth || '';
+    el.style.overflow = rootSaved.overflow || '';
+    el.style.overflowX = rootSaved.overflowX || '';
+    collapsedCards.forEach(function (c) {
+        c.classList.add('collapsed');
+        var btn = c.querySelector('.card-collapse-btn');
+        if (btn) btn.classList.add('collapsed');
+    });
+    hiddenNodes.forEach(function (x) { x.el.style.display = x.old; });
+
+    var files = blobs.map(function (blob, i) {
+        var name = blobs.length > 1
+            ? safeName + '-part' + (i + 1) + '.png'
+            : safeName + '.png';
+        return new File([blob], name, { type: 'image/png' });
+    });
+
+    var shareTitle = title || 'گزارش پارسیس';
+
+    /* اگر Web Share API از فایل پشتیبانی کرد */
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+        try {
+            await navigator.share({
+                files: files,
+                title: shareTitle,
+                text: shareTitle
+            });
+            showToast('✅ ' + toFa(files.length) + ' تصویر اشتراک شد.');
+            return;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            console.warn('⚠️ [share] Web Share failed:', e);
+        }
+    }
+
+    /* در غیر این صورت دانلود کن */
+    files.forEach(function (file, i) {
+        var url = URL.createObjectURL(file);
+        setTimeout(function () {
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+        }, i * 400);
+    });
+    showToast('💾 ' + toFa(files.length) + ' تصویر دانلود شد.');
+}
+
+/* ============================================================
+   بخش ۴ — ساخت دکمه‌های اشتراک‌گذاری روی هدرها و ویجت‌ها
+   ============================================================ */
+function buildShareButtons() {
+    /* هدر لیست‌ها */
+    document.querySelectorAll('.list-header').forEach(function (h) {
+        if (h.querySelector('.share-btn')) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'share-btn';
+        btn.title = 'اشتراک‌گذاری گزارش (تصویر)';
+        btn.innerHTML = '📤';
+        h.appendChild(btn);
+    });
+
+    /* ویجت‌ها */
+    document.querySelectorAll('.widget-card').forEach(function (w) {
+        if (w.querySelector('.widget-share-btn')) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'widget-share-btn';
+        btn.title = 'اشتراک‌گذاری ویجت (تصویر)';
+        btn.innerHTML = '📤';
+        if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
+        w.appendChild(btn);
+    });
+}
+
+/* ============================================================
+   بخش ۵ — Event Delegation برای همه دکمه‌های اشتراک‌گذاری
+   ============================================================ */
+(function bindShareDelegation() {
+    function handle(e) {
+        var target = e.target;
+        if (!target || !target.closest) return;
+
+        /* دکمه share-btn */
+        var btn = target.closest('.share-btn');
+        if (btn) {
+            e.stopPropagation();
+            e.preventDefault();
+            var card = btn.closest('.card');
+            var targetEl = card || (btn.closest('.list-header') ? btn.closest('.list-header').parentElement : null);
+            var titleEl = document.querySelector('.page.active > h2');
+            var title = titleEl ? titleEl.textContent : 'گزارش پارسیس';
+            if (typeof shareAsImage === 'function') {
+                shareAsImage(targetEl, title.trim(), 'parsis-report');
+            } else if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
+                shareAsText(title.trim(), reportToText(targetEl));
+            }
+            return;
+        }
+
+        /* دکمه widget-share-btn */
+        var wBtn = target.closest('.widget-share-btn');
+        if (wBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            var w = wBtn.closest('.widget-card');
+            if (w) {
+                var wTitle = (w.querySelector('h3') || {}).textContent || 'ویجت پارسیس';
+                if (typeof shareAsImage === 'function') {
+                    shareAsImage(w, wTitle.trim(), 'parsis-widget');
+                } else if (typeof shareAsText === 'function' && typeof reportToText === 'function') {
+                    shareAsText(wTitle.trim(), reportToText(w));
+                }
+            }
+            return;
+        }
+    }
+    document.addEventListener('click', handle, true);
+})();
+
+/* ============================================================
+   صادرسازی نهایی
+   ============================================================ */
+window.shareAsImage      = shareAsImage;
+window.buildShareButtons = buildShareButtons;
+window.unlockElement     = unlockElement;
+window.restoreElement    = restoreElement;
+window.getFullSize       = getFullSize;
+
+console.log('✅ [ui/share.js] loaded — complete');
