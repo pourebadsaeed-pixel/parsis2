@@ -3,39 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <title>تست پارسیس</title>
-<style>
-    body { font-family: Tahoma, sans-serif; padding: 20px; direction: rtl; }
-    table { border-collapse: collapse; margin: 10px 0; }
-    th, td { border: 1px solid #ccc; padding: 5px 10px; }
-    #result div { padding: 3px 0; font-family: monospace; }
-    .ok { color: green; }
-    .err { color: red; }
-</style>
 </head>
 <body>
 
 <h1>تست پارسیس</h1>
 <div id="result"></div>
 
-<hr>
-<h2>جدول تست</h2>
-<div class="list-header" data-col-table="test-table" data-hide-key="test">
-    <span>نمونه</span>
-</div>
-<table class="data-table" id="test-table">
-    <thead>
-        <tr>
-            <th data-sortable data-sort-key="name" data-orig-index="0">نام <span class="sort-ind"></span></th>
-            <th data-sortable data-sort-key="age" data-orig-index="1">سن <span class="sort-ind"></span></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr><td>علی</td><td>30</td></tr>
-        <tr><td>رضا</td><td>25</td></tr>
-    </tbody>
-</table>
+<!-- شبیه‌سازی ساختار topbar برای تب‌ها -->
+<header class="topbar"><h1>تاپ‌بار تست</h1></header>
+<div class="sidebar-search"><input placeholder="جستجو"></div>
 
-<!-- ===== Core ===== -->
 <script src="./js/core/db.js"></script>
 <script src="./js/core/constants.js"></script>
 <script src="./js/core/utils.js"></script>
@@ -43,97 +20,37 @@
 <script src="./js/core/router.js"></script>
 <script src="./js/core/calendar-popup.js"></script>
 <script src="./js/core/hide.js"></script>
-
-<!-- ===== UI ===== -->
+<script src="./js/core/lookups.js"></script>
 <script src="./js/ui/toast.js"></script>
 <script src="./js/ui/nav.js"></script>
 <script src="./js/ui/theme.js"></script>
 <script src="./js/ui/table.js"></script>
+<script src="./js/ui/form.js"></script>
 
 <script>
 var out = [];
 function log(label, ok, extra) {
-    var cls = ok ? 'ok' : 'err';
-    out.push('<span class="' + cls + '">' + (ok ? '✅' : '❌') + ' ' + label + (extra ? ' → ' + extra : '') + '</span>');
+    out.push((ok ? '✅' : '❌') + ' ' + label + (extra ? ' → ' + extra : ''));
 }
-
 try {
-    /* ===== Core ===== */
-    log('DB',                       typeof DB !== 'undefined');
-    log('LS_KEYS',                  typeof LS_KEYS !== 'undefined');
-    log('toFa',                     typeof toFa === 'function');
-    log('toJalali',                 typeof toJalali === 'function');
-    log('state',                    typeof state !== 'undefined');
-    log('goToPage',                 typeof goToPage === 'function');
-    log('getActiveFiscalYearStart', typeof getActiveFiscalYearStart === 'function');
+    log('getAccountLabel',         typeof getAccountLabel === 'function');
+    log('printHtmlReport',         typeof printHtmlReport === 'function');
+    log('exportToCsv',             typeof exportToCsv === 'function');
+    log('getBankMoeinId',          typeof getBankMoeinId === 'function');
+    log('getLeafAccountsSortedByCode', typeof getLeafAccountsSortedByCode === 'function');
+    log('TAB_STATE',               typeof TAB_STATE !== 'undefined');
+    log('closeAllTabs',            typeof closeAllTabs === 'function');
+    log('autoAttachReportHelpers', typeof autoAttachReportHelpers === 'function');
+    log('getPageMeta',             typeof getPageMeta === 'function');
 
-    /* ===== Core - calendar-popup ===== */
-    log('attachDatePickers',        typeof attachDatePickers === 'function');
-    log('attachMoneyInput',         typeof attachMoneyInput === 'function');
-    log('openCalendar',             typeof openCalendar === 'function');
-    log('calcOpen',                 typeof calcOpen === 'function');
-
-    /* ===== Core - hide ===== */
-    log('getHideState',             typeof getHideState === 'function');
-    log('toggleHideState',          typeof toggleHideState === 'function');
-    log('updateEyeButtons',         typeof updateEyeButtons === 'function');
-    log('fmtFor',                   typeof fmtFor === 'function');
-
-    /* ===== UI - nav ===== */
-    log('showToast',                typeof showToast === 'function');
-    log('openSidebar',              typeof openSidebar === 'function');
-    log('setHomePage',              typeof setHomePage === 'function');
-
-    /* ===== UI - theme ===== */
-    log('applyTheme',               typeof applyTheme === 'function');
-    log('applyFont',                typeof applyFont === 'function');
-
-    /* ===== UI - table ===== */
-    log('makeTableResizable',       typeof makeTableResizable === 'function');
-    log('makeAllTablesResizable',   typeof makeAllTablesResizable === 'function');
-    log('applyColumnOrder',         typeof applyColumnOrder === 'function');
-    log('applyColVisibility',       typeof applyColVisibility === 'function');
-    log('showColMenu',              typeof showColMenu === 'function');
-    log('attachTableSorting',       typeof attachTableSorting === 'function');
-    log('buildFilterRow',           typeof buildFilterRow === 'function');
-    log('makeCardCollapsible',      typeof makeCardCollapsible === 'function');
-    log('buildHeaderButtons',       typeof buildHeaderButtons === 'function');
-
-    /* ===== تست‌های عملی ===== */
-    try { makeAllTablesResizable(); log('اجرای makeAllTablesResizable', true); }
-    catch (e) { log('اجرای makeAllTablesResizable', false, e.message); }
-
-    try { attachFilterRowsToAllTables(); log('اجرای attachFilterRowsToAllTables', true); }
-    catch (e) { log('اجرای attachFilterRowsToAllTables', false, e.message); }
-
-    try { buildHeaderButtons(); log('اجرای buildHeaderButtons', true); }
-    catch (e) { log('اجرای buildHeaderButtons', false, e.message); }
-
-    var headerBtns = document.querySelectorAll('.list-header button');
-    log('دکمه‌های هدر', headerBtns.length >= 3, headerBtns.length + ' دکمه');
-
-    /* تست تم */
-    applyTheme('ocean');
-    log('applyTheme("ocean")', document.body.classList.contains('theme-ocean'));
-    applyTheme('sky');
-
-    /* تست فونت */
-    applyFont('tahoma');
-    log('applyFont("tahoma")', document.body.classList.contains('font-tahoma'));
-
-    /* تست hide */
-    var h1 = getHideState('test');
-    log('getHideState("test")', typeof h1 === 'boolean', String(h1));
-
-    /* تست توست */
-    showToast('✅ تست نهایی موفق بود');
-    log('اجرای showToast', true, '(پیام پایین صفحه)');
-
-    document.getElementById('result').innerHTML = out.join('<br>');
+    setTimeout(function () {
+        log('دکمه بستن همه فرم‌ها ساخته شد', !!document.getElementById('close-all-forms-btn'));
+        log('نوار تب‌ها ساخته شد',           !!document.getElementById('form-tabs-bar'));
+        showToast('✅ تست موفق');
+        document.getElementById('result').innerHTML = out.join('<br>');
+    }, 800);
 } catch (e) {
-    document.getElementById('result').innerHTML =
-        out.join('<br>') + '<br><br><span class="err">❌ خطا: ' + (e.message || e) + '</span>' +
-        '<br><pre style="color:red;direction:ltr">' + (e.stack || '') + '</pre>';
+    document.getElementById('result').innerHTML = out.join('<br>') + '<br>❌ ' + e.message;
 }
 </script>
 </body>
