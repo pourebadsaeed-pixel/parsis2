@@ -1,1 +1,129 @@
+/* پارسیس — Service Worker */
+var CACHE_NAME = 'parsis-v1';
 
+var ASSETS = [
+  './index.html',
+  './manifest.json',
+  './offline.html',
+  './css/base.css',
+  './css/layout.css',
+  './css/components.css',
+  './css/calendar.css',
+  './js/core/db.js',
+  './js/core/constants.js',
+  './js/core/utils.js',
+  './js/core/state.js',
+  './js/core/router.js',
+  './js/core/calendar-popup.js',
+  './js/core/hide.js',
+  './js/core/lookups.js',
+  './js/ui/toast.js',
+  './js/ui/nav.js',
+  './js/ui/theme.js',
+  './js/ui/table.js',
+  './js/ui/form.js',
+  './js/ui/time-picker.js',
+  './js/ui/share.js',
+  './js/ui/observers.js',
+  './js/modules/accounts/fiscal.js',
+  './js/modules/accounts/chart.js',
+  './js/modules/persons.js',
+  './js/modules/accounts/companies.js',
+  './js/modules/accounts/banks.js',
+  './js/modules/accounts/cashboxes.js',
+  './js/modules/accounts/projects.js',
+  './js/modules/accounts/templates.js',
+  './js/modules/vouchers/form.js',
+  './js/modules/vouchers/list.js',
+  './js/modules/vouchers/estimates.js',
+  './js/modules/vouchers/sources.js',
+  './js/modules/vouchers/facilities.js',
+  './js/modules/reports/cashflow.js',
+  './js/modules/reports/account.js',
+  './js/modules/reports/trial.js',
+  './js/modules/reports/facility.js',
+  './js/modules/reports/rates.js',
+  './js/modules/dashboard.js',
+  './js/modules/widgets.js',
+  './js/modules/calendar.js',
+  './js/modules/notes.js',
+  './js/modules/sms.js',
+  './js/modules/ai.js',
+  './js/modules/scan.js',
+  './js/modules/welcome.js',
+  './js/app.js'
+];
+
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(function (cache) {
+      return cache.addAll(ASSETS).catch(function (e) {
+        console.warn('Cache addAll failed:', e);
+      });
+    })
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    caches.keys().then(function (names) {
+      return Promise.all(
+        names.filter(function (n) { return n !== CACHE_NAME; })
+             .map(function (n) { return caches.delete(n); })
+      );
+    }).then(function () { return self.clients.claim(); })
+  );
+});
+
+self.addEventListener('fetch', function (event) {
+  if (event.request.method !== 'GET') return;
+  var url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  var isHTML = event.request.mode === 'navigate'
+            || (event.request.headers.get('accept') || '').indexOf('text/html') !== -1
+            || url.pathname.endsWith('.html')
+            || url.pathname === '/'
+            || url.pathname.endsWith('/');
+
+  if (isHTML) {
+    event.respondWith(
+      fetch(event.request).then(function (response) {
+        if (response && response.status === 200) {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, clone);
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match(event.request).then(function (cached) {
+          return cached || caches.match('./offline.html') || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(function (cached) {
+      if (cached) return cached;
+      return fetch(event.request).then(function (response) {
+        if (response && response.status === 200 && response.type === 'basic') {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, clone);
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match('./index.html');
+      });
+    })
+  );
+});
+
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
