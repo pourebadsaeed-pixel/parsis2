@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تست لایه Core</title>
+</head>
+<body>
+
+<h1>تست لایه Core</h1>
+<div id="result">در حال اجرا...</div>
+
+<script src="./js/core/db.js"></script>
+<script src="./js/core/constants.js"></script>
+<script src="./js/core/utils.js"></script>
+<script src="./js/core/state.js"></script>
+
+<script>
+try {
+    var out = [];
+
+    // تست DB
+    DB.save('test_key', { hello: 'world' });
+    var loaded = DB.load('test_key', null);
+    out.push('DB.save/load: ' + (loaded && loaded.hello === 'world' ? '✅' : '❌'));
+
+    // تست اعداد
+    out.push('toFa(1234): ' + toFa(1234) + (toFa(1234) === '۱۲۳۴' ? ' ✅' : ' ❌'));
+    out.push('normalizeDigits("۱۲۳"): ' + normalizeDigits('۱۲۳') + (normalizeDigits('۱۲۳') === '123' ? ' ✅' : ' ❌'));
+
+    // تست پول
+    out.push('formatRaw(1000000): ' + formatRaw(1000000));
+
+    // تست تاریخ
+    var j = toJalali(2024, 1, 1);
+    out.push('toJalali(2024/1/1): ' + j.join('/') + ' (باید 1402/10/11 باشد)');
+    var g = jalaliToGregorian(1402, 10, 11);
+    out.push('jalaliToGregorian(1402/10/11): ' + g.join('/') + ' (باید 2024/1/1 باشد)');
+
+    // تست state
+    out.push('state.theme: ' + state.theme + ' ✅');
+    out.push('state.widgets count: ' + Object.keys(state.widgets).length);
+    out.push('state.widgetOrder count: ' + state.widgetOrder.length);
+
+    // تست توابع فارسی
+    out.push('voucherTypeName("general"): ' + voucherTypeName('general'));
+    out.push('linkTypeName("person"): ' + linkTypeName('person'));
+
+    // پاکسازی
+    DB.remove('test_key');
+
+    document.getElementById('result').innerHTML = out.join('<br>');
+} catch (e) {
+    document.getElementById('result').innerHTML =
+        '❌ خطا: ' + (e.message || e) + '<br><pre>' + (e.stack || '') + '</pre>';
+    document.getElementById('result').style.color = 'red';
+}
+</script>
+</body>
+</html>
