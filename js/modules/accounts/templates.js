@@ -256,3 +256,210 @@ function renderTemplateList() {
         });
     }
 }
+/* ============================================================
+   بخش ۵ — شرح‌های استاندارد
+   ============================================================ */
+function renderStdDescChips() {
+    var list = DB.load('standardDescriptions', getDefaultStdDescriptions());
+    var box = document.getElementById('std-desc-chips');
+    if (!box) return;
+
+    var searchEl = document.getElementById('std-desc-search');
+    var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
+
+    var filtered = list.filter(function (item) {
+        return !q || String(item).toLowerCase().indexOf(q) !== -1;
+    });
+
+    box.innerHTML = '';
+    if (filtered.length === 0) {
+        box.innerHTML = '<div class="muted" style="text-align:center;padding:16px;font-size:0.85rem">شرحی مطابق جستجو یافت نشد.</div>';
+        updateStdDescCounter(list.length, 0);
+        return;
+    }
+
+    for (var i = 0; i < filtered.length; i++) {
+        (function (item) {
+            var chip = document.createElement('span');
+            chip.className = 'chip';
+            var realIdx = list.indexOf(item);
+            chip.innerHTML = esc(item) + ' <button class="chip-del" data-i="' + realIdx + '">×</button>';
+            box.appendChild(chip);
+        })(filtered[i]);
+    }
+
+    var dels = box.querySelectorAll('.chip-del');
+    for (var j = 0; j < dels.length; j++) {
+        dels[j].addEventListener('click', function () {
+            var idx = Number(this.getAttribute('data-i'));
+            var l = DB.load('standardDescriptions', getDefaultStdDescriptions());
+            l.splice(idx, 1);
+            DB.save('standardDescriptions', l);
+            renderStdDescChips();
+            refreshStdDescDatalist();
+        });
+    }
+    updateStdDescCounter(list.length, filtered.length);
+}
+
+function updateStdDescCounter(total, shown) {
+    var cnt = document.getElementById('std-desc-count');
+    if (!cnt) return;
+    if (total === shown) cnt.textContent = toFa(total) + ' شرح';
+    else cnt.textContent = toFa(shown) + ' از ' + toFa(total) + ' شرح';
+}
+
+function refreshStdDescDatalist() {
+    var list = DB.load('standardDescriptions', getDefaultStdDescriptions());
+    var dl = document.getElementById('std-desc-list');
+    if (!dl) return;
+    dl.innerHTML = '';
+    for (var i = 0; i < list.length; i++) {
+        var o = document.createElement('option');
+        o.value = list[i];
+        dl.appendChild(o);
+    }
+}
+
+function addDescriptionToStandard(desc, silent) {
+    if (!desc || !desc.trim()) {
+        if (!silent) alert('شرح خالی است.');
+        return false;
+    }
+    var v = desc.trim();
+    var l = DB.load('standardDescriptions', getDefaultStdDescriptions());
+    if (l.indexOf(v) !== -1) {
+        if (!silent) showToast('قبلاً در لیست است.');
+        return false;
+    }
+    l.push(v);
+    DB.save('standardDescriptions', l);
+    refreshStdDescDatalist();
+    renderStdDescChips();
+    if (!silent) showToast('✅ اضافه شد.');
+    return true;
+}
+
+/* ============================================================
+   بخش ۶ — اتصال دکمه‌های فرم الگو
+   ============================================================ */
+function bindTemplatesForm() {
+    var addLineBtn = document.getElementById('tpl-add-line');
+    if (addLineBtn) addLineBtn.addEventListener('click', function () {
+        if (typeof templateLines === 'undefined') return;
+        templateLines.push({ side: 'debit', account: '', details: {}, desc: '', fixedAmount: 0 });
+        if (typeof renderTemplateLines === 'function') renderTemplateLines();
+    });
+
+    var saveBtn = document.getElementById('save-tpl');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+        var id = document.getElementById('tpl-id').value;
+        var name = document.getElementById('tpl-name').value.trim();
+        if (!name) { alert('نام اجباری.'); return; }
+
+        var valid = (typeof templateLines !== 'undefined' ? templateLines : [])
+            .filter(function (l) { return l.account || l.desc; });
+        if (valid.length === 0) { alert('حداقل یک قلم.'); return; }
+
+        var o = {
+            id: id || uid(),
+            name: name,
+            desc: document.getElementById('tpl-desc').value.trim(),
+            lines: valid.map(function (l) {
+                return {
+                    side: l.side,
+                    account: l.account || '',
+                    details: l.details || {},
+                    desc: l.desc || '',
+                    fixedAmount: Number(l.fixedAmount) || 0
+                };
+            })
+        };
+
+        var l = DB.load('voucherTemplates', []);
+        if (id) {
+            for (var i = 0; i < l.length; i++) {
+                if (l[i].id === id) l[i] = o;
+            }
+        } else {
+            l.push(o);
+        }
+        DB.save('voucherTemplates', l);
+        showToast('✅ الگو ذخیره شد.');
+        document.getElementById('tpl-id').value = '';
+        document.getElementById('tpl-name').value = '';
+        document.getElementById('tpl-desc').value = '';
+        if (typeof templateLines !== 'undefined') {
+            templateLines = [];
+            if (typeof renderTemplateLines === 'function') renderTemplateLines();
+        }
+        renderTemplateList();
+        refreshTemplateSelect();
+        var listTab = document.querySelector('[data-tab="tpl-list"]');
+        if (listTab) listTab.click();
+    });
+
+    var newBtn = document.getElementById('new-tpl');
+    if (newBtn) newBtn.addEventListener('click', function () {
+        document.getElementById('tpl-id').value = '';
+        document.getElementById('tpl-name').value = '';
+        document.getElementById('tpl-desc').value = '';
+        if (typeof templateLines !== 'undefined') {
+            templateLines = [];
+            if (typeof renderTemplateLines === 'function') renderTemplateLines();
+        }
+    });
+
+    var loadDefaultsBtn = document.getElementById('tpl-load-defaults');
+    if (loadDefaultsBtn) loadDefaultsBtn.addEventListener('click', function () {
+        var l = DB.load('voucherTemplates', []);
+        var d = getDefaultTemplates();
+        var added = 0;
+        d.forEach(function (x) {
+            if (!l.some(function (y) { return y.name === x.name; })) {
+                l.push(x);
+                added++;
+            }
+        });
+        DB.save('voucherTemplates', l);
+        renderTemplateList();
+        refreshTemplateSelect();
+        showToast('✅ ' + toFa(added) + ' الگو افزوده شد.');
+    });
+
+    /* شرح استاندارد */
+    var addStdBtn = document.getElementById('add-std-desc');
+    if (addStdBtn) addStdBtn.addEventListener('click', function () {
+        var inp = document.getElementById('new-std-desc');
+        var v = inp.value.trim();
+        if (!v) return;
+        var l = DB.load('standardDescriptions', getDefaultStdDescriptions());
+        if (l.indexOf(v) !== -1) { alert('قبلاً وجود دارد.'); return; }
+        l.push(v);
+        DB.save('standardDescriptions', l);
+        inp.value = '';
+        renderStdDescChips();
+        refreshStdDescDatalist();
+    });
+
+    var stdSearch = document.getElementById('std-desc-search');
+    if (stdSearch) stdSearch.addEventListener('input', function () {
+        renderStdDescChips();
+    });
+}
+
+/* ============================================================
+   صادرسازی
+   ============================================================ */
+window.getDefaultTemplates        = getDefaultTemplates;
+window.getDefaultStdDescriptions  = getDefaultStdDescriptions;
+window.refreshTemplateSelect      = refreshTemplateSelect;
+window.findAccountByNameHint      = findAccountByNameHint;
+window.renderTemplateList         = renderTemplateList;
+window.renderStdDescChips         = renderStdDescChips;
+window.updateStdDescCounter       = updateStdDescCounter;
+window.refreshStdDescDatalist     = refreshStdDescDatalist;
+window.addDescriptionToStandard   = addDescriptionToStandard;
+window.bindTemplatesForm          = bindTemplatesForm;
+
+console.log('✅ [modules/accounts/templates.js] loaded — complete');
