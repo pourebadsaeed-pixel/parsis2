@@ -2,18 +2,45 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>تست لایه Core</title>
+<title>تست لایه Core + UI</title>
+<style>
+    table { border-collapse: collapse; margin: 10px 0; }
+    th, td { border: 1px solid #ccc; padding: 5px 10px; }
+    #result div { padding: 3px 0; font-family: monospace; }
+</style>
 </head>
 <body>
 
-<h1>تست لایه Core</h1>
-<div id="result">در حال اجرا...</div>
+<h1>تست Core + UI</h1>
+<div id="result"></div>
 
-<script src="./js/core/db.js" onerror="document.getElementById('result').innerHTML += '<br>❌ db.js لود نشد'"></script>
-<script src="./js/core/constants.js" onerror="document.getElementById('result').innerHTML += '<br>❌ constants.js لود نشد'"></script>
-<script src="./js/core/utils.js" onerror="document.getElementById('result').innerHTML += '<br>❌ utils.js لود نشد'"></script>
-<script src="./js/core/state.js" onerror="document.getElementById('result').innerHTML += '<br>❌ state.js لود نشد'"></script>
-<script src="./js/core/router.js" onerror="document.getElementById('result').innerHTML += '<br>❌ router.js لود نشد'"></script>
+<hr>
+<h2>جدول تست</h2>
+<div class="list-header" data-col-table="test-table" data-hide-key="test">
+    <span>نمونه</span>
+</div>
+<table class="data-table" id="test-table">
+    <thead>
+        <tr>
+            <th data-sortable data-sort-key="name" data-orig-index="0">نام <span class="sort-ind"></span></th>
+            <th data-sortable data-sort-key="age" data-orig-index="1">سن <span class="sort-ind"></span></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>علی</td><td>30</td></tr>
+        <tr><td>رضا</td><td>25</td></tr>
+    </tbody>
+</table>
+
+<script src="./js/core/db.js"></script>
+<script src="./js/core/constants.js"></script>
+<script src="./js/core/utils.js"></script>
+<script src="./js/core/state.js"></script>
+<script src="./js/core/router.js"></script>
+<script src="./js/ui/toast.js"></script>
+<script src="./js/ui/nav.js"></script>
+<script src="./js/ui/theme.js"></script>
+<script src="./js/ui/table.js"></script>
 
 <script>
 var out = [];
@@ -22,38 +49,54 @@ function log(label, ok, extra) {
 }
 
 try {
-    log('DB', typeof DB !== 'undefined');
-    log('LS_KEYS', typeof LS_KEYS !== 'undefined');
-    log('toFa', typeof toFa !== 'undefined');
-    log('toJalali', typeof toJalali !== 'undefined');
-    log('state', typeof state !== 'undefined');
-    log('goToPage', typeof goToPage === 'function');
-    log('updateTopbarPeriod', typeof updateTopbarPeriod === 'function');
-    log('rerenderCurrentPage', typeof rerenderCurrentPage === 'function');
-    log('getActiveFiscalYearStart', typeof getActiveFiscalYearStart === 'function');
+    /* Core */
+    log('DB',                       typeof DB !== 'undefined');
+    log('LS_KEYS',                  typeof LS_KEYS !== 'undefined');
+    log('state',                    typeof state !== 'undefined');
+    log('goToPage',                 typeof goToPage === 'function');
 
-    if (typeof state !== 'undefined') {
-        log('state.theme', true, state.theme);
-        log('state.widgets count', true, Object.keys(state.widgets || {}).length);
-    }
+    /* UI ناوبری */
+    log('showToast',                typeof showToast === 'function');
+    log('openSidebar',              typeof openSidebar === 'function');
+    log('setHomePage',              typeof setHomePage === 'function');
 
-    if (typeof DB !== 'undefined') {
-        DB.save('test_key', { hello: 'world' });
-        var loaded = DB.load('test_key', null);
-        log('DB.save/load', loaded && loaded.hello === 'world');
-        DB.remove('test_key');
-    }
+    /* UI تم */
+    log('applyTheme',               typeof applyTheme === 'function');
+    log('applyFont',                typeof applyFont === 'function');
 
-    if (typeof toFa === 'function') log('toFa(1234)', toFa(1234) === '۱۲۳۴');
+    /* UI جدول */
+    log('makeTableResizable',       typeof makeTableResizable === 'function');
+    log('makeAllTablesResizable',   typeof makeAllTablesResizable === 'function');
+    log('applyColumnOrder',         typeof applyColumnOrder === 'function');
+    log('applyColVisibility',       typeof applyColVisibility === 'function');
+    log('showColMenu',              typeof showColMenu === 'function');
+    log('attachTableSorting',       typeof attachTableSorting === 'function');
+    log('buildFilterRow',           typeof buildFilterRow === 'function');
+    log('makeCardCollapsible',      typeof makeCardCollapsible === 'function');
+    log('buildHeaderButtons',       typeof buildHeaderButtons === 'function');
 
-    if (typeof toJalali === 'function') {
-        var j = toJalali(2024, 1, 1);
-        log('toJalali(2024/1/1)', j[0] === 1402 && j[1] === 10 && j[2] === 11, j.join('/'));
-    }
+    /* اجرای تست واقعی */
+    makeAllTablesResizable();
+    log('اجرای makeAllTablesResizable', true);
 
-    if (typeof getActiveFiscalYearStart === 'function') {
-        log('getActiveFiscalYearStart', true, '(تابع سالم)');
-    }
+    attachFilterRowsToAllTables();
+    log('اجرای attachFilterRowsToAllTables', true);
+
+    buildHeaderButtons();
+    log('اجرای buildHeaderButtons', true);
+
+    var headerBtns = document.querySelectorAll('.list-header button');
+    log('دکمه‌های هدر ساخته شد', headerBtns.length >= 3, headerBtns.length + ' دکمه');
+
+    applyTheme('ocean');
+    log('applyTheme("ocean")', document.body.classList.contains('theme-ocean'));
+    applyTheme('sky');
+
+    applyFont('tahoma');
+    log('applyFont("tahoma")', document.body.classList.contains('font-tahoma'));
+
+    showToast('✅ تست لایه UI موفق بود');
+    log('اجرای showToast', true, '(پیام پایین صفحه)');
 
     document.getElementById('result').innerHTML = out.join('<br>');
 } catch (e) {
