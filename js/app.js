@@ -237,30 +237,31 @@ function bindWidgetToggles() {
    بخش ۶ — اتصال فرم‌های اطلاعات پایه
    ============================================================ */
 function bindBaseDataForms() {
-    if (typeof bindFiscalForm === 'function') bindFiscalForm();
-    if (typeof bindPersonsForm === 'function') bindPersonsForm();
-    if (typeof bindCompaniesForm === 'function') bindCompaniesForm();
-    if (typeof bindBanksForm === 'function') bindBanksForm();
-    if (typeof bindCashBoxesForm === 'function') bindCashBoxesForm();
-    if (typeof bindProjectsForm === 'function') bindProjectsForm();
+    if (typeof bindFiscalForm === 'function')      bindFiscalForm();
+    if (typeof bindPersonsForm === 'function')     bindPersonsForm();
+    if (typeof bindCompaniesForm === 'function')   bindCompaniesForm();
+    if (typeof bindBanksForm === 'function')       bindBanksForm();
+    if (typeof bindCashBoxesForm === 'function')   bindCashBoxesForm();
+    if (typeof bindProjectsForm === 'function')    bindProjectsForm();
+    if (typeof bindChartForm === 'function')       bindChartForm();
 }
 
 /* ============================================================
    بخش ۷ — اتصال فرم‌های نقدینگی
    ============================================================ */
 function bindCashForms() {
-    if (typeof bindEstimatesForm === 'function') bindEstimatesForm();
-    if (typeof bindSourcesForm === 'function') bindSourcesForm();
-    if (typeof bindFacilitiesForm === 'function') bindFacilitiesForm();
+    if (typeof bindEstimatesForm === 'function')   bindEstimatesForm();
+    if (typeof bindSourcesForm === 'function')     bindSourcesForm();
+    if (typeof bindFacilitiesForm === 'function')  bindFacilitiesForm();
 }
 
 /* ============================================================
    بخش ۸ — اتصال فرم سند و الگو
    ============================================================ */
 function bindVoucherTemplatesForms() {
-    if (typeof bindVoucherForm === 'function') bindVoucherForm();
-    if (typeof bindVoucherListFilters === 'function') bindVoucherListFilters();
-    if (typeof bindTemplatesForm === 'function') bindTemplatesForm();
+    if (typeof bindVoucherForm === 'function')          bindVoucherForm();
+    if (typeof bindVoucherListFilters === 'function')   bindVoucherListFilters();
+    if (typeof bindTemplatesForm === 'function')        bindTemplatesForm();
 }
 
 /* ============================================================
@@ -316,8 +317,8 @@ function bindReportButtons() {
 
     /* گزارش‌های تسهیلات و تراز و ناقص */
     if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
-    if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
-    if (typeof bindRatesReportButtons === 'function') bindRatesReportButtons();
+    if (typeof bindTrialReportButtons === 'function')    bindTrialReportButtons();
+    if (typeof bindRatesReportButtons === 'function')    bindRatesReportButtons();
 
     /* تراز آزمایشی + تراکنش ناقص + مقایسه‌ای */
     var rtRun = document.getElementById('rt-run');
@@ -399,7 +400,7 @@ function bindModalClosers() {
 
     /* Note View */
     var closeNv = document.getElementById('close-noteview');
-    if (closeNv && typeof closeNoteView === 'function') closeNoteView && closeNv.addEventListener('click', closeNoteView);
+    if (closeNv && typeof closeNoteView === 'function') closeNv.addEventListener('click', closeNoteView);
     var nvOv = document.getElementById('noteview-overlay');
     if (nvOv && typeof closeNoteView === 'function') nvOv.addEventListener('click', closeNoteView);
 
@@ -423,11 +424,9 @@ function bindModalClosers() {
 /* ============================================================
    بخش ۱۱ — اتصال Sidebar / Nav
    ============================================================ */
-function bindSidebarNav() {
+function bindSidebarNavWrapper() {
     if (typeof initSidebarSearch === 'function') initSidebarSearch();
-    if (typeof bindSidebarNav === 'function' && window.bindSidebarNav !== bindSidebarNav) {
-        window.bindSidebarNav();
-    }
+    if (typeof bindSidebarNav === 'function') bindSidebarNav();
 }
 
 /* ============================================================
@@ -473,6 +472,7 @@ function bindExportButtons() {
         });
     }
 }
+
 /* ============================================================
    بخش ۱۴ — init اصلی
    ============================================================ */
@@ -546,25 +546,25 @@ function init() {
 
     /* اتصال‌ها */
     var binds = [
-        ['bindSidebarNav',    bindSidebarNav],
-        ['bindSettingsButtons', bindSettingsButtons],
-        ['bindThemeFontButtons', function () {
+        ['bindSidebarNavWrapper',      bindSidebarNavWrapper],
+        ['bindSettingsButtons',        bindSettingsButtons],
+        ['bindThemeFontButtons',       function () {
             if (typeof bindThemeFontButtons === 'function') bindThemeFontButtons();
         }],
-        ['bindWidgetToggles',  bindWidgetToggles],
-        ['bindCurrencyHide',   bindCurrencyHide],
-        ['bindBankCashTypes',  bindBankCashTypes],
-        ['bindSmsButtons',     bindSmsButtons],
-        ['bindBaseDataForms',  bindBaseDataForms],
-        ['bindCashForms',      bindCashForms],
-        ['bindVoucherTemplatesForms', bindVoucherTemplatesForms],
-        ['bindReportButtons',  bindReportButtons],
-        ['bindModalClosers',   bindModalClosers],
-        ['bindNotesForm',      function () {
+        ['bindWidgetToggles',          bindWidgetToggles],
+        ['bindCurrencyHide',           bindCurrencyHide],
+        ['bindBankCashTypes',          bindBankCashTypes],
+        ['bindSmsButtons',             bindSmsButtons],
+        ['bindBaseDataForms',          bindBaseDataForms],
+        ['bindCashForms',              bindCashForms],
+        ['bindVoucherTemplatesForms',  bindVoucherTemplatesForms],
+        ['bindReportButtons',          bindReportButtons],
+        ['bindModalClosers',           bindModalClosers],
+        ['bindNotesForm',              function () {
             if (typeof bindNotesForm === 'function') bindNotesForm();
         }],
-        ['bindFilterInputs',   bindFilterInputs],
-        ['bindExportButtons',  bindExportButtons]
+        ['bindFilterInputs',           bindFilterInputs],
+        ['bindExportButtons',          bindExportButtons]
     ];
 
     binds.forEach(function (pair) {
@@ -679,19 +679,19 @@ window.addEventListener('unhandledrejection', function (e) {
 /* ============================================================
    بخش ۱۸ — صادرسازی
    ============================================================ */
-window.bindSettingsButtons      = bindSettingsButtons;
-window.bindCurrencyHide         = bindCurrencyHide;
-window.bindBankCashTypes        = bindBankCashTypes;
-window.bindSmsButtons           = bindSmsButtons;
-window.bindWidgetToggles        = bindWidgetToggles;
-window.bindBaseDataForms        = bindBaseDataForms;
-window.bindCashForms            = bindCashForms;
-window.bindVoucherTemplatesForms = bindVoucherTemplatesForms;
-window.bindReportButtons        = bindReportButtons;
-window.bindModalClosers         = bindModalClosers;
-window.bindSidebarNav           = bindSidebarNav;
-window.bindFilterInputs         = bindFilterInputs;
-window.bindExportButtons        = bindExportButtons;
-window.parsisInit               = init;
+window.bindSettingsButtons        = bindSettingsButtons;
+window.bindCurrencyHide           = bindCurrencyHide;
+window.bindBankCashTypes          = bindBankCashTypes;
+window.bindSmsButtons             = bindSmsButtons;
+window.bindWidgetToggles          = bindWidgetToggles;
+window.bindBaseDataForms          = bindBaseDataForms;
+window.bindCashForms              = bindCashForms;
+window.bindVoucherTemplatesForms  = bindVoucherTemplatesForms;
+window.bindReportButtons          = bindReportButtons;
+window.bindModalClosers           = bindModalClosers;
+window.bindSidebarNavWrapper      = bindSidebarNavWrapper;
+window.bindFilterInputs           = bindFilterInputs;
+window.bindExportButtons          = bindExportButtons;
+window.parsisInit                 = init;
 
 console.log('✅ [app.js] loaded — ready to init');
