@@ -9,14 +9,14 @@
    بخش ۱ — دارایی‌های تحت پیگیری
    ============================================================ */
 var RATE_ASSETS = [
-    { key: 'price_dollar_rl', label: '💵 دلار آمریکا',          priceto: 'usd',         navasanKey: 'usd',        source: 'fiat', navasanMul: 10 },
-    { key: 'geram18',         label: '🥇 طلای ۱۸ عیار (گرم)',   priceto: 'gold-18',     navasanKey: '18ayar',     source: 'gold', navasanMul: 10 },
-    { key: 'geram24',         label: '🥇 طلای ۲۴ عیار (گرم)',   priceto: 'gold-24',     navasanKey: '24ayar',     source: 'gold', navasanMul: 10 },
-    { key: 'gold_mini_size',  label: '🥇 طلای دسته دوم (گرم)',  priceto: 'gold-meskal', navasanKey: '18ayar',     source: 'gold', navasanMul: 10 },
-    { key: 'sekke_emami',     label: '🪙 سکه امامی',            priceto: 'coin-emami',  navasanKey: 'sekkeh',     source: 'gold', navasanMul: 10 },
-    { key: 'sekke_bahar',     label: '🪙 سکه بهار آزادی',       priceto: 'coin-bahar',  navasanKey: 'bahar',      source: 'gold', navasanMul: 10 },
-    { key: 'nim_sekke',       label: '🪙 نیم سکه',              priceto: 'coin-nim',    navasanKey: 'nim',        source: 'gold', navasanMul: 10 },
-    { key: 'rob_sekke',       label: '🪙 ربع سکه',              priceto: 'coin-rob',    navasanKey: 'rob',        source: 'gold', navasanMul: 10 }
+    { key: 'price_dollar_rl', label: '💵 دلار آمریکا',          priceto: '',            navasanKey: 'usd',        source: 'fiat', navasanMul: 10 },
+    { key: 'geram18',         label: '🥇 طلای ۱۸ عیار (گرم)',   priceto: '',            navasanKey: '18ayar',     source: 'gold', navasanMul: 10 },
+    { key: 'geram24',         label: '🥇 طلای ۲۴ عیار (گرم)',   priceto: '',            navasanKey: '24ayar',     source: 'gold', navasanMul: 10 },
+    { key: 'gold_mini_size',  label: '🥇 طلای دسته دوم (گرم)',  priceto: '',            navasanKey: '18ayar',     source: 'gold', navasanMul: 10 },
+    { key: 'sekke_emami',     label: '🪙 سکه امامی',            priceto: '',            navasanKey: 'sekkeh',     source: 'gold', navasanMul: 10 },
+    { key: 'sekke_bahar',     label: '🪙 سکه بهار آزادی',       priceto: '',            navasanKey: 'bahar',      source: 'gold', navasanMul: 10 },
+    { key: 'nim_sekke',       label: '🪙 نیم سکه',              priceto: '',            navasanKey: 'nim',        source: 'gold', navasanMul: 10 },
+    { key: 'rob_sekke',       label: '🪙 ربع سکه',              priceto: '',            navasanKey: 'rob',        source: 'gold', navasanMul: 10 }
 ];
 
 /* ============================================================
