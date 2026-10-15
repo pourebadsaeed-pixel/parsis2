@@ -426,3 +426,283 @@ function clearFacForm() {
     currentFacilityId = null;
     currentInstallments = [];
 }
+/* ============================================================
+   بخش ۱۰ — ذخیره تسهیلات
+   ============================================================ */
+function saveFacility() {
+    var id = document.getElementById('fc-id').value;
+    var name = document.getElementById('fc-name').value.trim();
+    if (!name) { alert('نام اجباری.'); return; }
+
+    var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
+    if (!init) { alert('مبلغ اولیه اجباری.'); return; }
+
+    var tp = currentInstallments.reduce(function (s, x) {
+        return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+    }, 0);
+    var ap = currentInstallments.length > 0 &&
+             currentInstallments.every(function (x) { return x.status === 'paid'; });
+
+    var o = {
+        id: id || uid(),
+        name: name,
+        category: document.getElementById('fc-category').value,
+        bankId: document.getElementById('fc-bank').value,
+        date: normalizeDigits(document.getElementById('fc-date').value),
+        initial: init,
+        paid: tp,
+        installments: JSON.parse(JSON.stringify(currentInstallments)),
+        status: ap ? 'settled' : 'active'
+    };
+
+    var l = DB.load('facilities', []);
+    if (id) {
+        for (var i = 0; i < l.length; i++) {
+            if (l[i].id === id) l[i] = o;
+        }
+    } else {
+        l.push(o);
+    }
+    DB.save('facilities', l);
+    showToast('✅ تسهیلات ذخیره شد.');
+    clearFacForm();
+    renderFacilitiesList();
+    var listTab = document.querySelector('[data-tab="fac-list"]');
+    if (listTab) listTab.click();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+}
+
+/* ============================================================
+   بخش ۱۱ — ذخیره فقط اقساط
+   ============================================================ */
+function saveFacilityInstallments() {
+    if (!currentFacilityId) {
+        alert('ابتدا تسهیلات را ذخیره کن.');
+        return;
+    }
+
+    var l = DB.load('facilities', []);
+    var idx = -1;
+    for (var i = 0; i < l.length; i++) {
+        if (l[i].id === currentFacilityId) { idx = i; break; }
+    }
+    if (idx === -1) return;
+
+    var tp = currentInstallments.reduce(function (s, x) {
+        return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+    }, 0);
+    var ap = currentInstallments.length > 0 &&
+             currentInstallments.every(function (x) { return x.status === 'paid'; });
+
+    l[idx].installments = JSON.parse(JSON.stringify(currentInstallments));
+    l[idx].paid = tp;
+    l[idx].status = ap ? 'settled' : 'active';
+    DB.save('facilities', l);
+
+    showToast('✅ اقساط ذخیره شد.');
+    renderFacilitiesList();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+}
+
+/* ============================================================
+   بخش ۱۲ — پرداخت قسط + ساخت سند خودکار
+   ============================================================ */
+function payInstallment(facilityId, installmentIdx) {
+    var facilities = DB.load('facilities', []);
+    var f = facilities.find(function (x) { return x.id === facilityId; });
+    if (!f) { alert('تسهیلات یافت نشد.'); return; }
+
+    var ins = (f.installments || [])[installmentIdx];
+    if (!ins) { alert('قسط یافت نشد.'); return; }
+    if (ins.status === 'paid') { alert('این قسط قبلاً پرداخت شده است.'); return; }
+    if (!ins.amount || !ins.date) { alert('تاریخ و مبلغ قسط باید مشخص باشد.'); return; }
+    if (!f.bankId) { alert('ابتدا بانک تسهیلات را انتخاب کنید.'); return; }
+
+    var accounts = DB.load('accounts', []);
+    var bankMoein = getBankMoeinId();
+    if (!bankMoein) { alert('معین بانک در چارت تعریف نشده.'); return; }
+
+    var facMoeinId = f.moeinId || '';
+    var facDetailId = '';
+
+    /* اگر معین تسهیلات تعریف نشده، از کاربر بپرس */
+    if (!facMoeinId) {
+        var leaves = accounts.filter(function (a) {
+            return !accounts.some(function (x) { return x.parent === a.id; });
+        });
+        if (leaves.length === 0) { alert('چارت حساب خالی است.'); return; }
+
+        var opts = leaves.map(function (a, i) {
+            return (i + 1) + '. ' + a.code + ' — ' + a.name;
+        }).join('\n');
+        var ans = prompt(
+            '⚠️ این تسهیلات معین ندارد.\n' +
+            'معین بدهکار (سمت تسهیلات) را انتخاب کنید:\n\n' +
+            opts + '\n\nشماره:', '1'
+        );
+        if (!ans) return;
+        var idx = Number(normalizeDigits(ans)) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= leaves.length) { alert('نامعتبر.'); return; }
+        facMoeinId = leaves[idx].id;
+
+        facilities.forEach(function (ff) {
+            if (ff.id === facilityId) ff.moeinId = facMoeinId;
+        });
+        DB.save('facilities', facilities);
+
+        var facAcc = accounts.find(function (a) { return a.id === facMoeinId; });
+        if (facAcc && facAcc.links && facAcc.links.indexOf('facility') !== -1) {
+            facDetailId = facilityId;
+        }
+    } else {
+        var facAcc2 = accounts.find(function (a) { return a.id === facMoeinId; });
+        if (facAcc2 && facAcc2.links && facAcc2.links.indexOf('facility') !== -1) {
+            facDetailId = facilityId;
+        }
+    }
+
+    var bank = DB.load('bankAccounts', []).find(function (b) { return b.id === f.bankId; });
+    var bankTitle = bank ? (bank.bank + ' — ' + (bank.account || '')) : '—';
+    var facAcc3 = accounts.find(function (a) { return a.id === facMoeinId; });
+
+    var msg = '📋 تأیید پرداخت قسط\n\n'
+        + 'تاریخ: ' + ins.date + '\n'
+        + 'مبلغ: ' + formatMoney(ins.amount) + ' ' + currencyLabel() + '\n'
+        + 'بانک: ' + bankTitle + '\n'
+        + 'معین بدهکار: ' + (facAcc3 ? facAcc3.code + ' — ' + facAcc3.name : '—') + '\n'
+        + (facDetailId ? 'تفصیلی: ' + getDetailLabel('facility', facDetailId) + '\n' : '')
+        + '\nسند خودکار ساخته شود؟';
+
+    if (!confirm(msg)) return;
+
+    var dv = validateDateInActivePeriod(ins.date);
+    if (!dv.ok) { alert('⚠️ ' + dv.msg); return; }
+
+    var description = 'پرداخت قسط ' + ins.date + ' — ' + f.name;
+    var lines = [];
+
+    var facDetails = {};
+    if (facDetailId) facDetails.facility = facDetailId;
+
+    lines.push({
+        id: uid(),
+        account: facMoeinId,
+        details: facDetails,
+        debit: Number(ins.amount) || 0,
+        credit: 0,
+        description: description
+    });
+
+    lines.push({
+        id: uid(),
+        account: bankMoein,
+        details: { bank: f.bankId },
+        debit: 0,
+        credit: Number(ins.amount) || 0,
+        description: description,
+        locked: true
+    });
+
+    var vouchers = DB.load('vouchers', []);
+    var v = {
+        id: uid(),
+        number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
+        date: ins.date,
+        type: 'general',
+        periodId: state.activePeriodId || '',
+        desc: description,
+        lines: lines,
+        status: 'draft'
+    };
+
+    /* به‌روزرسانی اقساط */
+    facilities.forEach(function (ff) {
+        if (ff.id === facilityId) {
+            ff.installments[installmentIdx].status = 'paid';
+            ff.installments[installmentIdx].systemPaid = true;
+            ff.installments[installmentIdx].systemVoucherId = v.id;
+            ff.installments[installmentIdx].paidAt = Date.now();
+            var tp2 = ff.installments.reduce(function (s, x) {
+                return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+            }, 0);
+            ff.paid = tp2;
+            var allPaid = ff.installments.every(function (x) { return x.status === 'paid'; });
+            ff.status = allPaid ? 'settled' : 'active';
+        }
+    });
+    DB.save('facilities', facilities);
+
+    vouchers.push(v);
+    DB.save('vouchers', vouchers);
+
+    /* بازخوانی اقساط فعلی */
+    currentInstallments = JSON.parse(JSON.stringify(
+        facilities.find(function (ff) { return ff.id === facilityId; }).installments
+    ));
+    if (typeof renderInstallments === 'function') renderInstallments();
+
+    showToast('✅ قسط پرداخت شد — سند خودکار ساخته شد.');
+    renderFacilitiesList();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+
+    loadVoucherForEdit(v);
+    goToPage('voucher-new');
+}
+
+/* ============================================================
+   بخش ۱۳ — اتصال دکمه‌ها
+   ============================================================ */
+function bindFacilitiesForm() {
+    var saveBtn = document.getElementById('save-fac');
+    if (saveBtn) saveBtn.addEventListener('click', saveFacility);
+
+    var newBtn = document.getElementById('new-fac');
+    if (newBtn) newBtn.addEventListener('click', clearFacForm);
+
+    var addInstBtn = document.getElementById('fac-add-inst');
+    if (addInstBtn) addInstBtn.addEventListener('click', function () {
+        currentInstallments.push({
+            id: uid(), date: '', time: '21:00', amount: 0, status: 'registered'
+        });
+        renderInstallments();
+    });
+
+    var genBtn = document.getElementById('fac-auto-gen');
+    if (genBtn) genBtn.addEventListener('click', autoGenerateInstallments);
+
+    var saveInstBtn = document.getElementById('fac-save-inst');
+    if (saveInstBtn) saveInstBtn.addEventListener('click', saveFacilityInstallments);
+
+    var filterEl = document.getElementById('fac-filter');
+    if (filterEl) filterEl.addEventListener('input', renderFacilitiesList);
+
+    var catFilterEl = document.getElementById('fac-cat-filter');
+    if (catFilterEl) catFilterEl.addEventListener('change', renderFacilitiesList);
+
+    attachMoneyInput(document.getElementById('fc-initial'), function () {
+        renderInstallmentsTotals();
+    });
+}
+
+/* ============================================================
+   صادرسازی
+   ============================================================ */
+window.currentFacilityId          = currentFacilityId;
+window.currentInstallments        = currentInstallments;
+window.refreshFacBankSelect       = refreshFacBankSelect;
+window.refreshRffBankSelect       = refreshRffBankSelect;
+window.renderFacilitiesList       = renderFacilitiesList;
+window.tryDeleteFacility          = tryDeleteFacility;
+window.loadFacilityIntoForm       = loadFacilityIntoForm;
+window.loadFacilityForInstallments = loadFacilityForInstallments;
+window.renderInstallments         = renderInstallments;
+window.renderInstallmentsTotals   = renderInstallmentsTotals;
+window.nextMonthDate              = nextMonthDate;
+window.autoGenerateInstallments   = autoGenerateInstallments;
+window.clearFacForm               = clearFacForm;
+window.saveFacility               = saveFacility;
+window.saveFacilityInstallments   = saveFacilityInstallments;
+window.payInstallment             = payInstallment;
+window.bindFacilitiesForm         = bindFacilitiesForm;
+
+console.log('✅ [modules/vouchers/facilities.js] loaded — complete');
