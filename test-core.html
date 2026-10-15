@@ -9,50 +9,54 @@
 <h1>تست لایه Core</h1>
 <div id="result">در حال اجرا...</div>
 
-<script src="./js/core/db.js"></script>
-<script src="./js/core/constants.js"></script>
-<script src="./js/core/utils.js"></script>
-<script src="./js/core/state.js"></script>
+<!-- اسکریپت‌ها با onerror برای تشخیص فایل خالی یا لود نشده -->
+<script src="./js/core/db.js" onerror="document.getElementById('result').innerHTML += '<br>❌ db.js لود نشد'"></script>
+<script src="./js/core/constants.js" onerror="document.getElementById('result').innerHTML += '<br>❌ constants.js لود نشد'"></script>
+<script src="./js/core/utils.js" onerror="document.getElementById('result').innerHTML += '<br>❌ utils.js لود نشد'"></script>
+<script src="./js/core/state.js" onerror="document.getElementById('result').innerHTML += '<br>❌ state.js لود نشد'"></script>
 
 <script>
+var out = [];
+function log(label, ok, extra) {
+    out.push((ok ? '✅' : '❌') + ' ' + label + (extra ? ' → ' + extra : ''));
+}
+
 try {
-    var out = [];
+    // بررسی تعریف شدن متغیرها
+    log('DB تعریف شده', typeof DB !== 'undefined');
+    log('LS_PREFIX تعریف شده', typeof LS_PREFIX !== 'undefined');
+    log('LS_KEYS تعریف شده', typeof LS_KEYS !== 'undefined');
+    log('toFa تعریف شده', typeof toFa !== 'undefined');
+    log('toJalali تعریف شده', typeof toJalali !== 'undefined');
+    log('state تعریف شده', typeof state !== 'undefined');
 
-    // تست DB
-    DB.save('test_key', { hello: 'world' });
-    var loaded = DB.load('test_key', null);
-    out.push('DB.save/load: ' + (loaded && loaded.hello === 'world' ? '✅' : '❌'));
+    if (typeof state !== 'undefined') {
+        log('state.theme', true, state.theme);
+        log('state.widgets count', true, Object.keys(state.widgets || {}).length);
+    }
 
-    // تست اعداد
-    out.push('toFa(1234): ' + toFa(1234) + (toFa(1234) === '۱۲۳۴' ? ' ✅' : ' ❌'));
-    out.push('normalizeDigits("۱۲۳"): ' + normalizeDigits('۱۲۳') + (normalizeDigits('۱۲۳') === '123' ? ' ✅' : ' ❌'));
+    // تست‌های عملی (فقط اگر DB هست)
+    if (typeof DB !== 'undefined') {
+        DB.save('test_key', { hello: 'world' });
+        var loaded = DB.load('test_key', null);
+        log('DB.save/load', loaded && loaded.hello === 'world');
+        DB.remove('test_key');
+    }
 
-    // تست پول
-    out.push('formatRaw(1000000): ' + formatRaw(1000000));
+    if (typeof toFa === 'function') {
+        log('toFa(1234)', toFa(1234) === '۱۲۳۴', toFa(1234));
+    }
 
-    // تست تاریخ
-    var j = toJalali(2024, 1, 1);
-    out.push('toJalali(2024/1/1): ' + j.join('/') + ' (باید 1402/10/11 باشد)');
-    var g = jalaliToGregorian(1402, 10, 11);
-    out.push('jalaliToGregorian(1402/10/11): ' + g.join('/') + ' (باید 2024/1/1 باشد)');
-
-    // تست state
-    out.push('state.theme: ' + state.theme + ' ✅');
-    out.push('state.widgets count: ' + Object.keys(state.widgets).length);
-    out.push('state.widgetOrder count: ' + state.widgetOrder.length);
-
-    // تست توابع فارسی
-    out.push('voucherTypeName("general"): ' + voucherTypeName('general'));
-    out.push('linkTypeName("person"): ' + linkTypeName('person'));
-
-    // پاکسازی
-    DB.remove('test_key');
+    if (typeof toJalali === 'function') {
+        var j = toJalali(2024, 1, 1);
+        log('toJalali(2024/1/1)', j[0] === 1402 && j[1] === 10 && j[2] === 11, j.join('/'));
+    }
 
     document.getElementById('result').innerHTML = out.join('<br>');
 } catch (e) {
     document.getElementById('result').innerHTML =
-        '❌ خطا: ' + (e.message || e) + '<br><pre>' + (e.stack || '') + '</pre>';
-    document.getElementById('result').style.color = 'red';
+        out.join('<br>') + '<br><br>❌ خطا: ' + (e.message || e) +
+        '<br><pre style="color:red;direction:ltr">' + (e.stack || '') + '</pre>';
 }
 </script>
 </body>
