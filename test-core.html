@@ -9,11 +9,11 @@
 <h1>تست لایه Core</h1>
 <div id="result">در حال اجرا...</div>
 
-<!-- اسکریپت‌ها با onerror برای تشخیص فایل خالی یا لود نشده -->
 <script src="./js/core/db.js" onerror="document.getElementById('result').innerHTML += '<br>❌ db.js لود نشد'"></script>
 <script src="./js/core/constants.js" onerror="document.getElementById('result').innerHTML += '<br>❌ constants.js لود نشد'"></script>
 <script src="./js/core/utils.js" onerror="document.getElementById('result').innerHTML += '<br>❌ utils.js لود نشد'"></script>
 <script src="./js/core/state.js" onerror="document.getElementById('result').innerHTML += '<br>❌ state.js لود نشد'"></script>
+<script src="./js/core/router.js" onerror="document.getElementById('result').innerHTML += '<br>❌ router.js لود نشد'"></script>
 
 <script>
 var out = [];
@@ -22,20 +22,21 @@ function log(label, ok, extra) {
 }
 
 try {
-    // بررسی تعریف شدن متغیرها
-    log('DB تعریف شده', typeof DB !== 'undefined');
-    log('LS_PREFIX تعریف شده', typeof LS_PREFIX !== 'undefined');
-    log('LS_KEYS تعریف شده', typeof LS_KEYS !== 'undefined');
-    log('toFa تعریف شده', typeof toFa !== 'undefined');
-    log('toJalali تعریف شده', typeof toJalali !== 'undefined');
-    log('state تعریف شده', typeof state !== 'undefined');
+    log('DB', typeof DB !== 'undefined');
+    log('LS_KEYS', typeof LS_KEYS !== 'undefined');
+    log('toFa', typeof toFa !== 'undefined');
+    log('toJalali', typeof toJalali !== 'undefined');
+    log('state', typeof state !== 'undefined');
+    log('goToPage', typeof goToPage === 'function');
+    log('updateTopbarPeriod', typeof updateTopbarPeriod === 'function');
+    log('rerenderCurrentPage', typeof rerenderCurrentPage === 'function');
+    log('getActiveFiscalYearStart', typeof getActiveFiscalYearStart === 'function');
 
     if (typeof state !== 'undefined') {
         log('state.theme', true, state.theme);
         log('state.widgets count', true, Object.keys(state.widgets || {}).length);
     }
 
-    // تست‌های عملی (فقط اگر DB هست)
     if (typeof DB !== 'undefined') {
         DB.save('test_key', { hello: 'world' });
         var loaded = DB.load('test_key', null);
@@ -43,13 +44,15 @@ try {
         DB.remove('test_key');
     }
 
-    if (typeof toFa === 'function') {
-        log('toFa(1234)', toFa(1234) === '۱۲۳۴', toFa(1234));
-    }
+    if (typeof toFa === 'function') log('toFa(1234)', toFa(1234) === '۱۲۳۴');
 
     if (typeof toJalali === 'function') {
         var j = toJalali(2024, 1, 1);
         log('toJalali(2024/1/1)', j[0] === 1402 && j[1] === 10 && j[2] === 11, j.join('/'));
+    }
+
+    if (typeof getActiveFiscalYearStart === 'function') {
+        log('getActiveFiscalYearStart', true, '(تابع سالم)');
     }
 
     document.getElementById('result').innerHTML = out.join('<br>');
