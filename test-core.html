@@ -2,31 +2,15 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>تست کامل Core + UI</title>
+<title>تست فاز ۳</title>
 </head>
 <body>
 
-<h1>تست کامل Core + UI</h1>
+<h1>تست فاز ۳ (اطلاعات پایه)</h1>
 <div id="result"></div>
 
 <header class="topbar"><h1>تاپ‌بار</h1></header>
 <div class="sidebar-search"><input placeholder="جستجو"></div>
-
-<div class="list-header" data-col-table="test-table" data-hide-key="test">
-    <span>نمونه</span>
-</div>
-<table class="data-table" id="test-table">
-    <thead>
-        <tr>
-            <th data-sortable data-sort-key="name" data-orig-index="0">نام <span class="sort-ind"></span></th>
-            <th data-sortable data-sort-key="age" data-orig-index="1">سن <span class="sort-ind"></span></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr><td>علی</td><td>30</td></tr>
-        <tr><td>رضا</td><td>25</td></tr>
-    </tbody>
-</table>
 
 <script src="./js/core/db.js"></script>
 <script src="./js/core/constants.js"></script>
@@ -43,6 +27,14 @@
 <script src="./js/ui/form.js"></script>
 <script src="./js/ui/share.js"></script>
 <script src="./js/ui/observers.js"></script>
+<script src="./js/modules/accounts/fiscal.js"></script>
+<script src="./js/modules/accounts/chart.js"></script>
+<script src="./js/modules/persons.js"></script>
+<script src="./js/modules/accounts/companies.js"></script>
+<script src="./js/modules/accounts/banks.js"></script>
+<script src="./js/modules/accounts/cashboxes.js"></script>
+<script src="./js/modules/accounts/projects.js"></script>
+<script src="./js/modules/accounts/templates.js"></script>
 
 <script>
 var out = [];
@@ -50,36 +42,45 @@ function log(label, ok, extra) {
     out.push((ok ? '✅' : '❌') + ' ' + label + (extra ? ' → ' + extra : ''));
 }
 try {
-    /* Core */
-    log('DB',                       typeof DB !== 'undefined');
-    log('goToPage',                 typeof goToPage === 'function');
-    log('attachDatePickers',        typeof attachDatePickers === 'function');
-    log('getHideState',             typeof getHideState === 'function');
-    log('getAccountLabel',          typeof getAccountLabel === 'function');
-    log('printHtmlReport',          typeof printHtmlReport === 'function');
+    /* fiscal */
+    log('renderFiscalList',         typeof renderFiscalList === 'function');
+    log('attachRowActions',         typeof attachRowActions === 'function');
 
-    /* UI */
-    log('showToast',                typeof showToast === 'function');
-    log('openSidebar',              typeof openSidebar === 'function');
-    log('applyTheme',               typeof applyTheme === 'function');
-    log('makeTableResizable',       typeof makeTableResizable === 'function');
-    log('closeAllTabs',             typeof closeAllTabs === 'function');
-    log('autoAttachReportHelpers',  typeof autoAttachReportHelpers === 'function');
+    /* chart */
+    log('renderChartTree',          typeof renderChartTree === 'function');
+    log('loadDefaultChart',         typeof loadDefaultChart === 'function');
 
-    /* UI - share (جدید) */
-    log('shareAsText',              typeof shareAsText === 'function');
-    log('shareAsImage',             typeof shareAsImage === 'function');
-    log('loadHtml2Canvas',          typeof loadHtml2Canvas === 'function');
-    log('buildShareButtons',        typeof buildShareButtons === 'function');
+    /* persons */
+    log('renderPersonsList',        typeof renderPersonsList === 'function');
+    log('bindPersonsForm',          typeof bindPersonsForm === 'function');
 
-    /* تست‌های واقعی */
-    setTimeout(function () {
-        if (typeof buildShareButtons === 'function') buildShareButtons();
-        var shareBtns = document.querySelectorAll('.share-btn');
-        log('دکمه‌های اشتراک‌گذاری', shareBtns.length > 0, shareBtns.length + ' دکمه');
-        showToast('🎉 تست کامل لایه UI موفق');
-        document.getElementById('result').innerHTML = out.join('<br>');
-    }, 1500);
+    /* companies */
+    log('renderCompaniesList',      typeof renderCompaniesList === 'function');
+
+    /* banks */
+    log('renderBankAccountsList',   typeof renderBankAccountsList === 'function');
+    log('refreshBankTypeSelect',    typeof refreshBankTypeSelect === 'function');
+
+    /* cashboxes */
+    log('renderCashBoxesList',      typeof renderCashBoxesList === 'function');
+
+    /* projects */
+    log('renderProjectsList',       typeof renderProjectsList === 'function');
+
+    /* templates */
+    log('getDefaultTemplates',      typeof getDefaultTemplates === 'function');
+    log('renderTemplateList',       typeof renderTemplateList === 'function');
+    log('renderStdDescChips',       typeof renderStdDescChips === 'function');
+    log('refreshTemplateSelect',    typeof refreshTemplateSelect === 'function');
+
+    /* تست عملی */
+    var dt = getDefaultTemplates();
+    log('تعداد الگوهای پیش‌فرض', dt.length === 5, dt.length);
+
+    var ds = getDefaultStdDescriptions();
+    log('تعداد شرح‌های پیش‌فرض', ds.length > 0, ds.length);
+
+    document.getElementById('result').innerHTML = out.join('<br>');
 } catch (e) {
     document.getElementById('result').innerHTML = out.join('<br>') + '<br>❌ ' + e.message;
 }
