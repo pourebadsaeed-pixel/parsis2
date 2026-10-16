@@ -98,11 +98,11 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     + '#ra-clean-head.open .rch-arrow { transform:rotate(180deg) }'
     + '#ra-clean-body { padding:14px 16px; border-top:1px solid var(--border) }'
     + '#ra-clean-body.hidden { display:none }'
-    /* ✅ ستون‌های ریسایز */
     + '#ra-acc-table.w-col-resized thead th[data-orig-index] { overflow:hidden; text-overflow:ellipsis }'
-    /* ✅ دکمه‌های عملیات گردش */
     + '.ar-turnover-actions { display:flex; gap:4px; justify-content:center }'
-    + '.ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }';
+    + '.ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }'
+    + '.ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; '
+    +   'font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }';
     document.head.appendChild(s);
 })();
 
@@ -265,6 +265,11 @@ function filterVouchers(opts) {
     });
 }
 
+/* ============================================================
+   ✅ computeAccountBalances — اصلاح شده
+   ساختار detailBalances حالا کلید مرکب داره: "parentId::linkType::detailId"
+   تا اگر یک معین به دو نوع تفصیلی وصل باشه، هر دو ذخیره بشن.
+   ============================================================ */
 function computeAccountBalances(opts) {
     var vouchers = filterVouchers(opts);
     var accounts = DB.load('accounts', []);
@@ -284,6 +289,7 @@ function computeAccountBalances(opts) {
         });
     });
 
+    /* ✅ ساختار جدید: کلید مرکب */
     var db = {};
     if (opts.level === 4) {
         vouchers.forEach(function (v) {
@@ -296,9 +302,18 @@ function computeAccountBalances(opts) {
                 Object.keys(line.details).forEach(function (lt) {
                     var did = line.details[lt];
                     if (!did) return;
-                    if (!db[did]) db[did] = { debit: 0, credit: 0, parent: acc.id, linkType: lt };
-                    db[did].debit += Number(line.debit) || 0;
-                    db[did].credit += Number(line.credit) || 0;
+                    var key = acc.id + '::' + lt + '::' + did;
+                    if (!db[key]) {
+                        db[key] = {
+                            id: did,
+                            linkType: lt,
+                            parent: acc.id,
+                            debit: 0,
+                            credit: 0
+                        };
+                    }
+                    db[key].debit += Number(line.debit) || 0;
+                    db[key].credit += Number(line.credit) || 0;
                 });
             });
         });
@@ -390,7 +405,7 @@ function refreshReportPeriodSelects() {
 
 /* ============================================================
    بخش ۶ — رندر گزارش مرور حساب‌ها
-   ✅ اصلاح: فیلتر «فقط دارای مانده» بر اساس مانده خالص (نه صرف debit/credit)
+   ✅ اصلاح: استفاده از کلید مرکب detailBalances
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -431,19 +446,28 @@ function renderAccountReview() {
             list.push(a);
         });
     } else {
-        Object.keys(detailBals).forEach(function (did) {
-            var d = detailBals[did];
+        /* ✅ level 4: هر کلید مرکب یک ردیف */
+        Object.keys(detailBals).forEach(function (key) {
+            var d = detailBals[key];
             if (parentId && d.parent !== parentId) return;
             list.push({
-                id: did,
+                id: d.id,
                 isDetail: true,
                 linkType: d.linkType,
                 parentId: d.parent,
-                name: getDetailLabel(d.linkType, did),
+                name: getDetailLabel(d.linkType, d.id),
                 code: '',
                 debit: d.debit,
                 credit: d.credit
             });
+        });
+
+        /* ✅ مرتب‌سازی الفبایی بر اساس linkType سپس name */
+        list.sort(function (a, b) {
+            if (a.linkType !== b.linkType) {
+                return String(a.linkType).localeCompare(String(b.linkType));
+            }
+            return String(a.name || '').localeCompare(String(b.name || ''), 'fa');
         });
     }
 
@@ -498,7 +522,6 @@ function renderAccountReview() {
             b = rolled[a.id] || { debit: 0, credit: 0 };
         }
 
-        /* ✅ اصلاح: فیلتر بر اساس مانده خالص (b.debit - b.credit) نه صرف صفر بودن هر دو */
         if (filterBal) {
             var netCheck = (Number(b.debit) || 0) - (Number(b.credit) || 0);
             if (Math.abs(netCheck) < 0.5) return;
@@ -531,8 +554,16 @@ function renderAccountReview() {
         html += '<span>' + esc(a.code || '—') + '</span>';
         html += '</td>';
 
+        /* ✅ برای سطح ۴، نوع تفصیلی رو نشون بده */
+        var nameExtra = '';
+        if (a.isDetail && a.linkType) {
+            nameExtra = ' <span class="ar-link-badge">' + linkTypeName(a.linkType) + '</span>';
+        } else if (!a.isDetail) {
+            nameExtra = ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>';
+        }
+
         html += '<td class="ar-name" data-orig-index="1">' + esc(a.name || '')
-             +  (a.isDetail ? '' : ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>')
+             +  nameExtra
              +  '</td>';
         html += '<td class="ar-num' + (b.debit ? '' : ' zero') + '" data-orig-index="2">' + (hide ? '—' : moneyHtml(b.debit)) + '</td>';
         html += '<td class="ar-num' + (b.credit ? '' : ' zero') + '" data-orig-index="3">' + (hide ? '—' : moneyHtml(b.credit)) + '</td>';
@@ -776,7 +807,6 @@ function openAccountTurnover(accountId, detailInfo) {
         html += '</tbody></table></div>';
         body.innerHTML = html;
 
-        /* ✅ اتصال دکمه‌های مشاهده و ویرایش */
         body.querySelectorAll('[data-act="preview"]').forEach(function (b) {
             b.addEventListener('click', function (e) {
                 e.stopPropagation();
@@ -796,7 +826,6 @@ function openAccountTurnover(accountId, detailInfo) {
             });
         });
 
-        /* ✅ فعال‌سازی ریسایز ستون‌ها روی turnover-table */
         setTimeout(function () {
             var t = document.getElementById('turnover-table');
             if (t && typeof makeTableResizable === 'function') {
