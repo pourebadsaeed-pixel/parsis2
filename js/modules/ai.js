@@ -2426,13 +2426,12 @@ function aiCloseSettings() {
 }
 
 /* ============================================================
-   بخش ۲۰.۵ — دریافت اعتبار AvalAI
+   بخش ۲۰.۵ — دریافت اعتبار AvalAI (با CORS fallback)
    ============================================================ */
 async function aiFetchAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
     if (!box) return;
 
-    /* کلید API رو از Input بگیر (اگه کاربر تازه وارد کرده و ذخیره نکرده) */
     var keyInput = document.getElementById('ai-apikey-input');
     var activeKey = (keyInput && keyInput.value.trim())
         ? keyInput.value.trim()
@@ -2443,111 +2442,129 @@ async function aiFetchAvalaiCredit() {
         return;
     }
 
-    /* اعتبارسنجی فرمت کلید */
-    if (activeKey.length < 20) {
+    box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار...</div>';
+
+    var targetUrl = 'https://api.avalai.ir/user/1/credit';
+
+    /* تلاش ۱: مستقیم */
+    var data = await _tryFetchCredit(targetUrl, activeKey, null);
+
+    /* تلاش ۲: با CORS Proxy */
+    if (!data) {
+        var proxies = [
+            function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+            function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+            function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
+        ];
+
+        for (var pi = 0; pi < proxies.length; pi++) {
+            console.log('🌐 [Credit] Trying proxy ' + (pi + 1) + '...');
+            data = await _tryFetchCredit(proxies[pi](targetUrl), activeKey, 'proxy');
+            if (data) {
+                console.log('✅ [Credit] Proxy ' + (pi + 1) + ' worked!');
+                break;
+            }
+        }
+    }
+
+    if (!data) {
         box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
-            + '⚠️ کلید API خیلی کوتاه است. کلید AvalAI باید با <b>aa-</b> شروع شود.'
-            + '</div>';
+            + '⚠️ دریافت اعتبار ناموفق بود<br>'
+            + '<span style="font-size:0.72rem;opacity:0.8">اتصال مستقیم و Proxy هر دو ناموفق بودن</span>'
+            + '<div style="font-size:0.7rem;color:#991b1b;margin-top:10px;padding:8px;background:#fee2e2;border-radius:6px;line-height:1.9;text-align:right">'
+            + '<b>راه‌حل سریع:</b><br>'
+            + '۱. Service Worker رو Unregister کن (F12 → Application)<br>'
+            + '۲. تب رو کامل ببند و باز کن<br>'
+            + '۳. اگه بازم نشد، افزونه‌ی AdBlock رو موقتاً خاموش کن'
+            + '</div></div>';
         return;
     }
 
-    box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار...</div>';
+    /* نمایش */
+    var limit         = Number(data.limit) || 0;
+    var remainingIrt  = Number(data.remaining_irt) || 0;
+    var remainingUnit = Number(data.remaining_unit) || 0;
+    var totalUnit     = Number(data.total_unit) || 0;
+    var exchangeRate  = Number(data.exchange_rate) || 0;
 
-    console.log('🔑 [Credit] Key length:', activeKey.length);
-    console.log('🔑 [Credit] Key prefix:', activeKey.substring(0, 6) + '...');
+    var color = totalUnit > 0 ? '#059669' : '#dc2626';
+    var limitText = limit > 0 ? ('$' + limit.toFixed(2)) : 'بدون سقف';
+    var limitColor = limit > 0 ? 'var(--text)' : 'var(--text-muted)';
 
+    var lowWarning = (limit > 0 && totalUnit < limit * 0.2)
+        ? '<div style="grid-column:1/-1;padding:8px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.78rem;font-weight:700;text-align:center">⚠️ اعتبار شما کمتر از ۲۰٪ سقف است</div>'
+        : '';
+
+    box.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+        + '<div class="kpi-card" style="grid-column:1/-1;margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
+        +   '<div class="kpi-lbl">🎯 اعتبار کل (واحد)</div>'
+        +   '<div class="kpi-val" style="color:' + color + ';font-size:1.6rem">'
+        +     toFa(totalUnit.toFixed(2)) + ' <span style="font-size:0.9rem;color:var(--text-muted)">واحد</span>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="kpi-card" style="margin:0">'
+        +   '<div class="kpi-lbl">💵 اعتبار تومانی</div>'
+        +   '<div class="kpi-val" style="font-size:1rem">'
+        +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬')) + ' تومان'
+        +   '</div>'
+        + '</div>'
+        + '<div class="kpi-card" style="margin:0">'
+        +   '<div class="kpi-lbl">📊 اعتبار واحدی</div>'
+        +   '<div class="kpi-val" style="font-size:1rem">'
+        +     toFa(remainingUnit.toFixed(2)) + ' واحد'
+        +   '</div>'
+        + '</div>'
+        + '<div class="kpi-card" style="margin:0">'
+        +   '<div class="kpi-lbl">💱 نرخ تبدیل امروز</div>'
+        +   '<div class="kpi-val" style="font-size:0.95rem">'
+        +     toFa(exchangeRate.toLocaleString('fa-IR').replace(/,/g, '٬'))
+        +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان/واحد</span>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="kpi-card" style="margin:0">'
+        +   '<div class="kpi-lbl">⚙️ سقف اعتبار</div>'
+        +   '<div class="kpi-val" style="font-size:0.95rem;color:' + limitColor + '">'
+        +     limitText
+        +   '</div>'
+        + '</div>'
+        + lowWarning
+        + '</div>';
+
+    try { DB.save('ai.creditLastUpdate', Date.now()); } catch (e) {}
+}
+
+/* تابع کمکی: تلاش برای دریافت اعتبار */
+async function _tryFetchCredit(url, apiKey, mode) {
     try {
-        var res = await fetch('https://api.avalai.ir/user/1/credit', {
+        var res = await fetch(url, {
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + activeKey,
+                'Authorization': 'Bearer ' + apiKey,
                 'Accept': 'application/json'
             }
         });
 
-        console.log('📡 [Credit] Response status:', res.status);
+        console.log('📡 [Credit] ' + (mode || 'direct') + ' status:', res.status);
 
         if (!res.ok) {
-            var errText = await res.text();
-            throw new Error('HTTP ' + res.status + ' — ' + errText.substring(0, 100));
+            var txt = await res.text();
+            console.warn('⚠️ [Credit] Bad response:', txt.substring(0, 150));
+            return null;
         }
 
         var data = await res.json();
         console.log('📊 [Credit] Data:', data);
 
-        var limit         = Number(data.limit) || 0;
-        var remainingIrt  = Number(data.remaining_irt) || 0;
-        var remainingUnit = Number(data.remaining_unit) || 0;
-        var totalUnit     = Number(data.total_unit) || 0;
-        var exchangeRate  = Number(data.exchange_rate) || 0;
-
-        var color = totalUnit > 0 ? '#059669' : '#dc2626';
-
-        var lowWarning = (limit > 0 && totalUnit < limit * 0.2)
-            ? '<div style="grid-column:1/-1;padding:8px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.78rem;font-weight:700;text-align:center">⚠️ اعتبار شما کمتر از ۲۰٪ سقف است</div>'
-            : '';
-
-        var limitText = limit > 0 ? ('$' + limit.toFixed(2)) : 'بدون سقف';
-        var limitColor = limit > 0 ? 'var(--text)' : 'var(--text-muted)';
-
-        var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-            + '<div class="kpi-card" style="grid-column:1/-1;margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
-            +   '<div class="kpi-lbl">🎯 اعتبار کل (واحد)</div>'
-            +   '<div class="kpi-val" style="color:' + color + ';font-size:1.6rem">'
-            +     toFa(totalUnit.toFixed(2)) + ' <span style="font-size:0.9rem;color:var(--text-muted)">واحد</span>'
-            +   '</div>'
-            + '</div>'
-            + '<div class="kpi-card" style="margin:0">'
-            +   '<div class="kpi-lbl">💵 اعتبار تومانی</div>'
-            +   '<div class="kpi-val" style="font-size:1rem">'
-            +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬')) + ' تومان'
-            +   '</div>'
-            + '</div>'
-            + '<div class="kpi-card" style="margin:0">'
-            +   '<div class="kpi-lbl">📊 اعتبار واحدی</div>'
-            +   '<div class="kpi-val" style="font-size:1rem">'
-            +     toFa(remainingUnit.toFixed(2)) + ' واحد'
-            +   '</div>'
-            + '</div>'
-            + '<div class="kpi-card" style="margin:0">'
-            +   '<div class="kpi-lbl">💱 نرخ تبدیل امروز</div>'
-            +   '<div class="kpi-val" style="font-size:0.95rem">'
-            +     toFa(exchangeRate.toLocaleString('fa-IR').replace(/,/g, '٬'))
-            +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان/واحد</span>'
-            +   '</div>'
-            + '</div>'
-            + '<div class="kpi-card" style="margin:0">'
-            +   '<div class="kpi-lbl">⚙️ سقف اعتبار</div>'
-            +   '<div class="kpi-val" style="font-size:0.95rem;color:' + limitColor + '">'
-            +     limitText
-            +   '</div>'
-            + '</div>'
-            + lowWarning
-            + '</div>';
-
-        box.innerHTML = html;
-        try { DB.save('ai.creditLastUpdate', Date.now()); } catch (e) {}
-        return;
-
-    } catch (e) {
-        console.error('❌ [Credit] Error:', e);
-
-        var errMsg = e.message || 'خطای نامشخص';
-        var hint = '';
-
-        if (errMsg === 'Failed to fetch' || errMsg.indexOf('Failed to fetch') !== -1) {
-            hint = 'دلایل ممکن:<br>'
-                 + '۱. برنامه روی HTTPS نیست<br>'
-                 + '۲. افزونه‌ی مسدودکننده فعال است (uBlock, AdGuard)<br>'
-                 + '۳. Service Worker نسخه‌ی قدیمی رو کش کرده<br>'
-                 + '۴. اتصال اینترنت قطع است';
+        if (typeof data.total_unit === 'undefined' &&
+            typeof data.remaining_irt === 'undefined') {
+            console.warn('⚠️ [Credit] Invalid data shape');
+            return null;
         }
 
-        box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
-            + '⚠️ دریافت اعتبار ناموفق بود<br>'
-            + '<span style="font-size:0.72rem;opacity:0.8">' + esc(errMsg) + '</span>'
-            + (hint ? '<div style="font-size:0.68rem;color:#991b1b;margin-top:10px;padding:8px;background:#fee2e2;border-radius:6px;line-height:1.8;text-align:right">' + hint + '</div>' : '')
-            + '</div>';
+        return data;
+    } catch (e) {
+        console.warn('❌ [Credit] ' + (mode || 'direct') + ' failed:', e.message);
+        return null;
     }
 }
 
@@ -2626,13 +2643,11 @@ function initDraggableFab() {
    بخش ۲۲ — پنل تنظیمات و تست TTS
    ============================================================ */
 function openTtsDiagnosticPanel() {
-    /* حذف نسخه‌ی قبلی اگر باز بود */
     var old = document.getElementById('tts-diag-modal');
     if (old) old.remove();
     var oldO = document.getElementById('tts-diag-overlay');
     if (oldO) oldO.remove();
 
-    /* تشخیص وضعیت مرورگر */
     var diag = {
         hasSynthesis: !!window.speechSynthesis,
         hasSpeechRec: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
@@ -2675,7 +2690,6 @@ function openTtsDiagnosticPanel() {
         +     '<button id="tts-diag-close" class="close-btn" type="button">×</button>'
         +   '</div>'
         +   '<div class="modal-body" style="max-height:72vh;overflow-y:auto">'
-
         +     '<div class="modal-section">'
         +       '<h3>🖥️ وضعیت مرورگر شما</h3>'
         +       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
@@ -2688,7 +2702,6 @@ function openTtsDiagnosticPanel() {
         +         '<button id="tts-reload-voices" class="btn-secondary btn-mini" type="button">🔄 بارگذاری مجدد صداها</button>'
         +       '</div>'
         +     '</div>'
-
         +     '<div class="modal-section">'
         +       '<h3>🎙️ موتور پخش صدا</h3>'
         +       '<div class="field"><label>موتور</label>'
@@ -2707,7 +2720,6 @@ function openTtsDiagnosticPanel() {
         +         '</div>'
         +       '</div>'
         +     '</div>'
-
         +     '<div class="modal-section">'
         +       '<h3>⚡ سرعت گفتار</h3>'
         +       '<div style="display:flex;align-items:center;gap:12px">'
@@ -2717,7 +2729,6 @@ function openTtsDiagnosticPanel() {
         +         '<span id="tts-rate-value" style="font-weight:800;color:var(--primary-dark);font-size:0.85rem;min-width:36px;text-align:center">' + toFa(AI_TTS.rate.toFixed(1)) + '</span>'
         +       '</div>'
         +     '</div>'
-
         +     '<div class="modal-section">'
         +       '<h3>🧪 تست صدا</h3>'
         +       '<div class="field"><label>متن نمونه</label>'
@@ -2729,7 +2740,6 @@ function openTtsDiagnosticPanel() {
         +       '</div>'
         +       '<div id="tts-test-status" style="margin-top:10px;padding:10px 14px;background:var(--card-alt);border:1px solid var(--border);border-radius:10px;font-size:0.82rem;text-align:center">آماده برای تست</div>'
         +     '</div>'
-
         +     '<div class="modal-section">'
         +       '<h3>💡 راهنما</h3>'
         +       '<ul class="simple-list" style="font-size:0.8rem;line-height:1.9">'
@@ -2738,7 +2748,6 @@ function openTtsDiagnosticPanel() {
         +         '<li><b>مرورگر:</b> آفلاین — کیفیت پایین‌تر</li>'
         +       '</ul>'
         +     '</div>'
-
         +   '</div>'
         +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
         +     '<button id="tts-diag-cancel" class="btn-secondary" type="button">بستن</button>'
@@ -2992,7 +3001,6 @@ function aiInit() {
         openTtsDiagnosticPanel();
     });
 
-    /* دکمه بروزرسانی اعتبار AvalAI */
     var creditBtn = document.getElementById('avalai-credit-refresh');
     if (creditBtn) creditBtn.addEventListener('click', function () {
         aiFetchAvalaiCredit();
@@ -3067,6 +3075,7 @@ window.aiSend                    = aiSend;
 window.aiOpenSettings            = aiOpenSettings;
 window.aiCloseSettings           = aiCloseSettings;
 window.aiFetchAvalaiCredit       = aiFetchAvalaiCredit;
+window._tryFetchCredit           = _tryFetchCredit;
 window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
