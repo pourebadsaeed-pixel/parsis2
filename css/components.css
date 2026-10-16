@@ -311,7 +311,7 @@
   width:36px;
   height:34px;
   border-radius:10px;
-  font-size:1rem;
+  font-size:1.1rem;
   cursor:pointer;
   padding:0;
   display:inline-flex;
@@ -485,6 +485,43 @@
   color:var(--primary-dark);
   border-top:2px solid var(--primary);
   padding:12px 14px;
+}
+
+/* ============================================================
+   ✅ جدید: ستون‌های قابل تغییر عرض (Fixed Layout)
+   هر جدولی که کاربر عرض ستونش را تغییر دهد، این کلاس به آن اضافه می‌شود
+   و از آن پس محتوا بر اساس عرض تعیین‌شده نمایش داده می‌شود.
+   ============================================================ */
+.data-table.w-col-resized,
+.report-table.w-col-resized,
+.cf-table.w-col-resized,
+.ar-tbl.w-col-resized,
+.rff-inst-table.w-col-resized,
+.turnover-table.w-col-resized {
+  table-layout: fixed !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.data-table.w-col-resized td,
+.data-table.w-col-resized th,
+.report-table.w-col-resized td,
+.report-table.w-col-resized th,
+.cf-table.w-col-resized td,
+.cf-table.w-col-resized th,
+.ar-tbl.w-col-resized td,
+.ar-tbl.w-col-resized th,
+.rff-inst-table.w-col-resized td,
+.rff-inst-table.w-col-resized th,
+.turnover-table.w-col-resized td,
+.turnover-table.w-col-resized th {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  min-width: 0 !important;
+  max-width: none !important;
 }
 
 .col-resizer {
