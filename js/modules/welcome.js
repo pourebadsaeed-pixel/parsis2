@@ -228,10 +228,9 @@
         renderDate();
         setTimeout(renderChart, 200);
 
-        /* Safety: اگر کاربر ۱۲ ثانیه کلیک نکرد، خودکار باز شود */
+        /* Safety: اگر کاربر ۵ ثانیه کلیک نکرد، خودکار باز شود */
         var safety = setTimeout(function () {
             if (document.body.style.visibility === 'hidden') {
-                console.warn('⚠️ welcome safety: کلیک نشد');
                 document.body.style.visibility = 'visible';
                 var w = document.getElementById('welcome-overlay');
                 if (w) {
@@ -239,7 +238,7 @@
                     setTimeout(function () { w.style.display = 'none'; }, 500);
                 }
             }
-        }, 12000);
+        }, 5000);
 
         var w = document.getElementById('welcome-overlay');
         if (w) w.addEventListener('click', function () {
