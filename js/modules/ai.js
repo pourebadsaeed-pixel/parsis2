@@ -2432,21 +2432,40 @@ async function aiFetchAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
     if (!box) return;
 
-    if (!AI.apiKey) {
+    /* کلید API رو از Input بگیر (اگه کاربر تازه وارد کرده و ذخیره نکرده) */
+    var keyInput = document.getElementById('ai-apikey-input');
+    var activeKey = (keyInput && keyInput.value.trim())
+        ? keyInput.value.trim()
+        : AI.apiKey;
+
+    if (!activeKey) {
         box.innerHTML = '<div class="widget-empty">⚠️ ابتدا کلید API را در بخش بالا وارد کنید.</div>';
+        return;
+    }
+
+    /* اعتبارسنجی فرمت کلید */
+    if (activeKey.length < 20) {
+        box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
+            + '⚠️ کلید API خیلی کوتاه است. کلید AvalAI باید با <b>aa-</b> شروع شود.'
+            + '</div>';
         return;
     }
 
     box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار...</div>';
 
+    console.log('🔑 [Credit] Key length:', activeKey.length);
+    console.log('🔑 [Credit] Key prefix:', activeKey.substring(0, 6) + '...');
+
     try {
         var res = await fetch('https://api.avalai.ir/user/1/credit', {
             method: 'GET',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + AI.apiKey
+                'Authorization': 'Bearer ' + activeKey,
+                'Accept': 'application/json'
             }
         });
+
+        console.log('📡 [Credit] Response status:', res.status);
 
         if (!res.ok) {
             var errText = await res.text();
@@ -2454,6 +2473,7 @@ async function aiFetchAvalaiCredit() {
         }
 
         var data = await res.json();
+        console.log('📊 [Credit] Data:', data);
 
         var limit         = Number(data.limit) || 0;
         var remainingIrt  = Number(data.remaining_irt) || 0;
@@ -2471,28 +2491,24 @@ async function aiFetchAvalaiCredit() {
         var limitColor = limit > 0 ? 'var(--text)' : 'var(--text-muted)';
 
         var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-
             + '<div class="kpi-card" style="grid-column:1/-1;margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
             +   '<div class="kpi-lbl">🎯 اعتبار کل (واحد)</div>'
             +   '<div class="kpi-val" style="color:' + color + ';font-size:1.6rem">'
             +     toFa(totalUnit.toFixed(2)) + ' <span style="font-size:0.9rem;color:var(--text-muted)">واحد</span>'
             +   '</div>'
             + '</div>'
-
             + '<div class="kpi-card" style="margin:0">'
             +   '<div class="kpi-lbl">💵 اعتبار تومانی</div>'
             +   '<div class="kpi-val" style="font-size:1rem">'
             +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬')) + ' تومان'
             +   '</div>'
             + '</div>'
-
             + '<div class="kpi-card" style="margin:0">'
             +   '<div class="kpi-lbl">📊 اعتبار واحدی</div>'
             +   '<div class="kpi-val" style="font-size:1rem">'
             +     toFa(remainingUnit.toFixed(2)) + ' واحد'
             +   '</div>'
             + '</div>'
-
             + '<div class="kpi-card" style="margin:0">'
             +   '<div class="kpi-lbl">💱 نرخ تبدیل امروز</div>'
             +   '<div class="kpi-val" style="font-size:0.95rem">'
@@ -2500,14 +2516,12 @@ async function aiFetchAvalaiCredit() {
             +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان/واحد</span>'
             +   '</div>'
             + '</div>'
-
             + '<div class="kpi-card" style="margin:0">'
             +   '<div class="kpi-lbl">⚙️ سقف اعتبار</div>'
             +   '<div class="kpi-val" style="font-size:0.95rem;color:' + limitColor + '">'
             +     limitText
             +   '</div>'
             + '</div>'
-
             + lowWarning
             + '</div>';
 
@@ -2516,9 +2530,23 @@ async function aiFetchAvalaiCredit() {
         return;
 
     } catch (e) {
+        console.error('❌ [Credit] Error:', e);
+
+        var errMsg = e.message || 'خطای نامشخص';
+        var hint = '';
+
+        if (errMsg === 'Failed to fetch' || errMsg.indexOf('Failed to fetch') !== -1) {
+            hint = 'دلایل ممکن:<br>'
+                 + '۱. برنامه روی HTTPS نیست<br>'
+                 + '۲. افزونه‌ی مسدودکننده فعال است (uBlock, AdGuard)<br>'
+                 + '۳. Service Worker نسخه‌ی قدیمی رو کش کرده<br>'
+                 + '۴. اتصال اینترنت قطع است';
+        }
+
         box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
             + '⚠️ دریافت اعتبار ناموفق بود<br>'
-            + '<span style="font-size:0.72rem;opacity:0.8">' + esc(e.message || 'خطای شبکه') + '</span>'
+            + '<span style="font-size:0.72rem;opacity:0.8">' + esc(errMsg) + '</span>'
+            + (hint ? '<div style="font-size:0.68rem;color:#991b1b;margin-top:10px;padding:8px;background:#fee2e2;border-radius:6px;line-height:1.8;text-align:right">' + hint + '</div>' : '')
             + '</div>';
     }
 }
