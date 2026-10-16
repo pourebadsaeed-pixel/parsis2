@@ -6,6 +6,32 @@
 'use strict';
 
 /* ============================================================
+   بخش ۰ — CSS ویجت چک‌لیست (فونت B Titr + جداکننده)
+   ============================================================ */
+(function injectChecklistWidgetCss() {
+    if (document.getElementById('cl-widget-style')) return;
+    var s = document.createElement('style');
+    s.id = 'cl-widget-style';
+    s.textContent = ''
+    + '@font-face { font-family: "B Titr"; src: local("B Titr"), local("BTitr"), local("BTitrBold"); }'
+    + '.cl-widget-note-title {'
+    +   'font-family: "B Titr", "BTitr", "B Nazanin", Tahoma, sans-serif;'
+    +   'font-weight: 900;'
+    +   'color: var(--primary-dark);'
+    +   'font-size: 0.9rem;'
+    +   'letter-spacing: -0.2px;'
+    +   'margin-left: 2px;'
+    + '}'
+    + '.cl-widget-sep {'
+    +   'color: var(--text-muted);'
+    +   'margin: 0 6px;'
+    +   'font-weight: 700;'
+    +   'font-family: "B Titr", Tahoma, sans-serif;'
+    + '}';
+    document.head.appendChild(s);
+})();
+
+/* ============================================================
    بخش ۱ — نمای ویجت‌ها
    ============================================================ */
 function applyWidgetVisibility() {
@@ -206,6 +232,7 @@ function getBirthdayInfo(birthStr) {
         birthYear: birthYear
     };
 }
+
 /* ============================================================
    بخش ۶ — ویجت مانده کل بانک
    ============================================================ */
@@ -569,6 +596,7 @@ function updateHomeWidgets() {
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
+
 /* ============================================================
    بخش ۱۳ — ویجت نرخ لحظه‌ای ارز و طلا
    ============================================================ */
@@ -831,6 +859,7 @@ function renderLiveRatesWidget() {
 
 /* ============================================================
    بخش ۱۴ — ویجت چک‌لیست (شخصی/خانواده/شغلی)
+   ✅ اصلاح: عنوان یادداشت با فونت B Titr + خط تیره قبل از متن
    ============================================================ */
 function renderTodayChecklistWidget(category) {
     var meta = null;
@@ -882,12 +911,18 @@ function renderTodayChecklistWidget(category) {
     var html = '';
     filtered.forEach(function (x) {
         var dateLabel = toFa(esc(x.note.date || ''));
+        var noteTitle = String(x.note.title || 'یادداشت').trim();
+
         html += '<div class="cl-widget-item' + (x.item.done ? ' done' : '') + '" '
              +  'data-note-id="' + x.note.id + '" '
              +  'data-item-id="' + x.item.id + '" '
              +  'title="کلیک برای باز کردن یادداشت">'
              +  '<input type="checkbox" ' + (x.item.done ? 'checked' : '') + '>'
-             +  '<span class="cl-widget-text">' + esc(x.item.text) + '</span>'
+             +  '<span class="cl-widget-text">'
+             +    '<strong class="cl-widget-note-title">' + esc(noteTitle) + '</strong>'
+             +    '<span class="cl-widget-sep">—</span>'
+             +    esc(x.item.text)
+             +  '</span>'
              +  '<span class="cl-widget-note">📅 ' + dateLabel + '</span>'
              +  '</div>';
     });
@@ -940,6 +975,7 @@ window.LIVE_RATES_CACHE                = LIVE_RATES_CACHE;
 window.PRICETO_BASE                    = PRICETO_BASE;
 window.NAVASAN_GOLD_CDN                = NAVASAN_GOLD_CDN;
 window.NAVASAN_FIAT_CDN                = NAVASAN_FIAT_CDN;
+window.CORS_PROXIES                    = CORS_PROXIES;
 window.fetchWithTimeout                = fetchWithTimeout;
 window.tryFetchJson                    = tryFetchJson;
 window.tryFetchJsonWithFallback        = tryFetchJsonWithFallback;
