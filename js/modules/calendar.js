@@ -168,7 +168,8 @@ var CAL41 = {
     externalEvents: [],
     daySearch: '',
     agendaSearch: '',
-    agendaRange: 'all'
+    /* ✅ پیش‌فرض: ۱ سال آینده — قابل ذخیره */
+    agendaRange: DB.load('cal41.agendaRange', '365')
 };
 
 window.CAL41 = CAL41;
@@ -466,6 +467,7 @@ function invalidateCalEventCache() {
         return r;
     };
 })();
+
 /* ============================================================
    بخش ۹ — رندر نمای ماه
    ============================================================ */
@@ -928,7 +930,7 @@ function renderCalAgendaView(events) {
     var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
 
     var q = (CAL41.agendaSearch || '').toLowerCase();
-    var range = CAL41.agendaRange || 'all';
+    var range = CAL41.agendaRange || '365';
 
     var maxDate = '';
     if (range !== 'all') maxDate = addJalaliDays(todayStr, Number(range));
@@ -1002,6 +1004,7 @@ function renderCalAgendaView(events) {
     html += '</div>';
     return html;
 }
+
 /* ============================================================
    بخش ۱۵ — ساخت عنوان نوار بالا
    ============================================================ */
@@ -1089,7 +1092,7 @@ function calRender() {
                  +  'style="background:#fee2e2;color:#dc2626;border:none;border-radius:10px;padding:9px 14px;font-family:inherit;font-size:0.8rem;font-weight:800;cursor:pointer">✕</button>';
         }
         if (CAL41.view === 'agenda') {
-            var ar = CAL41.agendaRange || 'all';
+            var ar = CAL41.agendaRange || '365';
             html += '<select id="calg-range-select" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:0.82rem;background:#fff;cursor:pointer;font-weight:700">'
                  +  '<option value="all"'   + (ar === 'all'   ? ' selected' : '') + '>همه تاریخ‌ها</option>'
                  +  '<option value="30"'    + (ar === '30'    ? ' selected' : '') + '>۳۰ روز آینده</option>'
@@ -1213,9 +1216,11 @@ function bindCalEvents41(active) {
         calRender();
     };
 
+    /* ✅ تغییر بازه دستورکار + ذخیره */
     var rs = document.getElementById('calg-range-select');
     if (rs) rs.onchange = function () {
         CAL41.agendaRange = this.value;
+        DB.save('cal41.agendaRange', this.value);
         calRender();
     };
 
@@ -1771,6 +1776,7 @@ function setupCalDayTimeline(body, active) {
     body.addEventListener('touchstart', onStart, { passive: true });
     body.addEventListener('mousedown', onStart);
 }
+
 /* ============================================================
    بخش ۲۱ — مودال رویداد
    ============================================================ */
