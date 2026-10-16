@@ -213,11 +213,45 @@ function setHomePage(p) {
     if (typeof applyWidgetVisibility === 'function') applyWidgetVisibility();
 }
 
+/* ============================================================
+   ✅ جدید: بررسی این که آیا صفحه‌ای حداقل یک ویجت فعال دارد
+   ============================================================ */
+function isHomePageEmpty(pageNum) {
+    var widgets = state.widgets || {};
+    var pages = state.widgetPages || {};
+    var order = state.widgetOrder || [];
+    for (var i = 0; i < order.length; i++) {
+        var k = order[i];
+        if (widgets[k] && (pages[k] || 1) === pageNum) return false;
+    }
+    return true;
+}
+
+/* ============================================================
+   ✅ جدید: تعداد صفحات قابل نمایش = بزرگ‌ترین صفحه‌ی دارای ویجت
+   ============================================================ */
+function getMaxActiveHomePage() {
+    var maxP = 0;
+    for (var p = 1; p <= MAX_HOME_PAGES; p++) {
+        if (!isHomePageEmpty(p)) maxP = p;
+    }
+    return maxP;
+}
+
 function renderHomePageTabs() {
     var tabs = document.querySelectorAll('.home-page-tab');
+    var maxActive = getMaxActiveHomePage();
     for (var i = 0; i < tabs.length; i++) {
         var pg = Number(tabs[i].getAttribute('data-home-page'));
+        /* ✅ اگر صفحه‌ی مورد نظر خالی است، تب آن مخفی شود */
+        var hasWidgets = !isHomePageEmpty(pg);
+        tabs[i].style.display = hasWidgets ? '' : 'none';
         tabs[i].classList.toggle('active', pg === state.homePage);
+    }
+    /* ✅ اگر کاربر در صفحه‌ای بدون ویجت قرار گرفت، به آخرین صفحه‌ی فعال ببر */
+    if (state.homePage > maxActive) {
+        state.homePage = Math.max(1, maxActive);
+        saveState(LS_KEYS.HOME_PAGE);
     }
 }
 
@@ -226,6 +260,8 @@ function renderHomePageDots() {
     if (!box) return;
     box.innerHTML = '';
     for (var p = 1; p <= MAX_HOME_PAGES; p++) {
+        /* ✅ فقط صفحه‌های دارای ویجت */
+        if (isHomePageEmpty(p)) continue;
         var d = document.createElement('div');
         d.className = 'home-page-dot' + (p === state.homePage ? ' active' : '');
         (function (pg) {
@@ -283,6 +319,21 @@ function bindSidebarNav() {
             setHomePage(Number(this.getAttribute('data-home-page')));
         });
     }
+
+    /* ✅ اتصال دکمه‌های باز/بستن همه تنظیمات */
+    var setExpand = document.getElementById('settings-expand-all');
+    if (setExpand) setExpand.addEventListener('click', function () {
+        document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
+            d.open = true;
+        });
+    });
+
+    var setCollapse = document.getElementById('settings-collapse-all');
+    if (setCollapse) setCollapse.addEventListener('click', function () {
+        document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
+            d.open = false;
+        });
+    });
 }
 
 /* ============================================================
@@ -300,5 +351,7 @@ window.setHomePage        = setHomePage;
 window.renderHomePageTabs = renderHomePageTabs;
 window.renderHomePageDots = renderHomePageDots;
 window.bindSidebarNav     = bindSidebarNav;
+window.isHomePageEmpty    = isHomePageEmpty;
+window.getMaxActiveHomePage = getMaxActiveHomePage;
 
 console.log('✅ [ui/nav.js] loaded');
