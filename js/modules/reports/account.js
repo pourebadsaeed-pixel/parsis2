@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (بخش ۱: state + فیلتر + رندر درخت)
+   پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
    وابستگی: core/* + ui/* + vouchers/*
    ============================================================ */
@@ -17,7 +17,7 @@ var _AR = {
 var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
 
 /* ============================================================
-   بخش ۲ — CSS (در صورت نبود)
+   بخش ۲ — CSS
    ============================================================ */
 (function injectARStyle() {
     if (document.getElementById('ar-final-style')) return;
@@ -97,7 +97,12 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     + '#ra-clean-head .rch-arrow { font-size:.75rem; color:#1e40af; transition:transform .25s }'
     + '#ra-clean-head.open .rch-arrow { transform:rotate(180deg) }'
     + '#ra-clean-body { padding:14px 16px; border-top:1px solid var(--border) }'
-    + '#ra-clean-body.hidden { display:none }';
+    + '#ra-clean-body.hidden { display:none }'
+    /* ✅ ستون‌های ریسایز */
+    + '#ra-acc-table.w-col-resized thead th[data-orig-index] { overflow:hidden; text-overflow:ellipsis }'
+    /* ✅ دکمه‌های عملیات گردش */
+    + '.ar-turnover-actions { display:flex; gap:4px; justify-content:center }'
+    + '.ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }';
     document.head.appendChild(s);
 })();
 
@@ -117,7 +122,8 @@ function rebuildAccountFilterPanel() {
         to:     (document.getElementById('ra-to') || {}).value || '',
         vtype:  (document.getElementById('ra-vtype') || {}).value || '',
         cat:    (document.getElementById('ra-cat') || {}).value || '',
-        nature: (document.getElementById('ra-nature') || {}).value || ''
+        nature: (document.getElementById('ra-nature') || {}).value || '',
+        onlyBal: (document.getElementById('ra-only-balance') || {}).checked || false
     };
 
     firstCard.innerHTML = '';
@@ -173,7 +179,7 @@ function rebuildAccountFilterPanel() {
         +     '</select></div>'
         +     '<div class="field" style="display:flex; align-items:flex-end">'
         +       '<label class="checkbox-item" style="margin:0; padding:11px 14px; background:#eaf4fd; border:1.5px solid #93c5fd; border-radius:12px; width:100%">'
-        +         '<input type="checkbox" id="ra-only-balance"> '
+        +         '<input type="checkbox" id="ra-only-balance"' + (oldV.onlyBal ? ' checked' : '') + '> '
         +         '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
         +       '</label>'
         +     '</div>'
@@ -209,7 +215,7 @@ function rebuildAccountFilterPanel() {
 }
 
 /* ============================================================
-   بخش ۴ — کمکی: سطح حساب + بردکرامب
+   بخش ۴ — کمکی
    ============================================================ */
 function _arLevel(acc, all) {
     var lvl = 1;
@@ -232,9 +238,6 @@ function _arBreadcrumb(path, all) {
     return html;
 }
 
-/* ============================================================
-   بخش ۵ — حالت سطح‌ها
-   ============================================================ */
 function _arLevelState(lvl) {
     if (lvl === _AR.activeLevel) return 'active';
     if (lvl === _AR.activeLevel + 1 && _AR.selectedId) return 'next';
@@ -246,8 +249,9 @@ function _arLevelState(lvl) {
     }
     return 'disabled';
 }
+
 /* ============================================================
-   بخش ۶ — توابع محاسبه (computeAccountBalances, rollupBalances, ...)
+   بخش ۵ — توابع محاسبه
    ============================================================ */
 function filterVouchers(opts) {
     var l = DB.load('vouchers', []);
@@ -385,7 +389,8 @@ function refreshReportPeriodSelects() {
 }
 
 /* ============================================================
-   بخش ۷ — رندر گزارش مرور حساب‌ها
+   بخش ۶ — رندر گزارش مرور حساب‌ها
+   ✅ اصلاح: فیلتر «فقط دارای مانده» بر اساس مانده خالص (نه صرف debit/credit)
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -492,7 +497,12 @@ function renderAccountReview() {
         } else {
             b = rolled[a.id] || { debit: 0, credit: 0 };
         }
-        if (filterBal && !b.debit && !b.credit) return;
+
+        /* ✅ اصلاح: فیلتر بر اساس مانده خالص (b.debit - b.credit) نه صرف صفر بودن هر دو */
+        if (filterBal) {
+            var netCheck = (Number(b.debit) || 0) - (Number(b.credit) || 0);
+            if (Math.abs(netCheck) < 0.5) return;
+        }
 
         var net = b.debit - b.credit;
         var md = net > 0 ? net : 0;
@@ -562,11 +572,12 @@ function renderAccountReview() {
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
+        if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     }, 50);
 }
 
 /* ============================================================
-   بخش ۸ — اتصالات داخلی گزارش
+   بخش ۷ — اتصالات داخلی گزارش
    ============================================================ */
 function bindAccountReviewEvents(accounts, box) {
     box.querySelectorAll('.ar-lvl').forEach(function (el) {
@@ -635,7 +646,7 @@ function bindAccountReviewEvents(accounts, box) {
 }
 
 /* ============================================================
-   بخش ۹ — باز کردن گردش حساب
+   بخش ۸ — باز کردن گردش حساب
    ============================================================ */
 window._AR_openTurnover = function (btn) {
     try {
@@ -705,10 +716,18 @@ function openAccountTurnover(accountId, detailInfo) {
     if (rows.length === 0) {
         body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
     } else {
-        var html = '<div class="table-wrap"><table class="report-table" id="turnover-table"><thead><tr>'
-                 +  '<th>#</th><th>تاریخ</th><th>شماره</th><th>شرح سند</th>'
-                 +  '<th>حساب</th><th>تفصیلی</th><th>شرح قلم</th>'
-                 +  '<th>بدهکار</th><th>بستانکار</th><th>مانده</th>'
+        var html = '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
+                 +  '<th style="width:50px">#</th>'
+                 +  '<th style="width:100px">تاریخ</th>'
+                 +  '<th style="width:80px">شماره</th>'
+                 +  '<th style="min-width:140px">شرح سند</th>'
+                 +  '<th style="min-width:140px">حساب</th>'
+                 +  '<th style="min-width:140px">تفصیلی</th>'
+                 +  '<th style="min-width:140px">شرح قلم</th>'
+                 +  '<th style="width:120px">بدهکار</th>'
+                 +  '<th style="width:120px">بستانکار</th>'
+                 +  '<th style="width:120px">مانده</th>'
+                 +  '<th style="width:110px">عملیات</th>'
                  +  '</tr></thead><tbody>';
 
         var runBal = 0;
@@ -746,10 +765,44 @@ function openAccountTurnover(accountId, detailInfo) {
                  +  '<td class="num dr">' + (hide ? '—' : (d ? formatMoney(d) : '—')) + '</td>'
                  +  '<td class="num cr">' + (hide ? '—' : (c ? formatMoney(c) : '—')) + '</td>'
                  +  '<td class="num" style="font-weight:bold">' + (hide ? '—' : balText) + '</td>'
+                 +  '<td>'
+                 +    '<div class="ar-turnover-actions">'
+                 +      '<button class="row-btn open" data-vid="' + v.id + '" data-act="preview" title="مشاهده سند">👁</button>'
+                 +      '<button class="row-btn edit" data-vid="' + v.id + '" data-act="edit" title="ویرایش سند">✎</button>'
+                 +    '</div>'
+                 +  '</td>'
                  +  '</tr>';
         }
         html += '</tbody></table></div>';
         body.innerHTML = html;
+
+        /* ✅ اتصال دکمه‌های مشاهده و ویرایش */
+        body.querySelectorAll('[data-act="preview"]').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var vid = this.getAttribute('data-vid');
+                var v = findVoucherById(vid);
+                if (v && typeof openVoucherPreview === 'function') openVoucherPreview(v);
+            });
+        });
+        body.querySelectorAll('[data-act="edit"]').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var vid = this.getAttribute('data-vid');
+                if (typeof openVoucherForEditById === 'function') {
+                    closeTurnover();
+                    setTimeout(function () { openVoucherForEditById(vid); }, 200);
+                }
+            });
+        });
+
+        /* ✅ فعال‌سازی ریسایز ستون‌ها روی turnover-table */
+        setTimeout(function () {
+            var t = document.getElementById('turnover-table');
+            if (t && typeof makeTableResizable === 'function') {
+                makeTableResizable(t);
+            }
+        }, 100);
     }
 
     document.getElementById('turnover-modal').classList.add('show');
@@ -765,7 +818,7 @@ function closeTurnover() {
 }
 
 /* ============================================================
-   بخش ۱۰ — پچ goToPage
+   بخش ۹ — پچ goToPage
    ============================================================ */
 (function initAccountReviewFinal() {
     function apply() {
