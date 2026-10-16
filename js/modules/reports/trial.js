@@ -6,7 +6,58 @@
 'use strict';
 
 /* ============================================================
+   ✅ State مرتب‌سازی برای تراز و مقایسه‌ای
+   ============================================================ */
+if (typeof window._rtSort === 'undefined') {
+    window._rtSort = { col: 'name', dir: 'asc' };
+}
+if (typeof window._rcSort === 'undefined') {
+    window._rcSort = { col: 'name', dir: 'asc' };
+}
+
+/* ============================================================
+   ✅ تابع مقایسه‌ی مقادیر برای مرتب‌سازی
+   ============================================================ */
+function _reportSortCompare(a, b, col, dir) {
+    var va = a[col];
+    var vb = b[col];
+    var c;
+    if (typeof va === 'number' && typeof vb === 'number') {
+        c = va - vb;
+    } else {
+        c = compareVals(va, vb);
+    }
+    return dir === 'asc' ? c : -c;
+}
+
+function _applyReportSort(rows, state) {
+    if (!state || !state.col) return rows;
+    return rows.slice().sort(function (a, b) {
+        return _reportSortCompare(a, b, state.col, state.dir);
+    });
+}
+
+function _updateSortIndicators(container, state) {
+    if (!container || !state) return;
+    container.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        var col = th.getAttribute('data-sort-col');
+        var ind = th.querySelector('.rt-sort-ind');
+        if (!ind) return;
+        if (col === state.col) {
+            ind.textContent = state.dir === 'asc' ? ' ▲' : ' ▼';
+            ind.style.opacity = '1';
+            ind.style.color = 'var(--primary-dark)';
+        } else {
+            ind.textContent = ' ⇅';
+            ind.style.opacity = '0.4';
+            ind.style.color = '';
+        }
+    });
+}
+
+/* ============================================================
    بخش ۱ — تراز آزمایشی
+   ✅ اصلاح: افزودن سطح «گروه» + مرتب‌سازی روی ستون‌ها
    ============================================================ */
 function runTrialBalance() {
     var opts = {
@@ -29,6 +80,7 @@ function runTrialBalance() {
         return accounts.filter(function (a) { return a.parent === pid; });
     }
 
+    /* ✅ اصلاح: وقتی level=1 (گروه) هر گره در سطح ۱ اضافه می‌شود */
     function walk(node, level) {
         var b = rolled[node.id] || { debit: 0, credit: 0 };
         var net = b.debit - b.credit;
@@ -70,7 +122,18 @@ function runTrialBalance() {
         }
 
         if (level === opts.level) {
-            if (b.debit > 0 || b.credit > 0) {
+            /* ✅ سطح ۱ (گروه): همیشه اضافه کن اگر مانده داشته باشد
+               سطوح دیگر: فقط اگر گردش داشته باشد */
+            if (level === 1) {
+                rows.push({
+                    name: node.name,
+                    level: level,
+                    debit: b.debit,
+                    credit: b.credit,
+                    md: net > 0 ? net : 0,
+                    mc: net < 0 ? -net : 0
+                });
+            } else if (b.debit > 0 || b.credit > 0) {
                 rows.push({
                     name: node.name,
                     level: level,
@@ -94,10 +157,16 @@ function runTrialBalance() {
     var roots = accounts.filter(function (a) { return !a.parent; });
     for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
 
+    /* ✅ اعمال مرتب‌سازی */
+    rows = _applyReportSort(rows, window._rtSort);
+
     var html = '<div class="table-wrap"><table class="report-table" id="rt-table"><thead><tr>'
-             +  '<th>عنوان</th><th>سطح</th>'
-             +  '<th>گردش بدهکار</th><th>گردش بستانکار</th>'
-             +  '<th>مانده بدهکار</th><th>مانده بستانکار</th>'
+             +  '<th data-sort-col="name" style="cursor:pointer;user-select:none">عنوان<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="level" style="cursor:pointer;user-select:none">سطح<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="debit" style="cursor:pointer;user-select:none">گردش بدهکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="credit" style="cursor:pointer;user-select:none">گردش بستانکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="md" style="cursor:pointer;user-select:none">مانده بدهکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="mc" style="cursor:pointer;user-select:none">مانده بستانکار<span class="rt-sort-ind"> ⇅</span></th>'
              +  '</tr></thead><tbody>';
 
     var tD = 0, tC = 0, tMD = 0, tMC = 0;
@@ -126,15 +195,41 @@ function runTrialBalance() {
          +  '<td class="num dr">' + (hide ? '—' : fmtRep(tMD, 'rt')) + '</td>'
          +  '<td class="num cr">' + (hide ? '—' : fmtRep(tMC, 'rt')) + '</td></tr></tfoot></table></div>';
 
-    document.getElementById('rt-result').innerHTML = html;
+    var box = document.getElementById('rt-result');
+    box.innerHTML = html;
+
+    /* ✅ اتصال مرتب‌سازی روی هدرها */
+    box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        th.addEventListener('click', function (e) {
+            if (e.target.classList && e.target.classList.contains('col-resizer')) return;
+            var col = this.getAttribute('data-sort-col');
+            if (window._rtSort.col === col) {
+                window._rtSort.dir = window._rtSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                window._rtSort.col = col;
+                window._rtSort.dir = 'asc';
+            }
+            runTrialBalance();
+        });
+    });
+
+    _updateSortIndicators(box, window._rtSort);
+
     document.getElementById('rt-count').textContent = toFa(rows.length);
 
-    if (typeof applyColVisibility === 'function') applyColVisibility('rt-table');
+    /* ✅ فعال‌سازی ریسایز ستون‌ها */
+    setTimeout(function () {
+        var t = document.getElementById('rt-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rt-table');
+        if (typeof applyColWidths === 'function') applyColWidths('rt-table');
+    }, 30);
+
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
 /* ============================================================
-   بخش ۲ — تراکنش‌های تکمیل نشده
+   بخش ۲ — تراکنش‌های تکمیل نشده (بدون تغییر عمده)
    ============================================================ */
 function runIncompleteReport() {
     var statusF = (document.getElementById('ri-status') || {}).value || '';
@@ -210,15 +305,15 @@ function runIncompleteReport() {
     }
     html += '</table></div>';
 
-    document.getElementById('ri-result').innerHTML = html;
+    var box = document.getElementById('ri-result');
+    box.innerHTML = html;
     document.getElementById('ri-count').textContent = toFa(rows.length);
 
     var unitEl = document.getElementById('ri-unit');
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
-    var btns = document.querySelectorAll('#ri-result [data-action]');
-    for (var bi = 0; bi < btns.length; bi++) {
-        btns[bi].addEventListener('click', function () {
+    box.querySelectorAll('[data-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
             var vid = this.getAttribute('data-vid');
             var act = this.getAttribute('data-action');
             var v = findVoucherById(vid);
@@ -226,13 +321,20 @@ function runIncompleteReport() {
             if (act === 'open-voucher') loadVoucherForEdit(v);
             else if (act === 'preview-voucher') openVoucherPreview(v);
         });
-    }
+    });
+
+    setTimeout(function () {
+        var t = document.getElementById('ri-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('ri-table');
+    }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
 /* ============================================================
    بخش ۳ — گزارش مقایسه‌ای
+   ✅ اصلاح: افزودن مرتب‌سازی روی ستون‌ها
    ============================================================ */
 function initCompareFilterCollapse() {
     var page = document.getElementById('page-report-compare');
@@ -326,7 +428,10 @@ function runComparisonReport() {
         var net2 = b2.debit - b2.credit;
 
         if (lvl === level) {
-            if (b1.debit || b1.credit || b2.debit || b2.credit) {
+            if (lvl === 1) {
+                /* ✅ سطح گروه همیشه نمایش داده می‌شود */
+                rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
+            } else if (b1.debit || b1.credit || b2.debit || b2.credit) {
                 rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
             }
             return;
@@ -340,22 +445,44 @@ function runComparisonReport() {
     var roots = accounts.filter(function (a) { return !a.parent; });
     for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
 
+    /* ✅ محاسبه‌ی درصد و اختلاف قبل از مرتب‌سازی */
+    rows.forEach(function (row) {
+        row.diff = row.net2 - row.net1;
+        row.pct = row.net1 !== 0 ? (row.diff / Math.abs(row.net1) * 100)
+                                 : (row.net2 !== 0 ? 100 : 0);
+    });
+
+    /* ✅ اعمال مرتب‌سازی */
+    var sortState = window._rcSort;
+    var sortKeyMap = {
+        'name': 'name',
+        'level': 'level',
+        'net1': 'net1',
+        'net2': 'net2',
+        'pct': 'pct'
+    };
+    if (sortState && sortState.col) {
+        var key = sortKeyMap[sortState.col] || sortState.col;
+        rows = rows.slice().sort(function (a, b) {
+            return _reportSortCompare(a, b, key, sortState.dir);
+        });
+    }
+
     var html = '<div class="table-wrap"><table class="report-table" id="rc-table"><thead><tr>'
-        + '<th>عنوان</th><th>سطح</th>'
-        + '<th>مانده دوره ۱<br><span style="font-size:0.72rem;font-weight:normal">'
-        + toFa(p1.from) + ' تا ' + toFa(p1.to) + '</span></th>'
-        + '<th>مانده دوره ۲<br><span style="font-size:0.72rem;font-weight:normal">'
-        + toFa(p2.from) + ' تا ' + toFa(p2.to) + '</span></th>'
-        + '<th>درصد افت/رشد</th></tr></thead><tbody>';
+        + '<th data-sort-col="name" style="cursor:pointer;user-select:none">عنوان<span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="level" style="cursor:pointer;user-select:none">سطح<span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="net1" style="cursor:pointer;user-select:none">مانده دوره ۱<br><span style="font-size:0.72rem;font-weight:normal">'
+        + toFa(p1.from) + ' تا ' + toFa(p1.to) + '</span><span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="net2" style="cursor:pointer;user-select:none">مانده دوره ۲<br><span style="font-size:0.72rem;font-weight:normal">'
+        + toFa(p2.from) + ' تا ' + toFa(p2.to) + '</span><span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="pct" style="cursor:pointer;user-select:none">درصد افت/رشد<span class="rt-sort-ind"> ⇅</span></th></tr></thead><tbody>';
 
     var t1 = 0, t2 = 0;
     for (var r = 0; r < rows.length; r++) {
         var row = rows[r];
         t1 += row.net1;
         t2 += row.net2;
-        var diff = row.net2 - row.net1;
-        var pct = row.net1 !== 0 ? (diff / Math.abs(row.net1) * 100)
-                                 : (row.net2 !== 0 ? 100 : 0);
+        var pct = row.pct;
         var pctCls = pct > 0 ? 'cr' : (pct < 0 ? 'dr' : '');
         var pctText;
         if (pct < 0) pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
@@ -385,11 +512,36 @@ function runComparisonReport() {
         + '<td class="num">' + (hide ? '—' : moneyHtml(t2)) + '</td>'
         + '<td class="num ' + tPctCls + '" style="font-weight:800">' + (hide ? '—' : tPctText) + '</td></tr></tfoot></table></div>';
 
-    document.getElementById('rc-result').innerHTML = html;
+    var box = document.getElementById('rc-result');
+    box.innerHTML = html;
     document.getElementById('rc-count').textContent = toFa(rows.length);
 
     var u = document.getElementById('rc-unit');
     if (u) u.textContent = 'واحد: ' + currencyLabel();
+
+    /* ✅ اتصال مرتب‌سازی روی هدرها */
+    box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        th.addEventListener('click', function (e) {
+            if (e.target.classList && e.target.classList.contains('col-resizer')) return;
+            var col = this.getAttribute('data-sort-col');
+            if (window._rcSort.col === col) {
+                window._rcSort.dir = window._rcSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                window._rcSort.col = col;
+                window._rcSort.dir = 'asc';
+            }
+            runComparisonReport();
+        });
+    });
+
+    _updateSortIndicators(box, window._rcSort);
+
+    /* ✅ فعال‌سازی ریسایز */
+    setTimeout(function () {
+        var t = document.getElementById('rc-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rc-table');
+    }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
