@@ -2485,7 +2485,231 @@ function initDraggableFab() {
 }
 
 /* ============================================================
-   بخش ۲۲ — Init
+   بخش ۲۲ — پنل تنظیمات و تست TTS
+   ============================================================ */
+function openTtsDiagnosticPanel() {
+    /* حذف نسخه‌ی قبلی اگر باز بود */
+    var old = document.getElementById('tts-diag-modal');
+    if (old) old.remove();
+    var oldO = document.getElementById('tts-diag-overlay');
+    if (oldO) oldO.remove();
+
+    /* تشخیص وضعیت مرورگر */
+    var diag = {
+        hasSynthesis: !!window.speechSynthesis,
+        hasSpeechRec: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+        voicesCount: 0,
+        hasPersian: false
+    };
+    if (window.speechSynthesis) {
+        var vs = window.speechSynthesis.getVoices() || [];
+        diag.voicesCount = vs.length;
+        diag.hasPersian = vs.some(function (v) {
+            var l = (v.lang || '').toLowerCase().replace('_', '-');
+            return l.indexOf('fa') === 0 || /persian|farsi|parsi/i.test(v.name || '');
+        });
+    }
+
+    function rowStatus(label, ok, extra) {
+        var color = ok ? '#059669' : '#dc2626';
+        return '<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--card-alt);border-radius:8px">'
+             + '<span>' + (ok ? '✅' : '❌') + '</span>'
+             + '<span style="flex:1;font-weight:700;font-size:.82rem">' + esc(label) + '</span>'
+             + (extra ? '<span style="color:' + color + ';font-size:0.76rem">' + esc(extra) + '</span>' : '')
+             + '</div>';
+    }
+
+    var voiceOptions = (window.TTS_VOICES_GEMINI || []).map(function (v) {
+        var sel = (AI_TTS.avalaiVoice === v.id) ? ' selected' : '';
+        return '<option value="' + v.id + '"' + sel + '>' + esc(v.label) + '</option>';
+    }).join('');
+
+    var modelOptions = (window.TTS_MODELS || []).map(function (m) {
+        var sel = (AI_TTS.avalaiModel === m.id) ? ' selected' : '';
+        return '<option value="' + m.id + '"' + sel + '>' + esc(m.label) + '</option>';
+    }).join('');
+
+    var html = ''
+        + '<div id="tts-diag-overlay" class="overlay show" style="z-index:2000"></div>'
+        + '<div id="tts-diag-modal" class="modal show" style="max-width:640px;z-index:2010">'
+        +   '<div class="modal-head" style="background:linear-gradient(135deg,#667eea,#764ba2)">'
+        +     '<h2>🔊 تنظیمات و تست صدای دستیار</h2>'
+        +     '<button id="tts-diag-close" class="close-btn" type="button">×</button>'
+        +   '</div>'
+        +   '<div class="modal-body" style="max-height:72vh;overflow-y:auto">'
+
+        +     '<div class="modal-section">'
+        +       '<h3>🖥️ وضعیت مرورگر شما</h3>'
+        +       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+        +         rowStatus('Web Speech Synthesis', diag.hasSynthesis)
+        +         rowStatus('تشخیص گفتار (میکروفون)', diag.hasSpeechRec)
+        +         rowStatus('صدای فارسی موجود', diag.hasPersian)
+        +         rowStatus('تعداد کل صداهای مرورگر', diag.voicesCount > 0, '(' + toFa(diag.voicesCount) + ')')
+        +       '</div>'
+        +       '<div class="form-buttons" style="margin-top:10px">'
+        +         '<button id="tts-reload-voices" class="btn-secondary btn-mini" type="button">🔄 بارگذاری مجدد صداها</button>'
+        +       '</div>'
+        +     '</div>'
+
+        +     '<div class="modal-section">'
+        +       '<h3>🎙️ موتور پخش صدا</h3>'
+        +       '<div class="field"><label>موتور</label>'
+        +         '<select id="tts-engine-select">'
+        +           '<option value="avalai"' + (AI_TTS.engine === 'avalai' ? ' selected' : '') + '>AvalAI (کیفیت بالا — نیاز به API Key)</option>'
+        +           '<option value="google"' + (AI_TTS.engine === 'google' ? ' selected' : '') + '>Google Translate (رایگان)</option>'
+        +           '<option value="browser"' + (AI_TTS.engine === 'browser' ? ' selected' : '') + '>مرورگر (آفلاین)</option>'
+        +         '</select>'
+        +       '</div>'
+        +       '<div id="tts-avalai-fields" style="' + (AI_TTS.engine === 'avalai' ? '' : 'display:none') + '">'
+        +         '<div class="field"><label>مدل TTS</label>'
+        +           '<select id="tts-model-select">' + modelOptions + '</select>'
+        +         '</div>'
+        +         '<div class="field"><label>صدا</label>'
+        +           '<select id="tts-voice-select">' + voiceOptions + '</select>'
+        +         '</div>'
+        +       '</div>'
+        +     '</div>'
+
+        +     '<div class="modal-section">'
+        +       '<h3>⚡ سرعت گفتار</h3>'
+        +       '<div style="display:flex;align-items:center;gap:12px">'
+        +         '<span style="font-size:0.78rem;color:var(--text-muted)">آهسته</span>'
+        +         '<input type="range" id="tts-rate-range" min="0.5" max="1.5" step="0.1" value="' + AI_TTS.rate + '" style="flex:1">'
+        +         '<span style="font-size:0.78rem;color:var(--text-muted)">سریع</span>'
+        +         '<span id="tts-rate-value" style="font-weight:800;color:var(--primary-dark);font-size:0.85rem;min-width:36px;text-align:center">' + toFa(AI_TTS.rate.toFixed(1)) + '</span>'
+        +       '</div>'
+        +     '</div>'
+
+        +     '<div class="modal-section">'
+        +       '<h3>🧪 تست صدا</h3>'
+        +       '<div class="field"><label>متن نمونه</label>'
+        +         '<textarea id="tts-test-text" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:0.85rem">سلام، من پارسیس یار هستم. امروز مبلغ ۱٬۲۳۴٬۵۶۷ ریال در حساب بانک ملی ثبت شد.</textarea>'
+        +       '</div>'
+        +       '<div class="form-buttons">'
+        +         '<button id="tts-test-play" class="btn-primary" type="button">🔊 پخش صدا</button>'
+        +         '<button id="tts-test-stop" class="btn-secondary" type="button">⏹ توقف</button>'
+        +       '</div>'
+        +       '<div id="tts-test-status" style="margin-top:10px;padding:10px 14px;background:var(--card-alt);border:1px solid var(--border);border-radius:10px;font-size:0.82rem;text-align:center">آماده برای تست</div>'
+        +     '</div>'
+
+        +     '<div class="modal-section">'
+        +       '<h3>💡 راهنما</h3>'
+        +       '<ul class="simple-list" style="font-size:0.8rem;line-height:1.9">'
+        +         '<li><b>AvalAI:</b> باکیفیت‌ترین — نیاز به کلید API</li>'
+        +         '<li><b>Google:</b> رایگان، ولی وابسته به اینترنت</li>'
+        +         '<li><b>مرورگر:</b> آفلاین — کیفیت پایین‌تر</li>'
+        +       '</ul>'
+        +     '</div>'
+
+        +   '</div>'
+        +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
+        +     '<button id="tts-diag-cancel" class="btn-secondary" type="button">بستن</button>'
+        +     '<button id="tts-diag-save" class="btn-primary" type="button">💾 ذخیره تنظیمات</button>'
+        +   '</div>'
+        + '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    function close() {
+        var m = document.getElementById('tts-diag-modal');
+        if (m) m.remove();
+        var o = document.getElementById('tts-diag-overlay');
+        if (o) o.remove();
+        if (typeof aiStopSpeaking === 'function') aiStopSpeaking();
+    }
+
+    document.getElementById('tts-diag-close').onclick = close;
+    document.getElementById('tts-diag-cancel').onclick = close;
+    document.getElementById('tts-diag-overlay').onclick = close;
+
+    var engSel = document.getElementById('tts-engine-select');
+    var avalaiFields = document.getElementById('tts-avalai-fields');
+    engSel.onchange = function () {
+        avalaiFields.style.display = (this.value === 'avalai') ? '' : 'none';
+    };
+
+    var modelSel = document.getElementById('tts-model-select');
+    var voiceSel = document.getElementById('tts-voice-select');
+    modelSel.onchange = function () {
+        var voices = getVoicesForModel(this.value);
+        voiceSel.innerHTML = voices.map(function (v) {
+            return '<option value="' + v.id + '">' + esc(v.label) + '</option>';
+        }).join('');
+    };
+
+    var rateRange = document.getElementById('tts-rate-range');
+    var rateVal = document.getElementById('tts-rate-value');
+    rateRange.oninput = function () {
+        rateVal.textContent = toFa((Number(this.value) || 1).toFixed(1));
+    };
+
+    document.getElementById('tts-reload-voices').onclick = function () {
+        if (window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            setTimeout(function () {
+                var vs = window.speechSynthesis.getVoices() || [];
+                showToast('🔄 ' + toFa(vs.length) + ' صدا یافت شد');
+            }, 500);
+        }
+    };
+
+    var testStatus = document.getElementById('tts-test-status');
+
+    document.getElementById('tts-test-play').onclick = async function () {
+        AI_TTS.engine = engSel.value;
+        if (modelSel) AI_TTS.avalaiModel = modelSel.value;
+        if (voiceSel) AI_TTS.avalaiVoice = voiceSel.value;
+        AI_TTS.rate = Number(rateRange.value) || 1;
+
+        var txt = (document.getElementById('tts-test-text').value || '').trim();
+        if (!txt) { testStatus.innerHTML = '⚠️ متن خالی است'; return; }
+
+        testStatus.innerHTML = '🔄 در حال پخش با موتور <b>' + AI_TTS.engine + '</b>...';
+        try {
+            if (AI_TTS.engine === 'avalai') {
+                if (!AI.apiKey) { testStatus.innerHTML = '<span style="color:#dc2626">❌ کلید API وارد نشده</span>'; return; }
+                var url = await aiAvalaiTTSFetch(txt);
+                await aiPlayAudioUrl(url);
+                testStatus.innerHTML = '<span style="color:#059669">✅ موفق — ' + AI_TTS.avalaiModel + ' / ' + AI_TTS.avalaiVoice + '</span>';
+            } else if (AI_TTS.engine === 'google') {
+                aiSpeakGoogle(txt);
+                testStatus.innerHTML = '<span style="color:#059669">✅ ارسال به Google TTS</span>';
+            } else {
+                if (!window.speechSynthesis) { testStatus.innerHTML = '<span style="color:#dc2626">❌ مرورگر پشتیبانی نمی‌کند</span>'; return; }
+                aiSpeakBrowser(txt);
+                testStatus.innerHTML = '<span style="color:#059669">✅ ارسال به مرورگر</span>';
+            }
+        } catch (e) {
+            testStatus.innerHTML = '<span style="color:#dc2626">❌ خطا: ' + esc(e.message || e) + '</span>';
+        }
+    };
+
+    document.getElementById('tts-test-stop').onclick = function () {
+        if (typeof aiStopSpeaking === 'function') aiStopSpeaking();
+        testStatus.innerHTML = '⏹ متوقف شد';
+    };
+
+    document.getElementById('tts-diag-save').onclick = function () {
+        AI_TTS.engine = engSel.value;
+        if (modelSel) AI_TTS.avalaiModel = modelSel.value;
+        if (voiceSel) AI_TTS.avalaiVoice = voiceSel.value;
+        AI_TTS.rate = Number(rateRange.value) || 1;
+        aiSaveTTS();
+
+        var autoCb = document.getElementById('ai-auto-speak');
+        if (autoCb) autoCb.checked = !!AI_TTS.autoSpeak;
+        var rateInp = document.getElementById('ai-speak-rate');
+        if (rateInp) rateInp.value = AI_TTS.rate;
+
+        showToast('✅ تنظیمات صدا ذخیره شد');
+        close();
+    };
+
+    console.log('🔊 [ai.js] پنل TTS باز شد | موتور:', AI_TTS.engine);
+}
+
+/* ============================================================
+   بخش ۲۳ — Init
    ============================================================ */
 function aiInit() {
     initDraggableFab();
@@ -2627,11 +2851,7 @@ function aiInit() {
 
     var ttsDiagBtn = document.getElementById('open-tts-diag');
     if (ttsDiagBtn) ttsDiagBtn.addEventListener('click', function () {
-        if (typeof window.openTtsDiagnosticPanel === 'function') {
-            window.openTtsDiagnosticPanel();
-        } else {
-            showToast('⚠️ پنل TTS در دسترس نیست.');
-        }
+        openTtsDiagnosticPanel();
     });
 
     if (window.speechSynthesis) {
@@ -2703,6 +2923,7 @@ window.aiSend                    = aiSend;
 window.aiOpenSettings            = aiOpenSettings;
 window.aiCloseSettings           = aiCloseSettings;
 window.initDraggableFab          = initDraggableFab;
+window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
 
 console.log('✅ [modules/ai.js] loaded — 3 parts complete');
