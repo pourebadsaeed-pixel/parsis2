@@ -156,6 +156,7 @@ function findVoucherById(id) {
 
 /* ============================================================
    بخش ۷ — بررسی مشکلات سند
+   ✅ اصلاح: اگر معین چند تفصیلی دارد، فقط یکی باید پر شود
    ============================================================ */
 function getVoucherIssues(v) {
     var issues = [];
@@ -192,13 +193,18 @@ function getVoucherIssues(v) {
             continue;
         }
 
+        /* ✅ فقط یکی از تفصیلی‌های مرتبط باید انتخاب شود */
         if (acc.links && acc.links.length > 0) {
-            for (var li = 0; li < acc.links.length; li++) {
-                var lt = acc.links[li];
-                var items = getLinkedItems(lt);
-                if (items.length === 0) continue;
-                if (!line.details || !line.details[lt]) {
-                    lineIssues.push('ردیف ' + ln + ': تفصیلی ' + linkTypeName(lt) + ' تعیین نشده');
+            var validLinks = acc.links.filter(function (lt) {
+                return getLinkedItems(lt).length > 0;
+            });
+            if (validLinks.length > 0) {
+                var hasAnyDetail = validLinks.some(function (lt) {
+                    return line.details && line.details[lt];
+                });
+                if (!hasAnyDetail) {
+                    var linkNames = validLinks.map(linkTypeName).join(' یا ');
+                    lineIssues.push('ردیف ' + ln + ': یکی از تفصیلی‌های «' + linkNames + '» باید انتخاب شود');
                 }
             }
         }
@@ -236,6 +242,7 @@ window.findVoucherById                  = findVoucherById;
 window.getVoucherIssues                 = getVoucherIssues;
 
 console.log('✅ [modules/vouchers/form.js part 1] loaded');
+
 /* ============================================================
    بخش ۸ — رندر اقلام سند (بزرگ‌ترین تابع)
    ============================================================ */
@@ -721,6 +728,7 @@ function updateVoucherTotals() {
         }
     }
 }
+
 /* ============================================================
    بخش ۱۲ — فرم سند جدید
    ============================================================ */
