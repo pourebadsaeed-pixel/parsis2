@@ -2439,72 +2439,88 @@ async function aiFetchAvalaiCredit() {
 
     box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار...</div>';
 
-    var endpoints = [
-        'https://api.avalai.ir/v1/dashboard/billing/credit_grants',
-        'https://api.avalai.ir/v1/dashboard/billing/subscription',
-        'https://api.avalai.ir/user/credit',
-        'https://api.avalai.ir/v1/user/credit'
-    ];
-
-    var lastErr = '';
-    for (var i = 0; i < endpoints.length; i++) {
-        try {
-            var res = await fetch(endpoints[i], {
-                method: 'GET',
-                headers: {
-                    'Authorization': 'Bearer ' + AI.apiKey,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (!res.ok) {
-                lastErr = 'HTTP ' + res.status;
-                continue;
+    try {
+        var res = await fetch('https://api.avalai.ir/user/1/credit', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + AI.apiKey
             }
+        });
 
-            var data = await res.json();
-
-            var granted = Number(
-                data.total_granted || data.granted ||
-                data.hard_limit_usd || data.total_credit || 0
-            );
-            var used = Number(
-                data.total_used || data.used || data.usage || 0
-            );
-            var available = Number(
-                data.total_available || data.available ||
-                data.remaining || data.balance || (granted - used)
-            );
-
-            var color = available > 0 ? '#059669' : '#dc2626';
-            var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-                + '<div class="kpi-card" style="margin:0">'
-                +   '<div class="kpi-lbl">💰 کل اعتبار</div>'
-                +   '<div class="kpi-val">$' + granted.toFixed(2) + '</div>'
-                + '</div>'
-                + '<div class="kpi-card" style="margin:0">'
-                +   '<div class="kpi-lbl">📊 مصرف‌شده</div>'
-                +   '<div class="kpi-val">$' + used.toFixed(2) + '</div>'
-                + '</div>'
-                + '<div class="kpi-card" style="grid-column:1/-1;margin:0">'
-                +   '<div class="kpi-lbl">✅ باقی‌مانده</div>'
-                +   '<div class="kpi-val" style="color:' + color + '">$' + available.toFixed(2) + '</div>'
-                + '</div>'
-                + '</div>';
-            box.innerHTML = html;
-
-            try { DB.save('ai.creditLastUpdate', Date.now()); } catch (e) {}
-            return;
-
-        } catch (e) {
-            lastErr = e.message || 'خطای شبکه';
+        if (!res.ok) {
+            var errText = await res.text();
+            throw new Error('HTTP ' + res.status + ' — ' + errText.substring(0, 100));
         }
-    }
 
-    box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
-        + '⚠️ دریافت اعتبار ناموفق بود<br>'
-        + '<span style="font-size:0.72rem;opacity:0.8">' + esc(lastErr) + '</span>'
-        + '</div>';
+        var data = await res.json();
+
+        var limit         = Number(data.limit) || 0;
+        var remainingIrt  = Number(data.remaining_irt) || 0;
+        var remainingUnit = Number(data.remaining_unit) || 0;
+        var totalUnit     = Number(data.total_unit) || 0;
+        var exchangeRate  = Number(data.exchange_rate) || 0;
+
+        var color = totalUnit > 0 ? '#059669' : '#dc2626';
+
+        var lowWarning = (limit > 0 && totalUnit < limit * 0.2)
+            ? '<div style="grid-column:1/-1;padding:8px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.78rem;font-weight:700;text-align:center">⚠️ اعتبار شما کمتر از ۲۰٪ سقف است</div>'
+            : '';
+
+        var limitText = limit > 0 ? ('$' + limit.toFixed(2)) : 'بدون سقف';
+        var limitColor = limit > 0 ? 'var(--text)' : 'var(--text-muted)';
+
+        var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+
+            + '<div class="kpi-card" style="grid-column:1/-1;margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
+            +   '<div class="kpi-lbl">🎯 اعتبار کل (واحد)</div>'
+            +   '<div class="kpi-val" style="color:' + color + ';font-size:1.6rem">'
+            +     toFa(totalUnit.toFixed(2)) + ' <span style="font-size:0.9rem;color:var(--text-muted)">واحد</span>'
+            +   '</div>'
+            + '</div>'
+
+            + '<div class="kpi-card" style="margin:0">'
+            +   '<div class="kpi-lbl">💵 اعتبار تومانی</div>'
+            +   '<div class="kpi-val" style="font-size:1rem">'
+            +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬')) + ' تومان'
+            +   '</div>'
+            + '</div>'
+
+            + '<div class="kpi-card" style="margin:0">'
+            +   '<div class="kpi-lbl">📊 اعتبار واحدی</div>'
+            +   '<div class="kpi-val" style="font-size:1rem">'
+            +     toFa(remainingUnit.toFixed(2)) + ' واحد'
+            +   '</div>'
+            + '</div>'
+
+            + '<div class="kpi-card" style="margin:0">'
+            +   '<div class="kpi-lbl">💱 نرخ تبدیل امروز</div>'
+            +   '<div class="kpi-val" style="font-size:0.95rem">'
+            +     toFa(exchangeRate.toLocaleString('fa-IR').replace(/,/g, '٬'))
+            +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان/واحد</span>'
+            +   '</div>'
+            + '</div>'
+
+            + '<div class="kpi-card" style="margin:0">'
+            +   '<div class="kpi-lbl">⚙️ سقف اعتبار</div>'
+            +   '<div class="kpi-val" style="font-size:0.95rem;color:' + limitColor + '">'
+            +     limitText
+            +   '</div>'
+            + '</div>'
+
+            + lowWarning
+            + '</div>';
+
+        box.innerHTML = html;
+        try { DB.save('ai.creditLastUpdate', Date.now()); } catch (e) {}
+        return;
+
+    } catch (e) {
+        box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
+            + '⚠️ دریافت اعتبار ناموفق بود<br>'
+            + '<span style="font-size:0.72rem;opacity:0.8">' + esc(e.message || 'خطای شبکه') + '</span>'
+            + '</div>';
+    }
 }
 
 /* ============================================================
