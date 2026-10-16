@@ -6,6 +6,31 @@
 'use strict';
 
 /* ============================================================
+   بخش ۰ — پاک‌سازی کلیدهای خراب AI (migration)
+   ============================================================ */
+(function cleanBrokenAiKeys() {
+    var keysToCheck = [
+        'ai.ttsVoice', 'ai.ttsModel', 'ai.ttsEngine',
+        'ai.autoSpeak', 'ai.speakRate', 'ai.apiKey',
+        'ai.provider', 'ai.model', 'ai.autoFallback',
+        'ai.failedModels', 'ai.creditLastUpdate'
+    ];
+    var cleaned = 0;
+    keysToCheck.forEach(function (k) {
+        try {
+            var raw = localStorage.getItem('parsis.' + k);
+            if (raw === 'undefined' || raw === 'null' || raw === '') {
+                localStorage.removeItem('parsis.' + k);
+                cleaned++;
+            }
+        } catch (e) {}
+    });
+    if (cleaned > 0) {
+        console.log('🧹 [ai.js] ' + cleaned + ' کلید خراب پاک شد');
+    }
+})();
+
+/* ============================================================
    بخش ۱ — مدل‌ها
    ============================================================ */
 var AVALAI_MODELS = [
@@ -2400,7 +2425,6 @@ function aiOpenSettings() {
 
     updateAiModelSelectUI();
 
-    /* نمایش/مخفی بخش اعتبار بر اساس provider */
     var creditSection = document.getElementById('avalai-credit-section');
     if (creditSection) {
         creditSection.style.display = (AI.provider === 'avalai') ? '' : 'none';
@@ -2426,7 +2450,7 @@ function aiCloseSettings() {
 }
 
 /* ============================================================
-   بخش ۲۰.۵ — دریافت اعتبار AvalAI (با CORS fallback)
+   بخش ۲۰.۵ — دریافت اعتبار AvalAI
    ============================================================ */
 async function aiFetchAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
@@ -2446,20 +2470,20 @@ async function aiFetchAvalaiCredit() {
 
     var targetUrl = 'https://api.avalai.ir/user/1/credit';
 
-    /* تلاش ۱: مستقیم */
-    var data = await _tryFetchCredit(targetUrl, activeKey, null);
+    /* تلاش ۱: مستقیم — دقیقاً با همان هدرهایی که در Console کار کرد */
+    var data = await _tryFetchCredit(targetUrl, activeKey, 'direct');
 
     /* تلاش ۲: با CORS Proxy */
     if (!data) {
         var proxies = [
-            function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-            function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-            function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
+            function (u) { return 'https://cors.eu.org/' + u; },
+            function (u) { return 'https://corsproxy.garmeeh.workers.dev/?' + u; },
+            function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }
         ];
 
         for (var pi = 0; pi < proxies.length; pi++) {
             console.log('🌐 [Credit] Trying proxy ' + (pi + 1) + '...');
-            data = await _tryFetchCredit(proxies[pi](targetUrl), activeKey, 'proxy');
+            data = await _tryFetchCredit(proxies[pi](targetUrl), activeKey, 'proxy-' + (pi + 1));
             if (data) {
                 console.log('✅ [Credit] Proxy ' + (pi + 1) + ' worked!');
                 break;
@@ -2470,17 +2494,19 @@ async function aiFetchAvalaiCredit() {
     if (!data) {
         box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
             + '⚠️ دریافت اعتبار ناموفق بود<br>'
-            + '<span style="font-size:0.72rem;opacity:0.8">اتصال مستقیم و Proxy هر دو ناموفق بودن</span>'
-            + '<div style="font-size:0.7rem;color:#991b1b;margin-top:10px;padding:8px;background:#fee2e2;border-radius:6px;line-height:1.9;text-align:right">'
-            + '<b>راه‌حل سریع:</b><br>'
-            + '۱. Service Worker رو Unregister کن (F12 → Application)<br>'
-            + '۲. تب رو کامل ببند و باز کن<br>'
-            + '۳. اگه بازم نشد، افزونه‌ی AdBlock رو موقتاً خاموش کن'
+            + '<span style="font-size:0.72rem;opacity:0.8">دلیل: مشکل CORS روی این endpoint</span>'
+            + '<div style="font-size:0.72rem;color:#1e40af;margin-top:10px;padding:10px;background:#dbeafe;border-radius:6px;line-height:1.9;text-align:right">'
+            + '<b>💡 راهنما:</b><br>'
+            + 'AvalAI پاسخ CORS برای این endpoint نمی‌دهد، اما در کنسول مستقیم کار می‌کند.<br>'
+            + 'برای تست دستی، F12 → Console رو باز کن و این رو بزن:<br>'
+            + '<code style="display:block;direction:ltr;background:#fff;padding:6px;border-radius:4px;margin-top:6px;font-size:0.68rem;overflow:auto;white-space:pre-wrap">'
+            + 'fetch("https://api.avalai.ir/user/1/credit",{headers:{"Content-Type":"application/json","Authorization":"Bearer "+AI.apiKey}}).then(r=>r.json()).then(d=>console.log(d))'
+            + '</code>'
             + '</div></div>';
         return;
     }
 
-    /* نمایش */
+    /* نمایش داده */
     var limit         = Number(data.limit) || 0;
     var remainingIrt  = Number(data.remaining_irt) || 0;
     var remainingUnit = Number(data.remaining_unit) || 0;
@@ -2539,31 +2565,31 @@ async function _tryFetchCredit(url, apiKey, mode) {
         var res = await fetch(url, {
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + apiKey,
-                'Accept': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
             }
         });
 
-        console.log('📡 [Credit] ' + (mode || 'direct') + ' status:', res.status);
+        console.log('📡 [Credit] ' + mode + ' status:', res.status);
 
         if (!res.ok) {
             var txt = await res.text();
-            console.warn('⚠️ [Credit] Bad response:', txt.substring(0, 150));
+            console.warn('⚠️ [Credit] ' + mode + ' bad response:', txt.substring(0, 150));
             return null;
         }
 
         var data = await res.json();
-        console.log('📊 [Credit] Data:', data);
+        console.log('📊 [Credit] ' + mode + ' data:', data);
 
         if (typeof data.total_unit === 'undefined' &&
             typeof data.remaining_irt === 'undefined') {
-            console.warn('⚠️ [Credit] Invalid data shape');
+            console.warn('⚠️ [Credit] invalid data shape');
             return null;
         }
 
         return data;
     } catch (e) {
-        console.warn('❌ [Credit] ' + (mode || 'direct') + ' failed:', e.message);
+        console.warn('❌ [Credit] ' + mode + ' failed:', e.message);
         return null;
     }
 }
