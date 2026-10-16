@@ -12,9 +12,18 @@
   "lang": "fa",
   "dir": "rtl",
   "icons": [
-    { "src": "./icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "./icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%234a90e2'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-size='260' font-family='Tahoma,sans-serif' font-weight='900' fill='%23ffffff'%3E%D9%BE%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%234a90e2'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-size='240' font-family='Tahoma,sans-serif' font-weight='900' fill='%23ffffff'%3E%D9%BE%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
   ],
   "categories": ["business", "finance", "productivity"]
 }
