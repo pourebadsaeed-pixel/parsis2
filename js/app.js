@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — راه‌اندازی نهایی برنامه (بخش ۱: bind functions)
+   پارسیس — راه‌اندازی نهایی برنامه
    مسیر: js/app.js
    وابستگی: همه فایل‌های core, ui, modules
    ============================================================ */
@@ -33,7 +33,6 @@ function bindSettingsButtons() {
     var overlay = document.getElementById('settings-overlay');
     if (overlay) overlay.addEventListener('click', closeSettings);
 
-    /* پشتیبان‌گیری */
     var backupBtn = document.getElementById('modal-backup-btn');
     if (backupBtn) backupBtn.addEventListener('click', downloadBackup);
 
@@ -49,11 +48,9 @@ function bindSettingsButtons() {
         this.value = '';
     });
 
-    /* ریست */
     var resetBtn = document.getElementById('modal-reset-btn');
     if (resetBtn) resetBtn.addEventListener('click', resetAllData);
 
-    /* خروج */
     var logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', function () {
         if (confirm('رفرش شود؟')) location.reload();
@@ -125,7 +122,7 @@ function bindCurrencyHide() {
 }
 
 /* ============================================================
-   بخش ۳ — اتصال انواع بانکی و صندوق
+   بخش ۳ — انواع بانکی و صندوق
    ============================================================ */
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
@@ -154,7 +151,7 @@ function bindBankCashTypes() {
 }
 
 /* ============================================================
-   بخش ۴ — اتصال پیامک
+   بخش ۴ — پیامک
    ============================================================ */
 function bindSmsButtons() {
     function onSmsAutoRead(val) {
@@ -219,9 +216,11 @@ function bindSmsButtons() {
 }
 
 /* ============================================================
-   بخش ۵ — اتصال Widget Toggles
+   بخش ۵ — Widget Toggles (تغییر: از بخش ترتیب انجام می‌شود)
    ============================================================ */
 function bindWidgetToggles() {
+    /* تغییر: حالا از بخش «ترتیب و صفحه ویجت‌ها» در تنظیمات انجام می‌شود،
+       اما این تابع را نگه می‌داریم برای سازگاری */
     var wT = document.querySelectorAll('[data-widget-toggle]');
     for (var wt = 0; wt < wT.length; wt++) {
         wT[wt].addEventListener('change', function () {
@@ -234,8 +233,7 @@ function bindWidgetToggles() {
 }
 
 /* ============================================================
-   بخش ۶ — اتصال فرم‌های اطلاعات پایه
-   ⚠️ فقط یک خط به نسخه‌ی اصلی اضافه شده: bindChartForm
+   بخش ۶ — فرم‌های اطلاعات پایه
    ============================================================ */
 function bindBaseDataForms() {
     if (typeof bindFiscalForm === 'function') bindFiscalForm();
@@ -244,11 +242,11 @@ function bindBaseDataForms() {
     if (typeof bindBanksForm === 'function') bindBanksForm();
     if (typeof bindCashBoxesForm === 'function') bindCashBoxesForm();
     if (typeof bindProjectsForm === 'function') bindProjectsForm();
-    if (typeof bindChartForm === 'function') bindChartForm();   /* ✅ جدید */
+    if (typeof bindChartForm === 'function') bindChartForm();
 }
 
 /* ============================================================
-   بخش ۷ — اتصال فرم‌های نقدینگی
+   بخش ۷ — فرم‌های نقدینگی
    ============================================================ */
 function bindCashForms() {
     if (typeof bindEstimatesForm === 'function') bindEstimatesForm();
@@ -257,7 +255,7 @@ function bindCashForms() {
 }
 
 /* ============================================================
-   بخش ۸ — اتصال فرم سند و الگو
+   بخش ۸ — فرم سند و الگو
    ============================================================ */
 function bindVoucherTemplatesForms() {
     if (typeof bindVoucherForm === 'function') bindVoucherForm();
@@ -266,13 +264,11 @@ function bindVoucherTemplatesForms() {
 }
 
 /* ============================================================
-   بخش ۹ — اتصال دکمه‌های گزارش‌ها
+   بخش ۹ — دکمه‌های گزارش‌ها
    ============================================================ */
 function bindReportButtons() {
-    /* گزارش‌های نقدینگی و گردش وجه نقد */
     if (typeof bindCashFlowReportButtons === 'function') bindCashFlowReportButtons();
 
-    /* چاپ و CSV برای همه گزارش‌ها */
     var printButtons = {
         'cf-print':  ['#cf-result',  'پیش‌بینی روزانه نقدینگی'],
         'cfd-print': ['#cfd-result', 'گردش وجه نقد'],
@@ -313,15 +309,11 @@ function bindReportButtons() {
         });
     });
 
-    /* Live rates refresh */
     if (typeof bindRatesRefreshButton === 'function') bindRatesRefreshButton();
-
-    /* گزارش‌های تسهیلات و تراز و ناقص */
     if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
     if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
     if (typeof bindRatesReportButtons === 'function') bindRatesReportButtons();
 
-    /* تراز آزمایشی + تراکنش ناقص + مقایسه‌ای */
     var rtRun = document.getElementById('rt-run');
     if (rtRun && typeof runTrialBalance === 'function') {
         rtRun.addEventListener('click', runTrialBalance);
@@ -339,7 +331,6 @@ function bindReportButtons() {
         raRun.addEventListener('click', runAccountReport);
     }
 
-    /* ذخیره قیمت پایانی روز */
     var dcSave = document.getElementById('dc-save');
     if (dcSave && typeof renderDailyClosePage === 'function') {
         dcSave.addEventListener('click', function () {
@@ -352,10 +343,9 @@ function bindReportButtons() {
 }
 
 /* ============================================================
-   بخش ۱۰ — اتصال Modal Closers
+   بخش ۱۰ — Modal Closers
    ============================================================ */
 function bindModalClosers() {
-    /* Voucher Preview */
     var closeVp = document.getElementById('close-vpreview');
     if (closeVp && typeof closeVoucherPreview === 'function') {
         closeVp.addEventListener('click', closeVoucherPreview);
@@ -373,7 +363,6 @@ function bindModalClosers() {
         vpPrint.addEventListener('click', printVoucherPreview);
     }
 
-    /* Turnover */
     var closeTo = document.getElementById('close-turnover');
     if (closeTo && typeof closeTurnover === 'function') closeTo.addEventListener('click', closeTurnover);
     var toClose = document.getElementById('turnover-close-btn');
@@ -387,7 +376,6 @@ function bindModalClosers() {
         });
     }
 
-    /* Image Viewer */
     var closeIv = document.getElementById('close-imgview');
     if (closeIv) closeIv.addEventListener('click', function () {
         document.getElementById('imgview-modal').classList.remove('show');
@@ -399,13 +387,11 @@ function bindModalClosers() {
         document.getElementById('imgview-overlay').classList.remove('show');
     });
 
-    /* Note View */
     var closeNv = document.getElementById('close-noteview');
     if (closeNv && typeof closeNoteView === 'function') closeNv.addEventListener('click', closeNoteView);
     var nvOv = document.getElementById('noteview-overlay');
     if (nvOv && typeof closeNoteView === 'function') nvOv.addEventListener('click', closeNoteView);
 
-    /* Voucher Scan Modal */
     var closeScan = document.getElementById('voucher-scan-close');
     if (closeScan) closeScan.addEventListener('click', function () {
         var m = document.getElementById('voucher-scan-modal');
@@ -423,18 +409,18 @@ function bindModalClosers() {
 }
 
 /* ============================================================
-   بخش ۱۱ — اتصال Sidebar / Nav
-   ⚠️ دقیقاً مثل نسخه‌ی اصلی — دست نزن!
+   بخش ۱۱ — Sidebar / Nav
    ============================================================ */
-function bindSidebarNav() {
+function bindSidebarNavApp() {
     if (typeof initSidebarSearch === 'function') initSidebarSearch();
-    if (typeof bindSidebarNav === 'function' && window.bindSidebarNav !== bindSidebarNav) {
+    if (typeof window.bindSidebarNav === 'function' && !window._sbNavBound) {
+        window._sbNavBound = true;
         window.bindSidebarNav();
     }
 }
 
 /* ============================================================
-   بخش ۱۲ — اتصال فیلترهای صفحات
+   بخش ۱۲ — فیلترهای صفحات
    ============================================================ */
 function bindFilterInputs() {
     var filterMap = {
@@ -464,7 +450,7 @@ function bindFilterInputs() {
 }
 
 /* ============================================================
-   بخش ۱۳ — اتصال Export Buttons
+   بخش ۱۳ — Export Buttons
    ============================================================ */
 function bindExportButtons() {
     var eB = document.querySelectorAll('.export-btn[data-export]');
@@ -481,17 +467,14 @@ function bindExportButtons() {
    بخش ۱۴ — init اصلی
    ============================================================ */
 function init() {
-    /* ظاهر اولیه */
     if (typeof applyTheme === 'function') applyTheme(state.theme);
     if (typeof applyFont === 'function') applyFont(state.font);
 
-    /* چیپ‌ها */
     if (typeof renderChips === 'function') {
         renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         renderChips('cash-types-list', state.cashTypes, 'cashTypes');
     }
 
-    /* UI */
     if (typeof setupTabs === 'function') setupTabs();
     if (typeof setupSorting === 'function') setupSorting();
     if (typeof initCalendarListeners === 'function') initCalendarListeners();
@@ -499,13 +482,11 @@ function init() {
     if (typeof initSidebarSearch === 'function') initSidebarSearch();
     if (typeof initHomeSwipe === 'function') initHomeSwipe();
 
-    /* چارت پیش‌فرض */
     if (DB.load('accounts', []).length > 0) {
         var ldc = document.getElementById('load-default-chart');
         if (ldc) ldc.disabled = true;
     }
 
-    /* الگوها و شرح‌های پیش‌فرض */
     if (!localStorage.getItem(LS_PREFIX + 'voucherTemplates')) {
         if (typeof getDefaultTemplates === 'function') {
             DB.save('voucherTemplates', getDefaultTemplates());
@@ -524,11 +505,9 @@ function init() {
     if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
     if (typeof renderFrequentNav === 'function') renderFrequentNav();
 
-    /* SMS */
     if (typeof renderSmsInbox === 'function') renderSmsInbox();
     if (typeof updateSmsBadge === 'function') updateSmsBadge();
 
-    /* تنظیمات اولیه */
     var c2 = document.getElementById('set-currency-display2');
     if (c2) c2.value = state.currencyDisplay;
 
@@ -548,9 +527,8 @@ function init() {
 
     if (typeof updateUnitChips === 'function') updateUnitChips();
 
-    /* اتصال‌ها */
     var binds = [
-        ['bindSidebarNav',    bindSidebarNav],
+        ['bindSidebarNavApp',  bindSidebarNavApp],
         ['bindSettingsButtons', bindSettingsButtons],
         ['bindThemeFontButtons', function () {
             if (typeof bindThemeFontButtons === 'function') bindThemeFontButtons();
@@ -579,19 +557,16 @@ function init() {
         }
     });
 
-    /* توابع پایه */
     if (typeof updateDateDisplay === 'function') updateDateDisplay();
     if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
     if (typeof updateEyeButtons === 'function') updateEyeButtons();
 
-    /* تایمر تاریخ */
     setInterval(function () {
         if (typeof updateDateDisplay === 'function') updateDateDisplay();
         if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
     }, 60000);
 
-    /* فرم سند جدید (اگر خالی است) */
     if (typeof newVoucherForm === 'function') {
         var vIdEl = document.getElementById('v-id');
         if (vIdEl && !vIdEl.value) newVoucherForm();
@@ -601,19 +576,15 @@ function init() {
     if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
 
-    /* پشتیبانی Clipboard */
     if (typeof checkClipboardSupport === 'function') checkClipboardSupport();
 
-    /* فرم یادداشت */
     if (typeof clearNoteForm === 'function') clearNoteForm();
 
-    /* کارت‌های collapsible */
     if (typeof makeCardCollapsible === 'function') {
         makeCardCollapsible(document.getElementById('voucher-template-card'), 'voucher-template-card', true);
         makeCardCollapsible(document.getElementById('voucher-head-card'), 'voucher-head-card', true);
     }
 
-    /* نرخ لحظه‌ای */
     setTimeout(function () {
         if (typeof fetchLiveRates === 'function') fetchLiveRates(true);
     }, 1500);
@@ -624,7 +595,6 @@ function init() {
         }
     }, 300000);
 
-    /* خواندن خودکار کلیپ‌بورد */
     function autoRead() {
         if (!state.smsAutoRead) return;
         if (typeof readClipboardAndAdd !== 'function') return;
@@ -635,17 +605,13 @@ function init() {
         if (document.visibilityState === 'visible') autoRead();
     });
 
-    /* AI */
     if (typeof aiInit === 'function') aiInit();
     if (typeof aiRender === 'function') aiRender();
 
-    /* برآورد اولیه */
     if (typeof renderEstimateItems === 'function') renderEstimateItems();
 
-    /* کمک‌ابزارهای گزارش */
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 
-    /* دکمه‌های اشتراک‌گذاری */
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 300);
 
     console.log('🎉 ' + APP_NAME + ' v' + APP_VERSION + ' — آماده است.');
@@ -693,7 +659,6 @@ window.bindCashForms            = bindCashForms;
 window.bindVoucherTemplatesForms = bindVoucherTemplatesForms;
 window.bindReportButtons        = bindReportButtons;
 window.bindModalClosers         = bindModalClosers;
-window.bindSidebarNav           = bindSidebarNav;
 window.bindFilterInputs         = bindFilterInputs;
 window.bindExportButtons        = bindExportButtons;
 window.parsisInit               = init;
