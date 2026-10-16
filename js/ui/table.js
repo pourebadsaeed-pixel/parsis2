@@ -11,9 +11,14 @@ function applyColWidths(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return;
     var widths = colWidths[tableId] || [];
-    var ths = table.querySelectorAll('thead th');
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (!headerRow) return;
+    var ths = headerRow.querySelectorAll('th');
     for (var i = 0; i < ths.length; i++) {
-        if (widths[i]) ths[i].style.width = widths[i] + 'px';
+        /* ✅ عرض‌ها بر اساس data-orig-index ذخیره می‌شن نه موقعیت DOM */
+        var oi = ths[i].getAttribute('data-orig-index');
+        var idx = oi !== null ? parseInt(oi, 10) : i;
+        if (widths[idx]) ths[i].style.width = widths[idx] + 'px';
         else ths[i].style.width = '';
         ths[i].style.minWidth = '';
         ths[i].style.maxWidth = '';
@@ -24,7 +29,7 @@ function applyColWidths(tableId) {
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
 /* ============================================================
-   ✅ تغییر: MIN_W کمتر، MAX_W نامحدود (تا 3000px)
+   ✅ محدوده عرض ستون: 30 تا 3000 پیکسل
    ============================================================ */
 function makeTableResizable(table) {
     if (!table || table.dataset.resizable === '1') return;
@@ -33,13 +38,20 @@ function makeTableResizable(table) {
     if (!tableId) return;
     table.setAttribute('data-table-id', tableId);
 
-    /* ✅ محدوده جدید: 30 تا 3000 پیکسل */
     var MIN_W = 30;
     var MAX_W = 3000;
 
-    var ths = table.querySelectorAll('thead th');
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (!headerRow) return;
+    var ths = headerRow.querySelectorAll('th');
     for (var i = 0; i < ths.length; i++) {
         (function (th, idx) {
+            /* ✅ ایندکس اصلی (data-orig-index) نه موقعیت DOM */
+            if (th.getAttribute('data-orig-index') === null) {
+                th.setAttribute('data-orig-index', String(idx));
+            }
+            var origIdx = parseInt(th.getAttribute('data-orig-index'), 10);
+
             if (th.querySelector('.col-resizer')) return;
             var res = document.createElement('div');
             res.className = 'col-resizer';
@@ -73,11 +85,10 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = '';
                 document.body.classList.remove('resizing-cols');
                 if (!colWidths[tableId]) colWidths[tableId] = [];
-                colWidths[tableId][idx] = th.offsetWidth;
+                colWidths[tableId][origIdx] = th.offsetWidth;
                 saveColWidths();
             }
 
-            /* دابل کلیک: بازنشانی عرض این ستون */
             res.addEventListener('dblclick', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -85,7 +96,7 @@ function makeTableResizable(table) {
                 th.style.minWidth = '';
                 th.style.maxWidth = '';
                 if (colWidths[tableId]) {
-                    delete colWidths[tableId][idx];
+                    delete colWidths[tableId][origIdx];
                     saveColWidths();
                 }
                 showToast('↔ عرض این ستون بازنشانی شد.');
@@ -114,28 +125,25 @@ function makeTableResizable(table) {
         })(ths[i], i);
     }
 
-    /* اعمال عرض‌های ذخیره‌شده */
     applyColWidths(tableId);
 }
 
-/* ============================================================
-   ✅ تغییر: تابع ریست عرض‌ها بهبود یافته
-   ============================================================ */
 function resetColumnWidths(tableId) {
     if (!tableId) return;
-
-    /* پاک کردن ذخیره‌ها */
     delete colWidths[tableId];
     saveColWidths();
 
     var table = document.getElementById(tableId);
     if (!table) return;
 
-    var ths = table.querySelectorAll('thead th');
-    for (var i = 0; i < ths.length; i++) {
-        ths[i].style.width = '';
-        ths[i].style.minWidth = '';
-        ths[i].style.maxWidth = '';
+    var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    if (headerRow) {
+        var ths = headerRow.querySelectorAll('th');
+        for (var i = 0; i < ths.length; i++) {
+            ths[i].style.width = '';
+            ths[i].style.minWidth = '';
+            ths[i].style.maxWidth = '';
+        }
     }
     table.style.minWidth = '';
     table.style.width = '';
@@ -143,9 +151,6 @@ function resetColumnWidths(tableId) {
     showToast('↔ عرض ستون‌ها به حالت پیش‌فرض برگشت.');
 }
 
-/* ============================================================
-   ✅ تغییر: ریست همه جدول‌ها
-   ============================================================ */
 function resetAllColumnWidths() {
     if (!confirm('عرض همه ستون‌های همه جدول‌ها به حالت پیش‌فرض برگردد؟')) return;
     colWidths = {};
@@ -153,11 +158,14 @@ function resetAllColumnWidths() {
     for (var i = 0; i < MANAGED_TABLE_IDS.length; i++) {
         var t = document.getElementById(MANAGED_TABLE_IDS[i]);
         if (!t) continue;
-        var ths = t.querySelectorAll('thead th');
-        for (var j = 0; j < ths.length; j++) {
-            ths[j].style.width = '';
-            ths[j].style.minWidth = '';
-            ths[j].style.maxWidth = '';
+        var hRow = t.querySelector('thead tr:not(.column-filter-row)');
+        if (hRow) {
+            var ths = hRow.querySelectorAll('th');
+            for (var j = 0; j < ths.length; j++) {
+                ths[j].style.width = '';
+                ths[j].style.minWidth = '';
+                ths[j].style.maxWidth = '';
+            }
         }
         t.style.minWidth = '';
         t.style.width = '';
@@ -165,9 +173,6 @@ function resetAllColumnWidths() {
     showToast('↔ عرض همه جدول‌ها بازنشانی شد.');
 }
 
-/* ============================================================
-   MANAGED_TABLE_IDS
-   ============================================================ */
 var MANAGED_TABLE_IDS = [
     'fiscal-table', 'persons-table', 'comp-table', 'ba-table', 'cb-table', 'proj-table',
     'voucher-table-list', 'rt-table', 'ri-table', 'rf-table', 'rff-table', 'cfs-table',
@@ -210,8 +215,12 @@ function findThByOrigIndex(headerRow, origIdx) {
     return null;
 }
 
+/* ============================================================
+   ✅ رفع باگ: syncBodyOrigIndices بر اساس موقعیت TEMPLATE نه DOM
+   چون سلول‌های body همیشه در ترتیب اصلی HTML ساخته می‌شن،
+   پس اندیس هر سلول = موقعیت آن در HTML (c) است — نه اندیس th فعلی.
+   ============================================================ */
 function syncBodyOrigIndices(table, headerRow) {
-    var headerThs = headerRow.querySelectorAll('th');
     var allRows = table.querySelectorAll('tr');
     for (var r = 0; r < allRows.length; r++) {
         var row = allRows[r];
@@ -219,8 +228,9 @@ function syncBodyOrigIndices(table, headerRow) {
         var cells = row.children;
         if (cells.length <= 1) continue;
         for (var c = 0; c < cells.length; c++) {
-            if (cells[c].getAttribute('data-orig-index') === null && headerThs[c]) {
-                cells[c].setAttribute('data-orig-index', headerThs[c].getAttribute('data-orig-index'));
+            if (cells[c].getAttribute('data-orig-index') === null) {
+                /* ✅ اصلاح: از موقعیت سلول در HTML استفاده می‌کنیم، نه از th فعلی */
+                cells[c].setAttribute('data-orig-index', String(c));
             }
         }
     }
@@ -234,13 +244,19 @@ function applyColumnOrder(tableId) {
     if (!table) return;
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
+
+    /* ✅ اطمینان از اینکه th ها data-orig-index دارن — بر اساس موقعیت HTML اصلی.
+       اما چون ممکنه قبلاً جابجا شده باشن، باید مطمئن بشیم data-orig-index
+       قبلاً ست شده و تغییر نمی‌کنه. فقط اگه null باشه ست می‌کنیم. */
     var headerThs = headerRow.querySelectorAll('th');
     for (var i = 0; i < headerThs.length; i++) {
         if (headerThs[i].getAttribute('data-orig-index') === null) {
             headerThs[i].setAttribute('data-orig-index', String(i));
         }
     }
+
     syncBodyOrigIndices(table, headerRow);
+
     var allRows = table.querySelectorAll('tr');
     for (var r = 0; r < allRows.length; r++) {
         var row = allRows[r];
@@ -627,7 +643,7 @@ function makeCardCollapsible(cardEl, key, defaultOpen) {
 }
 
 /* ============================================================
-   ✅ دکمه‌های هدر: دکمه ریست عرض جدید
+   دکمه‌های هدر
    ============================================================ */
 function buildHeaderButtons() {
     var headers = document.querySelectorAll('.list-header');
@@ -649,7 +665,6 @@ function buildHeaderButtons() {
                 h.appendChild(eye);
             }
 
-            /* ✅ دکمه ریست عرض — با آیکون واضح */
             if (tableId && !h.querySelector('.col-reset-btn')) {
                 var rBtn = document.createElement('button');
                 rBtn.type = 'button';
