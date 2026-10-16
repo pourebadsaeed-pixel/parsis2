@@ -265,11 +265,6 @@ function filterVouchers(opts) {
     });
 }
 
-/* ============================================================
-   ✅ computeAccountBalances — اصلاح شده
-   ساختار detailBalances حالا کلید مرکب داره: "parentId::linkType::detailId"
-   تا اگر یک معین به دو نوع تفصیلی وصل باشه، هر دو ذخیره بشن.
-   ============================================================ */
 function computeAccountBalances(opts) {
     var vouchers = filterVouchers(opts);
     var accounts = DB.load('accounts', []);
@@ -289,7 +284,6 @@ function computeAccountBalances(opts) {
         });
     });
 
-    /* ✅ ساختار جدید: کلید مرکب */
     var db = {};
     if (opts.level === 4) {
         vouchers.forEach(function (v) {
@@ -405,7 +399,7 @@ function refreshReportPeriodSelects() {
 
 /* ============================================================
    بخش ۶ — رندر گزارش مرور حساب‌ها
-   ✅ اصلاح: استفاده از کلید مرکب detailBalances
+   ✅ حذف نوار بالای جدول (list-header ar-toolbar)
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -446,7 +440,6 @@ function renderAccountReview() {
             list.push(a);
         });
     } else {
-        /* ✅ level 4: هر کلید مرکب یک ردیف */
         Object.keys(detailBals).forEach(function (key) {
             var d = detailBals[key];
             if (parentId && d.parent !== parentId) return;
@@ -462,7 +455,6 @@ function renderAccountReview() {
             });
         });
 
-        /* ✅ مرتب‌سازی الفبایی بر اساس linkType سپس name */
         list.sort(function (a, b) {
             if (a.linkType !== b.linkType) {
                 return String(a.linkType).localeCompare(String(b.linkType));
@@ -496,13 +488,8 @@ function renderAccountReview() {
     });
     html += '</div></div>';
 
-    /* بدنه */
+    /* بدنه — بدون list-header */
     html += '<div class="ar-body">';
-    html += '<div class="list-header ar-toolbar" data-col-table="ra-acc-table" data-hide-key="ra">';
-    html += '<span class="count-badge" id="ra-count">۰</span>';
-    html += '<span style="flex:1"></span>';
-    html += '</div>';
-
     html += '<div class="ar-tw">';
     html += '<table class="ar-tbl" id="ra-acc-table" data-table-id="ra-acc-table">';
     html += '<thead><tr>';
@@ -554,7 +541,6 @@ function renderAccountReview() {
         html += '<span>' + esc(a.code || '—') + '</span>';
         html += '</td>';
 
-        /* ✅ برای سطح ۴، نوع تفصیلی رو نشون بده */
         var nameExtra = '';
         if (a.isDetail && a.linkType) {
             nameExtra = ' <span class="ar-link-badge">' + linkTypeName(a.linkType) + '</span>';
@@ -592,18 +578,13 @@ function renderAccountReview() {
 
     box.innerHTML = html;
 
-    var cnt = document.getElementById('ra-count');
-    if (cnt) cnt.textContent = toFa(shown);
-
     bindAccountReviewEvents(accounts, box);
 
     setTimeout(function () {
-        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
         if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ra-acc-table'));
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
-        if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     }, 50);
 }
 
