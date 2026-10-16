@@ -616,15 +616,16 @@ function aiChunkTextForSpeech(text, maxLen) {
     }
     return chunks.filter(function (c) { return c.length > 0; });
 }
+
 /* ============================================================
    بخش ۱۰ — توابع TTS
    ============================================================ */
 async function aiAvalaiTTSFetch(text) {
     var url = 'https://api.avalai.ir/v1/audio/speech';
     var body = {
-        model: AI_TTS.avaliaiModel || 'gemini-3.8-flash-tts',
+        model: AI_TTS.avalaiModel || 'gemini-3.8-flash-tts',
         input: text,
-        voice: AI_TTS.avaliaiVoice || 'Kore',
+        voice: AI_TTS.avalaiVoice || 'Kore',
         response_format: 'mp3',
         speed: Math.max(0.5, Math.min(1.5, Number(AI_TTS.rate) || 1))
     };
@@ -1358,6 +1359,7 @@ function aiBuildSystemPrompt() {
         + '═══════════════════════════════════════\n\n'
         + aiBuildContext();
 }
+
 /* ============================================================
    بخش ۱۳ — Markdown Renderer
    ============================================================ */
