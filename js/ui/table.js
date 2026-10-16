@@ -23,34 +23,49 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
+/* ============================================================
+   ✅ تغییر: MIN_W کمتر، MAX_W نامحدود (تا 3000px)
+   ============================================================ */
 function makeTableResizable(table) {
     if (!table || table.dataset.resizable === '1') return;
     table.dataset.resizable = '1';
     var tableId = table.id;
     if (!tableId) return;
     table.setAttribute('data-table-id', tableId);
-    var MIN_W = 50, MAX_W = 600;
+
+    /* ✅ محدوده جدید: 30 تا 3000 پیکسل */
+    var MIN_W = 30;
+    var MAX_W = 3000;
+
     var ths = table.querySelectorAll('thead th');
     for (var i = 0; i < ths.length; i++) {
         (function (th, idx) {
             if (th.querySelector('.col-resizer')) return;
             var res = document.createElement('div');
             res.className = 'col-resizer';
-            res.title = 'بکش • دابل‌کلیک: بازنشانی';
+            res.title = 'بکش • دابل‌کلیک: بازنشانی این ستون';
             th.appendChild(res);
+
             var startX = 0, startW = 0, isDragging = false;
+
             function start(x) {
-                isDragging = true; startX = x; startW = th.offsetWidth;
+                isDragging = true;
+                startX = x;
+                startW = th.offsetWidth;
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
             }
+
             function move(x) {
                 if (!isDragging) return;
                 var diff = startX - x;
                 var w = Math.max(MIN_W, Math.min(MAX_W, startW + diff));
                 th.style.width = w + 'px';
+                th.style.minWidth = w + 'px';
+                th.style.maxWidth = w + 'px';
             }
+
             function end() {
                 if (!isDragging) return;
                 isDragging = false;
@@ -61,19 +76,35 @@ function makeTableResizable(table) {
                 colWidths[tableId][idx] = th.offsetWidth;
                 saveColWidths();
             }
+
+            /* دابل کلیک: بازنشانی عرض این ستون */
             res.addEventListener('dblclick', function (e) {
-                e.preventDefault(); e.stopPropagation();
+                e.preventDefault();
+                e.stopPropagation();
                 th.style.width = '';
-                if (colWidths[tableId]) { delete colWidths[tableId][idx]; saveColWidths(); }
-                showToast('↔ عرض ستون بازنشانی شد.');
+                th.style.minWidth = '';
+                th.style.maxWidth = '';
+                if (colWidths[tableId]) {
+                    delete colWidths[tableId][idx];
+                    saveColWidths();
+                }
+                showToast('↔ عرض این ستون بازنشانی شد.');
             });
+
             res.addEventListener('click', function (e) { e.stopPropagation(); });
+
             res.addEventListener('mousedown', function (e) {
-                e.preventDefault(); e.stopPropagation(); start(e.pageX);
+                e.preventDefault();
+                e.stopPropagation();
+                start(e.pageX);
             });
+
             res.addEventListener('touchstart', function (e) {
-                e.preventDefault(); e.stopPropagation(); start(e.touches[0].pageX);
+                e.preventDefault();
+                e.stopPropagation();
+                start(e.touches[0].pageX);
             }, { passive: false });
+
             document.addEventListener('mousemove', function (e) { if (isDragging) move(e.pageX); });
             document.addEventListener('mouseup', end);
             document.addEventListener('touchmove', function (e) {
@@ -82,23 +113,61 @@ function makeTableResizable(table) {
             document.addEventListener('touchend', end);
         })(ths[i], i);
     }
+
+    /* اعمال عرض‌های ذخیره‌شده */
     applyColWidths(tableId);
 }
 
+/* ============================================================
+   ✅ تغییر: تابع ریست عرض‌ها بهبود یافته
+   ============================================================ */
 function resetColumnWidths(tableId) {
     if (!tableId) return;
+
+    /* پاک کردن ذخیره‌ها */
     delete colWidths[tableId];
     saveColWidths();
+
     var table = document.getElementById(tableId);
     if (!table) return;
+
     var ths = table.querySelectorAll('thead th');
     for (var i = 0; i < ths.length; i++) {
         ths[i].style.width = '';
+        ths[i].style.minWidth = '';
+        ths[i].style.maxWidth = '';
     }
     table.style.minWidth = '';
-    showToast('↔ عرض ستون‌ها فیت شد.');
+    table.style.width = '';
+
+    showToast('↔ عرض ستون‌ها به حالت پیش‌فرض برگشت.');
 }
 
+/* ============================================================
+   ✅ تغییر: ریست همه جدول‌ها
+   ============================================================ */
+function resetAllColumnWidths() {
+    if (!confirm('عرض همه ستون‌های همه جدول‌ها به حالت پیش‌فرض برگردد؟')) return;
+    colWidths = {};
+    saveColWidths();
+    for (var i = 0; i < MANAGED_TABLE_IDS.length; i++) {
+        var t = document.getElementById(MANAGED_TABLE_IDS[i]);
+        if (!t) continue;
+        var ths = t.querySelectorAll('thead th');
+        for (var j = 0; j < ths.length; j++) {
+            ths[j].style.width = '';
+            ths[j].style.minWidth = '';
+            ths[j].style.maxWidth = '';
+        }
+        t.style.minWidth = '';
+        t.style.width = '';
+    }
+    showToast('↔ عرض همه جدول‌ها بازنشانی شد.');
+}
+
+/* ============================================================
+   MANAGED_TABLE_IDS
+   ============================================================ */
 var MANAGED_TABLE_IDS = [
     'fiscal-table', 'persons-table', 'comp-table', 'ba-table', 'cb-table', 'proj-table',
     'voucher-table-list', 'rt-table', 'ri-table', 'rf-table', 'rff-table', 'cfs-table',
@@ -112,6 +181,9 @@ function makeAllTablesResizable() {
     }
 }
 
+/* ============================================================
+   ترتیب ستون‌ها
+   ============================================================ */
 var columnOrders = DB.load(LS_KEYS.COLUMN_ORDERS, {});
 function saveColumnOrders() { DB.save(LS_KEYS.COLUMN_ORDERS, columnOrders); }
 
@@ -238,6 +310,10 @@ function moveColumnInTable(tableId, colIdx, direction) {
     applyColumnOrder(tableId);
     applyColVisibility(tableId);
 }
+
+/* ============================================================
+   نمایش/مخفی‌سازی ستون‌ها
+   ============================================================ */
 var colSettings = DB.load(LS_KEYS.COLUMN_SETTINGS, {});
 function getHiddenCols(tableId) { return colSettings[tableId] || []; }
 function setHiddenCols(tableId, arr) {
@@ -265,6 +341,10 @@ function applyColVisibility(tableId) {
 function applyColVisibilityAll() {
     for (var i = 0; i < MANAGED_TABLE_IDS.length; i++) applyColVisibility(MANAGED_TABLE_IDS[i]);
 }
+
+/* ============================================================
+   منوی ستون‌ها
+   ============================================================ */
 function showColMenu(tableId, btn) {
     var menu = document.getElementById('col-menu');
     if (!menu) return;
@@ -306,6 +386,7 @@ function showColMenu(tableId, btn) {
     var rect = btn.getBoundingClientRect();
     menu.style.top = (rect.bottom + window.scrollY + 6) + 'px';
     menu.style.left = Math.max(8, rect.left - 280 + rect.width) + 'px';
+
     menu.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
         cb.addEventListener('change', function () {
             var tid = this.getAttribute('data-table');
@@ -343,6 +424,9 @@ document.addEventListener('click', function (e) {
     menu.classList.add('hidden');
 });
 
+/* ============================================================
+   مرتب‌سازی
+   ============================================================ */
 var sortState = {
     vouchers: { col: 'number', dir: 'desc' },
     facilities: { col: 'name', dir: 'asc' },
@@ -410,6 +494,10 @@ function applyTableSort(tableId, rows, keyFn) {
         return dir * compareVals(keyFn(a, st.col), keyFn(b, st.col));
     });
 }
+
+/* ============================================================
+   فیلتر ردیف ستون‌ها
+   ============================================================ */
 var COLUMN_FILTERS = {};
 
 function normalizeCellText(s) {
@@ -515,6 +603,9 @@ function attachFilterRowsToAllTables() {
     });
 }
 
+/* ============================================================
+   Card collapse
+   ============================================================ */
 function makeCardCollapsible(cardEl, key, defaultOpen) {
     if (!cardEl || cardEl.dataset.collapsible === '1') return;
     cardEl.dataset.collapsible = '1';
@@ -535,12 +626,16 @@ function makeCardCollapsible(cardEl, key, defaultOpen) {
     if (collapsed) cardEl.classList.add('collapsed');
 }
 
+/* ============================================================
+   ✅ دکمه‌های هدر: دکمه ریست عرض جدید
+   ============================================================ */
 function buildHeaderButtons() {
     var headers = document.querySelectorAll('.list-header');
     for (var i = 0; i < headers.length; i++) {
         (function (h) {
             var tableId = h.getAttribute('data-col-table');
             var hideKey = h.getAttribute('data-hide-key');
+
             if (hideKey && !h.querySelector('.eye-toggle-btn')) {
                 var eye = document.createElement('button');
                 eye.type = 'button';
@@ -553,19 +648,27 @@ function buildHeaderButtons() {
                 });
                 h.appendChild(eye);
             }
+
+            /* ✅ دکمه ریست عرض — با آیکون واضح */
             if (tableId && !h.querySelector('.col-reset-btn')) {
                 var rBtn = document.createElement('button');
                 rBtn.type = 'button';
                 rBtn.className = 'col-reset-btn';
-                rBtn.innerHTML = '↔';
-                rBtn.addEventListener('click', function (ev) { ev.stopPropagation(); resetColumnWidths(tableId); });
+                rBtn.innerHTML = '↻';
+                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض';
+                rBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    resetColumnWidths(tableId);
+                });
                 h.appendChild(rBtn);
             }
+
             if (tableId && !h.querySelector('.col-toggle-btn')) {
                 var btn = document.createElement('button');
                 btn.className = 'col-toggle-btn';
                 btn.type = 'button';
                 btn.innerHTML = '⚙';
+                btn.title = 'نمایش، ترتیب و پنهان کردن ستون‌ها';
                 btn.addEventListener('click', function (ev) { ev.stopPropagation(); showColMenu(tableId, btn); });
                 h.appendChild(btn);
             }
@@ -574,12 +677,16 @@ function buildHeaderButtons() {
     if (typeof updateEyeButtons === 'function') updateEyeButtons();
 }
 
+/* ============================================================
+   صادرسازی
+   ============================================================ */
 window.colWidths = colWidths;
 window.saveColWidths = saveColWidths;
 window.applyColWidths = applyColWidths;
 window.updateTableMinWidth = updateTableMinWidth;
 window.makeTableResizable = makeTableResizable;
 window.resetColumnWidths = resetColumnWidths;
+window.resetAllColumnWidths = resetAllColumnWidths;
 window.makeAllTablesResizable = makeAllTablesResizable;
 window.MANAGED_TABLE_IDS = MANAGED_TABLE_IDS;
 window.columnOrders = columnOrders;
