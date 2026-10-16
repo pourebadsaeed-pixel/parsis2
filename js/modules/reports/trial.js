@@ -89,23 +89,23 @@ function runTrialBalance() {
         var b = rolled[node.id] || { debit: 0, credit: 0 };
         var net = b.debit - b.credit;
 
-        if (opts.level === 4 && level === 3) {
-            var sD = 0, sC = 0;
-            Object.keys(result.detailBalances).forEach(function (did) {
-                var d = result.detailBalances[did];
-                if (d.parent !== node.id) return;
-                sD += d.debit;
-                sC += d.credit;
-                var dn = d.debit - d.credit;
-                rows.push({
-                    name: getDetailLabel(d.linkType, did) + ' (' + node.name + ')',
-                    level: 4,
-                    debit: d.debit,
-                    credit: d.credit,
-                    md: dn > 0 ? dn : 0,
-                    mc: dn < 0 ? -dn : 0
-                });
-            });
+if (opts.level === 4 && level === 3) {
+    var sD = 0, sC = 0;
+    Object.keys(result.detailBalances).forEach(function (key) {
+        var d = result.detailBalances[key];
+        if (d.parent !== node.id) return;
+        sD += d.debit;
+        sC += d.credit;
+        var dn = d.debit - d.credit;
+        rows.push({
+            name: getDetailLabel(d.linkType, d.id) + ' (' + node.name + ')',
+            level: 4,
+            debit: d.debit,
+            credit: d.credit,
+            md: dn > 0 ? dn : 0,
+            mc: dn < 0 ? -dn : 0
+        });
+    });
 
             var dd = b.debit - sD;
             var dc = b.credit - sC;
