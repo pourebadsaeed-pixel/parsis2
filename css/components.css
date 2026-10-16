@@ -1365,37 +1365,48 @@ body.resizing-cols .report-table th { user-select:none !important; }
 
 /* ================ CHECKLIST WIDGET ================ */
 .cl-widget-item {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:9px 12px;
-  border-radius:10px;
-  margin-bottom:5px;
-  background:var(--card-alt);
-  font-size:0.85rem;
-  cursor:pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  background: var(--card-alt);
+  font-size: 0.85rem;
+  cursor: pointer;
   transition: all var(--transition);
-  border:1px solid var(--border);
+  border: 1px solid var(--border);
+  line-height: 1.85;
 }
 .cl-widget-item:hover { background:var(--primary-soft); transform:translateX(-2px); }
 .cl-widget-item.done { opacity:0.6; }
 .cl-widget-item.done .cl-widget-text { text-decoration:line-through; }
-.cl-widget-item input[type=checkbox] {
-  width:17px;
-  height:17px;
-  accent-color:var(--primary);
-  pointer-events:auto;
-  flex-shrink:0;
+.cl-widget-item > input[type=checkbox] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary);
+  pointer-events: auto;
+  flex-shrink: 0;
+  margin-top: 5px;
 }
-.cl-widget-item .cl-widget-text { flex:1; }
+.cl-widget-item .cl-widget-text {
+  flex: 1 1 0;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.85;
+}
 .cl-widget-item .cl-widget-note {
-  font-size:0.7rem;
-  color:var(--text-muted);
-  background:var(--card-solid);
-  padding:3px 9px;
-  border-radius:11px;
-  white-space:nowrap;
-  direction:ltr;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--card-solid);
+  padding: 3px 9px;
+  border-radius: 11px;
+  white-space: nowrap;
+  direction: ltr;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 3px;
 }
 
 /* ================ RATE ROW ================ */
@@ -2334,7 +2345,7 @@ body.resizing-cols .report-table th { user-select:none !important; }
   display:flex;
   gap:8px;
   margin-bottom:8px;
-  align-items:flex-start;
+  align-items: flex-start;
 }
 .cl-item-row textarea {
   flex:1;
