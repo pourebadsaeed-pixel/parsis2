@@ -7,8 +7,14 @@
 
 /* ============================================================
    بخش ۱ — خلاصه تسهیلات
+   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runFacilityReport() {
+    /* ✅ تاشو کردن پنل فیلتر */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-facility', 'filter-rf', 'فیلترهای خلاصه تسهیلات', '🔍');
+    }
+
     var facilities = DB.load('facilities', []);
     var cf = (document.getElementById('rf-category') || {}).value || '';
     var sf = (document.getElementById('rf-status') || {}).value || '';
@@ -88,6 +94,14 @@ function runFacilityReport() {
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
     setupRfSorting();
+
+    /* ✅ فعال‌سازی ریسایز ستون‌ها */
+    setTimeout(function () {
+        var t = document.getElementById('rf-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rf-table');
+    }, 30);
+
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
@@ -109,6 +123,7 @@ function setupRfSorting() {
 
 /* ============================================================
    بخش ۲ — گزارش جامع تسهیلات
+   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function setupRffSorting() {
     var ths = document.querySelectorAll('#rff-result th[data-sort]');
@@ -225,6 +240,11 @@ function computeFacilityRows() {
 }
 
 function runFacilityFullReport() {
+    /* ✅ تاشو کردن پنل فیلتر */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-facility-full', 'filter-rff', 'فیلترهای گزارش جامع تسهیلات', '🔍');
+    }
+
     var rows = computeFacilityRows();
     var st = sortState.rff;
 
@@ -370,6 +390,13 @@ function renderFacilityFullSummary(rows) {
             else if (act === 'rff-edit') loadFacilityIntoForm(f);
         });
     }
+
+    /* ✅ فعال‌سازی ریسایز */
+    setTimeout(function () {
+        var t = document.getElementById('rff-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rff-table');
+    }, 30);
 }
 
 /* ============================================================
@@ -519,6 +546,14 @@ function bindFacilityReportButtons() {
         });
         rffTabs[ti].classList.toggle('active', rffTabs[ti].getAttribute('data-rff-view') === state.rffView);
     }
+
+    /* ✅ تاشو کردن پنل‌های فیلتر در بار اول */
+    setTimeout(function () {
+        if (typeof makeFilterPanelCollapsible === 'function') {
+            makeFilterPanelCollapsible('report-facility', 'filter-rf', 'فیلترهای خلاصه تسهیلات', '🔍');
+            makeFilterPanelCollapsible('report-facility-full', 'filter-rff', 'فیلترهای گزارش جامع تسهیلات', '🔍');
+        }
+    }, 500);
 }
 
 /* ============================================================
@@ -533,4 +568,4 @@ window.renderFacilityFullSummary    = renderFacilityFullSummary;
 window.renderFacilityFullDetail     = renderFacilityFullDetail;
 window.bindFacilityReportButtons    = bindFacilityReportButtons;
 
-console.log('✅ [modules/reports/facility.js] loaded');
+console.log('✅ [modules/reports/facility.js] loaded — complete');
