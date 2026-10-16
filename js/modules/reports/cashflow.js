@@ -1,12 +1,12 @@
 /* ============================================================
-   پارسیس — گزارش نقدینگی و گردش وجه نقد (بخش ۱)
+   پارسیس — گزارش نقدینگی و گردش وجه نقد
    مسیر: js/modules/reports/cashflow.js
    وابستگی: core/* + ui/* + vouchers/*
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۱ — نمایش مبالغ HTML-محور (با پرانتز قرمز)
+   بخش ۱ — نمایش مبالغ HTML-محور
    ============================================================ */
 function moneyHtml(n, key) {
     if (key && typeof getHideState === 'function' && getHideState(key)) return '—';
@@ -72,6 +72,7 @@ function getActiveFiscalYearStart() {
 
 /* ============================================================
    بخش ۴ — گزارش پیش‌بینی روزانه نقدینگی
+   ✅ اصلاح: فعال‌سازی ریسایز ستون‌ها روی cf-table
    ============================================================ */
 function runCashFlowReport() {
     var fromDate = normalizeDigits((document.getElementById('cf-from').value || '').trim());
@@ -122,7 +123,6 @@ function runCashFlowReport() {
         });
     });
 
-    /* ساخت آیتم‌ها */
     var items = [];
 
     sourcesInRange.forEach(function (s) {
@@ -168,7 +168,7 @@ function runCashFlowReport() {
 
     /* رسم */
     var html = '<div class="cf-report"><div class="table-wrap">';
-    html += '<table class="cf-table" id="cf-table"><thead><tr>'
+    html += '<table class="cf-table" id="cf-table" data-table-id="cf-table"><thead><tr>'
          +  '<th style="width:35%">عنوان دسته</th>'
          +  '<th style="width:15%">تاریخ</th>'
          +  '<th style="width:25%">مبلغ</th>'
@@ -238,11 +238,23 @@ function runCashFlowReport() {
     var unitEl = document.getElementById('cf-unit');
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
+    /* ✅ فعال‌سازی ریسایز ستون‌ها */
+    setTimeout(function () {
+        var t = document.getElementById('cf-table');
+        if (t && typeof makeTableResizable === 'function') {
+            makeTableResizable(t);
+        }
+        if (typeof applyColVisibility === 'function') applyColVisibility('cf-table');
+        if (typeof applyColWidths === 'function') applyColWidths('cf-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+    }, 30);
+
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
 /* ============================================================
    بخش ۵ — گزارش گردش وجه نقد
+   ✅ اصلاح: فعال‌سازی ریسایز روی cfd-table و جداول جزئیات
    ============================================================ */
 function runCashFlowByDescReport() {
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
@@ -342,9 +354,14 @@ function runCashFlowByDescReport() {
     /* گزارش اصلی */
     if (viewMode === 'main' || viewMode === 'full') {
         html += '<div class="cfd-section-title">📋 گزارش اصلی</div>';
-        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table" id="cfd-table"><thead><tr>'
-             +  '<th>#</th><th>بابت / شرح</th><th>ورود (بدهکار)</th><th>خروج (بستانکار)</th>'
-             +  '<th>مانده</th><th>تعداد</th><th>درصد</th>'
+        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table" id="cfd-table" data-table-id="cfd-table"><thead><tr>'
+             +  '<th style="width:50px">#</th>'
+             +  '<th style="min-width:180px">بابت / شرح</th>'
+             +  '<th style="width:130px">ورود (بدهکار)</th>'
+             +  '<th style="width:130px">خروج (بستانکار)</th>'
+             +  '<th style="width:130px">مانده</th>'
+             +  '<th style="width:80px">تعداد</th>'
+             +  '<th style="width:90px">درصد</th>'
              +  '</tr></thead><tbody>';
 
         var tIn = 0, tOut = 0;
@@ -400,9 +417,16 @@ function runCashFlowByDescReport() {
                  +   '</div>'
                  +   '<div class="cfd-details">'
                  +     '<div class="cfd-hscroll">'
-                 +       '<table class="data-table cfd-detail-table">'
-                 +         '<thead><tr><th>#</th><th>تاریخ</th><th>شماره</th><th>شرح سند</th>'
-                 +         '<th>حساب</th><th>شرح قلم</th><th>بدهکار</th><th>بستانکار</th><th>عملیات</th></tr></thead><tbody>';
+                 +       '<table class="data-table cfd-detail-table" data-table-id="cfd-detail-' + j + '">'
+                 +         '<thead><tr><th style="width:50px">#</th>'
+                 +         '<th style="width:100px">تاریخ</th>'
+                 +         '<th style="width:80px">شماره</th>'
+                 +         '<th style="min-width:140px">شرح سند</th>'
+                 +         '<th style="min-width:140px">حساب</th>'
+                 +         '<th style="min-width:140px">شرح قلم</th>'
+                 +         '<th style="width:120px">بدهکار</th>'
+                 +         '<th style="width:120px">بستانکار</th>'
+                 +         '<th style="width:90px">عملیات</th></tr></thead><tbody>';
 
             for (var di = 0; di < b2.details.length; di++) {
                 var d2 = b2.details[di];
@@ -444,6 +468,20 @@ function runCashFlowByDescReport() {
             if (typeof openVoucherForEditById === 'function') openVoucherForEditById(vid);
         });
     });
+
+    /* ✅ فعال‌سازی ریسایز ستون‌ها روی همه جداول cfd */
+    setTimeout(function () {
+        var t = document.getElementById('cfd-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+
+        /* جداول جزئیات */
+        document.querySelectorAll('#cfd-result .cfd-detail-table').forEach(function (tt) {
+            if (typeof makeTableResizable === 'function') makeTableResizable(tt);
+        });
+
+        if (typeof applyColVisibility === 'function') applyColVisibility('cfd-table');
+        if (typeof applyColWidths === 'function') applyColWidths('cfd-table');
+    }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
@@ -513,8 +551,9 @@ function bindCashFlowReportButtons() {
     var onlyBal = document.getElementById('cfd-only-balance');
     if (onlyBal) onlyBal.addEventListener('change', runCashFlowByDescReport);
 }
+
 /* ============================================================
-   بخش ۸ — صادرسازی
+   صادرسازی
    ============================================================ */
 window.moneyHtml                       = moneyHtml;
 window.moneyText                       = moneyText;
