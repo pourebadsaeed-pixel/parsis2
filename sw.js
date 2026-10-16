@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker */
-var CACHE_NAME = 'parsis-v1';
+var CACHE_NAME = 'parsis-v2';
 
 var ASSETS = [
   './index.html',
@@ -9,6 +9,8 @@ var ASSETS = [
   './css/layout.css',
   './css/components.css',
   './css/calendar.css',
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
   './js/core/db.js',
   './js/core/constants.js',
   './js/core/utils.js',
@@ -51,6 +53,8 @@ var ASSETS = [
   './js/modules/ai.js',
   './js/modules/scan.js',
   './js/modules/welcome.js',
+  './js/modules/backup.js',
+  './js/modules/fix-sidebar.js',
   './js/app.js'
 ];
 
