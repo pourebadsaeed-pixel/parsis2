@@ -9,8 +9,6 @@ var ASSETS = [
   './css/layout.css',
   './css/components.css',
   './css/calendar.css',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
   './js/core/db.js',
   './js/core/constants.js',
   './js/core/utils.js',
