@@ -1033,6 +1033,7 @@
             <div class="field"><label>دوره</label><select id="rt-period"><option value="">همه</option></select></div>
             <div class="field"><label>سطح</label>
                 <select id="rt-level">
+                    <option value="1">گروه</option>
                     <option value="2">کل</option>
                     <option value="3" selected>معین</option>
                     <option value="4">تفصیلی</option>
@@ -1250,6 +1251,7 @@
             </div>
             <div class="field"><label>سطح</label>
                 <select id="rc-level">
+                    <option value="1">گروه</option>
                     <option value="2" selected>کل</option>
                     <option value="3">معین</option>
                 </select>
@@ -1301,23 +1303,28 @@
 <datalist id="std-desc-list"></datalist>
 <div id="col-menu" class="col-menu hidden"></div>
 
-<!-- ============ SETTINGS MODAL ============ -->
+<!-- ============ SETTINGS MODAL (Collapsible) ============ -->
 <div id="settings-overlay" class="overlay"></div>
 <div id="settings-modal" class="modal">
     <div class="modal-head"><h2>⚙ تنظیمات</h2><button id="close-settings" class="close-btn">×</button></div>
     <div class="modal-body">
 
-        <div class="modal-section">
-            <h3>💾 پشتیبان‌گیری و بازیابی</h3>
+        <div class="settings-expand-btns">
+            <button id="settings-expand-all" class="mini-btn">⬇ باز کردن همه</button>
+            <button id="settings-collapse-all" class="mini-btn">⬆ بستن همه</button>
+        </div>
+
+        <details class="settings-details" open>
+            <summary class="settings-summary">💾 پشتیبان‌گیری و بازیابی</summary>
             <div class="form-buttons" style="gap:8px">
                 <button id="modal-backup-btn" class="btn-primary" style="flex:1">💾 دریافت پشتیبان</button>
                 <button id="modal-restore-btn" class="btn-secondary" style="flex:1">📥 بازیابی از فایل</button>
             </div>
             <p id="backup-info" class="muted" style="margin-top:8px;font-size:0.75rem">💡 فایل پشتیبان شامل تمام داده‌های برنامه به‌صورت JSON است.</p>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>🎨 تم ظاهری</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">🎨 تم ظاهری</summary>
             <div class="theme-grid">
                 <button class="theme-card" data-theme="sky"><span class="theme-swatch" style="background:linear-gradient(135deg,#4a90e2,#3b7fc4)"></span><span>آبی</span></button>
                 <button class="theme-card" data-theme="beige"><span class="theme-swatch" style="background:linear-gradient(135deg,#c9a574,#a67f4d)"></span><span>بژ</span></button>
@@ -1331,55 +1338,36 @@
                 <button class="theme-card" data-theme="cyber3d"><span class="theme-swatch" style="background:linear-gradient(135deg,#00d9ff,#a855f7);box-shadow:0 0 12px rgba(0,217,255,0.6)"></span><span>سایبرپانک</span></button>
                 <button class="theme-card" data-theme="gold3d"><span class="theme-swatch" style="background:linear-gradient(135deg,#d4a44a,#8b6508);box-shadow:0 4px 12px rgba(184,134,11,0.4)"></span><span>طلایی</span></button>
             </div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>🖋 فونت</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">🖋 فونت</summary>
             <div class="font-grid">
                 <button class="font-card" data-font="bnazanin"><span class="sample" style="font-family:'B Nazanin',Tahoma,sans-serif">نمونه</span><span>بی نازنین</span></button>
                 <button class="font-card" data-font="bsans"><span class="sample" style="font-family:'B Sans',Tahoma,sans-serif">نمونه</span><span>بی سنس</span></button>
                 <button class="font-card" data-font="tahoma"><span class="sample" style="font-family:Tahoma,sans-serif">نمونه</span><span>تاهوما</span></button>
             </div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>📊 ویجت‌ها (فعال/غیرفعال)</h3>
-            <div class="checkbox-grid">
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendar"> <span>📅 تقویم هفتگی</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarNext3"> <span>📅 ۳ روز آتی</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarDay"> <span>📆 روز جاری</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="calendarAgenda"> <span>📋 دستورکار</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistPersonal"> <span>⭐ چک‌لیست شخصی</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistFamily"> <span>🏠 چک‌لیست خانواده</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="todayChecklistWork"> <span>💼 چک‌لیست شغلی</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="bankTotal"> <span>🏦 مانده کل</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="bankBalances"> <span>🏦 تفکیکی</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="cashBalances"> <span>💰 صندوق</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="upcomingInstallments"> <span>⏰ اقساط</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="birthdays"> <span>🎂 تولدها</span></label>
-                <label class="checkbox-item"><input type="checkbox" data-widget-toggle="liveRates"> <span>💱 نرخ لحظه‌ای</span></label>
-            </div>
-        </div>
-
-        <div class="modal-section">
-            <h3>🔀 ترتیب و صفحه ویجت‌ها</h3>
-            <p class="muted" style="font-size:0.72rem;margin-bottom:8px">💡 هر ویجت را می‌توانید به صفحه‌ی دلخواه ببرید (۱ تا ۴).</p>
+        <details class="settings-details">
+            <summary class="settings-summary">🔀 ترتیب و صفحه ویجت‌ها</summary>
+            <p class="muted" style="font-size:0.72rem;margin-bottom:8px">💡 هر ویجت را می‌توانید فعال/غیرفعال، به صفحه‌ی دلخواه ببرید (۱ تا ۴) و ترتیبش را تغییر دهید.</p>
             <div id="widget-order-list"></div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>📊 داشبوردها (نمایش و ترتیب)</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">📊 داشبوردها (نمایش و ترتیب)</summary>
             <p class="muted" style="font-size:0.72rem;margin-bottom:8px">💡 هر کارت داشبورد را می‌توانید فعال/غیرفعال و مرتب کنید.</p>
             <div id="dashboard-order-list"></div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>📱 پیامک</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">📱 پیامک</summary>
             <label class="checkbox-item"><input type="checkbox" id="set-sms-auto-read"> <span>خواندن خودکار کلیپ‌بورد</span></label>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>👁 گزارش و مبالغ</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">👁 گزارش و مبالغ</summary>
             <label class="checkbox-item"><input type="checkbox" id="set-hide-numbers"> <span>مخفی کردن مبالغ در همه فهرست‌ها/گزارش‌ها/ویجت‌ها</span></label>
             <p class="muted" style="font-size:0.72rem;margin-top:8px">💡 پیش‌فرض: مخفی. با کلیک روی آیکن 👁 بالای هر گزارش می‌توانید آن را مستقل تغییر دهید.</p>
             <div class="field" style="margin-top:10px">
@@ -1390,20 +1378,20 @@
                     <option value="million">میلیون ریال</option>
                 </select>
             </div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3 style="color:#dc2626">⚠️ ریست کامل</h3>
+        <details class="settings-details">
+            <summary class="settings-summary" style="color:#dc2626">⚠️ ریست کامل</summary>
             <div class="reset-warning">با این کار همه داده‌ها پاک می‌شود و غیرقابل بازگشت است.</div>
             <div class="form-buttons">
                 <button id="modal-reset-btn" class="btn-danger">🗑 ریست همه داده‌ها</button>
             </div>
-        </div>
+        </details>
 
-        <div class="modal-section">
-            <h3>ℹ️ درباره</h3>
+        <details class="settings-details">
+            <summary class="settings-summary">ℹ️ درباره</summary>
             <p class="muted" id="about-version">پارسیس — PWA</p>
-        </div>
+        </details>
     </div>
 </div>
 <input type="file" id="restore-file" accept=".json" hidden>
