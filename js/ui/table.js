@@ -7,10 +7,6 @@
 var colWidths = DB.load(LS_KEYS.COL_WIDTHS, {});
 function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
 
-/* ============================================================
-   ✅ وقتی کاربر عرض ستون را تنظیم کرده باشد، table-layout:fixed می‌شود
-   و محتوا بر اساس عرض تعیین‌شده برش می‌خورد (ellipsis).
-   ============================================================ */
 function ensureFixedLayout(table) {
     if (!table) return;
     table.classList.add('w-col-resized');
@@ -50,7 +46,6 @@ function applyColWidths(tableId) {
             ths[i].style.maxWidth = '';
         }
     }
-    /* ✅ اگه کاربر قبلاً عرضی تنظیم کرده بود، حالت fixed رو فعال کن */
     if (tableHasAnyWidth(tableId)) {
         ensureFixedLayout(table);
     } else {
@@ -61,9 +56,6 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
-/* ============================================================
-   ✅ محدوده عرض: 20 تا 3000 پیکسل
-   ============================================================ */
 var COL_MIN_W = 20;
 var COL_MAX_W = 3000;
 
@@ -99,7 +91,6 @@ function makeTableResizable(table) {
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
-                /* ✅ به محض شروع resize، حالت fixed رو فعال کن */
                 ensureFixedLayout(table);
             }
 
@@ -133,7 +124,6 @@ function makeTableResizable(table) {
                     delete colWidths[tableId][origIdx];
                     saveColWidths();
                 }
-                /* ✅ اگه دیگه هیچ عرضی ست نشده، حالت fixed رو بردار */
                 if (!tableHasAnyWidth(tableId)) {
                     removeFixedLayout(table);
                 }
@@ -224,6 +214,58 @@ function makeAllTablesResizable() {
         var t = document.getElementById(MANAGED_TABLE_IDS[i]);
         if (t) makeTableResizable(t);
     }
+}
+
+/* ============================================================
+   ✅ جدید: تابع عمومی برای تاشو کردن پنل فیلتر
+   ============================================================ */
+function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
+    var page = document.getElementById('page-' + pageId);
+    if (!page) return;
+
+    if (page.dataset.filterCollapseInit === '1') return;
+    page.dataset.filterCollapseInit = '1';
+
+    var card = page.querySelector('.card');
+    if (!card) return;
+
+    title = title || 'فیلترها';
+    icon = icon || '🔍';
+
+    var header = document.createElement('div');
+    header.className = 'filter-collapse-header';
+    header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;'
+        + 'background:linear-gradient(180deg,#e8f0fb,#f4f8fd);cursor:pointer;user-select:none;'
+        + 'border-radius:14px 14px 0 0;margin:-18px -18px 14px -18px;'
+        + 'border-bottom:1px solid var(--border)';
+    header.innerHTML = '<span style="font-size:1rem">' + icon + '</span>'
+                    + '<span style="flex:1;font-weight:900;color:#1e40af;font-size:.9rem">' + title + '</span>'
+                    + '<span class="filter-collapse-arrow" style="font-size:.75rem;color:#1e40af;transition:transform .25s">▼</span>';
+    card.insertBefore(header, card.firstChild);
+
+    var body = document.createElement('div');
+    body.className = 'filter-collapse-body';
+    var children = Array.from(card.childNodes);
+    children.forEach(function (node) {
+        if (node === header) return;
+        if (node.classList && node.classList.contains('filter-collapse-body')) return;
+        body.appendChild(node);
+    });
+    card.appendChild(body);
+
+    var collapsed = state.cardCollapsed[storageKey] === true;
+    if (collapsed) {
+        body.style.display = 'none';
+        header.querySelector('.filter-collapse-arrow').style.transform = 'rotate(-90deg)';
+    }
+
+    header.addEventListener('click', function () {
+        var nowCollapsed = body.style.display === 'none' ? false : true;
+        body.style.display = nowCollapsed ? 'none' : '';
+        header.querySelector('.filter-collapse-arrow').style.transform = nowCollapsed ? 'rotate(-90deg)' : '';
+        state.cardCollapsed[storageKey] = nowCollapsed;
+        DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
+    });
 }
 
 /* ============================================================
@@ -760,5 +802,6 @@ window.makeCardCollapsible = makeCardCollapsible;
 window.buildHeaderButtons = buildHeaderButtons;
 window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
+window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
 console.log('✅ [ui/table.js] loaded — complete');
