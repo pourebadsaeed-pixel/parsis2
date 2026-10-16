@@ -6,7 +6,7 @@
 'use strict';
 
 /* ============================================================
-   ✅ State مرتب‌سازی برای تراز و مقایسه‌ای
+   State مرتب‌سازی برای تراز و مقایسه‌ای
    ============================================================ */
 if (typeof window._rtSort === 'undefined') {
     window._rtSort = { col: 'name', dir: 'asc' };
@@ -16,7 +16,7 @@ if (typeof window._rcSort === 'undefined') {
 }
 
 /* ============================================================
-   ✅ تابع مقایسه‌ی مقادیر برای مرتب‌سازی
+   تابع مقایسه‌ی مقادیر برای مرتب‌سازی
    ============================================================ */
 function _reportSortCompare(a, b, col, dir) {
     var va = a[col];
@@ -57,9 +57,14 @@ function _updateSortIndicators(container, state) {
 
 /* ============================================================
    بخش ۱ — تراز آزمایشی
-   ✅ اصلاح: افزودن سطح «گروه» + مرتب‌سازی روی ستون‌ها
+   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runTrialBalance() {
+    /* ✅ تاشو کردن پنل فیلتر */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
+    }
+
     var opts = {
         from:     (document.getElementById('rt-from') || {}).value || '',
         to:       (document.getElementById('rt-to') || {}).value || '',
@@ -80,13 +85,11 @@ function runTrialBalance() {
         return accounts.filter(function (a) { return a.parent === pid; });
     }
 
-    /* ✅ اصلاح: وقتی level=1 (گروه) هر گره در سطح ۱ اضافه می‌شود */
     function walk(node, level) {
         var b = rolled[node.id] || { debit: 0, credit: 0 };
         var net = b.debit - b.credit;
 
         if (opts.level === 4 && level === 3) {
-            /* سطح ۴: جمع تفصیلی‌ها */
             var sD = 0, sC = 0;
             Object.keys(result.detailBalances).forEach(function (did) {
                 var d = result.detailBalances[did];
@@ -104,7 +107,6 @@ function runTrialBalance() {
                 });
             });
 
-            /* باقیمانده بدون تفصیلی */
             var dd = b.debit - sD;
             var dc = b.credit - sC;
             if (Math.abs(dd) > 0.5 || Math.abs(dc) > 0.5) {
@@ -122,8 +124,6 @@ function runTrialBalance() {
         }
 
         if (level === opts.level) {
-            /* ✅ سطح ۱ (گروه): همیشه اضافه کن اگر مانده داشته باشد
-               سطوح دیگر: فقط اگر گردش داشته باشد */
             if (level === 1) {
                 rows.push({
                     name: node.name,
@@ -157,7 +157,6 @@ function runTrialBalance() {
     var roots = accounts.filter(function (a) { return !a.parent; });
     for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
 
-    /* ✅ اعمال مرتب‌سازی */
     rows = _applyReportSort(rows, window._rtSort);
 
     var html = '<div class="table-wrap"><table class="report-table" id="rt-table"><thead><tr>'
@@ -198,7 +197,6 @@ function runTrialBalance() {
     var box = document.getElementById('rt-result');
     box.innerHTML = html;
 
-    /* ✅ اتصال مرتب‌سازی روی هدرها */
     box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
         th.addEventListener('click', function (e) {
             if (e.target.classList && e.target.classList.contains('col-resizer')) return;
@@ -217,7 +215,6 @@ function runTrialBalance() {
 
     document.getElementById('rt-count').textContent = toFa(rows.length);
 
-    /* ✅ فعال‌سازی ریسایز ستون‌ها */
     setTimeout(function () {
         var t = document.getElementById('rt-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
@@ -229,7 +226,7 @@ function runTrialBalance() {
 }
 
 /* ============================================================
-   بخش ۲ — تراکنش‌های تکمیل نشده (بدون تغییر عمده)
+   بخش ۲ — تراکنش‌های تکمیل نشده
    ============================================================ */
 function runIncompleteReport() {
     var statusF = (document.getElementById('ri-status') || {}).value || '';
@@ -334,9 +331,15 @@ function runIncompleteReport() {
 
 /* ============================================================
    بخش ۳ — گزارش مقایسه‌ای
-   ✅ اصلاح: افزودن مرتب‌سازی روی ستون‌ها
    ============================================================ */
 function initCompareFilterCollapse() {
+    /* ✅ حالا از تابع عمومی makeFilterPanelCollapsible استفاده می‌کنیم */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-compare', 'filter-rc', 'فیلترهای گزارش مقایسه‌ای', '🔍');
+        return;
+    }
+
+    /* Fallback: کد قبلی در صورت نبود تابع عمومی */
     var page = document.getElementById('page-report-compare');
     if (!page) return;
     var card = page.querySelector('.card');
@@ -429,7 +432,6 @@ function runComparisonReport() {
 
         if (lvl === level) {
             if (lvl === 1) {
-                /* ✅ سطح گروه همیشه نمایش داده می‌شود */
                 rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
             } else if (b1.debit || b1.credit || b2.debit || b2.credit) {
                 rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
@@ -445,14 +447,12 @@ function runComparisonReport() {
     var roots = accounts.filter(function (a) { return !a.parent; });
     for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
 
-    /* ✅ محاسبه‌ی درصد و اختلاف قبل از مرتب‌سازی */
     rows.forEach(function (row) {
         row.diff = row.net2 - row.net1;
         row.pct = row.net1 !== 0 ? (row.diff / Math.abs(row.net1) * 100)
                                  : (row.net2 !== 0 ? 100 : 0);
     });
 
-    /* ✅ اعمال مرتب‌سازی */
     var sortState = window._rcSort;
     var sortKeyMap = {
         'name': 'name',
@@ -519,7 +519,6 @@ function runComparisonReport() {
     var u = document.getElementById('rc-unit');
     if (u) u.textContent = 'واحد: ' + currencyLabel();
 
-    /* ✅ اتصال مرتب‌سازی روی هدرها */
     box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
         th.addEventListener('click', function (e) {
             if (e.target.classList && e.target.classList.contains('col-resizer')) return;
@@ -536,7 +535,6 @@ function runComparisonReport() {
 
     _updateSortIndicators(box, window._rcSort);
 
-    /* ✅ فعال‌سازی ریسایز */
     setTimeout(function () {
         var t = document.getElementById('rc-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
@@ -573,6 +571,14 @@ function bindTrialReportButtons() {
         state.reportExpandedNodes = nodes;
         if (window._renderAccountReportTree) window._renderAccountReportTree();
     });
+
+    /* ✅ تاشو کردن پنل‌های فیلتر در بار اول */
+    setTimeout(function () {
+        if (typeof makeFilterPanelCollapsible === 'function') {
+            makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
+            makeFilterPanelCollapsible('report-compare', 'filter-rc', 'فیلترهای گزارش مقایسه‌ای', '🔍');
+        }
+    }, 500);
 }
 
 /* ============================================================
