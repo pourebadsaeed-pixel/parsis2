@@ -72,9 +72,14 @@ function getActiveFiscalYearStart() {
 
 /* ============================================================
    بخش ۴ — گزارش پیش‌بینی روزانه نقدینگی
-   ✅ اصلاح: فعال‌سازی ریسایز ستون‌ها روی cf-table
+   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runCashFlowReport() {
+    /* ✅ تاشو کردن پنل فیلتر */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
+    }
+
     var fromDate = normalizeDigits((document.getElementById('cf-from').value || '').trim());
     var toDate = normalizeDigits((document.getElementById('cf-to').value || '').trim());
 
@@ -93,14 +98,12 @@ function runCashFlowReport() {
     var hide = getHideState('cf');
     var bankBalance = computeBankBalanceLatest();
 
-    /* منابع دریافتنی */
     var sources = DB.load('cashFlowSources', []);
     var sourcesInRange = sources.filter(function (s) {
         if (!s.expectedDate) return true;
         return s.expectedDate >= fromDate && s.expectedDate <= toDate;
     });
 
-    /* اقساط تسهیلات */
     var facilities = DB.load('facilities', []);
     var facilityInsts = [];
     facilities.forEach(function (f) {
@@ -112,7 +115,6 @@ function runCashFlowReport() {
         });
     });
 
-    /* برآورد هزینه‌ها */
     var estimates = DB.load('dailyEstimates', []);
     var estimateItemsArr = [];
     estimates.forEach(function (est) {
@@ -166,7 +168,6 @@ function runCashFlowReport() {
 
     items.sort(function (a, b) { return compareVals(a.sortDate, b.sortDate); });
 
-    /* رسم */
     var html = '<div class="cf-report"><div class="table-wrap">';
     html += '<table class="cf-table" id="cf-table" data-table-id="cf-table"><thead><tr>'
          +  '<th style="width:35%">عنوان دسته</th>'
@@ -238,7 +239,6 @@ function runCashFlowReport() {
     var unitEl = document.getElementById('cf-unit');
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
-    /* ✅ فعال‌سازی ریسایز ستون‌ها */
     setTimeout(function () {
         var t = document.getElementById('cf-table');
         if (t && typeof makeTableResizable === 'function') {
@@ -254,9 +254,14 @@ function runCashFlowReport() {
 
 /* ============================================================
    بخش ۵ — گزارش گردش وجه نقد
-   ✅ اصلاح: فعال‌سازی ریسایز روی cfd-table و جداول جزئیات
+   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runCashFlowByDescReport() {
+    /* ✅ تاشو کردن پنل فیلتر */
+    if (typeof makeFilterPanelCollapsible === 'function') {
+        makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
+    }
+
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
     var toD   = normalizeDigits((document.getElementById('cfd-to').value || '').trim());
 
@@ -351,7 +356,6 @@ function runCashFlowByDescReport() {
 
     var html = '';
 
-    /* گزارش اصلی */
     if (viewMode === 'main' || viewMode === 'full') {
         html += '<div class="cfd-section-title">📋 گزارش اصلی</div>';
         html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table" id="cfd-table" data-table-id="cfd-table"><thead><tr>'
@@ -396,7 +400,6 @@ function runCashFlowByDescReport() {
              +  '<td class="num">' + (hide ? '—' : totalPctText) + '</td></tr></tfoot></table></div></div>';
     }
 
-    /* جزئیات */
     if (viewMode === 'details' || viewMode === 'full') {
         if (viewMode === 'full') {
             html += '<div class="cfd-section-title" style="margin-top:22px">📖 جزئیات اسناد</div>';
@@ -452,7 +455,6 @@ function runCashFlowByDescReport() {
     var unitEl = document.getElementById('cfd-unit');
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
-    /* اتصال رویداد ویرایش */
     document.querySelectorAll('#cfd-result .cfd-row').forEach(function (row) {
         row.addEventListener('click', function (e) {
             if (e.target.closest('button')) return;
@@ -469,12 +471,10 @@ function runCashFlowByDescReport() {
         });
     });
 
-    /* ✅ فعال‌سازی ریسایز ستون‌ها روی همه جداول cfd */
     setTimeout(function () {
         var t = document.getElementById('cfd-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
 
-        /* جداول جزئیات */
         document.querySelectorAll('#cfd-result .cfd-detail-table').forEach(function (tt) {
             if (typeof makeTableResizable === 'function') makeTableResizable(tt);
         });
@@ -550,6 +550,14 @@ function bindCashFlowReportButtons() {
 
     var onlyBal = document.getElementById('cfd-only-balance');
     if (onlyBal) onlyBal.addEventListener('change', runCashFlowByDescReport);
+
+    /* ✅ تاشو کردن پنل‌ها در بار اول باز شدن صفحه */
+    setTimeout(function () {
+        if (typeof makeFilterPanelCollapsible === 'function') {
+            makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
+            makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
+        }
+    }, 500);
 }
 
 /* ============================================================
