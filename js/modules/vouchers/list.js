@@ -227,6 +227,10 @@ function renderVoucherList() {
     }
 
     if (typeof applyColVisibility === 'function') applyColVisibility('voucher-table-list');
+    if (typeof applyColWidths === 'function') applyColWidths('voucher-table-list');
+    if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('voucher-table-list'));
+    if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+    if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
 }
 
 /* ============================================================
@@ -296,6 +300,7 @@ function setupSorting() {
         });
     }
 }
+
 /* ============================================================
    بخش ۶ — پیش‌نمایش سند
    ============================================================ */
@@ -454,7 +459,7 @@ function bindVoucherListFilters() {
 }
 
 /* ============================================================
-   بخش ۹ — پچ goToPage برای رندر خودکار هنگام ورود
+   بخش ۹ — پچ goToPage
    ============================================================ */
 (function patchGoToPageForVoucherList() {
     function install() {
@@ -484,7 +489,7 @@ function bindVoucherListFilters() {
 })();
 
 /* ============================================================
-   بخش ۱۰ — شبکه اطمینان: اگر جدول خالی بود ولی داده بود، رندر مجدد
+   بخش ۱۰ — شبکه اطمینان
    ============================================================ */
 (function ensureVoucherListRendering() {
     setInterval(function () {
