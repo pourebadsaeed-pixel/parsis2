@@ -102,7 +102,10 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
     + '.ar-turnover-actions { display:flex; gap:4px; justify-content:center }'
     + '.ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }'
     + '.ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; '
-    +   'font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }';
+    +   'font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }'
+    /* ✅ z-index بالاتر برای پیش‌نمایش سند وقتی از گردش باز می‌شود */
+    + 'body .vpreview-elevated #vpreview-modal { z-index:700 !important; }'
+    + 'body .vpreview-elevated #vpreview-overlay { z-index:690 !important; }';
     document.head.appendChild(s);
 })();
 
@@ -399,7 +402,6 @@ function refreshReportPeriodSelects() {
 
 /* ============================================================
    بخش ۶ — رندر گزارش مرور حساب‌ها
-   ✅ حذف نوار بالای جدول (list-header ar-toolbar)
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -473,7 +475,6 @@ function renderAccountReview() {
 
     html += '<div class="ar-main">';
 
-    /* ساید سطح‌ها */
     html += '<div class="ar-side">';
     html += '<div class="ar-side-head">سطوح حساب</div>';
     html += '<div class="ar-levels">';
@@ -488,7 +489,6 @@ function renderAccountReview() {
     });
     html += '</div></div>';
 
-    /* بدنه — بدون list-header */
     html += '<div class="ar-body">';
     html += '<div class="ar-tw">';
     html += '<table class="ar-tbl" id="ra-acc-table" data-table-id="ra-acc-table">';
@@ -679,6 +679,39 @@ window._AR_openTurnover = function (btn) {
     }
 };
 
+/* ============================================================
+   ✅ جدید: تابع باز کردن پیش‌نمایش سند روی گردش
+   ============================================================ */
+function _arOpenVoucherPreviewAboveTurnover(v) {
+    if (!v) return;
+
+    /* z-index بالاتر برای پیش‌نمایش تا روی گردش بیفته */
+    document.body.classList.add('vpreview-elevated');
+
+    /* بستن موقت گردش؟ نه — پیش‌نمایش روی اون میاد */
+    if (typeof openVoucherPreview === 'function') {
+        openVoucherPreview(v);
+    }
+
+    /* بعد از بستن پیش‌نمایش، z-index رو برگردون */
+    setTimeout(function () {
+        var btns = [
+            document.getElementById('vpreview-close-btn'),
+            document.getElementById('close-vpreview'),
+            document.getElementById('vpreview-overlay')
+        ];
+        btns.forEach(function (b) {
+            if (!b) return;
+            /* فقط یک بار بایند کن */
+            if (b.dataset._arZRestore === '1') return;
+            b.dataset._arZRestore = '1';
+            b.addEventListener('click', function () {
+                document.body.classList.remove('vpreview-elevated');
+            });
+        });
+    }, 100);
+}
+
 function openAccountTurnover(accountId, detailInfo) {
     var accounts = DB.load('accounts', []);
     var acc = accounts.find(function (a) { return a.id === accountId; });
@@ -788,21 +821,26 @@ function openAccountTurnover(accountId, detailInfo) {
         html += '</tbody></table></div>';
         body.innerHTML = html;
 
+        /* ✅ پیش‌نمایش — z-index بالاتر */
         body.querySelectorAll('[data-act="preview"]').forEach(function (b) {
             b.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var vid = this.getAttribute('data-vid');
                 var v = findVoucherById(vid);
-                if (v && typeof openVoucherPreview === 'function') openVoucherPreview(v);
+                if (v) _arOpenVoucherPreviewAboveTurnover(v);
             });
         });
+
+        /* ✅ ویرایش — بستن گردش، سپس باز کردن فرم ویرایش */
         body.querySelectorAll('[data-act="edit"]').forEach(function (b) {
             b.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var vid = this.getAttribute('data-vid');
                 if (typeof openVoucherForEditById === 'function') {
                     closeTurnover();
-                    setTimeout(function () { openVoucherForEditById(vid); }, 200);
+                    /* پاک کردن z-index پیش‌نمایش */
+                    document.body.classList.remove('vpreview-elevated');
+                    setTimeout(function () { openVoucherForEditById(vid); }, 250);
                 }
             });
         });
@@ -825,6 +863,8 @@ function openAccountTurnover(accountId, detailInfo) {
 function closeTurnover() {
     document.getElementById('turnover-modal').classList.remove('show');
     document.getElementById('turnover-overlay').classList.remove('show');
+    /* ✅ پاک کردن z-index پیش‌نمایش */
+    document.body.classList.remove('vpreview-elevated');
 }
 
 /* ============================================================
