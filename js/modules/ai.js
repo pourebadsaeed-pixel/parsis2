@@ -2429,13 +2429,31 @@ function aiOpenSettings() {
     var creditSection = document.getElementById('avalai-credit-section');
     if (creditSection) {
         creditSection.style.display = (AI.provider === 'avalai') ? '' : 'none';
-        if (AI.provider === 'avalai' && AI.apiKey) {
-            setTimeout(function () {
-                var box = document.getElementById('avalai-credit-result');
-                if (box && !box.querySelector('.kpi-card')) {
-                    loadCachedAvalaiCredit();
+
+        if (AI.provider === 'avalai') {
+            var creditBox = document.getElementById('avalai-credit-result');
+
+            if (!AI.apiKey) {
+                if (creditBox) {
+                    creditBox.innerHTML = '<div class="widget-empty">⚠️ ابتدا کلید API را وارد کنید.</div>';
                 }
-            }, 300);
+            } else {
+                /* ۱) اگر کش هست فوری نشون بده */
+                var cached = DB.load('ai.creditCached', null);
+                if (creditBox && cached && cached.data && cached.ts) {
+                    var ageMin = Math.floor((Date.now() - cached.ts) / 60000);
+                    var ageText = ageMin < 1 ? 'همین حالا'
+                                : ageMin < 60 ? toFa(ageMin) + ' دقیقه پیش'
+                                : (ageMin < 1440 ? toFa(Math.floor(ageMin / 60)) + ' ساعت پیش'
+                                : toFa(Math.floor(ageMin / 1440)) + ' روز پیش');
+                    renderAvalaiCreditBox(creditBox, cached.data, 'cached', ageText);
+                }
+
+                /* ۲) بعد fetch تازه در پس‌زمینه */
+                setTimeout(function () {
+                    aiFetchAvalaiCredit();
+                }, 200);
+            }
         }
     }
 
@@ -2453,7 +2471,7 @@ function aiCloseSettings() {
 }
 
 /* ============================================================
-   بخش ۲۰.۵ — دریافت اعتبار AvalAI (با فرم ورود دستی)
+   بخش ۲۰.۵ — دریافت اعتبار AvalAI
    ============================================================ */
 async function aiFetchAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
@@ -2469,22 +2487,36 @@ async function aiFetchAvalaiCredit() {
         return;
     }
 
-    box.innerHTML = '<div class="widget-empty">🔄 در حال تلاش برای دریافت...</div>';
+    box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار از AvalAI...</div>';
 
-    /* تلاش مستقیم */
-    var data = await _tryFetchCredit('https://api.avalai.ir/user/1/credit', activeKey);
+    var data = await _tryFetchCredit('https://api.avalai.ir/user/v1/credit', activeKey);
 
     if (data) {
         renderAvalaiCreditBox(box, data, 'auto');
         return;
     }
 
-    /* اگر شکست خورد → نمایش فرم ورود دستی */
-    renderAvalaiCreditManualForm(box, activeKey);
+    /* شکست → از کش استفاده کن */
+    var cached = DB.load('ai.creditCached', null);
+    if (cached && cached.data && cached.ts) {
+        var ageMin = Math.floor((Date.now() - cached.ts) / 60000);
+        var ageText = ageMin < 1 ? 'همین حالا'
+                    : ageMin < 60 ? toFa(ageMin) + ' دقیقه پیش'
+                    : (ageMin < 1440 ? toFa(Math.floor(ageMin / 60)) + ' ساعت پیش'
+                    : toFa(Math.floor(ageMin / 1440)) + ' روز پیش');
+        renderAvalaiCreditBox(box, cached.data, 'cached', ageText);
+        return;
+    }
+
+    box.innerHTML = '<div class="widget-empty">'
+        + '⚠️ دریافت اعتبار ناموفق بود.<br>'
+        + '<span style="font-size:0.75rem;opacity:0.8;line-height:1.9">'
+        + 'اتصال اینترنت و صحت کلید API را بررسی کنید.'
+        + '</span></div>';
 }
 
-/* ---------- نمایش داده ---------- */
-function renderAvalaiCreditBox(box, data, mode) {
+/* ---------- نمایش داده — ۴ باکس + ۱ ردیف سقف ---------- */
+function renderAvalaiCreditBox(box, data, mode, extra) {
     var limit         = Number(data.limit) || 0;
     var remainingIrt  = Number(data.remaining_irt) || 0;
     var remainingUnit = Number(data.remaining_unit) || 0;
@@ -2492,192 +2524,92 @@ function renderAvalaiCreditBox(box, data, mode) {
     var exchangeRate  = Number(data.exchange_rate) || 0;
 
     var color = totalUnit > 0 ? '#059669' : '#dc2626';
-    var limitText = limit > 0 ? ('$' + limit.toFixed(2)) : 'بدون سقف';
-    var limitColor = limit > 0 ? 'var(--text)' : 'var(--text-muted)';
 
-    var sourceBadge = mode === 'manual'
-        ? '<div style="grid-column:1/-1;padding:6px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">📝 داده‌ی دستی — ' + toFa(new Date().toLocaleString('fa-IR')) + '</div>'
-        : '<div style="grid-column:1/-1;padding:6px 12px;background:#d1fae5;color:#065f46;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">✅ دریافت خودکار موفق</div>';
+    var sourceBadge = '';
+    if (mode === 'manual') {
+        sourceBadge = '<div style="grid-column:1/-1;padding:6px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">📝 داده‌ی دستی</div>';
+    } else if (mode === 'cached') {
+        sourceBadge = '<div style="grid-column:1/-1;padding:6px 12px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">💾 داده‌ی ذخیره‌شده' + (extra ? ' — ' + extra : '') + '</div>';
+    } else {
+        sourceBadge = '<div style="grid-column:1/-1;padding:6px 12px;background:#d1fae5;color:#065f46;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">✅ دریافت خودکار موفق</div>';
+    }
+
+    /* ردیف سقف اعتبار */
+    var limitRow = '<div style="grid-column:1/-1;padding:8px 12px;background:var(--card-alt);'
+                 + 'border:1px solid var(--border);border-radius:10px;font-size:0.78rem;'
+                 + 'display:flex;justify-content:space-between;align-items:center">'
+                 + '<span style="color:var(--text-muted);font-weight:700">⚙️ سقف اعتبار</span>'
+                 + '<span style="font-weight:800;color:' + (limit > 0 ? 'var(--text)' : 'var(--text-muted)') + '">'
+                 + (limit > 0 ? ('$' + limit.toFixed(2)) : 'بدون سقف') + '</span>'
+                 + '</div>';
 
     box.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
         + sourceBadge
-        + '<div class="kpi-card" style="grid-column:1/-1;margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
-        +   '<div class="kpi-lbl">🎯 اعتبار کل (واحد)</div>'
-        +   '<div class="kpi-val" style="color:' + color + ';font-size:1.6rem">'
-        +     toFa(totalUnit.toFixed(2)) + ' <span style="font-size:0.9rem;color:var(--text-muted)">واحد</span>'
+
+        + '<div class="kpi-card" style="margin:0;background:linear-gradient(135deg,#eef2ff,#e0e7ff)">'
+        +   '<div class="kpi-lbl">🎯 اعتبار کل</div>'
+        +   '<div class="kpi-val" style="color:' + color + '">'
+        +     toFa(totalUnit.toFixed(2))
+        +     ' <span style="font-size:0.85rem;color:var(--text-muted)">واحد</span>'
         +   '</div>'
         + '</div>'
+
         + '<div class="kpi-card" style="margin:0">'
         +   '<div class="kpi-lbl">💵 اعتبار تومانی</div>'
         +   '<div class="kpi-val" style="font-size:1rem">'
-        +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬')) + ' تومان'
+        +     toFa(remainingIrt.toLocaleString('fa-IR').replace(/,/g, '٬'))
+        +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان</span>'
         +   '</div>'
         + '</div>'
+
         + '<div class="kpi-card" style="margin:0">'
         +   '<div class="kpi-lbl">📊 اعتبار واحدی</div>'
         +   '<div class="kpi-val" style="font-size:1rem">'
-        +     toFa(remainingUnit.toFixed(2)) + ' واحد'
+        +     toFa(remainingUnit.toFixed(2))
+        +     ' <span style="font-size:0.7rem;color:var(--text-muted)">واحد</span>'
         +   '</div>'
         + '</div>'
+
         + '<div class="kpi-card" style="margin:0">'
         +   '<div class="kpi-lbl">💱 نرخ تبدیل امروز</div>'
-        +   '<div class="kpi-val" style="font-size:0.95rem">'
+        +   '<div class="kpi-val" style="font-size:0.9rem">'
         +     toFa(exchangeRate.toLocaleString('fa-IR').replace(/,/g, '٬'))
         +     ' <span style="font-size:0.7rem;color:var(--text-muted)">تومان/واحد</span>'
         +   '</div>'
         + '</div>'
-        + '<div class="kpi-card" style="margin:0">'
-        +   '<div class="kpi-lbl">⚙️ سقف اعتبار</div>'
-        +   '<div class="kpi-val" style="font-size:0.95rem;color:' + limitColor + '">'
-        +     limitText
-        +   '</div>'
-        + '</div>'
-        + '</div>'
-        + '<div class="form-buttons" style="margin-top:10px">'
-        +   '<button id="credit-manual-toggle" class="btn-secondary btn-mini" type="button">📝 ورود دستی داده</button>'
+
+        + limitRow
         + '</div>';
 
     try { DB.save('ai.creditCached', { data: data, ts: Date.now() }); } catch (e) {}
-
-    var toggleBtn = document.getElementById('credit-manual-toggle');
-    if (toggleBtn) toggleBtn.onclick = function () {
-        renderAvalaiCreditManualForm(box, AI.apiKey);
-    };
 }
 
-/* ---------- فرم ورود دستی ---------- */
-function renderAvalaiCreditManualForm(box, apiKey) {
-    var cached = DB.load('ai.creditCached', null);
+/* ---------- تلاش برای دریافت (مستقیم + پروکسی) ---------- */
+async function _tryFetchCredit(url, apiKey) {
+    /* ۱) تلاش مستقیم */
+    var data = await _tryFetchCreditOnce(url, apiKey);
+    if (data) return data;
 
-    var html = ''
-        + '<div style="padding:14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;margin-bottom:12px">'
-        +   '<div style="font-weight:800;color:#92400e;font-size:0.88rem;margin-bottom:8px">'
-        +     '⚠️ AvalAI هدر CORS نمی‌دهد'
-        +   '</div>'
-        +   '<div style="font-size:0.78rem;color:#78350f;line-height:1.9">'
-        +     'این endpoint از داخل مرورگر قابل فراخوانی نیست، ولی در Console مستقیم کار می‌کند.<br>'
-        +     'داده را یک بار از Console بگیرید و اینجا پیست کنید — در حافظه ذخیره می‌شود.'
-        +   '</div>'
-        + '</div>'
-
-        + '<div style="padding:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;margin-bottom:12px">'
-        +   '<div style="font-weight:800;color:#1e40af;font-size:0.82rem;margin-bottom:8px">'
-        +     '📋 گام ۱: این کد را در Console بزن'
-        +   '</div>'
-        +   '<div style="position:relative">'
-        +     '<pre id="credit-fetch-code" style="background:#fff;direction:ltr;text-align:left;padding:10px;padding-left:70px;border-radius:6px;font-size:0.68rem;overflow:auto;white-space:pre-wrap;border:1px solid #dbeafe;margin:0;font-family:monospace">'
-        +       'fetch("https://api.avalai.ir/user/1/credit",{\n'
-        +       '  headers:{\n'
-        +       '    "Content-Type":"application/json",\n'
-        +       '    "Authorization":"Bearer ' + apiKey.substring(0, 12) + '..."\n'
-        +       '  }\n'
-        +       '}).then(r=>r.json()).then(d=>{copy(JSON.stringify(d));console.log("کپی شد ✓",d)})'
-        +     '</pre>'
-        +   '<button id="credit-copy-code" type="button" style="position:absolute;top:6px;left:6px;background:#1e40af;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.7rem;font-weight:800;cursor:pointer;font-family:inherit">📋 کپی</button>'
-        +   '</div>'
-        + '</div>'
-
-        + '<div style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:12px">'
-        +   '<div style="font-weight:800;color:#166534;font-size:0.82rem;margin-bottom:8px">'
-        +     '📝 گام ۲: JSON را اینجا پیست کن'
-        +   '</div>'
-        +   '<textarea id="credit-json-input" rows="4" placeholder=\'{"limit":0,"remaining_irt":800000,...}\' style="width:100%;padding:10px;border:1.5px solid #86efac;border-radius:6px;font-family:monospace;font-size:0.75rem;direction:ltr;text-align:left;background:#fff;resize:vertical"></textarea>'
-        +   '<div id="credit-json-error" style="color:#dc2626;font-size:0.72rem;margin-top:6px;display:none"></div>'
-        +   '<div class="form-buttons" style="margin-top:10px">'
-        +     '<button id="credit-save-manual" class="btn-primary" type="button">💾 ذخیره</button>'
-        +     '<button id="credit-retry-auto" class="btn-secondary" type="button">🔄 تلاش مجدد خودکار</button>'
-        +   '</div>'
-        + '</div>';
-
-    if (cached && cached.ts) {
-        var ageMin = Math.floor((Date.now() - cached.ts) / 60000);
-        var ageText = ageMin < 60
-            ? toFa(ageMin) + ' دقیقه پیش'
-            : (ageMin < 1440 ? toFa(Math.floor(ageMin / 60)) + ' ساعت پیش' : toFa(Math.floor(ageMin / 1440)) + ' روز پیش');
-        html += '<div style="padding:10px;background:#f3f4f6;border-radius:8px;font-size:0.75rem;color:#4b5563;text-align:center">'
-             +  '💾 داده‌ی ذخیره‌شده از ' + ageText + ' موجود است — برای مشاهده «تلاش مجدد» بزن'
-             +  '</div>';
-    }
-
-    box.innerHTML = html;
-
-    /* Copy code button */
-    var copyBtn = document.getElementById('credit-copy-code');
-    if (copyBtn) copyBtn.onclick = function () {
-        var fullCode = 'fetch("https://api.avalai.ir/user/1/credit",{headers:{"Content-Type":"application/json","Authorization":"Bearer ' + apiKey + '"}}).then(r=>r.json()).then(d=>{copy(JSON.stringify(d));console.log("کپی شد ✓",d)})';
-        navigator.clipboard.writeText(fullCode).then(function () {
-            copyBtn.textContent = '✓ کپی شد';
-            copyBtn.style.background = '#059669';
-            setTimeout(function () {
-                copyBtn.textContent = '📋 کپی';
-                copyBtn.style.background = '#1e40af';
-            }, 2000);
-        }).catch(function () {
-            var ta = document.createElement('textarea');
-            ta.value = fullCode;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            showToast('📋 کد کپی شد');
-        });
-    };
-
-    /* Save manual button */
-    var saveBtn = document.getElementById('credit-save-manual');
-    if (saveBtn) saveBtn.onclick = function () {
-        var inp = document.getElementById('credit-json-input');
-        var errEl = document.getElementById('credit-json-error');
-        var raw = (inp.value || '').trim();
-
-        if (!raw) {
-            errEl.style.display = '';
-            errEl.textContent = '⚠️ JSON را وارد کنید';
-            return;
-        }
-
-        /* تلاش برای پارس */
-        var parsed = null;
-        try {
-            parsed = JSON.parse(raw);
-        } catch (e) {
+    /* ۲) تلاش با CORS proxy ها (از widgets.js) */
+    if (typeof CORS_PROXIES !== 'undefined' && Array.isArray(CORS_PROXIES)) {
+        for (var i = 0; i < CORS_PROXIES.length; i++) {
             try {
-                var cleaned = raw.replace(/^['"]|['"]$/g, '').replace(/\\"/g, '"').replace(/\\n/g, '');
-                parsed = JSON.parse(cleaned);
-            } catch (e2) {
-                errEl.style.display = '';
-                errEl.textContent = '❌ JSON نامعتبر: ' + e.message;
-                return;
+                var proxyUrl = CORS_PROXIES[i](url);
+                console.log('🔄 [Credit] پروکسی ' + toFa(i + 1) + ': ' + proxyUrl.substring(0, 70));
+                data = await _tryFetchCreditOnce(proxyUrl, apiKey);
+                if (data) {
+                    console.log('✅ [Credit] پروکسی ' + toFa(i + 1) + ' موفق');
+                    return data;
+                }
+            } catch (e) {
+                console.warn('⚠️ [Credit] پروکسی ' + toFa(i + 1) + ' شکست');
             }
         }
-
-        if (!parsed || typeof parsed !== 'object') {
-            errEl.style.display = '';
-            errEl.textContent = '❌ ساختار JSON نامعتبر';
-            return;
-        }
-
-        if (typeof parsed.total_unit === 'undefined' &&
-            typeof parsed.remaining_irt === 'undefined') {
-            errEl.style.display = '';
-            errEl.textContent = '❌ این JSON مربوط به اعتبار AvalAI نیست';
-            return;
-        }
-
-        errEl.style.display = 'none';
-        renderAvalaiCreditBox(box, parsed, 'manual');
-        showToast('✅ اعتبار ذخیره شد');
-    };
-
-    /* Retry auto button */
-    var retryBtn = document.getElementById('credit-retry-auto');
-    if (retryBtn) retryBtn.onclick = function () {
-        aiFetchAvalaiCredit();
-    };
+    }
+    return null;
 }
 
-/* ---------- تلاش برای دریافت مستقیم ---------- */
-async function _tryFetchCredit(url, apiKey) {
+async function _tryFetchCreditOnce(url, apiKey) {
     try {
         var res = await fetch(url, {
             method: 'GET',
@@ -2711,7 +2643,7 @@ async function _tryFetchCredit(url, apiKey) {
     }
 }
 
-/* ---------- بارگذاری کش در باز شدن تنظیمات ---------- */
+/* ---------- کش قدیمی (نگه‌داشته شده برای سازگاری) ---------- */
 function loadCachedAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
     if (!box) return;
@@ -2719,7 +2651,7 @@ function loadCachedAvalaiCredit() {
     if (cached && cached.data && cached.ts) {
         var ageHours = (Date.now() - cached.ts) / 3600000;
         if (ageHours < 24) {
-            renderAvalaiCreditBox(box, cached.data, 'manual');
+            renderAvalaiCreditBox(box, cached.data, 'cached', '');
         }
     }
 }
@@ -3232,8 +3164,8 @@ window.aiOpenSettings            = aiOpenSettings;
 window.aiCloseSettings           = aiCloseSettings;
 window.aiFetchAvalaiCredit       = aiFetchAvalaiCredit;
 window._tryFetchCredit           = _tryFetchCredit;
+window._tryFetchCreditOnce       = _tryFetchCreditOnce;
 window.renderAvalaiCreditBox     = renderAvalaiCreditBox;
-window.renderAvalaiCreditManualForm = renderAvalaiCreditManualForm;
 window.loadCachedAvalaiCredit    = loadCachedAvalaiCredit;
 window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
