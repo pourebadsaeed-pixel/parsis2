@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — دستیار هوشمند (بخش ۱: state + models + TTS + context)
+   پارسیس — دستیار هوشمند
    مسیر: js/modules/ai.js
    وابستگی: core/* + ui/* + reports/*
    ============================================================ */
@@ -2400,6 +2400,18 @@ function aiOpenSettings() {
 
     updateAiModelSelectUI();
 
+    /* نمایش/مخفی بخش اعتبار بر اساس provider */
+    var creditSection = document.getElementById('avalai-credit-section');
+    if (creditSection) {
+        creditSection.style.display = (AI.provider === 'avalai') ? '' : 'none';
+        if (AI.provider === 'avalai' && AI.apiKey) {
+            var box = document.getElementById('avalai-credit-result');
+            if (box && box.querySelector('.widget-empty')) {
+                setTimeout(aiFetchAvalaiCredit, 400);
+            }
+        }
+    }
+
     var m = document.getElementById('ai-settings-modal');
     var o = document.getElementById('ai-settings-overlay');
     if (m) m.classList.add('show');
@@ -2411,6 +2423,88 @@ function aiCloseSettings() {
     var o = document.getElementById('ai-settings-overlay');
     if (m) m.classList.remove('show');
     if (o) o.classList.remove('show');
+}
+
+/* ============================================================
+   بخش ۲۰.۵ — دریافت اعتبار AvalAI
+   ============================================================ */
+async function aiFetchAvalaiCredit() {
+    var box = document.getElementById('avalai-credit-result');
+    if (!box) return;
+
+    if (!AI.apiKey) {
+        box.innerHTML = '<div class="widget-empty">⚠️ ابتدا کلید API را در بخش بالا وارد کنید.</div>';
+        return;
+    }
+
+    box.innerHTML = '<div class="widget-empty">🔄 در حال دریافت اعتبار...</div>';
+
+    var endpoints = [
+        'https://api.avalai.ir/v1/dashboard/billing/credit_grants',
+        'https://api.avalai.ir/v1/dashboard/billing/subscription',
+        'https://api.avalai.ir/user/credit',
+        'https://api.avalai.ir/v1/user/credit'
+    ];
+
+    var lastErr = '';
+    for (var i = 0; i < endpoints.length; i++) {
+        try {
+            var res = await fetch(endpoints[i], {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + AI.apiKey,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!res.ok) {
+                lastErr = 'HTTP ' + res.status;
+                continue;
+            }
+
+            var data = await res.json();
+
+            var granted = Number(
+                data.total_granted || data.granted ||
+                data.hard_limit_usd || data.total_credit || 0
+            );
+            var used = Number(
+                data.total_used || data.used || data.usage || 0
+            );
+            var available = Number(
+                data.total_available || data.available ||
+                data.remaining || data.balance || (granted - used)
+            );
+
+            var color = available > 0 ? '#059669' : '#dc2626';
+            var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+                + '<div class="kpi-card" style="margin:0">'
+                +   '<div class="kpi-lbl">💰 کل اعتبار</div>'
+                +   '<div class="kpi-val">$' + granted.toFixed(2) + '</div>'
+                + '</div>'
+                + '<div class="kpi-card" style="margin:0">'
+                +   '<div class="kpi-lbl">📊 مصرف‌شده</div>'
+                +   '<div class="kpi-val">$' + used.toFixed(2) + '</div>'
+                + '</div>'
+                + '<div class="kpi-card" style="grid-column:1/-1;margin:0">'
+                +   '<div class="kpi-lbl">✅ باقی‌مانده</div>'
+                +   '<div class="kpi-val" style="color:' + color + '">$' + available.toFixed(2) + '</div>'
+                + '</div>'
+                + '</div>';
+            box.innerHTML = html;
+
+            try { DB.save('ai.creditLastUpdate', Date.now()); } catch (e) {}
+            return;
+
+        } catch (e) {
+            lastErr = e.message || 'خطای شبکه';
+        }
+    }
+
+    box.innerHTML = '<div class="widget-empty" style="color:#dc2626">'
+        + '⚠️ دریافت اعتبار ناموفق بود<br>'
+        + '<span style="font-size:0.72rem;opacity:0.8">' + esc(lastErr) + '</span>'
+        + '</div>';
 }
 
 /* ============================================================
@@ -2854,6 +2948,12 @@ function aiInit() {
         openTtsDiagnosticPanel();
     });
 
+    /* دکمه بروزرسانی اعتبار AvalAI */
+    var creditBtn = document.getElementById('avalai-credit-refresh');
+    if (creditBtn) creditBtn.addEventListener('click', function () {
+        aiFetchAvalaiCredit();
+    });
+
     if (window.speechSynthesis) {
         AI_TTS.voice = aiFindBestPersianVoice();
     }
@@ -2922,6 +3022,7 @@ window.aiClose                   = aiClose;
 window.aiSend                    = aiSend;
 window.aiOpenSettings            = aiOpenSettings;
 window.aiCloseSettings           = aiCloseSettings;
+window.aiFetchAvalaiCredit       = aiFetchAvalaiCredit;
 window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
