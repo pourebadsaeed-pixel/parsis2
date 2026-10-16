@@ -77,18 +77,8 @@ function loadHtml2Canvas() {
 }
 
 /* ============================================================
-   صادرسازی موقت (بخش ۲ در پیام بعد)
+   بخش ۳ — آزادسازی محدودیت‌های سرریز
    ============================================================ */
-window.shareAsText       = shareAsText;
-window.reportToText      = reportToText;
-window.loadHtml2Canvas   = loadHtml2Canvas;
-
-console.log('✅ [ui/share.js part 1] loaded');
-/* ============================================================
-   بخش ۳ — اشتراک‌گذاری به‌صورت تصویر (PNG)
-   ============================================================ */
-
-/* آزادسازی همه محدودیت‌های سرریز/ارتفاع/عرض روی یک المان */
 function unlockElement(el) {
     if (!el || !el.style) return null;
     var cs = window.getComputedStyle(el);
@@ -132,7 +122,9 @@ function restoreElement(s) {
     s.el.style.overflowY = s.overflowY || '';
 }
 
-/* اندازه‌ی واقعی عنصر با همه‌ی فرزندانش */
+/* ============================================================
+   بخش ۴ — اندازه‌ی واقعی عنصر
+   ============================================================ */
 function getFullSize(el) {
     var w = Math.max(el.scrollWidth || 0, el.offsetWidth || 0, el.clientWidth || 0);
     var h = Math.max(el.scrollHeight || 0, el.offsetHeight || 0, el.clientHeight || 0);
@@ -147,7 +139,10 @@ function getFullSize(el) {
     return { width: Math.ceil(w), height: Math.ceil(h) };
 }
 
-/* تابع اصلی اشتراک‌گذاری تصویر */
+/* ============================================================
+   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر
+   ✅ اصلاح: عرض حداقل مناسب برای جلوگیری از کشیدگی + چیدمان تک‌ستونه
+   ============================================================ */
 async function shareAsImage(el, title, filename) {
     if (!el) {
         showToast('محتوایی برای اشتراک نیست.');
@@ -170,6 +165,20 @@ async function shareAsImage(el, title, filename) {
         }
         return;
     }
+
+    /* ============================================================
+       تشخیص نوع هدف (widget یا report)
+       ============================================================ */
+    var isWidget = el.classList && el.classList.contains('widget-card');
+    var isListHeaderTarget = el.classList && el.classList.contains('card');
+
+    /* ✅ عرض هدف بر اساس نوع محتوا:
+         - ویجت: حداقل 720px تا متن به‌خوبی جا شود
+         - گزارش/کارت: حداقل 900px
+         - جدول: بر اساس max-content ولی حداقل 900px
+    */
+    var MIN_WIDGET_WIDTH = 720;
+    var MIN_REPORT_WIDTH = 900;
 
     /* بازکردن کارت‌های جمع‌شده */
     var collapsedCards = [];
@@ -196,18 +205,73 @@ async function shareAsImage(el, title, filename) {
         }
     });
 
+    /* ============================================================
+       ✅ کلید اصلی: تعیین عرض مناسب قبل از capture
+       ============================================================ */
     var rootSaved = {
-        width:    el.style.width,
-        minWidth: el.style.minWidth,
-        maxWidth: el.style.maxWidth,
-        overflow: el.style.overflow,
-        overflowX: el.style.overflowX
+        width:      el.style.width,
+        minWidth:   el.style.minWidth,
+        maxWidth:   el.style.maxWidth,
+        overflow:   el.style.overflow,
+        overflowX:  el.style.overflowX,
+        display:    el.style.display
     };
-    el.style.width = 'max-content';
-    el.style.minWidth = 'max-content';
+
+    /* تعیین عرض هدف */
+    var targetWidth;
+    if (isWidget) {
+        targetWidth = MIN_WIDGET_WIDTH;
+    } else if (isListHeaderTarget) {
+        targetWidth = MIN_REPORT_WIDTH;
+    } else {
+        /* برای جدول‌ها بر اساس محتوای واقعی */
+        var naturalW = 0;
+        el.querySelectorAll('table').forEach(function (t) {
+            var w = Math.max(t.scrollWidth || 0, t.offsetWidth || 0);
+            if (w > naturalW) naturalW = w;
+        });
+        targetWidth = Math.max(MIN_REPORT_WIDTH, naturalW + 40);
+    }
+
+    /* ✅ اعمال عرض ثابت (نه max-content که باعث کشیدگی می‌شود) */
+    el.style.width = targetWidth + 'px';
+    el.style.minWidth = targetWidth + 'px';
     el.style.maxWidth = 'none';
     el.style.overflow = 'visible';
     el.style.overflowX = 'visible';
+    el.style.boxSizing = 'border-box';
+
+    /* ✅ اگر ویجت در گرید است، آن را از گرید خارج کن (روی کلون تأثیر می‌گذارد) */
+    var parentGridStyle = null;
+    var parentEl = el.parentElement;
+    if (parentEl && parentEl.classList && parentEl.classList.contains('home-grid')) {
+        parentGridStyle = {
+            display: parentEl.style.display,
+            gridTemplateColumns: parentEl.style.gridTemplateColumns
+        };
+        /* روی خود المان grid-column تنظیم کن که تک‌ستونه شود */
+        var savedGridColumn = el.style.gridColumn;
+        el.style.gridColumn = '1 / -1';
+        el.dataset._savedGridColumn = savedGridColumn || '';
+    }
+
+    /* ✅ بازنشانی شبکه‌بندی داخلی ویجت (مثلاً checklist items) */
+    var gridOverrides = [];
+    el.querySelectorAll('*').forEach(function (node) {
+        var cs = window.getComputedStyle(node);
+        if (cs.display === 'grid' && cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none') {
+            /* اگه شبکه 2 ستونه است، در حالت capture 1 ستونه کن */
+            if (cs.gridTemplateColumns.indexOf('repeat') !== -1 ||
+                cs.gridTemplateColumns.split(' ').length > 1) {
+                gridOverrides.push({
+                    node: node,
+                    oldTemplate: node.style.gridTemplateColumns,
+                    oldDisplay: node.style.display
+                });
+                node.style.gridTemplateColumns = '1fr';
+            }
+        }
+    });
 
     /* مخفی کردن دکمه‌های اضافی */
     var hiddenNodes = [];
@@ -223,32 +287,42 @@ async function shareAsImage(el, title, filename) {
     await new Promise(function (r) {
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
-                setTimeout(r, 150);
+                setTimeout(r, 200);
             });
         });
     });
 
     var size = getFullSize(el);
-    console.log('📸 [share] ابعاد:', size.width, '×', size.height);
+    console.log('📸 [share] ابعاد نهایی:', size.width, '×', size.height);
 
+    /* ============================================================
+       محاسبه scale بر اساس اندازه نهایی
+       ============================================================ */
     var dpr = window.devicePixelRatio || 1;
-    var scale = Math.max(3, Math.ceil(dpr * 1.5));
+    var scale = Math.max(2.5, Math.min(4, dpr * 2));
     var maxPixels = 60 * 1000 * 1000;
     if (size.width * size.height * scale * scale > maxPixels) {
         scale = Math.max(2, Math.sqrt(maxPixels / (size.width * size.height)));
     }
+    console.log('📸 [share] scale:', scale);
 
     var MAX_CHUNK_H = 3500;
     var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
     if (chunkCount < 1) chunkCount = 1;
 
+    /* ============================================================
+       onclone: اعمال دوباره تنظیمات روی کلون html2canvas
+       ============================================================ */
     var oncloneFn = function (clonedDoc, clonedEl) {
         clonedEl.style.overflow = 'visible';
         clonedEl.style.maxHeight = 'none';
         clonedEl.style.maxWidth = 'none';
         clonedEl.style.height = 'auto';
-        clonedEl.style.width = 'max-content';
-        clonedEl.style.minWidth = 'max-content';
+        clonedEl.style.width = size.width + 'px';
+        clonedEl.style.minWidth = size.width + 'px';
+        clonedEl.style.boxSizing = 'border-box';
+
+        /* ✅ اجبار به چیدمان تک‌ستونه روی کلون */
         clonedEl.querySelectorAll('*').forEach(function (node) {
             var cs = window.getComputedStyle(node);
             if (cs.overflow && cs.overflow !== 'visible') node.style.overflow = 'visible';
@@ -261,7 +335,15 @@ async function shareAsImage(el, title, filename) {
             if (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') {
                 node.style.maxWidth = 'none';
             }
+            /* grid 2-ستونه → 1-ستونه */
+            if (cs.display === 'grid' && cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none') {
+                if (cs.gridTemplateColumns.indexOf('repeat') !== -1 ||
+                    cs.gridTemplateColumns.split(' ').length > 1) {
+                    node.style.gridTemplateColumns = '1fr';
+                }
+            }
         });
+
         clonedEl.querySelectorAll(hideSel).forEach(function (n) {
             n.style.display = 'none';
         });
@@ -319,17 +401,38 @@ async function shareAsImage(el, title, filename) {
             if (btn) btn.classList.add('collapsed');
         });
         hiddenNodes.forEach(function (x) { x.el.style.display = x.old; });
+        /* بازگردانی grid overrides */
+        gridOverrides.forEach(function (o) {
+            o.node.style.gridTemplateColumns = o.oldTemplate || '';
+            o.node.style.display = o.oldDisplay || '';
+        });
+        if (parentEl && parentEl.classList && parentEl.classList.contains('home-grid')) {
+            el.style.gridColumn = el.dataset._savedGridColumn || '';
+        }
         showToast('⚠️ خطا در ساخت تصویر');
         return;
     }
 
-    /* بازگردانی همه استایل‌ها */
+    /* ============================================================
+       بازگردانی همه استایل‌ها
+       ============================================================ */
     savedStyles.forEach(restoreElement);
     el.style.width = rootSaved.width || '';
     el.style.minWidth = rootSaved.minWidth || '';
     el.style.maxWidth = rootSaved.maxWidth || '';
     el.style.overflow = rootSaved.overflow || '';
     el.style.overflowX = rootSaved.overflowX || '';
+    el.style.boxSizing = '';
+
+    gridOverrides.forEach(function (o) {
+        o.node.style.gridTemplateColumns = o.oldTemplate || '';
+        o.node.style.display = o.oldDisplay || '';
+    });
+
+    if (parentEl && parentEl.classList && parentEl.classList.contains('home-grid')) {
+        el.style.gridColumn = el.dataset._savedGridColumn || '';
+    }
+
     collapsedCards.forEach(function (c) {
         c.classList.add('collapsed');
         var btn = c.querySelector('.card-collapse-btn');
@@ -337,6 +440,9 @@ async function shareAsImage(el, title, filename) {
     });
     hiddenNodes.forEach(function (x) { x.el.style.display = x.old; });
 
+    /* ============================================================
+       اشتراک‌گذاری یا دانلود
+       ============================================================ */
     var files = blobs.map(function (blob, i) {
         var name = blobs.length > 1
             ? safeName + '-part' + (i + 1) + '.png'
@@ -346,7 +452,6 @@ async function shareAsImage(el, title, filename) {
 
     var shareTitle = title || 'گزارش پارسیس';
 
-    /* اگر Web Share API از فایل پشتیبانی کرد */
     if (navigator.canShare && navigator.canShare({ files: files })) {
         try {
             await navigator.share({
@@ -379,10 +484,9 @@ async function shareAsImage(el, title, filename) {
 }
 
 /* ============================================================
-   بخش ۴ — ساخت دکمه‌های اشتراک‌گذاری روی هدرها و ویجت‌ها
+   بخش ۶ — ساخت دکمه‌های اشتراک‌گذاری
    ============================================================ */
 function buildShareButtons() {
-    /* هدر لیست‌ها */
     document.querySelectorAll('.list-header').forEach(function (h) {
         if (h.querySelector('.share-btn')) return;
         var btn = document.createElement('button');
@@ -393,7 +497,6 @@ function buildShareButtons() {
         h.appendChild(btn);
     });
 
-    /* ویجت‌ها */
     document.querySelectorAll('.widget-card').forEach(function (w) {
         if (w.querySelector('.widget-share-btn')) return;
         var btn = document.createElement('button');
@@ -407,14 +510,13 @@ function buildShareButtons() {
 }
 
 /* ============================================================
-   بخش ۵ — Event Delegation برای همه دکمه‌های اشتراک‌گذاری
+   بخش ۷ — Event Delegation
    ============================================================ */
 (function bindShareDelegation() {
     function handle(e) {
         var target = e.target;
         if (!target || !target.closest) return;
 
-        /* دکمه share-btn */
         var btn = target.closest('.share-btn');
         if (btn) {
             e.stopPropagation();
@@ -431,7 +533,6 @@ function buildShareButtons() {
             return;
         }
 
-        /* دکمه widget-share-btn */
         var wBtn = target.closest('.widget-share-btn');
         if (wBtn) {
             e.stopPropagation();
@@ -454,6 +555,9 @@ function buildShareButtons() {
 /* ============================================================
    صادرسازی نهایی
    ============================================================ */
+window.shareAsText       = shareAsText;
+window.reportToText      = reportToText;
+window.loadHtml2Canvas   = loadHtml2Canvas;
 window.shareAsImage      = shareAsImage;
 window.buildShareButtons = buildShareButtons;
 window.unlockElement     = unlockElement;
