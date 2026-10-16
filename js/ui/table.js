@@ -7,6 +7,29 @@
 var colWidths = DB.load(LS_KEYS.COL_WIDTHS, {});
 function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
 
+/* ============================================================
+   ✅ وقتی کاربر عرض ستون را تنظیم کرده باشد، table-layout:fixed می‌شود
+   و محتوا بر اساس عرض تعیین‌شده برش می‌خورد (ellipsis).
+   ============================================================ */
+function ensureFixedLayout(table) {
+    if (!table) return;
+    table.classList.add('w-col-resized');
+}
+
+function removeFixedLayout(table) {
+    if (!table) return;
+    table.classList.remove('w-col-resized');
+}
+
+function tableHasAnyWidth(tableId) {
+    var w = colWidths[tableId];
+    if (!w) return false;
+    for (var k in w) {
+        if (w[k] && w[k] > 0) return true;
+    }
+    return false;
+}
+
 function applyColWidths(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return;
@@ -15,13 +38,23 @@ function applyColWidths(tableId) {
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     for (var i = 0; i < ths.length; i++) {
-        /* ✅ عرض‌ها بر اساس data-orig-index ذخیره می‌شن نه موقعیت DOM */
         var oi = ths[i].getAttribute('data-orig-index');
         var idx = oi !== null ? parseInt(oi, 10) : i;
-        if (widths[idx]) ths[i].style.width = widths[idx] + 'px';
-        else ths[i].style.width = '';
-        ths[i].style.minWidth = '';
-        ths[i].style.maxWidth = '';
+        if (widths[idx]) {
+            ths[i].style.width = widths[idx] + 'px';
+            ths[i].style.minWidth = widths[idx] + 'px';
+            ths[i].style.maxWidth = widths[idx] + 'px';
+        } else {
+            ths[i].style.width = '';
+            ths[i].style.minWidth = '';
+            ths[i].style.maxWidth = '';
+        }
+    }
+    /* ✅ اگه کاربر قبلاً عرضی تنظیم کرده بود، حالت fixed رو فعال کن */
+    if (tableHasAnyWidth(tableId)) {
+        ensureFixedLayout(table);
+    } else {
+        removeFixedLayout(table);
     }
     table.style.minWidth = '';
 }
@@ -29,8 +62,11 @@ function applyColWidths(tableId) {
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
 /* ============================================================
-   ✅ محدوده عرض ستون: 30 تا 3000 پیکسل
+   ✅ محدوده عرض: 20 تا 3000 پیکسل
    ============================================================ */
+var COL_MIN_W = 20;
+var COL_MAX_W = 3000;
+
 function makeTableResizable(table) {
     if (!table || table.dataset.resizable === '1') return;
     table.dataset.resizable = '1';
@@ -38,15 +74,11 @@ function makeTableResizable(table) {
     if (!tableId) return;
     table.setAttribute('data-table-id', tableId);
 
-    var MIN_W = 30;
-    var MAX_W = 3000;
-
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     for (var i = 0; i < ths.length; i++) {
         (function (th, idx) {
-            /* ✅ ایندکس اصلی (data-orig-index) نه موقعیت DOM */
             if (th.getAttribute('data-orig-index') === null) {
                 th.setAttribute('data-orig-index', String(idx));
             }
@@ -67,12 +99,14 @@ function makeTableResizable(table) {
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
+                /* ✅ به محض شروع resize، حالت fixed رو فعال کن */
+                ensureFixedLayout(table);
             }
 
             function move(x) {
                 if (!isDragging) return;
                 var diff = startX - x;
-                var w = Math.max(MIN_W, Math.min(MAX_W, startW + diff));
+                var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
                 th.style.width = w + 'px';
                 th.style.minWidth = w + 'px';
                 th.style.maxWidth = w + 'px';
@@ -98,6 +132,10 @@ function makeTableResizable(table) {
                 if (colWidths[tableId]) {
                     delete colWidths[tableId][origIdx];
                     saveColWidths();
+                }
+                /* ✅ اگه دیگه هیچ عرضی ست نشده، حالت fixed رو بردار */
+                if (!tableHasAnyWidth(tableId)) {
+                    removeFixedLayout(table);
                 }
                 showToast('↔ عرض این ستون بازنشانی شد.');
             });
@@ -135,6 +173,7 @@ function resetColumnWidths(tableId) {
 
     var table = document.getElementById(tableId);
     if (!table) return;
+    removeFixedLayout(table);
 
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (headerRow) {
@@ -158,6 +197,7 @@ function resetAllColumnWidths() {
     for (var i = 0; i < MANAGED_TABLE_IDS.length; i++) {
         var t = document.getElementById(MANAGED_TABLE_IDS[i]);
         if (!t) continue;
+        removeFixedLayout(t);
         var hRow = t.querySelector('thead tr:not(.column-filter-row)');
         if (hRow) {
             var ths = hRow.querySelectorAll('th');
@@ -215,11 +255,6 @@ function findThByOrigIndex(headerRow, origIdx) {
     return null;
 }
 
-/* ============================================================
-   ✅ رفع باگ: syncBodyOrigIndices بر اساس موقعیت TEMPLATE نه DOM
-   چون سلول‌های body همیشه در ترتیب اصلی HTML ساخته می‌شن،
-   پس اندیس هر سلول = موقعیت آن در HTML (c) است — نه اندیس th فعلی.
-   ============================================================ */
 function syncBodyOrigIndices(table, headerRow) {
     var allRows = table.querySelectorAll('tr');
     for (var r = 0; r < allRows.length; r++) {
@@ -229,7 +264,6 @@ function syncBodyOrigIndices(table, headerRow) {
         if (cells.length <= 1) continue;
         for (var c = 0; c < cells.length; c++) {
             if (cells[c].getAttribute('data-orig-index') === null) {
-                /* ✅ اصلاح: از موقعیت سلول در HTML استفاده می‌کنیم، نه از th فعلی */
                 cells[c].setAttribute('data-orig-index', String(c));
             }
         }
@@ -245,9 +279,6 @@ function applyColumnOrder(tableId) {
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
 
-    /* ✅ اطمینان از اینکه th ها data-orig-index دارن — بر اساس موقعیت HTML اصلی.
-       اما چون ممکنه قبلاً جابجا شده باشن، باید مطمئن بشیم data-orig-index
-       قبلاً ست شده و تغییر نمی‌کنه. فقط اگه null باشه ست می‌کنیم. */
     var headerThs = headerRow.querySelectorAll('th');
     for (var i = 0; i < headerThs.length; i++) {
         if (headerThs[i].getAttribute('data-orig-index') === null) {
