@@ -83,6 +83,8 @@
     + '.calg-tl-event.micro .ev-time{display:none!important}'
     + '.calg-tl-event.micro .ev-title{flex:1;font-size:0.7rem!important}'
     + '.calg-tl-event.micro .ev-loc{display:none!important}'
+    + '.calg-3day-col{position:relative;background:#fff;cursor:pointer}'
+    + '.calg-3day-col:hover{background:#fafcff}'
     + '.cal-day-strip{display:flex;gap:5px;padding:8px;background:#f8fafd;border-radius:12px;border:1px solid var(--border);margin-bottom:10px;overflow-x:auto;direction:rtl}'
     + '.cal-day-strip.pinned{position:fixed!important;top:0!important;left:0!important;right:0!important;z-index:99998!important;border-radius:0!important;padding:12px 10px!important;background:#fff!important;box-shadow:0 10px 40px rgba(15,23,42,.35)!important;border-bottom:2px solid #1e40af!important}'
     + '.cal-day-chip{flex:0 0 auto;min-width:58px;padding:8px 6px;border-radius:10px;background:#fff;border:1.5px solid var(--border);text-align:center;cursor:pointer;transition:all .2s;font-family:inherit;user-select:none}'
@@ -168,7 +170,6 @@ var CAL41 = {
     externalEvents: [],
     daySearch: '',
     agendaSearch: '',
-    /* ✅ پیش‌فرض: ۱ سال آینده — قابل ذخیره */
     agendaRange: DB.load('cal41.agendaRange', '365')
 };
 
@@ -553,6 +554,7 @@ function calRenderMonth41(events) {
 
 /* ============================================================
    بخش ۱۰ — رندر چند-روزه (هفته و ۳ روز)
+   ✅ نمای ۳ روز: تایم‌لاین ۳ ستونه کامل (رویدادها absolute)
    ============================================================ */
 function calRenderMultiDay41(events, numDays, viewKey) {
     var cur = CAL41.cursor;
@@ -577,10 +579,18 @@ function calRenderMultiDay41(events, numDays, viewKey) {
     var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
     var EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    /* نمای ۳ روز: ساعتی */
+    /* ============================================================
+       نمای ۳ روز آتی: تایم‌لاین ۳ ستونه
+       ============================================================ */
     if (viewKey === '3day') {
-        var html3 = '<div style="display:grid;grid-template-columns:70px repeat(' + numDays + ',minmax(0,1fr));border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-solid)">';
+        var HOUR_H = 64;
+        var START_H = 5;
+        var END_H = 24;
+        var bodyH = (END_H - START_H) * HOUR_H;
 
+        var html3 = '<div style="display:grid;grid-template-columns:74px repeat(' + numDays + ',minmax(0,1fr));border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-solid);direction:rtl">';
+
+        /* هدر: خانه خالی + هدر روزها */
         html3 += '<div style="padding:8px 4px;background:var(--card-alt);border-bottom:2px solid var(--border);border-left:1px solid var(--border)"></div>';
         for (var dh = 0; dh < numDays; dh++) {
             var dsH = addJalaliDays(startJ, dh);
@@ -600,33 +610,95 @@ function calRenderMultiDay41(events, numDays, viewKey) {
                   + '</div>';
         }
 
-        for (var h = 5; h <= 23; h++) {
-            var hourStr = pad2(h) + ':00';
-            html3 += '<div class="calg-md-hour-label" style="padding:10px 6px;text-align:center;font-weight:900;font-size:.78rem;background:var(--card-alt);border-bottom:1px solid var(--border);direction:ltr;color:var(--primary-dark);font-family:monospace;border-left:1px solid var(--border)">' + toFaTime(hourStr) + '</div>';
+        /* ستون ساعت‌ها */
+        html3 += '<div style="background:linear-gradient(180deg,#f9fbfe,#f4f8fd);border-left:1px solid var(--border)">';
+        for (var h = START_H; h < END_H; h++) {
+            html3 += '<div style="height:' + HOUR_H + 'px;display:flex;align-items:flex-start;justify-content:center;padding-top:5px;font-size:.72rem;font-weight:900;font-family:monospace;color:var(--primary-dark);direction:ltr;border-bottom:1px solid var(--border)">'
+                  +   toFaTime(pad2(h) + ':00')
+                  + '</div>';
+        }
+        html3 += '</div>';
 
-            for (var d = 0; d < numDays; d++) {
-                var ds = addJalaliDays(startJ, d);
-                if (!ds) continue;
-                var evs = (byDate[ds] || []).filter(function (e) {
-                    return e.time && e.time.substring(0, 2) === pad2(h);
-                });
-                html3 += '<div class="calg-md-hour-cell" data-date="' + ds + '" data-hour="' + h + '">';
-                evs.forEach(function (e) {
-                    var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#999' };
-                    html3 += '<div class="calg-md-hour-ev" data-ev="' + e.id + '" style="background:' + cat.color + '15;border-right:3px solid ' + cat.color + '">'
-                          +   '<div style="font-weight:800;font-size:.72rem">' + esc(e.title) + '</div>'
-                          +   (e.location ? '<div style="font-size:.62rem;color:var(--text-muted);margin-top:2px">📍 ' + esc(e.location) + '</div>' : '')
-                          + '</div>';
-                });
-                html3 += '</div>';
+        /* ۳ ستون روزها با رویدادهای absolute */
+        for (var d = 0; d < numDays; d++) {
+            var ds = addJalaliDays(startJ, d);
+            if (!ds) continue;
+
+            html3 += '<div class="calg-3day-col" data-day="' + ds + '" '
+                  +  'style="position:relative;background:#fff;height:' + bodyH + 'px;border-left:1px solid var(--border)">';
+
+            /* خطوط شبکه */
+            for (var hh = START_H; hh <= END_H; hh++) {
+                var top = (hh - START_H) * HOUR_H;
+                html3 += '<div style="position:absolute;left:0;right:0;top:' + top + 'px;border-bottom:1px solid var(--border);pointer-events:none;z-index:0"></div>';
+                if (hh < END_H) {
+                    for (var q = 1; q <= 3; q++) {
+                        var qtop = top + q * (HOUR_H / 4);
+                        html3 += '<div style="position:absolute;left:0;right:0;top:' + qtop + 'px;border-bottom:1px dashed rgba(15,23,42,0.06);pointer-events:none;z-index:0"></div>';
+                    }
+                }
             }
+
+            /* رویدادهای این روز */
+            var dayEvs = (byDate[ds] || []).slice();
+            var parsed = [];
+            dayEvs.forEach(function (e) {
+                var sMin = calTlToMin(e.startTime || e.time || '21:00');
+                var eMin = e.endTime ? calTlToMin(e.endTime) : (sMin + 60);
+                if (eMin <= sMin) eMin = sMin + 30;
+                e._sMin = sMin;
+                e._eMin = eMin;
+                parsed.push(e);
+            });
+            var laid = calTlLayoutEvents(parsed);
+
+            laid.forEach(function (e) {
+                if (e._sMin >= END_H * 60) return;
+                if (e._eMin <= START_H * 60) return;
+
+                var top = (Math.max(e._sMin, START_H * 60) - START_H * 60) / 60 * HOUR_H;
+                var bot = (Math.min(e._eMin, END_H * 60) - START_H * 60) / 60 * HOUR_H;
+                var height = Math.max(26, bot - top);
+
+                var totalCols = e._colsInGroup || 1;
+                var col = e._col || 0;
+                var colW = 100 / totalCols;
+                var leftPct = col * colW;
+                var widthPct = colW;
+
+                var cat = (window.CAL_CATS && window.CAL_CATS[e.cat]) || { color: '#6366f1' };
+                var timeTxt = toFaTime(e.startTime || e.time);
+                if (e.endTime) timeTxt += ' — ' + toFaTime(e.endTime);
+
+                var shortCls = '';
+                if (height < 32) shortCls = ' micro';
+                else if (height < 46) shortCls = ' tiny';
+                else if (height < 60) shortCls = ' compact';
+
+                html3 += '<div class="calg-tl-event' + shortCls + '" data-ev="' + esc(e.id) + '" '
+                      +  'style="position:absolute;top:' + top + 'px;height:' + height + 'px;'
+                      +  'left:calc(' + leftPct + '% + 3px);'
+                      +  'right:calc(' + (100 - leftPct - widthPct) + '% + 3px);'
+                      +  'background:' + cat.color + '15;'
+                      +  'border-right-color:' + cat.color + ';'
+                      +  'z-index:2" '
+                      +  'title="' + esc(e.title) + '">'
+                      +  '<div class="ev-time">' + timeTxt + '</div>'
+                      +  '<div class="ev-title">' + esc(e.title) + '</div>'
+                      +  (e.location ? '<div class="ev-loc">📍 ' + esc(e.location) + '</div>' : '')
+                      +  '</div>';
+            });
+
+            html3 += '</div>';
         }
 
         html3 += '</div>';
         return html3;
     }
 
-    /* نمای هفته: ستونی */
+    /* ============================================================
+       نمای هفته (بدون تغییر)
+       ============================================================ */
     var html = '<div class="calg-multi" data-view="' + viewKey + '" style="display:grid;grid-template-columns:repeat(' + numDays + ',minmax(0,1fr));gap:5px">';
 
     for (var d2 = 0; d2 < numDays; d2++) {
@@ -674,7 +746,7 @@ function calRenderMultiDay41(events, numDays, viewKey) {
 }
 
 /* ============================================================
-   بخش ۱۱ — رندر تایم‌لاین روز
+   بخش ۱۱ — تایم‌لاین روز
    ============================================================ */
 var CAL_TL_HOUR_HEIGHT = 64;
 var CAL_TL_START_HOUR = 5;
@@ -749,17 +821,14 @@ function renderCalTimeline(dayEvs, dateStr) {
 
     var html = '<div class="calg-tl-wrap">';
 
-    /* ستون ساعت‌ها */
     html += '<div class="calg-tl-hours">';
     for (var h = CAL_TL_START_HOUR; h < CAL_TL_END_HOUR; h++) {
         html += '<div class="calg-tl-hour-lbl">' + toFaTime(pad2(h) + ':00') + '</div>';
     }
     html += '</div>';
 
-    /* بدنه */
     html += '<div class="calg-tl-body" data-day="' + esc(dateStr) + '" style="height:' + bodyHeight + 'px">';
 
-    /* خطوط شبکه */
     for (var hh = CAL_TL_START_HOUR; hh <= CAL_TL_END_HOUR; hh++) {
         var top = (hh - CAL_TL_START_HOUR) * CAL_TL_HOUR_HEIGHT;
         html += '<div class="calg-tl-gridline" style="top:' + top + 'px"></div>';
@@ -771,7 +840,6 @@ function renderCalTimeline(dayEvs, dateStr) {
         }
     }
 
-    /* رویدادها */
     laid.forEach(function (e) {
         if (e._sMin >= CAL_TL_END_HOUR * 60) return;
         if (e._eMin <= CAL_TL_START_HOUR * 60) return;
@@ -810,13 +878,11 @@ function renderCalTimeline(dayEvs, dateStr) {
              +  '</div>';
     });
 
-    /* نشانگر زمان حال */
     if (isToday && nowMin >= CAL_TL_START_HOUR * 60 && nowMin <= CAL_TL_END_HOUR * 60) {
         var nowTop = (nowMin - CAL_TL_START_HOUR * 60) / 60 * CAL_TL_HOUR_HEIGHT;
         html += '<div style="position:absolute;left:0;right:0;height:2px;background:#ef4444;z-index:5;pointer-events:none;top:' + nowTop + 'px"></div>';
     }
 
-    /* پیش‌نمایش درگ */
     html += '<div class="cal-tl-preview" id="cal-tl-preview" style="position:absolute;border-radius:10px;background:rgba(59,130,246,0.18);border:2px dashed #3b82f6;pointer-events:none;z-index:150;display:none;align-items:center;justify-content:center">'
          +  '<span class="pv-time" style="background:#1e40af;color:#fff;padding:4px 12px;border-radius:8px;font-size:.75rem;font-weight:900;font-family:monospace;direction:ltr"></span>'
          +  '</div>';
@@ -892,7 +958,6 @@ function renderCalDayView(events) {
 
     var html = '';
 
-    /* هدر */
     html += '<div style="text-align:center;margin-bottom:12px;padding:12px;background:var(--primary-soft);border-radius:12px">'
          +   '<div style="font-size:1.05rem;font-weight:900;color:#1e40af">'
          +     WEEKDAYS_FA[dt.getDay()] + '، ' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1] - 1] + ' ' + toFa(p[0])
@@ -906,17 +971,14 @@ function renderCalDayView(events) {
          +   '</div>'
          + '</div>';
 
-    /* نوار روزها */
     html += renderCalDateStrip();
 
-    /* اطلاعات جستجو */
     if (q) {
         html += '<div style="text-align:center;font-size:.78rem;color:var(--text-muted);margin-bottom:10px">'
              +  '🔍 نتایج جستجو برای «' + esc(q) + '» — ' + toFa(dayEvs.length) + ' مورد'
              +  '</div>';
     }
 
-    /* تایم‌لاین */
     html += renderCalTimeline(dayEvs, ds);
 
     return html;
@@ -1006,7 +1068,7 @@ function renderCalAgendaView(events) {
 }
 
 /* ============================================================
-   بخش ۱۵ — ساخت عنوان نوار بالا
+   بخش ۱۵ — عنوان نوار بالا
    ============================================================ */
 function buildCalTitle41() {
     var cur = CAL41.cursor;
@@ -1081,7 +1143,7 @@ function calRender() {
     });
     html += '</div>';
 
-    /* نوار جستجو برای روز و دستورکار */
+    /* نوار جستجو */
     if (CAL41.view === 'day' || CAL41.view === 'agenda') {
         var q = (CAL41.view === 'day') ? (CAL41.daySearch || '') : (CAL41.agendaSearch || '');
         html += '<div style="display:flex;gap:8px;padding:10px 14px;background:#f8fafd;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center">';
@@ -1141,7 +1203,115 @@ function calRender() {
 }
 
 /* ============================================================
+   بخش ۱۶.۵ — رندر فقط بدنه (برای جستجو بدون بستن کیبورد)
+   ============================================================ */
+function calRenderBodyOnly() {
+    var bodyEl = document.getElementById('calg-body');
+    if (!bodyEl) {
+        calRender();
+        return;
+    }
+
+    rebuildCalCats41();
+
+    var all = calBuildAllEvents();
+    var active = all.filter(function (e) {
+        return CAL41.filterCats[e.cat] !== false;
+    });
+
+    var html = '';
+    if (CAL41.view === 'month')      html = calRenderMonth41(active);
+    else if (CAL41.view === 'week')  html = calRenderMultiDay41(active, 7, 'week');
+    else if (CAL41.view === '3day')  html = calRenderMultiDay41(active, 3, '3day');
+    else if (CAL41.view === 'day')   html = renderCalDayView(active);
+    else                              html = renderCalAgendaView(active);
+
+    bodyEl.innerHTML = html;
+
+    bindCalBodyEvents(active);
+
+    if (CAL41.view === 'day') {
+        setTimeout(function () {
+            var body = document.querySelector('.calg-tl-body');
+            if (body) setupCalDayTimeline(body, active);
+        }, 50);
+    }
+}
+
+function bindCalBodyEvents(active) {
+    /* نوار روزها */
+    document.querySelectorAll('.cal-day-chip').forEach(function (ch) {
+        var d = ch.getAttribute('data-date');
+        var navStrip = ch.getAttribute('data-nav-strip');
+        if (navStrip) {
+            ch.onclick = function () {
+                var cur = CAL41.cursor;
+                var ds = cur.y + '/' + pad2(cur.m) + '/' + pad2(cur.d);
+                var nd = addJalaliDays(ds, Number(navStrip) * 7);
+                var pp = nd.split('/').map(Number);
+                CAL41.cursor = { y: pp[0], m: pp[1], d: pp[2] };
+                calRender();
+            };
+        } else if (d) {
+            ch.onclick = function () {
+                var pp = d.split('/').map(Number);
+                CAL41.cursor = { y: pp[0], m: pp[1], d: pp[2] };
+                calRender();
+            };
+        }
+    });
+
+    /* رویدادها */
+    document.querySelectorAll('#calg-body [data-ev]').forEach(function (el) {
+        el.onclick = function (e) {
+            e.stopPropagation();
+            var id = this.getAttribute('data-ev');
+            var ev = active.find(function (x) { return x.id === id; });
+            if (ev) handleEventClick41(ev);
+        };
+    });
+
+    /* خانه‌های ماه */
+    document.querySelectorAll('.calg-mcell').forEach(function (cell) {
+        cell.onclick = function (e) {
+            if (e.target.closest('.cev')) return;
+            openEventModal41(null, this.getAttribute('data-date'));
+        };
+    });
+
+    /* کلیک روی ناحیه خالی ستون ۳ روز */
+    document.querySelectorAll('.calg-3day-col').forEach(function (col) {
+        col.onclick = function (e) {
+            if (e.target.closest('.calg-tl-event')) return;
+            var rect = col.getBoundingClientRect();
+            var y = e.clientY - rect.top;
+            var totalMin = 5 * 60 + (y / 64) * 60;
+            var snapped = Math.round(totalMin / 15) * 15;
+            snapped = Math.max(5 * 60, Math.min(23 * 60, snapped));
+            var hh = Math.floor(snapped / 60);
+            var mm = snapped % 60;
+            openEventModal41(null, this.getAttribute('data-day'), hh);
+            setTimeout(function () {
+                var ti = document.getElementById('evt-start-time');
+                if (ti) ti.value = pad2(hh) + ':' + pad2(mm);
+                var to = document.getElementById('evt-end-time');
+                if (to) to.value = pad2(Math.min(23, hh + 1)) + ':' + pad2(mm);
+            }, 80);
+        };
+    });
+
+    /* سلول‌های نمای هفته */
+    document.querySelectorAll('.calg-md-col').forEach(function (col) {
+        col.onclick = function (e) {
+            if (e.target.closest('[data-ev]')) return;
+            openEventModal41(null, this.getAttribute('data-date'));
+        };
+    });
+}
+
+/* ============================================================
    بخش ۱۷ — اتصال رویدادهای shell تقویم
+   ✅ رفع باگ: جستجو → فقط بدنه رندر می‌شود (کیبورد بسته نمی‌شود)
    ============================================================ */
 function bindCalEvents41(active) {
     var prev = document.getElementById('calg-prev');
@@ -1186,26 +1356,13 @@ function bindCalEvents41(active) {
         };
     });
 
-    /* جستجو */
+    /* ✅ جستجو — فقط بدنه رندر می‌شود (کیبورد باز می‌مونه) */
     var si = document.getElementById('calg-search-input');
     if (si) {
         si.addEventListener('input', function () {
             if (CAL41.view === 'day') CAL41.daySearch = this.value;
             else if (CAL41.view === 'agenda') CAL41.agendaSearch = this.value;
-
-            var focus = document.activeElement === si;
-            var selStart = si.selectionStart;
-            calRender();
-
-            if (focus) {
-                setTimeout(function () {
-                    var ni = document.getElementById('calg-search-input');
-                    if (ni) {
-                        ni.focus();
-                        try { ni.setSelectionRange(selStart, selStart); } catch (e) {}
-                    }
-                }, 10);
-            }
+            calRenderBodyOnly();
         });
     }
 
@@ -1216,7 +1373,6 @@ function bindCalEvents41(active) {
         calRender();
     };
 
-    /* ✅ تغییر بازه دستورکار + ذخیره */
     var rs = document.getElementById('calg-range-select');
     if (rs) rs.onchange = function () {
         CAL41.agendaRange = this.value;
@@ -1224,60 +1380,8 @@ function bindCalEvents41(active) {
         calRender();
     };
 
-    /* نوار روزها */
-    document.querySelectorAll('.cal-day-chip').forEach(function (ch) {
-        var d = ch.getAttribute('data-date');
-        var navStrip = ch.getAttribute('data-nav-strip');
-        if (navStrip) {
-            ch.onclick = function () {
-                var cur = CAL41.cursor;
-                var ds = cur.y + '/' + pad2(cur.m) + '/' + pad2(cur.d);
-                var nd = addJalaliDays(ds, Number(navStrip) * 7);
-                var pp = nd.split('/').map(Number);
-                CAL41.cursor = { y: pp[0], m: pp[1], d: pp[2] };
-                calRender();
-            };
-        } else if (d) {
-            ch.onclick = function () {
-                var pp = d.split('/').map(Number);
-                CAL41.cursor = { y: pp[0], m: pp[1], d: pp[2] };
-                calRender();
-            };
-        }
-    });
-
-    /* رویدادها در نماهای ماه/هفته/۳ روز */
-    document.querySelectorAll('[data-ev]').forEach(function (el) {
-        el.onclick = function (e) {
-            e.stopPropagation();
-            var id = this.getAttribute('data-ev');
-            var ev = active.find(function (x) { return x.id === id; });
-            if (ev) handleEventClick41(ev);
-        };
-    });
-
-    /* خانه‌های ماه */
-    document.querySelectorAll('.calg-mcell').forEach(function (cell) {
-        cell.onclick = function (e) {
-            if (e.target.closest('.cev')) return;
-            openEventModal41(null, this.getAttribute('data-date'));
-        };
-    });
-
-    /* سلول‌های ساعتی */
-    document.querySelectorAll('.calg-md-hour-cell').forEach(function (cell) {
-        cell.onclick = function (e) {
-            if (e.target.closest('.calg-md-hour-ev')) return;
-            openEventModal41(null, this.getAttribute('data-date'), +this.getAttribute('data-hour'));
-        };
-    });
-
-    document.querySelectorAll('.calg-md-col').forEach(function (col) {
-        col.onclick = function (e) {
-            if (e.target.closest('[data-ev]')) return;
-            openEventModal41(null, this.getAttribute('data-date'));
-        };
-    });
+    /* بقیه رویدادهای داخل بدنه */
+    bindCalBodyEvents(active);
 }
 
 /* ============================================================
@@ -1300,7 +1404,7 @@ function navigateCal41(dir) {
 }
 
 /* ============================================================
-   بخش ۱۹ — کلیک روی رویداد (با دیالوگ دامنه)
+   بخش ۱۹ — کلیک روی رویداد
    ============================================================ */
 function handleEventClick41(ev) {
     if (!ev.recurrence || ev.recurrence.freq === 'none' || ev._isOverride) {
@@ -1512,7 +1616,6 @@ function setupCalDayTimeline(body, active) {
             targetMin: sMin
         };
 
-        /* فیکس کردن المان در موقعیت فعلی */
         evEl.style.position = 'fixed';
         evEl.style.top = rect.top + 'px';
         evEl.style.left = rect.left + 'px';
@@ -1748,7 +1851,6 @@ function setupCalDayTimeline(body, active) {
         showToast('📅 رویداد جابجا شد' + (label ? ' (' + label + ')' : ''));
     }
 
-    /* کلیک روی ناحیه خالی → ایجاد رویداد */
     body.addEventListener('click', function (e) {
         if (dragState) return;
         if (e.target.closest('.calg-tl-event')) return;
@@ -1798,7 +1900,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
     var recurrence = normalizeRec41(ev && ev.recurrence, curDate);
     var persons = (ev && ev.persons) ? ev.persons.slice() : [];
 
-    /* دکمه‌های دسته‌بندی */
     var catPicker = '';
     userCats.forEach(function (c) {
         var active = (c.key === selectedCat)
@@ -1811,7 +1912,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
                   +  c.icon + ' ' + c.label + '</button>';
     });
 
-    /* اشخاص */
     var personsList = DB.load('persons', []);
     var personsChips = persons.map(function (pid) {
         var pr = personsList.find(function (x) { return x.id === pid; });
@@ -1826,7 +1926,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         personOptions += '<option value="' + pr.id + '">' + esc((pr.first || '') + ' ' + (pr.last || '')) + '</option>';
     });
 
-    /* بج دامنه */
     var scopeBadge = '';
     if (scope === 'this') scopeBadge = '<div style="background:#fef3c7;color:#92400e;padding:8px 14px;border-radius:10px;font-size:.78rem;font-weight:800;margin-bottom:10px">📌 فقط رخداد «' + toFa(curDate) + '» تغییر می‌کند</div>';
     else if (scope === 'future') scopeBadge = '<div style="background:#dbeafe;color:#1e40af;padding:8px 14px;border-radius:10px;font-size:.78rem;font-weight:800;margin-bottom:10px">⏩ رخدادهای «' + toFa(curDate) + '» به بعد تغییر می‌کنند</div>';
@@ -1902,10 +2001,8 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         if (typeof attachDatePickers === 'function') attachDatePickers();
     }, 80);
 
-    /* UI تکرار */
     renderRecurrenceUI41(recurrence, curDate);
 
-    /* انتخاب دسته */
     document.querySelectorAll('.evt-cat-btn').forEach(function (b) {
         b.onclick = function () {
             selectedCat = this.getAttribute('data-cat');
@@ -1919,7 +2016,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         };
     });
 
-    /* دکمه‌های ساعت */
     document.getElementById('evt-start-clock').onclick = function () {
         if (typeof openTimePicker === 'function') {
             openTimePicker(function (t) {
@@ -1935,7 +2031,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         }
     };
 
-    /* یادآور */
     document.getElementById('evt-rem-minus').onclick = function () {
         var el = document.getElementById('evt-rem');
         el.value = Math.max(0, (Number(el.value) || 0) - 5);
@@ -1948,7 +2043,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         if (Number(this.value) < 0) this.value = 0;
     });
 
-    /* اشخاص */
     function renderChips() {
         var box = document.getElementById('evt-persons-chips');
         box.innerHTML = persons.map(function (pid) {
@@ -1985,7 +2079,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
     document.getElementById('evt-cancel').onclick = close;
     document.getElementById('evt-overlay').onclick = close;
 
-    /* ذخیره */
     document.getElementById('evt-save').onclick = function () {
         var title = document.getElementById('evt-title').value.trim();
         var sd = normalizeDigits(document.getElementById('evt-start-date').value.trim());
@@ -2000,7 +2093,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         var desc = document.getElementById('evt-desc').value.trim();
         var rem = Math.max(0, Number(document.getElementById('evt-rem').value) || 0);
 
-        /* recurrence */
         var newRec = collectRecurrenceFromUI41(recurrence);
 
         if (!title) { alert('عنوان اجباری'); return; }
@@ -2091,7 +2183,6 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
         showToast('✅ رویداد ذخیره شد' + scopeMsg);
     };
 
-    /* حذف */
     if (ev) {
         document.getElementById('evt-delete').onclick = function () {
             var isRecurring = ev.recurrence && ev.recurrence.freq && ev.recurrence.freq !== 'none';
@@ -2178,7 +2269,6 @@ function renderRecurrenceUI41(rec, startDate) {
     });
     html += '</select></div>';
 
-    /* هفتگی */
     html += '<div id="rec-weekdays-row" style="display:' + (rec.freq === 'weekly' ? 'block' : 'none') + ';margin-bottom:12px">';
     html += '<div style="font-size:.78rem;font-weight:800;color:var(--text-muted);margin-bottom:8px">تکرار در روزهای:</div>';
     html += '<div style="display:flex;gap:6px;justify-content:space-between;flex-wrap:wrap">';
@@ -2193,13 +2283,11 @@ function renderRecurrenceUI41(rec, startDate) {
     });
     html += '</div></div>';
 
-    /* ماهانه */
     var startDayNum = Number(startDate.split('/')[2]) || 1;
     html += '<div id="rec-monthly-row" style="display:' + (rec.freq === 'monthly' ? 'block' : 'none') + ';margin-bottom:12px">';
     html += '<div style="font-size:.78rem;font-weight:800;color:var(--text-muted)">ماهانه در روز ' + toFa(rec.monthlyDay || startDayNum) + ' ام هر ماه</div>';
     html += '</div>';
 
-    /* پایان */
     var endsVal = rec.ends || 'never';
     html += '<div style="border-top:1px dashed var(--border);padding-top:12px;margin-top:12px">';
     html += '<div style="font-size:.78rem;font-weight:900;color:var(--text-muted);margin-bottom:8px">پایان</div>';
@@ -2222,7 +2310,6 @@ function renderRecurrenceUI41(rec, startDate) {
 
     box.innerHTML = html;
 
-    /* اتصالات */
     var freqSel = document.getElementById('rec-freq');
     var wdRow = document.getElementById('rec-weekdays-row');
     var moRow = document.getElementById('rec-monthly-row');
@@ -2557,7 +2644,9 @@ window.renderCalDayView            = renderCalDayView;
 window.renderCalAgendaView         = renderCalAgendaView;
 window.buildCalTitle41             = buildCalTitle41;
 window.calRender                   = calRender;
+window.calRenderBodyOnly           = calRenderBodyOnly;
 window.bindCalEvents41             = bindCalEvents41;
+window.bindCalBodyEvents           = bindCalBodyEvents;
 window.navigateCal41               = navigateCal41;
 window.handleEventClick41          = handleEventClick41;
 window.showScopeDialog41           = showScopeDialog41;
