@@ -11,7 +11,12 @@ var DB = {
     load: function (k, f) {
         try {
             var r = localStorage.getItem(LS_PREFIX + k);
-            return r ? JSON.parse(r) : f;
+            /* ✅ رفع خطای "undefined is not valid JSON" */
+            if (r === null || r === undefined || r === '' ||
+                r === 'undefined' || r === 'null') {
+                return f;
+            }
+            return JSON.parse(r);
         } catch (e) {
             console.warn('[DB.load]', k, e);
             return f;
@@ -20,6 +25,11 @@ var DB = {
 
     save: function (k, v) {
         try {
+            /* ✅ جلوگیری از ذخیره‌ی undefined */
+            if (v === undefined) {
+                console.warn('[DB.save] Skipping undefined for key:', k);
+                return;
+            }
             localStorage.setItem(LS_PREFIX + k, JSON.stringify(v));
         } catch (e) {
             console.warn('[DB.save]', k, e);
