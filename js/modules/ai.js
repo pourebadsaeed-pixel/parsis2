@@ -1741,6 +1741,7 @@ function aiHandleNavigateReport(args) {
     return { action: '✅ صفحه «' + label + '» باز و اجرا شد.' };
 }
 
+/* ✅ اصلاح: اگر معین چند تفصیلی دارد، فقط یکی باید پر شود */
 function aiHandleVoucherDraft(args) {
     if (!args.lines || !Array.isArray(args.lines) || args.lines.length < 2) {
         return { error: 'سند حداقل دو قلم دارد.' };
@@ -1790,38 +1791,49 @@ function aiHandleVoucherDraft(args) {
         var resolvedDetails = {};
         var detailsInput = L.details || {};
 
+        /* ✅ فقط یکی از تفصیلی‌های مرتبط باید انتخاب شود */
         if (acc.links && acc.links.length > 0) {
-            for (var li = 0; li < acc.links.length; li++) {
-                var lt = acc.links[li];
-                var items = getLinkedItems(lt);
-                if (items.length === 0) continue;
+            var validLinks = acc.links.filter(function (lt) {
+                return getLinkedItems(lt).length > 0;
+            });
 
-                var hint = detailsInput[lt];
-                if (!hint) {
-                    var opts = items.map(function (it) {
-                        return getLinkedItemLabel(lt, it);
+            if (validLinks.length > 0) {
+                var hasAnyHint = validLinks.some(function (lt) {
+                    return detailsInput[lt];
+                });
+
+                if (!hasAnyHint) {
+                    var linkNames = validLinks.map(linkTypeName).join(' یا ');
+                    var sampleLink = validLinks[0];
+                    var opts = getLinkedItems(sampleLink).map(function (it) {
+                        return getLinkedItemLabel(sampleLink, it);
                     }).slice(0, 10).join('، ');
                     problems.push('ردیف ' + (i + 1) + ': حساب «' + acc.name
-                        + '» نیازمند تفصیلی ' + linkTypeName(lt)
-                        + ' است. یکی از این‌ها را در details.' + lt + ' بنویس: ' + opts);
-                    continue;
-                }
-
-                var matchRes = aiFindDetailId(lt, hint);
-                if (matchRes.id) {
-                    resolvedDetails[lt] = matchRes.id;
-                } else if (matchRes.candidates.length > 0) {
-                    var candNames = matchRes.candidates.map(function (c2) {
-                        return getLinkedItemLabel(lt, c2);
-                    }).join('، ');
-                    problems.push('ردیف ' + (i + 1) + ': برای ' + linkTypeName(lt)
-                        + ' با «' + hint + '» چند گزینه هست: ' + candNames);
+                        + '» نیازمند یکی از تفصیلی‌های «' + linkNames
+                        + '» است. مقدار را در details.<نوع> بنویس. مثال: ' + opts);
                 } else {
-                    var allOpts = items.map(function (it) {
-                        return getLinkedItemLabel(lt, it);
-                    }).slice(0, 10).join('، ');
-                    problems.push('ردیف ' + (i + 1) + ': ' + linkTypeName(lt)
-                        + ' با «' + hint + '» پیدا نشد. گزینه‌های موجود: ' + allOpts);
+                    for (var li = 0; li < validLinks.length; li++) {
+                        var lt = validLinks[li];
+                        var hint = detailsInput[lt];
+                        if (!hint) continue;
+
+                        var matchRes = aiFindDetailId(lt, hint);
+                        if (matchRes.id) {
+                            resolvedDetails[lt] = matchRes.id;
+                        } else if (matchRes.candidates.length > 0) {
+                            var candNames = matchRes.candidates.map(function (c2) {
+                                return getLinkedItemLabel(lt, c2);
+                            }).join('، ');
+                            problems.push('ردیف ' + (i + 1) + ': برای ' + linkTypeName(lt)
+                                + ' با «' + hint + '» چند گزینه هست: ' + candNames);
+                        } else {
+                            var allOpts = getLinkedItems(lt).map(function (it) {
+                                return getLinkedItemLabel(lt, it);
+                            }).slice(0, 10).join('، ');
+                            problems.push('ردیف ' + (i + 1) + ': ' + linkTypeName(lt)
+                                + ' با «' + hint + '» پیدا نشد. گزینه‌های موجود: ' + allOpts);
+                        }
+                    }
                 }
             }
         }
