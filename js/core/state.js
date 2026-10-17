@@ -45,14 +45,14 @@ var state = {
         upcomingInstallments: true,
         birthdays: true,
         liveRates: true,
-        tgjuCoins: true // ✅ ویجت جدید
+        tgjuRates: true // ✅ ویجت جدید TGJU
     }),
 
     widgetOrder: DB.load(LS_KEYS.WIDGET_ORDER, [
         'calendar', 'calendarNext3', 'calendarDay', 'calendarAgenda',
         'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork',
         'bankTotal', 'cashBalances', 'bankBalances',
-        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins' // ✅ اضافه شد
+        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuRates' // ✅ اضافه شد
     ]),
 
     widgetPages: DB.load(LS_KEYS.WIDGET_PAGES, {
@@ -69,7 +69,7 @@ var state = {
         upcomingInstallments:   1,
         birthdays:              3,
         liveRates:              3,
-        tgjuCoins:              1 // ✅ تغییر کرد به صفحه ۱ تا در همان ابتدا رندر شود
+        tgjuRates:              1 // ✅ در صفحه ۱
     }),
 
     homePage:        DB.load(LS_KEYS.HOME_PAGE, 1),
@@ -97,7 +97,7 @@ function saveState(k) {
         'calendar', 'calendarNext3', 'calendarDay', 'calendarAgenda',
         'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork',
         'bankTotal', 'bankBalances', 'cashBalances',
-        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins'
+        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuRates'
     ];
 
     var order = (state.widgetOrder || []).slice();
