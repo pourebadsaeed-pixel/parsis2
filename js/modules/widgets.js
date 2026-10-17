@@ -573,8 +573,7 @@ var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/
 
 var CORS_PROXIES = [
     function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
+    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); }
 ];
 
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
@@ -608,6 +607,24 @@ async function tryFetchJson(url, ms) {
 }
 
 async function tryFetchJsonWithFallback(url, ms) {
+    // 🛑 اگر لینک مربوط به TGJU باشد، مستقیم سراغ پروکسی می‌رویم تا خطای CORS در کنسول چاپ نشود
+    if (url.indexOf('tgju.org') !== -1) {
+        for (var i = 0; i < CORS_PROXIES.length; i++) {
+            try {
+                var proxyUrl = CORS_PROXIES[i](url);
+                var data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
+                if (data) {
+                    if (data.contents) {
+                        try { return JSON.parse(data.contents); } catch (e) {}
+                    }
+                    return data;
+                }
+            } catch (e) {}
+        }
+        return null;
+    }
+
+    // برای بقیه لینک‌ها اول مستقیم تلاش می‌کنیم
     var data = await tryFetchJson(url, ms);
     if (data) return data;
 
@@ -986,9 +1003,7 @@ async function fetchTgjuRates() {
     var results = {};
     var urls = [
         'https://call1.tgju.org/ajax.json',
-        'https://call2.tgju.org/ajax.json',
-        'https://call3.tgju.org/ajax.json',
-        'https://call4.tgju.org/ajax.json'
+        'https://call2.tgju.org/ajax.json'
     ];
     
     var data = null;
@@ -1019,6 +1034,49 @@ async function fetchTgjuRates() {
                 }
             }
         });
+    }
+
+    // اگر سکه‌ها از ajax.json نیامدند، مستقیم از API جایگزین (بدون نیاز به پروکسی) می‌گیریم
+    var missingIds = [];
+    TGJU_ITEMS.forEach(function(item) {
+        if (!results[item.id] || results[item.id].price <= 0) missingIds.push(item.id);
+    });
+
+    if (missingIds.length > 0) {
+        var fallbackUrl = 'https://tgju.amirhossein.info/gold';
+        var fData = await tryFetchJson(fallbackUrl, 8000); // بدون استفاده از پروکسی
+        
+        if (fData && Array.isArray(fData)) {
+            var allPrices = [];
+            fData.forEach(function (cat) {
+                if (cat.prices && Array.isArray(cat.prices)) {
+                    allPrices = allPrices.concat(cat.prices);
+                }
+            });
+            
+            missingIds.forEach(function (id) {
+                var targetItem = TGJU_ITEMS.find(function (t) { return t.id === id; });
+                if (!targetItem) return;
+                
+                var match = allPrices.find(function (p) {
+                    var pk = (p.key || '').toLowerCase();
+                    if (id === '137138' && pk.indexOf('emami') !== -1) return true;
+                    if (id === '137137' && (pk.indexOf('bahar') !== -1 || pk.indexOf('azadi') !== -1) && pk.indexOf('emami') === -1) return true;
+                    return false;
+                });
+                
+                if (match && match.price) {
+                    var pr = Number(String(match.price).replace(/[^\d]/g, ''));
+                    if (pr > 0) {
+                        results[id] = {
+                            price: pr,
+                            change: match.change || '',
+                            dir: match.status === 'low' ? 'down' : (match.status === 'high' ? 'up' : 'same')
+                        };
+                    }
+                }
+            });
+        }
     }
 
     return results;
