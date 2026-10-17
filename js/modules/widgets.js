@@ -985,13 +985,12 @@ function findTgjuEntry(data, item) {
 async function fetchTgjuRates() {
     var results = {};
     var urls = [
+        'https://call1.tgju.org/ajax.json',
         'https://call2.tgju.org/ajax.json',
         'https://call3.tgju.org/ajax.json',
-        'https://call4.tgju.org/ajax.json',
-        'https://call1.tgju.org/ajax.json'
+        'https://call4.tgju.org/ajax.json'
     ];
     
-    // مرحله ۱: خواندن از ajax.json
     var data = null;
     for (var i = 0; i < urls.length; i++) {
         data = await tryFetchJsonWithFallback(urls[i], 10000);
@@ -1020,45 +1019,6 @@ async function fetchTgjuRates() {
                 }
             }
         });
-    }
-
-    // مرحله ۲: اگر سکه امامی یا بهار آزادی پیدا نشدند، از API جایگزین استفاده کن
-    var missingIds = [];
-    TGJU_ITEMS.forEach(function(item) {
-        if (!results[item.id] || results[item.id].price <= 0) missingIds.push(item.id);
-    });
-
-    if (missingIds.length > 0) {
-        var fallbackUrl = 'https://tgju.amirhossein.info/gold';
-        var fData = await tryFetchJsonWithFallback(fallbackUrl, 8000);
-        
-        if (fData && Array.isArray(fData)) {
-            fData.forEach(function (cat) {
-                if (cat.prices && Array.isArray(cat.prices)) {
-                    cat.prices.forEach(function (p) {
-                        var pKey = (p.key || '').toLowerCase();
-                        var targetItem = null;
-                        
-                        if (pKey.indexOf('emami') !== -1) {
-                            targetItem = TGJU_ITEMS.find(function (t) { return t.id === '137138'; });
-                        } else if (pKey.indexOf('bahar') !== -1 || pKey.indexOf('azadi') !== -1) {
-                            targetItem = TGJU_ITEMS.find(function (t) { return t.id === '137137'; });
-                        }
-                        
-                        if (targetItem && p.price) {
-                            var pr = Number(String(p.price).replace(/[^\d]/g, ''));
-                            if (pr > 0) {
-                                results[targetItem.id] = {
-                                    price: pr,
-                                    change: '',
-                                    dir: p.status === 'low' ? 'down' : (p.status === 'high' ? 'up' : 'same')
-                                };
-                            }
-                        }
-                    });
-                }
-            });
-        }
     }
 
     return results;
