@@ -565,19 +565,10 @@ function updateHomeUpcomingInstallments() {
 }
 
 /* ============================================================
-   بخش ۱۲ — ویجت نرخ لحظه‌ای ارز و طلا (Priceto/Navasan)
+   بخش ۱۲ — ویجت نرخ لحظه‌ای ارز و طلا (منبع به‌روز TGJU)
    ============================================================ */
-var PRICETO_BASE = 'https://api.priceto.day/v1/latest/irr';
-var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/gold.json';
-var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/fiat.json';
-
-var CORS_PROXIES = [
-    function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); }
-];
-
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
-    values: {}, ts: 0, prev: {}, timestamps: {}, lastUpdate: ''
+    values: {}, ts: 0, prev: {}
 });
 
 function fetchWithTimeout(url, opts, ms) {
@@ -606,110 +597,33 @@ async function tryFetchJson(url, ms) {
     } catch (e) { return null; }
 }
 
-async function tryFetchJsonWithFallback(url, ms) {
-    var data = await tryFetchJson(url, ms);
-    if (data) return data;
-
-    for (var i = 0; i < CORS_PROXIES.length; i++) {
-        try {
-            var proxyUrl = CORS_PROXIES[i](url);
-            data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
-            if (data) {
-                if (data.contents) {
-                    try { return JSON.parse(data.contents); } catch (e) {}
-                }
-                return data;
-            }
-        } catch (e) {}
-    }
-    return null;
-}
-
-async function fetchFromPriceto(symbol) {
-    if (!symbol) return { value: 0, ts: 0 };
-    var url = PRICETO_BASE + '/' + symbol;
-    var data = await tryFetchJsonWithFallback(url, 7000);
-    if (!data) return { value: 0, ts: 0 };
-
-    var v = 0;
-    if (typeof data === 'number') v = data;
-    else {
-        v = Number(data.rate || data.price || data.value ||
-                   (data.data && (data.data.rate || data.data.price)) || 0);
-    }
-    if (!isFinite(v) || v <= 0) return { value: 0, ts: 0 };
-    return {
-        value: v,
-        ts: data.timestamp || data.ts || (data.data && data.data.timestamp) || 0
-    };
-}
-
-function parseNavasanItem(data, assetKey, multiplier) {
-    if (!data || typeof data !== 'object') return { value: 0, ts: 0 };
-    var item = data[assetKey];
-    if (!item) return { value: 0, ts: 0 };
-
-    var val = item.value || item.price || item.p || item.last || 0;
-    var v = Number(String(val).replace(/[,\s]/g, ''));
-    if (!isFinite(v) || v <= 0) return { value: 0, ts: 0 };
-    if (multiplier && multiplier !== 1) v = v * multiplier;
-
-    return {
-        value: v,
-        ts: item.date || item.timestamp || item.last_update || 0
-    };
-}
-
 async function fetchAllRates() {
     var results = {};
-    var pending = RATE_ASSETS.map(function (a) {
-        return { asset: a, done: false, value: 0, ts: 0 };
-    });
+    var data = await tryFetchJson('https://raw.githubusercontent.com/itsyebekhe/usd/main/market.json', 10000);
+    if (!data) return results;
 
-    await Promise.all(pending.map(function (p) {
-        return fetchFromPriceto(p.asset.priceto).then(function (r) {
-            if (r.value > 0) {
-                p.done = true;
-                p.value = r.value;
-                p.ts = r.ts;
-            }
-        });
-    }));
+    var ts = new Date(data.updated_at).getTime() || Date.now();
 
-    var stillNeed = pending.filter(function (p) { return !p.done; });
-
-    if (stillNeed.length > 0) {
-        var goldData = null, fiatData = null;
-        try { goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 9000); } catch (e) {}
-        try { fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 9000); } catch (e) {}
-
-        stillNeed.forEach(function (p) {
-            var a = p.asset;
-            var parsed = { value: 0, ts: 0 };
-            if (a.source === 'gold' && goldData) {
-                parsed = parseNavasanItem(goldData, a.navasanKey, a.navasanMul);
-            } else if (a.source === 'fiat' && fiatData) {
-                parsed = parseNavasanItem(fiatData, a.navasanKey, a.navasanMul);
-            }
-            if (parsed.value > 0) {
-                p.done = true;
-                p.value = parsed.value;
-                p.ts = parsed.ts;
-            }
-        });
+    function addItem(key, valueToman) {
+        if (valueToman > 0) {
+            // تبدیل تومان به ریال (ضرب در ۱۰)
+            results[key] = { value: valueToman * 10, ts: ts };
+        }
     }
 
-    pending.forEach(function (p) {
-        results[p.asset.key] = { value: p.value || 0, ts: p.ts || 0 };
-    });
-
-    // ✅ محاسبه خودکار طلای ۲۴ عیار از روی ۱۸ عیار
-    if ((!results['geram24'] || results['geram24'].value === 0) && results['geram18'] && results['geram18'].value > 0) {
-        results['geram24'] = {
-            value: Math.round(results['geram18'].value * 1.332),
-            ts: results['geram18'].ts || Date.now()
-        };
+    addItem('usd', data.usd);
+    addItem('eur', data.eur);
+    addItem('gold_18k', data.gold_18k);
+    
+    // محاسبه طلای ۲۴ عیار از روی ۱۸ عیار
+    if (data.gold_18k > 0) {
+        addItem('gold_24k', Math.round(data.gold_18k * 1.3333));
     }
+
+    addItem('coin_emami', data.coin_emami);
+    addItem('coin_bahar', data.coin_bahar);
+    addItem('coin_half', data.coin_half);
+    addItem('coin_quarter', data.coin_quarter);
 
     return results;
 }
@@ -732,7 +646,6 @@ async function fetchLiveRates(silent) {
     var anyFetched = false;
     var newValues = {}, newTimestamps = {};
     var prev = LIVE_RATES_CACHE.values || {};
-    var prevTs = LIVE_RATES_CACHE.timestamps || {};
 
     for (var i = 0; i < RATE_ASSETS.length; i++) {
         var key = RATE_ASSETS[i].key;
@@ -746,7 +659,6 @@ async function fetchLiveRates(silent) {
             anyFetched = true;
         } else {
             newValues[key] = prev[key] || 0;
-            newTimestamps[key] = prevTs[key] || 0;
         }
     }
 
@@ -763,17 +675,22 @@ async function fetchLiveRates(silent) {
         return;
     }
 
-    var lastUpdate = '';
+    var lastUpdate = LIVE_RATES_CACHE.lastUpdate || '';
+    var finalTs = LIVE_RATES_CACHE.ts;
+
     if (anyFetched) {
-        lastUpdate = todayJalaliStr() + ' — ' + tsToJalaliTime(Date.now());
-    } else {
-        lastUpdate = LIVE_RATES_CACHE.lastUpdate || '—';
+        // پیدا کردن آخرین زمان آپدیت از دیتای دریافتی
+        var latestItemTs = 0;
+        for (var k in newTimestamps) {
+            if (newTimestamps[k] > latestItemTs) latestItemTs = newTimestamps[k];
+        }
+        finalTs = latestItemTs || Date.now();
+        lastUpdate = todayJalaliStr() + ' — ' + tsToJalaliTime(finalTs);
     }
 
     LIVE_RATES_CACHE = {
         values: newValues,
-        timestamps: newTimestamps,
-        ts: anyFetched ? Date.now() : LIVE_RATES_CACHE.ts,
+        ts: finalTs,
         prev: JSON.parse(JSON.stringify(prev)),
         lastUpdate: lastUpdate
     };
@@ -781,8 +698,8 @@ async function fetchLiveRates(silent) {
 
     renderLiveRatesWidget();
     if (meta) {
-        meta.textContent = (anyFetched ? '✅ بروزرسانی: ' : '⚠️ آخرین داده ذخیره‌شده: ')
-                         + lastUpdate + ' — منبع: Priceto + Navasan';
+        meta.textContent = (anyFetched ? '✅ بروزرسانی: ' : '⚠️ آخرین داده: ')
+                         + lastUpdate + ' — منبع: TGJU Market';
     }
 }
 
@@ -801,8 +718,8 @@ function renderLiveRatesWidget() {
     var anyShown = false;
     var hide = getHideState('widgets');
     
-    // ساعتِ لحظه‌ای که برنامه دیتا را گرفته است
     var fetchTime = toFa(tsToJalaliTime(c.ts));
+    var fetchDate = toFa(tsToJalaliDate(c.ts));
 
     for (var i = 0; i < RATE_ASSETS.length; i++) {
         var a = RATE_ASSETS[i];
@@ -812,15 +729,23 @@ function renderLiveRatesWidget() {
 
         var oldV = prev[a.key] || 0;
         var chg = val - oldV;
+        
+        // تعیین رنگ مبلغ اصلی
+        var amountClass = '';
+        if (oldV > 0) {
+            if (chg > 0) amountClass = 'positive'; // سبز
+            else if (chg < 0) amountClass = 'negative'; // قرمز
+        }
+
         var chgCls = chg > 0 ? 'up' : (chg < 0 ? 'down' : 'same');
         var chgTxt = chg === 0 ? '—'
                    : (chg > 0 ? '▲ ' : '▼ ') + (hide ? '—' : formatRial(Math.abs(chg)));
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + a.label + '</span>'
-             +  '<span class="amount">' + (hide ? '—' : formatRial(val)) + ' ریال</span>'
+             +  '<span class="amount ' + amountClass + '">' + (hide ? '—' : formatRial(val)) + ' ریال</span>'
              +  '<span class="rate-chg ' + chgCls + '">' + chgTxt + '</span>'
-             +  '<span class="rate-updated">🕐 ' + toFa(tsToJalaliDate(c.ts)) + ' ' + fetchTime + '</span>'
+             +  '<span class="rate-updated">🕐 ' + fetchDate + ' ' + fetchTime + '</span>'
              +  '</div>';
     }
 
@@ -962,8 +887,6 @@ function updateHomeWidgets() {
 
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
 
-    // ❌ کدهای tgjuRates به طور کامل حذف شدند
-
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
@@ -982,15 +905,8 @@ function bindRatesRefreshButton() {
    صادرسازی
    ============================================================ */
 window.LIVE_RATES_CACHE                = LIVE_RATES_CACHE;
-window.PRICETO_BASE                    = PRICETO_BASE;
-window.NAVASAN_GOLD_CDN                = NAVASAN_GOLD_CDN;
-window.NAVASAN_FIAT_CDN                = NAVASAN_FIAT_CDN;
-window.CORS_PROXIES                    = CORS_PROXIES;
 window.fetchWithTimeout                = fetchWithTimeout;
 window.tryFetchJson                    = tryFetchJson;
-window.tryFetchJsonWithFallback        = tryFetchJsonWithFallback;
-window.fetchFromPriceto                = fetchFromPriceto;
-window.parseNavasanItem                = parseNavasanItem;
 window.fetchAllRates                   = fetchAllRates;
 window.fetchLiveRates                  = fetchLiveRates;
 window.renderLiveRatesWidget           = renderLiveRatesWidget;
