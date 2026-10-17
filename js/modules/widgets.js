@@ -924,47 +924,49 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از ajax.json)
    ============================================================ */
-var TGJU_IDS = [
-    { id: '137119', label: '💵 دلار آمریکا' },
-    { id: '137123', label: '💶 یورو' },
-    { id: '137120', label: '💷 پوند' },
-    { id: '137121', label: '💴 درهم امارات' },
-    { id: '137122', label: '💰 تتر' },
-    { id: '137138', label: '🪙 سکه امامی' },
-    { id: '137137', label: '🪙 سکه بهار آزادی' },
-    { id: '137139', label: '🪙 نیم سکه' },
-    { id: '137140', label: '🪙 ربع سکه' },
-    { id: '137141', label: '🪙 سکه گرمی' },
-    { id: '137225', label: '🥇 طلای ۱۸ عیار' },
-    { id: '137207', label: '🥇 طلای ۲۴ عیار' },
-    { id: '137221', label: '🥇 مثقال طلا' },
-    { id: '137222', label: '🥇 طلای دست دوم' },
-    { id: '137218', label: '🥇 انس جهانی طلا' }
+var TGJU_ITEMS = [
+    { id: '137119', key: 'price_dollar_rl', label: '💵 دلار آمریکا' },
+    { id: '137123', key: 'price_eur', label: '💶 یورو' },
+    { id: '137120', key: 'price_gbp', label: '💷 پوند' },
+    { id: '137121', key: 'price_aed', label: '💴 درهم امارات' },
+    { id: '137122', key: 'crypto-tether', label: '💰 تتر' },
+    { id: '137138', key: 'sekke_emami', label: '🪙 سکه امامی' },
+    { id: '137137', key: 'sekke_bahar', label: '🪙 سکه بهار آزادی' },
+    { id: '137139', key: 'nim_sekke', label: '🪙 نیم سکه' },
+    { id: '137140', key: 'rob_sekke', label: '🪙 ربع سکه' },
+    { id: '137141', key: 'sekke_gerami', label: '🪙 سکه گرمی' },
+    { id: '137225', key: 'geram18', label: '🥇 طلای ۱۸ عیار' },
+    { id: '137207', key: 'geram24', label: '🥇 طلای ۲۴ عیار' },
+    { id: '137221', key: 'mesghal', label: '🥇 مثقال طلا' },
+    { id: '137222', key: 'gold_mini_size', label: '🥇 طلای دست دوم' },
+    { id: '137218', key: 'gold_ounce', label: '🥇 انس جهانی طلا' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
 async function fetchTgjuRates() {
     var results = {};
+    var url = 'https://call1.tgju.org/ajax.json';
     
-    // گرفتن دیتا به صورت موازی
-    await Promise.all(TGJU_IDS.map(async function (item) {
-        var url = 'https://api.tgju.org/v1/market/indicator/summary-table-data/' + item.id;
-        var data = await tryFetchJsonWithFallback(url, 8000);
-        if (data && data.data && data.data.price) {
-            var priceStr = normalizeDigits(String(data.data.price)).replace(/[^\d]/g, '');
+    var data = await tryFetchJsonWithFallback(url, 10000);
+    if (!data || !data.current) return results;
+
+    TGJU_ITEMS.forEach(function (item) {
+        var entry = data.current[item.key];
+        if (entry && entry.p) {
+            var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
             var price = Number(priceStr);
             if (price > 0) {
                 results[item.id] = {
                     price: price,
-                    change: data.data.change || '',
-                    time: data.data.time || ''
+                    change: entry.d || '',
+                    time: entry.t || ''
                 };
             }
         }
-    }));
+    });
 
     return results;
 }
@@ -995,7 +997,7 @@ async function updateTgjuRatesWidget(forceRefresh) {
         } else if (!TGJU_RATES_CACHE.ts) {
             box.innerHTML = '<div class="widget-empty">❌ دریافت نرخ ناموفق بود.<br>اینترنت را بررسی کنید.</div>';
         } else {
-            renderTgjuRatesWidget(); // نمایش دیتای کش شده
+            renderTgjuRatesWidget();
         }
     } catch (e) {
         if (!TGJU_RATES_CACHE.ts) box.innerHTML = '<div class="widget-empty">خطا در دریافت.</div>';
@@ -1012,10 +1014,9 @@ function renderTgjuRatesWidget() {
     var html = '';
     var shown = 0;
 
-    TGJU_IDS.forEach(function (item) {
+    TGJU_ITEMS.forEach(function (item) {
         var val = c.values[item.id] ? c.values[item.id].price : 0;
         
-        // فیلتر کردن موارد خالی (در صورت قطعی موقت)
         if (val <= 0 && c.ts) return;
         shown++;
 
@@ -1078,7 +1079,6 @@ function updateHomeWidgets() {
     if (state.widgets.upcomingInstallments)  updateHomeUpcomingInstallments();
     if (state.widgets.birthdays)             renderBirthdaysWidget();
     
-    // ✅ ویجت‌های نرخ
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
     
     if (state.widgets.tgjuRates) {
