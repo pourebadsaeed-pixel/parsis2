@@ -607,24 +607,6 @@ async function tryFetchJson(url, ms) {
 }
 
 async function tryFetchJsonWithFallback(url, ms) {
-    // 🛑 اگر لینک مربوط به TGJU باشد، مستقیم سراغ پروکسی می‌رویم تا خطای CORS در کنسول چاپ نشود
-    if (url.indexOf('tgju.org') !== -1) {
-        for (var i = 0; i < CORS_PROXIES.length; i++) {
-            try {
-                var proxyUrl = CORS_PROXIES[i](url);
-                var data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
-                if (data) {
-                    if (data.contents) {
-                        try { return JSON.parse(data.contents); } catch (e) {}
-                    }
-                    return data;
-                }
-            } catch (e) {}
-        }
-        return null;
-    }
-
-    // برای بقیه لینک‌ها اول مستقیم تلاش می‌کنیم
     var data = await tryFetchJson(url, ms);
     if (data) return data;
 
@@ -946,62 +928,64 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از API جایگزین)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از Navasan CDN)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['usd', 'price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
-    { id: '137123', keys: ['eur', 'price_eur'], label: '💶 یورو' },
-    { id: '137138', keys: ['sekkeh', 'emami', 'sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
-    { id: '137137', keys: ['bahar', 'azadi', 'sekke_bahar', 'seke_bahar'], label: '🪙 تمام سکه بهار آزادی' },
-    { id: '137139', keys: ['nim', 'nim_sekke', 'nim_sekee'], label: '🪙 نیم سکه' },
-    { id: '137140', keys: ['rob', 'rob_sekke', 'rob_sekee'], label: '🪙 ربع سکه' },
-    { id: '137207', keys: ['geram24', '24ayar', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار' },
-    { id: '137225', keys: ['geram18', '18ayar', 'gold18', 'gold_18k'], label: '🥇 طلای ۱۸ عیار' },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mini_size', 'gold_mini_gram'], label: '🥇 طلای دست دوم' }
+    { id: '137119', keys: ['usd', 'price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا', source: 'fiat', mul: 10 },
+    { id: '137123', keys: ['eur', 'price_eur'], label: '💶 یورو', source: 'fiat', mul: 10 },
+    { id: '137138', keys: ['sekkeh', 'emami', 'sekke_emami', 'seke_emami'], label: '🪙 سکه امامی', source: 'gold', mul: 10 },
+    { id: '137137', keys: ['bahar', 'azadi', 'sekke_bahar', 'seke_bahar'], label: '🪙 تمام سکه بهار آزادی', source: 'gold', mul: 10 },
+    { id: '137139', keys: ['nim', 'nim_sekke', 'nim_sekee'], label: '🪙 نیم سکه', source: 'gold', mul: 10 },
+    { id: '137140', keys: ['rob', 'rob_sekke', 'rob_sekee'], label: '🪙 ربع سکه', source: 'gold', mul: 10 },
+    { id: '137207', keys: ['24ayar', 'geram24', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار', source: 'gold', mul: 10 },
+    { id: '137225', keys: ['18ayar', 'geram18', 'gold18', 'gold_18k'], label: '🥇 طلای ۱۸ عیار', source: 'gold', mul: 10 },
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mini_size', 'gold_mini_gram'], label: '🥇 طلای دست دوم', source: 'gold', mul: 10 }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
+function findNavasanPrice(data, keys, mul) {
+    if (!data) return 0;
+    for (var i = 0; i < keys.length; i++) {
+        var item = data[keys[i]];
+        if (item) {
+            var val = item.value || item.price || item.p || item.last || 0;
+            var v = Number(String(val).replace(/[,\s]/g, ''));
+            if (isFinite(v) && v > 0) return v * (mul || 1);
+        }
+    }
+    return 0;
+}
+
 async function fetchTgjuRates() {
     var results = {};
+    var prev = TGJU_RATES_CACHE.values || {};
     
-    var goldUrl = 'https://tgju.amirhossein.info/gold';
-    var currUrl = 'https://tgju.amirhossein.info/currency';
+    // خواندن از Navasan CDN (بدون نیاز به پروکسی و بدون خطای CORS)
+    var goldData = null, fiatData = null;
+    try { goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 10000); } catch (e) {}
+    try { fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 10000); } catch (e) {}
 
-    // این API خودش CORS را باز کرده است، نیازی به پروکسی ندارد
-    var goldData = await tryFetchJson(goldUrl, 10000);
-    var currData = await tryFetchJson(currUrl, 10000);
-
-    function extractPrices(data) {
-        if (!data || !Array.isArray(data)) return;
-        data.forEach(function (cat) {
-            if (cat.prices && Array.isArray(cat.prices)) {
-                cat.prices.forEach(function (p) {
-                    var pKey = (p.key || '').toLowerCase();
-                    
-                    TGJU_ITEMS.forEach(function (item) {
-                        var isMatch = item.keys.some(function (k) {
-                            return pKey === k.toLowerCase();
-                        });
-
-                        if (isMatch && p.price) {
-                            var pr = Number(String(p.price).replace(/[^\d]/g, ''));
-                            if (pr > 0) {
-                                results[item.id] = {
-                                    price: pr,
-                                    change: p.change || '',
-                                    dir: p.status === 'low' ? 'down' : (p.status === 'high' ? 'up' : 'same')
-                                };
-                            }
-                        }
-                    });
-                });
+    TGJU_ITEMS.forEach(function (item) {
+        var data = item.source === 'fiat' ? fiatData : goldData;
+        var val = findNavasanPrice(data, item.keys, item.mul);
+        
+        if (val > 0) {
+            var prevVal = prev[item.id] ? prev[item.id].price : 0;
+            var dir = 'same';
+            
+            if (prevVal > 0) {
+                if (val > prevVal + 10) dir = 'up';
+                else if (val < prevVal - 10) dir = 'down';
             }
-        });
-    }
-
-    extractPrices(goldData);
-    extractPrices(currData);
+            
+            results[item.id] = {
+                price: val,
+                change: '',
+                dir: dir
+            };
+        }
+    });
 
     return results;
 }
@@ -1052,21 +1036,21 @@ function renderTgjuRatesWidget() {
         var val = info ? info.price : 0;
         
         var chgCls = info ? info.dir : 'same';
-        var chgDisplay = info ? info.change : '';
         
         var textColor = '';
+        var arrow = '';
         if (chgCls === 'up') {
             textColor = '#059669';
-            if (chgDisplay && chgDisplay.indexOf('▲') === -1 && chgDisplay.indexOf('+') === -1) chgDisplay = '▲ ' + chgDisplay;
+            arrow = '▲ ';
         } else if (chgCls === 'down') {
             textColor = '#dc2626';
-            if (chgDisplay && chgDisplay.indexOf('▼') === -1 && chgDisplay.indexOf('-') === -1) chgDisplay = '▼ ' + chgDisplay;
+            arrow = '▼ ';
         }
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : chgDisplay) + '</span>'
+             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : arrow) + '</span>'
              +  '</div>';
     });
 
