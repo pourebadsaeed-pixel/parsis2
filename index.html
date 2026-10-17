@@ -17,6 +17,9 @@
 </head>
 <body class="theme-sky font-tahoma">
 
+<!-- ✅ اسکریپت TGJU -->
+<script src="https://api.tgju.org/v1/widget/v2" defer></script>
+
 <div id="app">
 <header class="topbar">
     <button id="menu-btn" class="icon-btn">☰</button>
@@ -164,6 +167,15 @@
             <div id="home-live-rates"><div class="widget-empty">در حال دریافت...</div></div>
             <div id="live-rates-meta" style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);text-align:center"></div>
         </div>
+        
+        <!-- ✅ ویجت جدید TGJU Coins -->
+        <div class="card widget-card widget-wide" data-widget="tgjuCoins">
+            <h3>🪙 قیمت لحظه‌ای سکه (TGJU)</h3>
+            <div id="tgju-coins-widget" style="display:flex; justify-content:center; padding: 10px; min-height: 150px; overflow-x: auto;">
+                <tgju type="market-overview" items="137138,137137,137139,137140,137141" columns="dot" token="webservice"></tgju>
+            </div>
+        </div>
+
     </div>
     <div class="home-page-dots" id="home-page-dots"></div>
 </section>
@@ -982,6 +994,7 @@
     <h2>📒 مرور حساب‌ها</h2>
     <div class="card"></div>
     <div class="card">
+        <!-- ✅ شناسه به ra-acc-table اصلاح شد -->
         <div class="list-header" data-col-table="ra-acc-table" data-hide-key="ra">
             <span class="count-badge" id="ra-count">۰</span>
             <span class="unit-chip" id="ra-unit"></span>
