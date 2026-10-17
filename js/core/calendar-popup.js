@@ -153,6 +153,9 @@ function initCalendarListeners() {
 /* ============================================================
    بخش ۲ — ماشین حساب
    ============================================================ */
+var calcTarget = null;
+var calcExpr = '0';
+
 function calcOpen(targetGetter, targetSetter, title) {
     calcTarget = { get: targetGetter, set: targetSetter };
     var v = targetGetter ? (Number(targetGetter()) || 0) : 0;
