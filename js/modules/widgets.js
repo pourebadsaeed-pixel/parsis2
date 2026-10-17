@@ -1,12 +1,11 @@
 /* ============================================================
-   پارسیس — ویجت‌های صفحه اصلی (بخش ۱: state + ترتیب + balance)
+   پارسیس — ویجت‌های صفحه اصلی
    مسیر: js/modules/widgets.js
-   وابستگی: core/* + ui/* + dashboard.js
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۰ — CSS ویجت چک‌لیست (فونت B Titr + جداکننده)
+   بخش ۰ — CSS ویجت چک‌لیست
    ============================================================ */
 (function injectChecklistWidgetCss() {
     if (document.getElementById('cl-widget-style')) return;
@@ -83,8 +82,8 @@ function renderWidgetOrderUI() {
         cashBalances: '💰 صندوق‌ها',
         upcomingInstallments: '⏰ اقساط ۳ روز آینده',
         birthdays: '🎂 تولدها',
-        liveRates: '💱 نرخ لحظه‌ای ارز و طلا',
-        tgjuCoins: '🪙 قیمت لحظه‌ای سکه (TGJU)'
+        liveRates: '💱 نرخ لحظه‌ای ارز و طلا (Priceto)',
+        tgjuRates: '💱 نرخ لحظه‌ای ارز و طلا (TGJU)'
     };
 
     var order = state.widgetOrder || [];
@@ -235,7 +234,7 @@ function getBirthdayInfo(birthStr) {
 }
 
 /* ============================================================
-   بخش ۶ — ویجت مانده کل بانک
+   بخش ۶ تا ۱۱ — ویجت‌های صفحه اصلی
    ============================================================ */
 function updateHomeBankTotal() {
     var el = document.getElementById('home-bank-total');
@@ -252,9 +251,6 @@ function updateHomeBankTotal() {
     el.innerHTML = moneyHtml(total) + ' ' + currencyLabel();
 }
 
-/* ============================================================
-   بخش ۷ — ویجت مانده بانک‌ها (تفکیکی)
-   ============================================================ */
 function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
     if (!el) return;
@@ -320,9 +316,6 @@ function renderBankBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۸ — ویجت مانده صندوق‌ها
-   ============================================================ */
 function renderCashBalancesWidget() {
     var el = document.getElementById('home-cash-balances');
     if (!el) return;
@@ -376,9 +369,6 @@ function renderCashBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۹ — ویجت تولدها
-   ============================================================ */
 function renderBirthdaysWidget() {
     var el = document.getElementById('home-birthdays');
     if (!el) return;
@@ -429,9 +419,6 @@ function renderBirthdaysWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۱۰ — ویجت تقویم هفتگی
-   ============================================================ */
 function renderCalendarWidget() {
     var el = document.getElementById('home-cal-widget');
     if (!el) return;
@@ -466,9 +453,6 @@ function renderCalendarWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۱۱ — ویجت اقساط ۳ روز آینده
-   ============================================================ */
 function updateHomeUpcomingInstallments() {
     var el = document.getElementById('home-upcoming-installments');
     if (!el) return;
@@ -566,24 +550,134 @@ function updateHomeUpcomingInstallments() {
 }
 
 /* ============================================================
-   بخش ۱۲ — ویجت TGJU (رفرش دستی)
+   بخش ۱۳ — ویجت نرخ لحظه‌ای ارز و طلا و سکه (TGJU API)
    ============================================================ */
-function bindTgjuRefreshButton() {
-    var btn = document.getElementById('tgju-refresh');
+var TGJU_IDS = [
+    { id: '137119', label: '💵 دلار آمریکا' },
+    { id: '137123', label: '💶 یورو' },
+    { id: '137120', label: '💷 پوند' },
+    { id: '137121', label: '💴 درهم امارات' },
+    { id: '137122', label: '💰 تتر' },
+    { id: '137138', label: '🪙 سکه امامی' },
+    { id: '137137', label: '🪙 سکه بهار آزادی' },
+    { id: '137139', label: '🪙 نیم سکه' },
+    { id: '137140', label: '🪙 ربع سکه' },
+    { id: '137141', label: '🪙 سکه گرمی' },
+    { id: '137225', label: '🥇 طلای ۱۸ عیار' },
+    { id: '137207', label: '🥇 طلای ۲۴ عیار' },
+    { id: '137221', label: '🥇 مثقال طلا' },
+    { id: '137222', label: '🥇 طلای دست دوم' },
+    { id: '137218', label: '🥇 انس جهانی طلا' }
+];
+
+var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
+
+async function fetchTgjuRates() {
+    var results = {};
+    
+    // گرفتن دیتا به صورت موازی
+    await Promise.all(TGJU_IDS.map(async function (item) {
+        var url = 'https://api.tgju.org/v1/market/indicator/summary-table-data/' + item.id;
+        var data = await tryFetchJsonWithFallback(url, 8000);
+        if (data && data.data && data.data.price) {
+            var priceStr = normalizeDigits(String(data.data.price)).replace(/[^\d]/g, '');
+            var price = Number(priceStr);
+            if (price > 0) {
+                results[item.id] = {
+                    price: price,
+                    change: data.data.change || '',
+                    time: data.data.time || ''
+                };
+            }
+        }
+    }));
+
+    return results;
+}
+
+async function updateTgjuRatesWidget(forceRefresh) {
+    var box = document.getElementById('home-tgju-rates');
+    if (!box) return;
+
+    if (!forceRefresh && TGJU_RATES_CACHE.ts && (Date.now() - TGJU_RATES_CACHE.ts < 60000)) {
+        renderTgjuRatesWidget();
+        return;
+    }
+
+    if (!forceRefresh) {
+        box.innerHTML = '<div class="widget-empty">در حال دریافت نرخ‌ها...</div>';
+    }
+
+    try {
+        var results = await fetchTgjuRates();
+        
+        var hasAny = false;
+        for (var k in results) { hasAny = true; break; }
+
+        if (hasAny) {
+            TGJU_RATES_CACHE = { values: results, ts: Date.now() };
+            DB.save('tgjuRatesCache', TGJU_RATES_CACHE);
+            renderTgjuRatesWidget();
+        } else if (!TGJU_RATES_CACHE.ts) {
+            box.innerHTML = '<div class="widget-empty">❌ دریافت نرخ ناموفق بود.<br>اینترنت را بررسی کنید.</div>';
+        } else {
+            renderTgjuRatesWidget(); // نمایش دیتای کش شده
+        }
+    } catch (e) {
+        if (!TGJU_RATES_CACHE.ts) box.innerHTML = '<div class="widget-empty">خطا در دریافت.</div>';
+        else renderTgjuRatesWidget();
+    }
+}
+
+function renderTgjuRatesWidget() {
+    var box = document.getElementById('home-tgju-rates');
+    if (!box) return;
+
+    var c = TGJU_RATES_CACHE;
+    var hide = getHideState('widgets');
+    var html = '';
+    var shown = 0;
+
+    TGJU_IDS.forEach(function (item) {
+        var val = c.values[item.id] ? c.values[item.id].price : 0;
+        
+        // فیلتر کردن موارد خالی (در صورت قطعی موقت)
+        if (val <= 0 && c.ts) return;
+        shown++;
+
+        var chg = c.values[item.id] ? c.values[item.id].change : '';
+        var chgCls = 'same';
+        if (chg && chg.indexOf('-') !== -1) chgCls = 'down';
+        else if (chg && chg !== '0') chgCls = 'up';
+
+        html += '<div class="rate-row">'
+             +  '<span class="name">' + item.label + '</span>'
+             +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
+             +  '<span class="rate-chg ' + chgCls + '">' + (chg && !hide ? chg : '') + '</span>'
+             +  '</div>';
+    });
+
+    if (shown === 0) {
+        box.innerHTML = '<div class="widget-empty">داده‌ای موجود نیست.</div>';
+        return;
+    }
+
+    box.innerHTML = html;
+}
+
+function bindTgjuRatesRefreshButton() {
+    var btn = document.getElementById('tgju-rates-refresh');
     if (btn && !btn.dataset.bound) {
         btn.dataset.bound = '1';
         btn.addEventListener('click', function () {
-            var box = document.getElementById('tgju-coins-widget');
-            if (box) {
-                box.innerHTML = '<tgju type="market-overview" items="137138,137137,137139,137140,137141" columns="dot" token="webservice"></tgju>';
-                showToast('🔄 در حال دریافت مجدد نرخ‌ها...');
-            }
+            showToast('🔄 در حال بروزرسانی نرخ‌ها...');
+            updateTgjuRatesWidget(true);
         });
     }
 }
 
 /* ============================================================
-   بخش ۱۳ — به‌روزرسانی همه ویجت‌ها
+   بخش ۱۴ — به‌روزرسانی همه ویجت‌ها
    ============================================================ */
 function updateHomeWidgets() {
     applyWidgetOrder();
@@ -609,11 +703,13 @@ function updateHomeWidgets() {
     if (state.widgets.cashBalances)          renderCashBalancesWidget();
     if (state.widgets.upcomingInstallments)  updateHomeUpcomingInstallments();
     if (state.widgets.birthdays)             renderBirthdaysWidget();
+    
+    // ✅ ویجت‌های نرخ
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
     
-    // ✅ اتصال دکمه رفرش TGJU
-    if (state.widgets.tgjuCoins) {
-        bindTgjuRefreshButton();
+    if (state.widgets.tgjuRates) {
+        bindTgjuRatesRefreshButton();
+        updateTgjuRatesWidget();
     }
 
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
@@ -621,390 +717,8 @@ function updateHomeWidgets() {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای ارز و طلا (Priceto/Navasan)
-   ============================================================ */
-var PRICETO_BASE = 'https://api.priceto.day/v1/latest/irr';
-var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/gold.json';
-var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/fiat.json';
-
-var CORS_PROXIES = [
-    function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
-];
-
-var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
-    values: {}, ts: 0, prev: {}, timestamps: {}, lastUpdate: ''
-});
-
-function fetchWithTimeout(url, opts, ms) {
-    return new Promise(function (resolve, reject) {
-        var controller = new AbortController();
-        var timer = setTimeout(function () {
-            try { controller.abort(); } catch (e) {}
-            reject(new Error('timeout'));
-        }, ms || 8000);
-        fetch(url, Object.assign({}, opts || {}, { signal: controller.signal, cache: 'no-store' }))
-            .then(function (r) { clearTimeout(timer); resolve(r); })
-            .catch(function (e) { clearTimeout(timer); reject(e); });
-    });
-}
-
-async function tryFetchJson(url, ms) {
-    try {
-        var res = await fetchWithTimeout(url, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json, text/plain, */*' }
-        }, ms || 8000);
-        if (!res.ok) return null;
-        var text = await res.text();
-        if (!text) return null;
-        try { return JSON.parse(text); } catch (e) { return null; }
-    } catch (e) { return null; }
-}
-
-async function tryFetchJsonWithFallback(url, ms) {
-    var data = await tryFetchJson(url, ms);
-    if (data) return data;
-
-    for (var i = 0; i < CORS_PROXIES.length; i++) {
-        try {
-            var proxyUrl = CORS_PROXIES[i](url);
-            data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
-            if (data) return data;
-        } catch (e) {}
-    }
-    return null;
-}
-
-async function fetchFromPriceto(symbol) {
-    if (!symbol) return { value: 0, ts: 0 };
-    var url = PRICETO_BASE + '/' + symbol;
-    var data = await tryFetchJsonWithFallback(url, 7000);
-    if (!data) return { value: 0, ts: 0 };
-
-    var v = 0;
-    if (typeof data === 'number') v = data;
-    else {
-        v = Number(data.rate || data.price || data.value ||
-                   (data.data && (data.data.rate || data.data.price)) || 0);
-    }
-    if (!isFinite(v) || v <= 0) return { value: 0, ts: 0 };
-    return {
-        value: v,
-        ts: data.timestamp || data.ts || (data.data && data.data.timestamp) || 0
-    };
-}
-
-function parseNavasanItem(data, assetKey, multiplier) {
-    if (!data || typeof data !== 'object') return { value: 0, ts: 0 };
-    var item = data[assetKey];
-    if (!item) return { value: 0, ts: 0 };
-
-    var val = item.value || item.price || item.p || item.last || 0;
-    var v = Number(String(val).replace(/[,\s]/g, ''));
-    if (!isFinite(v) || v <= 0) return { value: 0, ts: 0 };
-    if (multiplier && multiplier !== 1) v = v * multiplier;
-
-    return {
-        value: v,
-        ts: item.date || item.timestamp || item.last_update || 0
-    };
-}
-
-async function fetchAllRates() {
-    var results = {};
-    var pending = RATE_ASSETS.map(function (a) {
-        return { asset: a, done: false, value: 0, ts: 0 };
-    });
-
-    await Promise.all(pending.map(function (p) {
-        return fetchFromPriceto(p.asset.priceto).then(function (r) {
-            if (r.value > 0) {
-                p.done = true;
-                p.value = r.value;
-                p.ts = r.ts;
-            }
-        });
-    }));
-
-    var stillNeed = pending.filter(function (p) { return !p.done; });
-
-    if (stillNeed.length > 0) {
-        var goldData = null, fiatData = null;
-        try { goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 9000); } catch (e) {}
-        try { fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 9000); } catch (e) {}
-
-        stillNeed.forEach(function (p) {
-            var a = p.asset;
-            var parsed = { value: 0, ts: 0 };
-            if (a.source === 'gold' && goldData) {
-                parsed = parseNavasanItem(goldData, a.navasanKey, a.navasanMul);
-            } else if (a.source === 'fiat' && fiatData) {
-                parsed = parseNavasanItem(fiatData, a.navasanKey, a.navasanMul);
-            }
-            if (parsed.value > 0) {
-                p.done = true;
-                p.value = parsed.value;
-                p.ts = parsed.ts;
-            }
-        });
-    }
-
-    pending.forEach(function (p) {
-        results[p.asset.key] = { value: p.value || 0, ts: p.ts || 0 };
-    });
-    return results;
-}
-
-async function fetchLiveRates(silent) {
-    var box = document.getElementById('home-live-rates');
-    var meta = document.getElementById('live-rates-meta');
-
-    if (box && !silent) {
-        box.innerHTML = '<div class="widget-empty">در حال دریافت نرخ‌ها...</div>';
-    }
-
-    var newResults = {};
-    try {
-        newResults = await fetchAllRates();
-    } catch (e) {
-        newResults = {};
-    }
-
-    var anyFetched = false;
-    var newValues = {}, newTimestamps = {};
-    var prev = LIVE_RATES_CACHE.values || {};
-    var prevTs = LIVE_RATES_CACHE.timestamps || {};
-
-    for (var i = 0; i < RATE_ASSETS.length; i++) {
-        var key = RATE_ASSETS[i].key;
-        var res = newResults[key] || { value: 0, ts: 0 };
-        var val = res.value || 0;
-        var ts = res.ts || 0;
-
-        if (val > 0) {
-            newValues[key] = val;
-            newTimestamps[key] = ts;
-            anyFetched = true;
-        } else {
-            newValues[key] = prev[key] || 0;
-            newTimestamps[key] = prevTs[key] || 0;
-        }
-    }
-
-    var hasAnyValue = false;
-    for (var k in newValues) {
-        if (newValues[k] > 0) { hasAnyValue = true; break; }
-    }
-
-    if (!hasAnyValue && !LIVE_RATES_CACHE.ts) {
-        if (box) {
-            box.innerHTML = '<div class="widget-empty">❌ دریافت نرخ ناموفق بود.<br>اتصال اینترنت را بررسی کرده و روی 🔄 بزنید.</div>';
-        }
-        if (meta) meta.textContent = 'برای تلاش مجدد روی 🔄 بزنید.';
-        return;
-    }
-
-    var lastUpdate = '';
-    if (anyFetched) {
-        lastUpdate = todayJalaliStr() + ' — ' + tsToJalaliTime(Date.now());
-    } else {
-        lastUpdate = LIVE_RATES_CACHE.lastUpdate || '—';
-    }
-
-    LIVE_RATES_CACHE = {
-        values: newValues,
-        timestamps: newTimestamps,
-        ts: anyFetched ? Date.now() : LIVE_RATES_CACHE.ts,
-        prev: JSON.parse(JSON.stringify(prev)),
-        lastUpdate: lastUpdate
-    };
-    DB.save(LS_KEYS.LIVE_RATES_CACHE, LIVE_RATES_CACHE);
-
-    renderLiveRatesWidget();
-    if (meta) {
-        meta.textContent = (anyFetched ? '✅ بروزرسانی: ' : '⚠️ آخرین داده ذخیره‌شده: ')
-                         + lastUpdate + ' — منبع: Priceto + Navasan';
-    }
-}
-
-function renderLiveRatesWidget() {
-    var box = document.getElementById('home-live-rates');
-    if (!box) return;
-
-    var c = LIVE_RATES_CACHE;
-    if (!c.ts || !c.values) {
-        box.innerHTML = '<div class="widget-empty">داده‌ای موجود نیست.</div>';
-        return;
-    }
-
-    var html = '';
-    var prev = c.prev || {};
-    var anyShown = false;
-    var hide = getHideState('widgets');
-
-    for (var i = 0; i < RATE_ASSETS.length; i++) {
-        var a = RATE_ASSETS[i];
-        var val = c.values[a.key] || 0;
-        if (val <= 0) continue;
-        anyShown = true;
-
-        var oldV = prev[a.key] || 0;
-        var chg = val - oldV;
-        var chgCls = chg > 0 ? 'up' : (chg < 0 ? 'down' : 'same');
-        var chgTxt = chg === 0 ? '—'
-                   : (chg > 0 ? '▲ ' : '▼ ') + (hide ? '—' : formatRial(Math.abs(chg)));
-
-        var itemTs = (c.timestamps && c.timestamps[a.key]) ? c.timestamps[a.key] : 0;
-        var tsDisplay = '';
-        if (itemTs > 0) {
-            var tsMs = itemTs < 1e12 ? itemTs * 1000 : itemTs;
-            tsDisplay = '🕐 ' + toFa(tsToJalaliDate(tsMs)) + ' ' + toFa(tsToJalaliTime(tsMs));
-        }
-
-        html += '<div class="rate-row">'
-             +  '<span class="name">' + a.label + '</span>'
-             +  '<span class="amount">' + (hide ? '—' : formatRial(val)) + ' ریال</span>'
-             +  '<span class="rate-chg ' + chgCls + '">' + chgTxt + '</span>'
-             +  '<span class="rate-updated">' + tsDisplay + '</span>'
-             +  '</div>';
-    }
-
-    if (!anyShown) {
-        box.innerHTML = '<div class="widget-empty">داده‌ای موجود نیست. روی 🔄 بزنید.</div>';
-        return;
-    }
-
-    box.innerHTML = html;
-}
-
-/* ============================================================
-   بخش ۱۵ — ویجت چک‌لیست
-   ============================================================ */
-function renderTodayChecklistWidget(category) {
-    var meta = null;
-    if (typeof CHECKLIST_CATEGORIES !== 'undefined') {
-        for (var ci = 0; ci < CHECKLIST_CATEGORIES.length; ci++) {
-            if (CHECKLIST_CATEGORIES[ci].key === category) {
-                meta = CHECKLIST_CATEGORIES[ci];
-                break;
-            }
-        }
-    }
-    if (!meta) return;
-
-    var el = document.getElementById(meta.elId);
-    if (!el) return;
-
-    var today = todayJalaliStr();
-    var notes = DB.load('notes', []);
-    var allItems = [];
-
-    notes.forEach(function (n) {
-        if (n.archived) return;
-        var noteCat = n.category || 'personal';
-        if (noteCat !== category) return;
-
-        (n.checklist || []).forEach(function (c) {
-            if (!c.text) return;
-            allItems.push({ note: n, item: c });
-        });
-    });
-
-    var filtered = allItems.filter(function (x) {
-        if (x.note.date === today) return true;
-        return !x.item.done;
-    });
-
-    if (filtered.length === 0) {
-        el.innerHTML = '<div class="widget-empty">✅ چک‌لیستی برای نمایش نیست.</div>';
-        return;
-    }
-
-    filtered.sort(function (a, b) {
-        var aT = a.note.date === today ? 0 : 1;
-        var bT = b.note.date === today ? 0 : 1;
-        if (aT !== bT) return aT - bT;
-        return compareVals(b.note.date || '', a.note.date || '');
-    });
-
-    var html = '';
-    filtered.forEach(function (x) {
-        var dateLabel = toFa(esc(x.note.date || ''));
-        var noteTitle = String(x.note.title || 'یادداشت').trim();
-
-        html += '<div class="cl-widget-item' + (x.item.done ? ' done' : '') + '" '
-             +  'data-note-id="' + x.note.id + '" '
-             +  'data-item-id="' + x.item.id + '" '
-             +  'title="کلیک برای باز کردن یادداشت">'
-             +  '<input type="checkbox" ' + (x.item.done ? 'checked' : '') + '>'
-             +  '<span class="cl-widget-text">'
-             +    '<strong class="cl-widget-note-title">' + esc(noteTitle) + '</strong>'
-             +    '<span class="cl-widget-sep">—</span>'
-             +    esc(x.item.text)
-             +  '</span>'
-             +  '<span class="cl-widget-note">📅 ' + dateLabel + '</span>'
-             +  '</div>';
-    });
-
-    el.innerHTML = html;
-
-    el.querySelectorAll('.cl-widget-item').forEach(function (row) {
-        var cb = row.querySelector('input[type=checkbox]');
-        cb.addEventListener('click', function (e) {
-            e.stopPropagation();
-            var noteId = row.getAttribute('data-note-id');
-            var itemId = row.getAttribute('data-item-id');
-            var notes = DB.load('notes', []);
-            for (var i = 0; i < notes.length; i++) {
-                if (notes[i].id === noteId) {
-                    for (var j = 0; j < (notes[i].checklist || []).length; j++) {
-                        if (notes[i].checklist[j].id === itemId) {
-                            notes[i].checklist[j].done = !notes[i].checklist[j].done;
-                            break;
-                        }
-                    }
-                }
-            }
-            DB.save('notes', notes);
-            renderTodayChecklistWidget(category);
-        });
-
-        row.addEventListener('click', function (e) {
-            if (e.target.tagName === 'INPUT') return;
-            var noteId = row.getAttribute('data-note-id');
-            if (noteId && typeof openNoteView === 'function') openNoteView(noteId);
-        });
-    });
-}
-
-/* ============================================================
-   بخش ۱۶ — اتصال دکمه به‌روزرسانی نرخ‌ها
-   ============================================================ */
-function bindRatesRefreshButton() {
-    var btn = document.getElementById('live-rates-refresh');
-    if (btn) btn.addEventListener('click', function () {
-        fetchLiveRates();
-    });
-}
-
-/* ============================================================
    صادرسازی
    ============================================================ */
-window.LIVE_RATES_CACHE                = LIVE_RATES_CACHE;
-window.PRICETO_BASE                    = PRICETO_BASE;
-window.NAVASAN_GOLD_CDN                = NAVASAN_GOLD_CDN;
-window.NAVASAN_FIAT_CDN                = NAVASAN_FIAT_CDN;
-window.CORS_PROXIES                    = CORS_PROXIES;
-window.fetchWithTimeout                = fetchWithTimeout;
-window.tryFetchJson                    = tryFetchJson;
-window.tryFetchJsonWithFallback        = tryFetchJsonWithFallback;
-window.fetchFromPriceto                = fetchFromPriceto;
-window.parseNavasanItem                = parseNavasanItem;
-window.fetchAllRates                   = fetchAllRates;
-window.fetchLiveRates                  = fetchLiveRates;
-window.renderLiveRatesWidget           = renderLiveRatesWidget;
 window.applyWidgetVisibility           = applyWidgetVisibility;
 window.applyWidgetOrder                = applyWidgetOrder;
 window.renderWidgetOrderUI             = renderWidgetOrderUI;
@@ -1019,7 +733,5 @@ window.renderBirthdaysWidget           = renderBirthdaysWidget;
 window.renderCalendarWidget            = renderCalendarWidget;
 window.updateHomeUpcomingInstallments  = updateHomeUpcomingInstallments;
 window.updateHomeWidgets               = updateHomeWidgets;
-window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
-window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — complete with TGJU widget fix');
+console.log('✅ [modules/widgets.js] loaded — complete');
