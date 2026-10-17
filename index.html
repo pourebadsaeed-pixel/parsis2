@@ -17,9 +17,6 @@
 </head>
 <body class="theme-sky font-tahoma">
 
-<!-- ✅ اسکریپت TGJU -->
-<script src="https://api.tgju.org/v1/widget/v2" defer></script>
-
 <div id="app">
 <header class="topbar">
     <button id="menu-btn" class="icon-btn">☰</button>
@@ -168,16 +165,18 @@
             <div id="live-rates-meta" style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);text-align:center"></div>
         </div>
         
-        <!-- ✅ ویجت جدید TGJU Coins -->
-        <div class="card widget-card widget-wide" data-widget="tgjuCoins">
+        <!-- ✅ ویجت جدید: نرخ لحظه‌ای ارز و طلا (TGJU API) -->
+        <div class="card widget-card widget-wide" data-widget="tgjuRates">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                <h3 style="color:var(--primary-dark);font-size:0.95rem;margin:0">🪙 قیمت لحظه‌ای سکه (TGJU)</h3>
-                <button id="tgju-refresh" class="row-btn open" title="بروزرسانی" style="font-size:1.2rem">🔄</button>
+                <h3 style="color:var(--primary-dark);font-size:0.95rem;margin:0">💱 نرخ لحظه‌ای ارز و طلا (TGJU)</h3>
+                <button id="tgju-rates-refresh" class="row-btn open" title="بروزرسانی" style="font-size:1.2rem">🔄</button>
             </div>
-            <div id="tgju-coins-widget" style="display:flex; justify-content:center; padding: 10px; min-height: 150px; overflow-x: auto;">
-                <tgju type="market-overview" items="137138,137137,137139,137140,137141" columns="dot" token="webservice"></tgju>
-            </div>
+            <div id="home-tgju-rates"><div class="widget-empty">در حال دریافت...</div></div>
         </div>
+
+    </div>
+    <div class="home-page-dots" id="home-page-dots"></div>
+</section>
 
 <!-- ============ LANGUAGE ============ -->
 <section id="page-language" class="page">
@@ -993,7 +992,6 @@
     <h2>📒 مرور حساب‌ها</h2>
     <div class="card"></div>
     <div class="card">
-        <!-- ✅ شناسه به ra-acc-table اصلاح شد -->
         <div class="list-header" data-col-table="ra-acc-table" data-hide-key="ra">
             <span class="count-badge" id="ra-count">۰</span>
             <span class="unit-chip" id="ra-unit"></span>
