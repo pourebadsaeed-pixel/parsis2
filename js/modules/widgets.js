@@ -936,7 +936,7 @@ function renderTodayChecklistWidget(category) {
 var TGJU_ITEMS = [
     { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137137', keys: ['sekke_bahar', 'sekke', 'seke_bahar'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'seke', 'sekke'], label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
     { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
@@ -970,6 +970,30 @@ function parseTgjuChange(entry) {
     return { dir: 'same', amount: rawD, percent: entry.dp || '' };
 }
 
+/* ✅ تابع جستجوی هوشمند کلید (Fallback) */
+function findTgjuEntry(dataCurrent, item) {
+    // ۱. تلاش با کلیدهای دقیق
+    for (var i = 0; i < item.keys.length; i++) {
+        if (dataCurrent[item.keys[i]]) {
+            return dataCurrent[item.keys[i]];
+        }
+    }
+    
+    // ۲. جستجوی هوشمند برای سکه بهار آزادی (اگر کلید دقیق پیدا نشد)
+    if (item.id === '137137') {
+        for (var k in dataCurrent) {
+            if (!dataCurrent.hasOwnProperty(k)) continue;
+            var lk = k.toLowerCase();
+            // هر کلیدی که شامل bahar یا azadi باشد و emami نباشد
+            if ((lk.indexOf('bahar') !== -1 || lk.indexOf('azadi') !== -1) && lk.indexOf('emami') === -1) {
+                return dataCurrent[k];
+            }
+        }
+    }
+    
+    return null;
+}
+
 async function fetchTgjuRates() {
     var results = {};
     var urls = [
@@ -988,13 +1012,7 @@ async function fetchTgjuRates() {
     if (!data || !data.current) return results;
 
     TGJU_ITEMS.forEach(function (item) {
-        var entry = null;
-        for (var i = 0; i < item.keys.length; i++) {
-            if (data.current[item.keys[i]]) {
-                entry = data.current[item.keys[i]];
-                break;
-            }
-        }
+        var entry = findTgjuEntry(data.current, item);
 
         if (entry && entry.p) {
             var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
