@@ -929,17 +929,17 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (سیستم ترکیبی برای دریافت دقیق)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (نسخه نهایی و پایدار)
    ============================================================ */
 var TGJU_ITEMS = [
     { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137138', keys: ['sekke_emami', 'seke_emami', 'sekke_emami'], label: '🪙 سکه امامی' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
     { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'seke'], label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
-    { id: '137207', keys: ['geram24', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار' },
-    { id: '137225', keys: ['geram18', 'gold18', 'gold_18k'], label: '🥇 طلای ۱۸ عیار' },
+    { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
+    { id: '137225', keys: ['geram18', 'gold18'], label: '🥇 طلای ۱۸ عیار' },
     { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' }
 ];
 
@@ -947,8 +947,6 @@ var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
 function findTgjuEntry(data, item) {
     var current = data.current || data;
-    
-    // ۱. بررسی کلیدهای دقیق با اطمینان از اینکه قیمت صفر نباشد
     for (var i = 0; i < item.keys.length; i++) {
         var k = item.keys[i];
         if (current[k] && current[k].p) {
@@ -957,30 +955,23 @@ function findTgjuEntry(data, item) {
         }
     }
     
-    // ۲. جستجوی هوشمند
     for (var key in current) {
         if (!current.hasOwnProperty(key)) continue;
         var kl = key.toLowerCase();
-        
-        // برای سکه امامی
         if (item.id === '137138' && kl.indexOf('emami') !== -1) {
             var p2 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
             if (p2 > 0) return current[key];
         }
-        // برای سکه بهار آزادی (نباید کلمه امامی داشته باشد)
         if (item.id === '137137' && (kl.indexOf('bahar') !== -1 || kl.indexOf('azadi') !== -1) && kl.indexOf('emami') === -1) {
             var p3 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
             if (p3 > 0) return current[key];
         }
     }
-    
     return null;
 }
 
 async function fetchTgjuRates() {
     var results = {};
-    
-    // مرحله اول: تلاش برای دریافت از ajax.json (بهترین منبع)
     var urls = [
         'https://call2.tgju.org/ajax.json',
         'https://call3.tgju.org/ajax.json',
@@ -990,66 +981,33 @@ async function fetchTgjuRates() {
     
     var data = null;
     for (var i = 0; i < urls.length; i++) {
-        data = await tryFetchJsonWithFallback(urls[i], 8000);
+        data = await tryFetchJsonWithFallback(urls[i], 10000);
         if (data && (data.current || data.price_dollar_rl)) break;
     }
     
-    if (data) {
-        TGJU_ITEMS.forEach(function (item) {
-            var entry = findTgjuEntry(data, item);
-            if (entry && entry.p) {
-                var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
-                var price = Number(priceStr);
-                if (price > 0) {
-                    var chgStr = String(entry.d || entry.dp || '');
-                    var chgDir = 'same';
-                    var dt = String(entry.dt || '').toLowerCase();
-                    
-                    if (dt === 'high' || dt === 'up' || chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                    else if (dt === 'low' || dt === 'down' || chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+    if (!data) return results;
 
-                    results[item.id] = {
-                        price: price,
-                        change: chgStr,
-                        dir: chgDir
-                    };
-                }
+    TGJU_ITEMS.forEach(function (item) {
+        var entry = findTgjuEntry(data, item);
+        if (entry && entry.p) {
+            var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
+            var price = Number(priceStr);
+            if (price > 0) {
+                var chgStr = String(entry.d || entry.dp || '');
+                var chgDir = 'same';
+                var dt = String(entry.dt || '').toLowerCase();
+                
+                if (dt === 'high' || dt === 'up' || chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                else if (dt === 'low' || dt === 'down' || chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+
+                results[item.id] = {
+                    price: price,
+                    change: chgStr,
+                    dir: chgDir
+                };
             }
-        });
-    }
-
-    // مرحله دوم: اگر سکه امامی یا بهار آزادی هنوز پیدا نشده‌اند، از API اختصاصی ویجت TGJU استفاده کن
-    var missingIds = [];
-    TGJU_ITEMS.forEach(function(item) {
-        if (!results[item.id]) missingIds.push(item.id);
-    });
-
-    if (missingIds.length > 0) {
-        var idsStr = missingIds.join(',');
-        var wUrl = 'https://api.tgju.org/v1/widget/market-overview/data?items=' + idsStr + '&columns=dot&token=webservice';
-        var wData = await tryFetchJsonWithFallback(wUrl, 8000);
-        
-        if (wData) {
-            missingIds.forEach(function (id) {
-                var entry = wData[id];
-                if (entry && entry.price) {
-                    var p = Number(String(entry.price).replace(/[^\d]/g, ''));
-                    if (p > 0) {
-                        var chgStr = String(entry.change || '');
-                        var chgDir = 'same';
-                        if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                        else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
-                        
-                        results[id] = {
-                            price: p,
-                            change: chgStr,
-                            dir: chgDir
-                        };
-                    }
-                }
-            });
         }
-    }
+    });
 
     return results;
 }
@@ -1069,7 +1027,6 @@ async function updateTgjuRatesWidget(forceRefresh) {
 
     try {
         var results = await fetchTgjuRates();
-        
         var hasAny = false;
         for (var k in results) { hasAny = true; break; }
 
@@ -1103,7 +1060,7 @@ function renderTgjuRatesWidget() {
         var chgCls = info ? info.dir : 'same';
         var chgDisplay = info ? info.change : '';
         
-        // ✅ تنظیم رنگ قرمز و سبز به صورت مستقیم
+        // تنظیم رنگ قرمز (کاهش) و سبز (افزایش) به صورت تضمینی
         var textColor = '';
         if (chgCls === 'up') {
             textColor = '#059669'; // سبز
