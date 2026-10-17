@@ -10,12 +10,9 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
 function ensureFixedLayout(table) {
     if (!table) return;
     table.classList.add('w-col-resized');
-    /* ✅ اجبار مرورگر به نادیده گرفتن محتوا برای کوچک شدن */
     table.style.setProperty('table-layout', 'fixed', 'important');
-    table.style.setProperty('width', 'auto', 'important');
-    table.style.setProperty('min-width', '0', 'important');
     
-    /* ✅ اجبار به پنهان کردن متن سرریز شده */
+    /* ✅ اجبار به مخفی کردن متن سرریز شده در تمام سلول‌ها */
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.setProperty('overflow', 'hidden', 'important');
@@ -27,15 +24,15 @@ function ensureFixedLayout(table) {
 function removeFixedLayout(table) {
     if (!table) return;
     table.classList.remove('w-col-resized');
-    table.style.tableLayout = '';
-    table.style.width = '';
-    table.style.minWidth = '';
+    table.style.removeProperty('table-layout');
+    table.style.removeProperty('width');
+    table.style.removeProperty('min-width');
     
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
-        allCells[k].style.overflow = '';
-        allCells[k].style.whiteSpace = '';
-        allCells[k].style.textOverflow = '';
+        allCells[k].style.removeProperty('overflow');
+        allCells[k].style.removeProperty('white-space');
+        allCells[k].style.removeProperty('text-overflow');
     }
 }
 
@@ -56,6 +53,9 @@ function applyColWidths(tableId) {
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     
+    var totalW = 0;
+    var hasWidth = false;
+    
     for (var i = 0; i < ths.length; i++) {
         var oi = ths[i].getAttribute('data-orig-index');
         var idx = oi !== null ? parseInt(oi, 10) : i;
@@ -63,15 +63,20 @@ function applyColWidths(tableId) {
             ths[i].style.setProperty('width', widths[idx] + 'px', 'important');
             ths[i].style.setProperty('min-width', widths[idx] + 'px', 'important');
             ths[i].style.setProperty('max-width', widths[idx] + 'px', 'important');
+            totalW += widths[idx];
+            hasWidth = true;
         } else {
-            ths[i].style.width = '';
-            ths[i].style.minWidth = '';
-            ths[i].style.maxWidth = '';
+            ths[i].style.removeProperty('width');
+            ths[i].style.removeProperty('min-width');
+            ths[i].style.removeProperty('max-width');
         }
     }
     
-    if (tableHasAnyWidth(tableId)) {
+    if (hasWidth) {
         ensureFixedLayout(table);
+        /* ✅ قفل کردن عرض جدول به مجموع ستون‌ها برای جلوگیری از کشیدگی */
+        table.style.setProperty('width', totalW + 'px', 'important');
+        table.style.setProperty('min-width', totalW + 'px', 'important');
     } else {
         removeFixedLayout(table);
     }
@@ -79,7 +84,7 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
-var COL_MIN_W = 10; /* حداقل عرض ۱۰ پیکسل یعنی می‌توانید کاملاً روی متن بیفتید */
+var COL_MIN_W = 10; /* حداقل عرض ۱۰ پیکسل */
 var COL_MAX_W = 5000;
 
 function makeTableResizable(table) {
@@ -119,32 +124,51 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
                 
-                /* ✅ تبدیل جدول به Fixed تا مرورگر اجازه کوچک شدن بدهد */
+                /* ✅ تبدیل جدول به Fixed */
                 ensureFixedLayout(table);
                 
-                /* ✅ قفل کردن عرض ستون‌های دیگر که هنگام کشیدن جابه‌جا نشوند */
+                /* ✅ قفل کردن عرض ستون‌ها و محاسبه عرض دقیق جدول */
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
+                var totalW = 0;
+                
                 for (var j = 0; j < allThs.length; j++) {
                     if (allThs[j].style.display !== 'none') {
                         var w = allThs[j].offsetWidth;
+                        totalW += w;
                         allThs[j].style.setProperty('width', w + 'px', 'important');
                         allThs[j].style.setProperty('min-width', w + 'px', 'important');
                         allThs[j].style.setProperty('max-width', w + 'px', 'important');
                     }
                 }
+                
+                /* ✅ اجبار عرض جدول به اندازه دقیق جمع ستون‌ها (راز حل مشکل) */
+                table.style.setProperty('width', totalW + 'px', 'important');
+                table.style.setProperty('min-width', totalW + 'px', 'important');
             }
 
             function move(e) {
                 if (!isDragging) return;
                 var x = e.touches ? e.touches[0].clientX : e.clientX;
-                var diff = startX - x; /* کشیدن به راست عرض را کم می‌کند */
+                var diff = startX - x; /* RTL: کشیدن به راست → diff منفی → عرض کم می‌شود */
                 
                 var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
                 
                 th.style.setProperty('width', w + 'px', 'important');
                 th.style.setProperty('min-width', w + 'px', 'important');
                 th.style.setProperty('max-width', w + 'px', 'important');
+                
+                /* ✅ آپدیت عرض جدول همزمان با تغییر ستون */
+                var currentTotalW = 0;
+                var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
+                var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
+                for (var j = 0; j < allThs.length; j++) {
+                    if (allThs[j].style.display !== 'none') {
+                        currentTotalW += allThs[j].offsetWidth;
+                    }
+                }
+                table.style.setProperty('width', currentTotalW + 'px', 'important');
+                table.style.setProperty('min-width', currentTotalW + 'px', 'important');
             }
 
             function end() {
@@ -213,9 +237,9 @@ function resetColumnWidths(tableId) {
     if (headerRow) {
         var ths = headerRow.querySelectorAll('th');
         for (var i = 0; i < ths.length; i++) {
-            ths[i].style.width = '';
-            ths[i].style.minWidth = '';
-            ths[i].style.maxWidth = '';
+            ths[i].style.removeProperty('width');
+            ths[i].style.removeProperty('min-width');
+            ths[i].style.removeProperty('max-width');
         }
     }
 
@@ -234,9 +258,9 @@ function resetAllColumnWidths() {
         if (hRow) {
             var ths = hRow.querySelectorAll('th');
             for (var j = 0; j < ths.length; j++) {
-                ths[j].style.width = '';
-                ths[j].style.minWidth = '';
-                ths[j].style.maxWidth = '';
+                ths[j].style.removeProperty('width');
+                ths[j].style.removeProperty('min-width');
+                ths[j].style.removeProperty('max-width');
             }
         }
     }
@@ -844,4 +868,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete (pure resize)');
+console.log('✅ [ui/table.js] loaded — complete (perfect resize)');
