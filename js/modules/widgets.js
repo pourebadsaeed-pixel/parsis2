@@ -702,6 +702,15 @@ async function fetchAllRates() {
     pending.forEach(function (p) {
         results[p.asset.key] = { value: p.value || 0, ts: p.ts || 0 };
     });
+
+    // ✅ محاسبه خودکار طلای ۲۴ عیار از روی ۱۸ عیار
+    if ((!results['geram24'] || results['geram24'].value === 0) && results['geram18'] && results['geram18'].value > 0) {
+        results['geram24'] = {
+            value: Math.round(results['geram18'].value * 1.332),
+            ts: results['geram18'].ts || Date.now()
+        };
+    }
+
     return results;
 }
 
@@ -791,6 +800,9 @@ function renderLiveRatesWidget() {
     var prev = c.prev || {};
     var anyShown = false;
     var hide = getHideState('widgets');
+    
+    // ساعتِ لحظه‌ای که برنامه دیتا را گرفته است
+    var fetchTime = toFa(tsToJalaliTime(c.ts));
 
     for (var i = 0; i < RATE_ASSETS.length; i++) {
         var a = RATE_ASSETS[i];
@@ -804,18 +816,11 @@ function renderLiveRatesWidget() {
         var chgTxt = chg === 0 ? '—'
                    : (chg > 0 ? '▲ ' : '▼ ') + (hide ? '—' : formatRial(Math.abs(chg)));
 
-        var itemTs = (c.timestamps && c.timestamps[a.key]) ? c.timestamps[a.key] : 0;
-        var tsDisplay = '';
-        if (itemTs > 0) {
-            var tsMs = itemTs < 1e12 ? itemTs * 1000 : itemTs;
-            tsDisplay = '🕐 ' + toFa(tsToJalaliDate(tsMs)) + ' ' + toFa(tsToJalaliTime(tsMs));
-        }
-
         html += '<div class="rate-row">'
              +  '<span class="name">' + a.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : formatRial(val)) + ' ریال</span>'
              +  '<span class="rate-chg ' + chgCls + '">' + chgTxt + '</span>'
-             +  '<span class="rate-updated">' + tsDisplay + '</span>'
+             +  '<span class="rate-updated">🕐 ' + toFa(tsToJalaliDate(c.ts)) + ' ' + fetchTime + '</span>'
              +  '</div>';
     }
 
@@ -928,166 +933,7 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU
-   ✅ منبع: API خود TGJU (call1.tgju.org/ajax.json)
-   ✅ با پروکسی CORS برای رفع خطای GitHub Pages
-   ============================================================ */
-
-var TGJU_AJAX_URL = 'https://call1.tgju.org/ajax.json';
-var TGJU_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-
-var TGJU_ITEMS = [
-    { id: 'usd',       keys: ['price_dollar_rl'],                  label: '💵 دلار آمریکا' },
-    { id: 'eur',       keys: ['price_eur'],                        label: '💶 یورو' },
-    { id: 'emami',     keys: ['sekke_emami', 'sekkeh'],             label: '🪙 سکه امامی' },
-    { id: 'bahar',     keys: ['sekke_bahar', 'sekke_bahar_azadi'],  label: '🪙 تمام سکه بهار آزادی' },
-    { id: 'nim',       keys: ['nim_sekke', 'nim'],                  label: '🪙 نیم سکه' },
-    { id: 'rob',       keys: ['rob_sekke', 'rob'],                  label: '🪙 ربع سکه' },
-    { id: 'geram24',   keys: ['geram24'],                           label: '🥇 طلای ۲۴ عیار' },
-    { id: 'geram18',   keys: ['geram18'],                           label: '🥇 طلای ۱۸ عیار' },
-    { id: 'gold_mini', keys: ['gold_mini_size', 'mesghal'],         label: '🥇 طلای دست دوم' }
-];
-
-var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
-
-function extractTgjuValue(data, keys) {
-    if (!data || !data.current) return 0;
-    for (var i = 0; i < keys.length; i++) {
-        var item = data.current[keys[i]];
-        if (!item) continue;
-        var raw = item.p || item.price || 0;
-        var v = Number(String(raw).replace(/[,٬\s]/g, ''));
-        if (isFinite(v) && v > 0) return v;
-    }
-    return 0;
-}
-
-async function fetchTgjuRates() {
-    var results = {};
-    var freshCount = 0;
-
-    var tgjuData = null;
-    try {
-        var proxyUrl = TGJU_CORS_PROXY + encodeURIComponent(TGJU_AJAX_URL);
-        tgjuData = await tryFetchJson(proxyUrl, 12000);
-    } catch (e) {
-        console.warn('[TGJU] خطا در دریافت از طریق پروکسی:', e);
-    }
-
-    if (tgjuData && tgjuData.current) {
-        TGJU_ITEMS.forEach(function (item) {
-            var val = extractTgjuValue(tgjuData, item.keys);
-            if (val > 0) {
-                results[item.id] = { price: val, dir: 'same' };
-                freshCount++;
-            }
-        });
-    }
-
-    return { values: results, freshCount: freshCount };
-}
-
-async function updateTgjuRatesWidget(forceRefresh) {
-    var box = document.getElementById('home-tgju-rates');
-    if (!box) return;
-
-    if (!forceRefresh && TGJU_RATES_CACHE.ts && (Date.now() - TGJU_RATES_CACHE.ts < 60000)) {
-        renderTgjuRatesWidget();
-        return;
-    }
-
-    if (!forceRefresh) {
-        box.innerHTML = '<div class="widget-empty">در حال دریافت نرخ‌ها از TGJU...</div>';
-    }
-
-    try {
-        var fetched = await fetchTgjuRates();
-        var results = fetched.values || {};
-        var hasAny = false;
-        for (var k in results) { hasAny = true; break; }
-
-        if (hasAny) {
-            var prev = TGJU_RATES_CACHE.values || {};
-            for (var id in results) {
-                if (prev[id] && prev[id].price > 0) {
-                    if (results[id].price > prev[id].price) results[id].dir = 'up';
-                    else if (results[id].price < prev[id].price) results[id].dir = 'down';
-                }
-            }
-
-            TGJU_RATES_CACHE = {
-                values: results,
-                ts: Date.now()
-            };
-            DB.save('tgjuRatesCache', TGJU_RATES_CACHE);
-        }
-
-        renderTgjuRatesWidget();
-    } catch (e) {
-        console.error('[TGJU] خطا:', e);
-        renderTgjuRatesWidget();
-    }
-}
-
-function renderTgjuRatesWidget() {
-    var box = document.getElementById('home-tgju-rates');
-    if (!box) return;
-
-    var c = TGJU_RATES_CACHE;
-    var hide = getHideState('widgets');
-    var html = '';
-    var visibleCount = 0;
-
-    TGJU_ITEMS.forEach(function (item) {
-        var info = c.values[item.id];
-        var val = info ? info.price : 0;
-        var hasPrice = val > 0;
-        if (hasPrice) visibleCount++;
-
-        var chgCls = info ? info.dir : 'same';
-        var textColor = '', arrow = '';
-        if (chgCls === 'up')        { textColor = '#059669'; arrow = '▲ '; }
-        else if (chgCls === 'down') { textColor = '#dc2626'; arrow = '▼ '; }
-
-        var amountText = hide ? '—' : (hasPrice ? formatRial(val) + ' ریال' : '—');
-
-        html += '<div class="rate-row">'
-             +  '<span class="name">' + item.label + '</span>'
-             +  '<span class="amount">' + amountText + '</span>'
-             +  '<span class="rate-chg" style="color:' + textColor + ';font-weight:800;background:transparent">'
-             +  (hide ? '' : arrow) + '</span>'
-             +  '</div>';
-    });
-
-    if (visibleCount === 0 && !hide) {
-        box.innerHTML = '<div class="widget-empty">⚠️ نرخی دریافت نشد.<br>'
-                      + '<span style="font-size:.75rem;opacity:.8">روی 🔄 بزنید یا اینترنت را بررسی کنید.</span></div>';
-        return;
-    }
-
-    var timeStr = c.ts ? toFa(tsToJalaliTime(c.ts)) : '';
-    html += '<div style="margin-top:10px;padding:6px 10px;background:var(--card-alt);'
-         +  'border-radius:8px;font-size:.7rem;text-align:center;color:var(--text-muted)">'
-         +  '<span style="color:#059669">✅ منبع: TGJU (لحظه‌ای)</span>'
-         +  (timeStr ? ' — ' + timeStr : '')
-         +  '</div>';
-
-    box.innerHTML = html;
-}
-
-function bindTgjuRatesRefreshButton() {
-    var btn = document.getElementById('tgju-rates-refresh');
-    if (btn && !btn.dataset.bound) {
-        btn.dataset.bound = '1';
-        btn.addEventListener('click', function () {
-            showToast('🔄 در حال بروزرسانی از TGJU...');
-            updateTgjuRatesWidget(true);
-        });
-    }
-}
-
-/* ============================================================
-   بخش ۱۵ — به‌روزرسانی همه ویجت‌ها
+   بخش ۱۴ — به‌روزرسانی همه ویجت‌ها
    ============================================================ */
 function updateHomeWidgets() {
     applyWidgetOrder();
@@ -1116,17 +962,14 @@ function updateHomeWidgets() {
 
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
 
-    if (state.widgets.tgjuRates) {
-        bindTgjuRatesRefreshButton();
-        updateTgjuRatesWidget();
-    }
+    // ❌ کدهای tgjuRates به طور کامل حذف شدند
 
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
 
 /* ============================================================
-   بخش ۱۶ — اتصال دکمه به‌روزرسانی نرخ‌ها
+   بخش ۱۵ — اتصال دکمه به‌روزرسانی نرخ‌ها
    ============================================================ */
 function bindRatesRefreshButton() {
     var btn = document.getElementById('live-rates-refresh');
@@ -1168,11 +1011,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-window.TGJU_ITEMS                      = TGJU_ITEMS;
-window.TGJU_RATES_CACHE                = TGJU_RATES_CACHE;
-window.fetchTgjuRates                  = fetchTgjuRates;
-window.updateTgjuRatesWidget           = updateTgjuRatesWidget;
-window.renderTgjuRatesWidget           = renderTgjuRatesWidget;
-window.bindTgjuRatesRefreshButton      = bindTgjuRatesRefreshButton;
-
-console.log('✅ [modules/widgets.js] loaded — TGJU via CORS proxy');
+console.log('✅ [modules/widgets.js] loaded — TGJU removed, liveRates fixed');
