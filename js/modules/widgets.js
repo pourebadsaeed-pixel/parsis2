@@ -573,7 +573,8 @@ var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/
 
 var CORS_PROXIES = [
     function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); }
+    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
 ];
 
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
@@ -928,79 +929,72 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از Navasan CDN با کلیدهای متعدد)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (مستقیم از منبع اصلی TGJU)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['usd', 'price_dollar_rl'], label: '💵 دلار آمریکا', source: 'fiat', mul: 10 },
-    { id: '137123', keys: ['eur', 'price_eur'], label: '💶 یورو', source: 'fiat', mul: 10 },
-    { id: '137138', keys: ['sekkeh', 'emami', 'sekke_emami'], label: '🪙 سکه امامی', source: 'gold', mul: 10 },
-    { id: '137137', keys: ['bahar', 'azadi', 'sekke_bahar'], label: '🪙 تمام سکه بهار آزادی', source: 'gold', mul: 10 },
-    { id: '137139', keys: ['nim', 'nim_sekke', 'nim_sekee'], label: '🪙 نیم سکه', source: 'gold', mul: 10 },
-    { id: '137140', keys: ['rob', 'rob_sekke', 'rob_sekee'], label: '🪙 ربع سکه', source: 'gold', mul: 10 },
-    { id: '137207', keys: ['geram24', '24ayar', 'gold24', 'gold_24k', 'geram_24', '24_ayar', 'gold_24'], label: '🥇 طلای ۲۴ عیار', source: 'gold', mul: 10 },
-    { id: '137225', keys: ['geram18', '18ayar', 'gold18', 'gold_18k', 'geram_18', '18_ayar', 'gold_18'], label: '🥇 طلای ۱۸ عیار', source: 'gold', mul: 10 },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mini_size', 'gold_mini_gram', 'mini'], label: '🥇 طلای دست دوم', source: 'gold', mul: 10 }
+    { id: '137119', key: 'price_dollar_rl', label: '💵 دلار آمریکا' },
+    { id: '137123', key: 'price_eur', label: '💶 یورو' },
+    { id: '137138', key: 'sekke_emami', label: '🪙 سکه امامی' },
+    { id: '137137', key: 'sekke_bahar', label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137139', key: 'nim_sekke', label: '🪙 نیم سکه' },
+    { id: '137140', key: 'rob_sekke', label: '🪙 ربع سکه' },
+    { id: '137207', key: 'geram24', label: '🥇 طلای ۲۴ عیار' },
+    { id: '137225', key: 'geram18', label: '🥇 طلای ۱۸ عیار' },
+    { id: '137222', key: 'gold_mini_size', label: '🥇 طلای دست دوم' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
-function findNavasanPrice(data, keys, mul) {
-    if (!data) return 0;
-    for (var i = 0; i < keys.length; i++) {
-        var item = data[keys[i]];
-        if (item) {
-            var val = item.value || item.price || item.p || item.last || 0;
-            var v = Number(String(val).replace(/[,\s]/g, ''));
-            if (isFinite(v) && v > 0) return v * (mul || 1);
-        }
-    }
-    return 0;
-}
-
 async function fetchTgjuRates() {
     var results = {};
-    var prev = TGJU_RATES_CACHE.values || {};
+    var urls = [
+        'https://call1.tgju.org/ajax.json',
+        'https://call2.tgju.org/ajax.json'
+    ];
     
-    var goldData = null, fiatData = null;
-    try { goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 10000); } catch (e) {}
-    try { fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 10000); } catch (e) {}
+    var data = null;
+    for (var i = 0; i < urls.length; i++) {
+        data = await tryFetchJsonWithFallback(urls[i], 10000);
+        if (data && data.current) break;
+    }
 
-    var gold18Price = 0;
+    if (!data || !data.current) return results;
 
-    TGJU_ITEMS.forEach(function (item) {
-        var data = item.source === 'fiat' ? fiatData : goldData;
-        var val = findNavasanPrice(data, item.keys, item.mul);
+    var current = data.current;
+
+    TGJU_ITEMS.forEach(function(item) {
+        var entry = current[item.key];
         
-        // ذخیره قیمت 18 عیار برای استفاده در محاسبه 24 عیار
-        if (item.id === '137225' && val > 0) {
-            gold18Price = val;
+        if (!entry) {
+            // در صورتی که کلید دقیق پیدا نشد، جستجوی کلیدهای جایگزین در TGJU
+            var foundKey = Object.keys(current).find(function(k) {
+                if (item.id === '137222' && k.indexOf('mini') !== -1) return true;
+                if (item.id === '137207' && k.indexOf('geram24') !== -1) return true;
+                return false;
+            });
+            if (foundKey) entry = current[foundKey];
         }
 
-        if (val > 0) {
-            var prevVal = prev[item.id] ? prev[item.id].price : 0;
-            var dir = 'same';
+        if (entry && (entry.p || entry.price)) {
+            var priceStr = normalizeDigits(String(entry.p || entry.price)).replace(/[^\d]/g, '');
+            var price = Number(priceStr);
             
-            if (prevVal > 0) {
-                if (val > prevVal + 10) dir = 'up';
-                else if (val < prevVal - 10) dir = 'down';
+            if (price > 0) {
+                var chgStr = String(entry.d || entry.dp || '');
+                var chgDir = 'same';
+                var dt = String(entry.dt || '').toLowerCase();
+                
+                if (dt === 'high' || dt === 'up' || chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                else if (dt === 'low' || dt === 'down' || chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+
+                results[item.id] = {
+                    price: price,
+                    change: chgStr,
+                    dir: chgDir
+                };
             }
-            
-            results[item.id] = {
-                price: val,
-                change: '',
-                dir: dir
-            };
         }
     });
-
-    // اگر قیمت 24 عیار صفر بود ولی 18 عیار داشت، 24 عیار را محاسبه کن
-    if (!results['137207'] && gold18Price > 0) {
-        results['137207'] = {
-            price: Math.round(gold18Price * (24 / 18)),
-            change: '',
-            dir: 'same'
-        };
-    }
 
     return results;
 }
@@ -1051,21 +1045,21 @@ function renderTgjuRatesWidget() {
         var val = info ? info.price : 0;
         
         var chgCls = info ? info.dir : 'same';
+        var chgDisplay = info ? info.change : '';
         
         var textColor = '';
-        var arrow = '';
         if (chgCls === 'up') {
             textColor = '#059669';
-            arrow = '▲ ';
+            if (chgDisplay && chgDisplay.indexOf('▲') === -1 && chgDisplay.indexOf('+') === -1) chgDisplay = '▲ ' + chgDisplay;
         } else if (chgCls === 'down') {
             textColor = '#dc2626';
-            arrow = '▼ ';
+            if (chgDisplay && chgDisplay.indexOf('▼') === -1 && chgDisplay.indexOf('-') === -1) chgDisplay = '▼ ' + chgDisplay;
         }
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : arrow) + '</span>'
+             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : chgDisplay) + '</span>'
              +  '</div>';
     });
 
