@@ -69,7 +69,7 @@ function renderVoucherPager(total, curPage) {
         box.appendChild(b);
     }
 
-    mkBtn('⏮', 1, curPage === 1, 'اولین صفحه');
+    mkBtn('⏭', 1, curPage === 1, 'اولین صفحه');
     mkBtn('▶', curPage - 1, curPage === 1, 'صفحه قبل');
 
     var info = document.createElement('span');
@@ -78,7 +78,7 @@ function renderVoucherPager(total, curPage) {
     box.appendChild(info);
 
     mkBtn('◀', curPage + 1, curPage === totalPages, 'صفحه بعد');
-    mkBtn('⏭', totalPages, curPage === totalPages, 'آخرین صفحه');
+    mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین صفحه');
 }
 
 /* ============================================================
