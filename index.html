@@ -170,15 +170,14 @@
         
         <!-- ✅ ویجت جدید TGJU Coins -->
         <div class="card widget-card widget-wide" data-widget="tgjuCoins">
-            <h3>🪙 قیمت لحظه‌ای سکه (TGJU)</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h3 style="color:var(--primary-dark);font-size:0.95rem;margin:0">🪙 قیمت لحظه‌ای سکه (TGJU)</h3>
+                <button id="tgju-refresh" class="row-btn open" title="بروزرسانی" style="font-size:1.2rem">🔄</button>
+            </div>
             <div id="tgju-coins-widget" style="display:flex; justify-content:center; padding: 10px; min-height: 150px; overflow-x: auto;">
                 <tgju type="market-overview" items="137138,137137,137139,137140,137141" columns="dot" token="webservice"></tgju>
             </div>
         </div>
-
-    </div>
-    <div class="home-page-dots" id="home-page-dots"></div>
-</section>
 
 <!-- ============ LANGUAGE ============ -->
 <section id="page-language" class="page">
