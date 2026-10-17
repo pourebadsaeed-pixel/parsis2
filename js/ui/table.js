@@ -815,7 +815,8 @@ function buildHeaderButtons() {
                 h.appendChild(rBtn);
             }
 
-            if (tableId && !h.querySelector('.col-toggle-btn')) {
+            /* ✅ حذف دکمه قرمز (⚙) برای جدول مرور حساب‌ها */
+            if (tableId && !h.querySelector('.col-toggle-btn') && tableId !== 'ra-acc-table') {
                 var btn = document.createElement('button');
                 btn.className = 'col-toggle-btn';
                 btn.type = 'button';
@@ -868,4 +869,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete (perfect resize)');
+console.log('✅ [ui/table.js] loaded — complete (fixed header buttons)');
