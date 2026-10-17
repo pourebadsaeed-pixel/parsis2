@@ -80,9 +80,7 @@ var NAVIGABLE_PAGES = {
     'report-incomplete':    'تراکنش‌های تکمیل نشده',
     'report-facility':      'خلاصه تسهیلات',
     'report-facility-full': 'گزارش جامع تسهیلات',
-    'report-rates':         'گزارش نرخ ارز و طلا',
     'report-compare':       'گزارش مقایسه‌ای دوره‌ها',
-    'daily-close':          'قیمت پایانی روز',
     'jalali-calendar':      'مدیریت تقویم'
 };
 
@@ -116,9 +114,7 @@ var PAGE_TITLES_FA = {
     'report-incomplete':    { icon: '🔍', title: 'تراکنش‌های تکمیل نشده' },
     'report-facility':      { icon: '🏦', title: 'خلاصه تسهیلات' },
     'report-facility-full': { icon: '📊', title: 'گزارش جامع تسهیلات' },
-    'report-rates':         { icon: '📈', title: 'گزارش نرخ ارز و طلا' },
     'report-compare':       { icon: '📊', title: 'گزارش مقایسه‌ای' },
-    'daily-close':          { icon: '📅', title: 'قیمت پایانی روز' },
     'jalali-calendar':      { icon: '📅', title: 'مدیریت تقویم' }
 };
 
