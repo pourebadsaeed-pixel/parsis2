@@ -934,8 +934,8 @@ function renderTodayChecklistWidget(category) {
 var TGJU_ITEMS = [
     { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
-    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'seke'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami', 'sekee_emami', 'emami'], label: '🪙 سکه امامی' },
+    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'sekee_bahar', 'sekee_azadi', 'bahar', 'azadi'], label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
     { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
@@ -947,26 +947,40 @@ var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
 function findTgjuEntry(data, item) {
     var current = data.current || data;
+    
+    // ۱. تلاش با کلیدهای دقیق
     for (var i = 0; i < item.keys.length; i++) {
         var k = item.keys[i];
-        if (current[k] && current[k].p) {
-            var p = Number(String(current[k].p).replace(/[^\d]/g, ''));
-            if (p > 0) return current[k];
+        if (current[k]) {
+            var entry = current[k];
+            var pStr = entry.p || entry.price || entry.value || entry.last || '';
+            var p = Number(String(pStr).replace(/[^\d]/g, ''));
+            if (p > 0) return entry;
         }
     }
     
+    // ۲. جستجوی هوشمند در تمام کلیدها
     for (var key in current) {
         if (!current.hasOwnProperty(key)) continue;
         var kl = key.toLowerCase();
-        if (item.id === '137138' && kl.indexOf('emami') !== -1) {
-            var p2 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
-            if (p2 > 0) return current[key];
+        
+        var isEmami = kl.indexOf('emami') !== -1;
+        var isBahar = (kl.indexOf('bahar') !== -1 || kl.indexOf('azadi') !== -1) && !isEmami;
+        
+        if (item.id === '137138' && isEmami) {
+            var entry2 = current[key];
+            var pStr2 = entry2.p || entry2.price || entry2.value || entry2.last || '';
+            var p2 = Number(String(pStr2).replace(/[^\d]/g, ''));
+            if (p2 > 0) return entry2;
         }
-        if (item.id === '137137' && (kl.indexOf('bahar') !== -1 || kl.indexOf('azadi') !== -1) && kl.indexOf('emami') === -1) {
-            var p3 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
-            if (p3 > 0) return current[key];
+        if (item.id === '137137' && isBahar) {
+            var entry3 = current[key];
+            var pStr3 = entry3.p || entry3.price || entry3.value || entry3.last || '';
+            var p3 = Number(String(pStr3).replace(/[^\d]/g, ''));
+            if (p3 > 0) return entry3;
         }
     }
+    
     return null;
 }
 
@@ -1060,7 +1074,6 @@ function renderTgjuRatesWidget() {
         var chgCls = info ? info.dir : 'same';
         var chgDisplay = info ? info.change : '';
         
-        // تنظیم رنگ قرمز (کاهش) و سبز (افزایش) به صورت تضمینی
         var textColor = '';
         if (chgCls === 'up') {
             textColor = '#059669'; // سبز
