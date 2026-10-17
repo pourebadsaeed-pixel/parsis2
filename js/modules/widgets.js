@@ -572,9 +572,11 @@ var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/
 var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/fiat.json';
 
 var CORS_PROXIES = [
-    function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+    function (u) { return 'https://api.allorigins.win/get?url=' + encodeURIComponent(u); },
     function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
+    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); },
+    function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+    function (u) { return 'https://api.cors.lol/?url=' + encodeURIComponent(u); }
 ];
 
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
@@ -615,7 +617,12 @@ async function tryFetchJsonWithFallback(url, ms) {
         try {
             var proxyUrl = CORS_PROXIES[i](url);
             data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
-            if (data) return data;
+            if (data) {
+                if (data.contents) {
+                    try { return JSON.parse(data.contents); } catch (e) {}
+                }
+                return data;
+            }
         } catch (e) {}
     }
     return null;
@@ -948,9 +955,19 @@ var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
 async function fetchTgjuRates() {
     var results = {};
-    var url = 'https://call1.tgju.org/ajax.json';
+    var urls = [
+        'https://call2.tgju.org/ajax.json',
+        'https://call3.tgju.org/ajax.json',
+        'https://call4.tgju.org/ajax.json',
+        'https://call1.tgju.org/ajax.json'
+    ];
     
-    var data = await tryFetchJsonWithFallback(url, 10000);
+    var data = null;
+    for (var i = 0; i < urls.length; i++) {
+        data = await tryFetchJsonWithFallback(urls[i], 10000);
+        if (data && data.current) break;
+    }
+    
     if (!data || !data.current) return results;
 
     TGJU_ITEMS.forEach(function (item) {
