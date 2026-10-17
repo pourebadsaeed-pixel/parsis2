@@ -572,7 +572,7 @@ var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/
 var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/fiat.json';
 
 var CORS_PROXIES = [
-    function (u) { return 'https://corsfix.com/proxy?url=' + encodeURIComponent(u); },
+    function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
     function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); }
 ];
 
@@ -607,24 +607,6 @@ async function tryFetchJson(url, ms) {
 }
 
 async function tryFetchJsonWithFallback(url, ms) {
-    // 🛑 اگر لینک مربوط به TGJU باشد، مستقیم سراغ پروکسی می‌رویم تا خطای CORS در کنسول چاپ نشود
-    if (url.indexOf('tgju.org') !== -1) {
-        for (var i = 0; i < CORS_PROXIES.length; i++) {
-            try {
-                var proxyUrl = CORS_PROXIES[i](url);
-                var data = await tryFetchJson(proxyUrl, (ms || 8000) + 3000);
-                if (data) {
-                    if (data.contents) {
-                        try { return JSON.parse(data.contents); } catch (e) {}
-                    }
-                    return data;
-                }
-            } catch (e) {}
-        }
-        return null;
-    }
-
-    // برای بقیه لینک‌ها اول مستقیم تلاش می‌کنیم
     var data = await tryFetchJson(url, ms);
     if (data) return data;
 
@@ -946,138 +928,63 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (نسخه نهایی و پایدار)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (اتصال مستقیم به API جایگزین بدون واسطه)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
+    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl', 'usd'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137138', keys: ['sekke_emami', 'seke_emami', 'sekee_emami', 'emami'], label: '🪙 سکه امامی' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami', 'sekee_emami', 'emami', 'sekee_emami_r'], label: '🪙 سکه امامی' },
     { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'sekee_bahar', 'sekee_azadi', 'bahar', 'azadi'], label: '🪙 تمام سکه بهار آزادی' },
-    { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
-    { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
-    { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
-    { id: '137225', keys: ['geram18', 'gold18'], label: '🥇 طلای ۱۸ عیار' },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' }
+    { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke', 'nim_sekee'], label: '🪙 نیم سکه' },
+    { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke', 'rob_sekee'], label: '🪙 ربع سکه' },
+    { id: '137207', keys: ['geram24', 'gold24', 'geram_24'], label: '🥇 طلای ۲۴ عیار' },
+    { id: '137225', keys: ['geram18', 'gold18', 'geram_18'], label: '🥇 طلای ۱۸ عیار' },
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mesghal'], label: '🥇 طلای دست دوم' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
-function findTgjuEntry(data, item) {
-    var current = data.current || data;
-    
-    for (var i = 0; i < item.keys.length; i++) {
-        var k = item.keys[i];
-        if (current[k]) {
-            var entry = current[k];
-            var pStr = entry.p || entry.price || entry.value || entry.last || '';
-            var p = Number(String(pStr).replace(/[^\d]/g, ''));
-            if (p > 0) return entry;
-        }
-    }
-    
-    for (var key in current) {
-        if (!current.hasOwnProperty(key)) continue;
-        var kl = key.toLowerCase();
-        
-        var isEmami = kl.indexOf('emami') !== -1;
-        var isBahar = (kl.indexOf('bahar') !== -1 || kl.indexOf('azadi') !== -1) && !isEmami;
-        
-        if (item.id === '137138' && isEmami) {
-            var entry2 = current[key];
-            var pStr2 = entry2.p || entry2.price || entry2.value || entry2.last || '';
-            var p2 = Number(String(pStr2).replace(/[^\d]/g, ''));
-            if (p2 > 0) return entry2;
-        }
-        if (item.id === '137137' && isBahar) {
-            var entry3 = current[key];
-            var pStr3 = entry3.p || entry3.price || entry3.value || entry3.last || '';
-            var p3 = Number(String(pStr3).replace(/[^\d]/g, ''));
-            if (p3 > 0) return entry3;
-        }
-    }
-    
-    return null;
-}
-
 async function fetchTgjuRates() {
     var results = {};
-    var urls = [
-        'https://call1.tgju.org/ajax.json',
-        'https://call2.tgju.org/ajax.json'
-    ];
     
-    var data = null;
-    for (var i = 0; i < urls.length; i++) {
-        data = await tryFetchJsonWithFallback(urls[i], 10000);
-        if (data && (data.current || data.price_dollar_rl)) break;
-    }
-    
-    if (data) {
-        TGJU_ITEMS.forEach(function (item) {
-            var entry = findTgjuEntry(data, item);
-            if (entry && (entry.p || entry.price)) {
-                var priceStr = normalizeDigits(String(entry.p || entry.price)).replace(/[^\d]/g, '');
-                var price = Number(priceStr);
-                if (price > 0) {
-                    var chgStr = String(entry.d || entry.dp || '');
-                    var chgDir = 'same';
-                    var dt = String(entry.dt || '').toLowerCase();
-                    
-                    if (dt === 'high' || dt === 'up' || chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                    else if (dt === 'low' || dt === 'down' || chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+    // استفاده از API جایگزین که CORS ندارد (هم ارز و هم طلا/سکه)
+    var goldUrl = 'https://tgju.amirhossein.info/gold';
+    var currUrl = 'https://tgju.amirhossein.info/currency';
 
-                    results[item.id] = {
-                        price: price,
-                        change: chgStr,
-                        dir: chgDir
-                    };
-                }
+    var goldData = await tryFetchJson(goldUrl, 10000);
+    var currData = await tryFetchJson(currUrl, 10000);
+
+    function extractPrices(data) {
+        if (!data || !Array.isArray(data)) return;
+        data.forEach(function (cat) {
+            if (cat.prices && Array.isArray(cat.prices)) {
+                cat.prices.forEach(function (p) {
+                    var pKey = (p.key || '').toLowerCase();
+                    
+                    TGJU_ITEMS.forEach(function (item) {
+                        // بررسی اینکه آیا کلید API با کلیدهای ما همخوانی دارد یا خیر
+                        var isMatch = item.keys.some(function (k) {
+                            return pKey === k.toLowerCase();
+                        });
+
+                        if (isMatch && p.price) {
+                            var pr = Number(String(p.price).replace(/[^\d]/g, ''));
+                            if (pr > 0) {
+                                results[item.id] = {
+                                    price: pr,
+                                    change: p.change || '',
+                                    dir: p.status === 'low' ? 'down' : (p.status === 'high' ? 'up' : 'same')
+                                };
+                            }
+                        }
+                    });
+                });
             }
         });
     }
 
-    // اگر سکه‌ها از ajax.json نیامدند، مستقیم از API جایگزین (بدون نیاز به پروکسی) می‌گیریم
-    var missingIds = [];
-    TGJU_ITEMS.forEach(function(item) {
-        if (!results[item.id] || results[item.id].price <= 0) missingIds.push(item.id);
-    });
-
-    if (missingIds.length > 0) {
-        var fallbackUrl = 'https://tgju.amirhossein.info/gold';
-        var fData = await tryFetchJson(fallbackUrl, 8000); // بدون استفاده از پروکسی
-        
-        if (fData && Array.isArray(fData)) {
-            var allPrices = [];
-            fData.forEach(function (cat) {
-                if (cat.prices && Array.isArray(cat.prices)) {
-                    allPrices = allPrices.concat(cat.prices);
-                }
-            });
-            
-            missingIds.forEach(function (id) {
-                var targetItem = TGJU_ITEMS.find(function (t) { return t.id === id; });
-                if (!targetItem) return;
-                
-                var match = allPrices.find(function (p) {
-                    var pk = (p.key || '').toLowerCase();
-                    if (id === '137138' && pk.indexOf('emami') !== -1) return true;
-                    if (id === '137137' && (pk.indexOf('bahar') !== -1 || pk.indexOf('azadi') !== -1) && pk.indexOf('emami') === -1) return true;
-                    return false;
-                });
-                
-                if (match && match.price) {
-                    var pr = Number(String(match.price).replace(/[^\d]/g, ''));
-                    if (pr > 0) {
-                        results[id] = {
-                            price: pr,
-                            change: match.change || '',
-                            dir: match.status === 'low' ? 'down' : (match.status === 'high' ? 'up' : 'same')
-                        };
-                    }
-                }
-            });
-        }
-    }
+    extractPrices(goldData);
+    extractPrices(currData);
 
     return results;
 }
