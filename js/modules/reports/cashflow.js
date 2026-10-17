@@ -72,10 +72,8 @@ function getActiveFiscalYearStart() {
 
 /* ============================================================
    بخش ۴ — گزارش پیش‌بینی روزانه نقدینگی
-   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runCashFlowReport() {
-    /* ✅ تاشو کردن پنل فیلتر */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
     }
@@ -168,12 +166,13 @@ function runCashFlowReport() {
 
     items.sort(function (a, b) { return compareVals(a.sortDate, b.sortDate); });
 
+    /* ✅ تغییر: اضافه کردن کلاس data-table برای هماهنگی کامل با فهرست اسناد و حذف عرض‌های ثابت */
     var html = '<div class="cf-report"><div class="table-wrap">';
-    html += '<table class="cf-table" id="cf-table" data-table-id="cf-table"><thead><tr>'
-         +  '<th style="width:35%">عنوان دسته</th>'
-         +  '<th style="width:15%">تاریخ</th>'
-         +  '<th style="width:25%">مبلغ</th>'
-         +  '<th style="width:25%">مانده در خط</th>'
+    html += '<table class="cf-table data-table" id="cf-table" data-table-id="cf-table"><thead><tr>'
+         +  '<th>عنوان دسته</th>'
+         +  '<th>تاریخ</th>'
+         +  '<th>مبلغ</th>'
+         +  '<th>مانده در خط</th>'
          +  '</tr></thead><tbody>';
 
     var running = bankBalance;
@@ -254,10 +253,8 @@ function runCashFlowReport() {
 
 /* ============================================================
    بخش ۵ — گزارش گردش وجه نقد
-   ✅ افزودن تاشو شدن پنل فیلتر
    ============================================================ */
 function runCashFlowByDescReport() {
-    /* ✅ تاشو کردن پنل فیلتر */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
     }
@@ -358,14 +355,15 @@ function runCashFlowByDescReport() {
 
     if (viewMode === 'main' || viewMode === 'full') {
         html += '<div class="cfd-section-title">📋 گزارش اصلی</div>';
-        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table" id="cfd-table" data-table-id="cfd-table"><thead><tr>'
-             +  '<th style="width:50px">#</th>'
-             +  '<th style="min-width:180px">بابت / شرح</th>'
-             +  '<th style="width:130px">ورود (بدهکار)</th>'
-             +  '<th style="width:130px">خروج (بستانکار)</th>'
-             +  '<th style="width:130px">مانده</th>'
-             +  '<th style="width:80px">تعداد</th>'
-             +  '<th style="width:90px">درصد</th>'
+        /* ✅ تغییر: اضافه کردن data-table و حذف عرض‌های ثابت */
+        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table data-table" id="cfd-table" data-table-id="cfd-table"><thead><tr>'
+             +  '<th>#</th>'
+             +  '<th>بابت / شرح</th>'
+             +  '<th>ورود (بدهکار)</th>'
+             +  '<th>خروج (بستانکار)</th>'
+             +  '<th>مانده</th>'
+             +  '<th>تعداد</th>'
+             +  '<th>درصد</th>'
              +  '</tr></thead><tbody>';
 
         var tIn = 0, tOut = 0;
@@ -420,16 +418,17 @@ function runCashFlowByDescReport() {
                  +   '</div>'
                  +   '<div class="cfd-details">'
                  +     '<div class="cfd-hscroll">'
+                 /* ✅ حذف عرض‌های ثابت از جدول جزئیات */
                  +       '<table class="data-table cfd-detail-table" data-table-id="cfd-detail-' + j + '">'
-                 +         '<thead><tr><th style="width:50px">#</th>'
-                 +         '<th style="width:100px">تاریخ</th>'
-                 +         '<th style="width:80px">شماره</th>'
-                 +         '<th style="min-width:140px">شرح سند</th>'
-                 +         '<th style="min-width:140px">حساب</th>'
-                 +         '<th style="min-width:140px">شرح قلم</th>'
-                 +         '<th style="width:120px">بدهکار</th>'
-                 +         '<th style="width:120px">بستانکار</th>'
-                 +         '<th style="width:90px">عملیات</th></tr></thead><tbody>';
+                 +         '<thead><tr><th>#</th>'
+                 +         '<th>تاریخ</th>'
+                 +         '<th>شماره</th>'
+                 +         '<th>شرح سند</th>'
+                 +         '<th>حساب</th>'
+                 +         '<th>شرح قلم</th>'
+                 +         '<th>بدهکار</th>'
+                 +         '<th>بستانکار</th>'
+                 +         '<th>عملیات</th></tr></thead><tbody>';
 
             for (var di = 0; di < b2.details.length; di++) {
                 var d2 = b2.details[di];
@@ -551,7 +550,6 @@ function bindCashFlowReportButtons() {
     var onlyBal = document.getElementById('cfd-only-balance');
     if (onlyBal) onlyBal.addEventListener('change', runCashFlowByDescReport);
 
-    /* ✅ تاشو کردن پنل‌ها در بار اول باز شدن صفحه */
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
             makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
