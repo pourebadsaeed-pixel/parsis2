@@ -928,31 +928,49 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از Navasan CDN)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (Navasan CDN)
+   ✅ بازنویسی‌شده برای رفع «صفر نمایش دادن» و «نمایش ندادن»
    ============================================================ */
+
+/* ✅ کلیدهای گسترده‌شده — اگر کلید اول در API نبود، بعدی امتحان می‌شود */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['usd', 'price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا', source: 'fiat', mul: 10 },
-    { id: '137123', keys: ['eur', 'price_eur'], label: '💶 یورو', source: 'fiat', mul: 10 },
-    { id: '137138', keys: ['sekkeh', 'emami', 'sekke_emami', 'seke_emami'], label: '🪙 سکه امامی', source: 'gold', mul: 10 },
-    { id: '137137', keys: ['bahar', 'azadi', 'sekke_bahar', 'seke_bahar'], label: '🪙 تمام سکه بهار آزادی', source: 'gold', mul: 10 },
-    { id: '137139', keys: ['nim', 'nim_sekke', 'nim_sekee'], label: '🪙 نیم سکه', source: 'gold', mul: 10 },
-    { id: '137140', keys: ['rob', 'rob_sekke', 'rob_sekee'], label: '🪙 ربع سکه', source: 'gold', mul: 10 },
-    { id: '137207', keys: ['24ayar', 'geram24', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار', source: 'gold', mul: 10 },
-    { id: '137225', keys: ['18ayar', 'geram18', 'gold18', 'gold_18k'], label: '🥇 طلای ۱۸ عیار', source: 'gold', mul: 10 },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mini_size', 'gold_mini_gram'], label: '🥇 طلای دست دوم', source: 'gold', mul: 10 }
+    { id: '137119', keys: ['usd', 'price_dollar_rl', 'dolar_rl', 'dollar'],                 label: '💵 دلار آمریکا',           source: 'fiat', mul: 10 },
+    { id: '137123', keys: ['eur', 'price_eur', 'euro', 'eur_rl'],                            label: '💶 یورو',                  source: 'fiat', mul: 10 },
+    { id: '137138', keys: ['sekkeh', 'emami', 'sekke_emami', 'seke_emami', 'sekke'],         label: '🪙 سکه امامی',            source: 'gold', mul: 10 },
+    { id: '137137', keys: ['bahar', 'azadi', 'sekke_bahar', 'seke_bahar', 'bahar_azadi'],    label: '🪙 تمام سکه بهار آزادی',  source: 'gold', mul: 10 },
+    { id: '137139', keys: ['nim', 'nim_sekke', 'nim_sekee', 'nim_sekkeh'],                   label: '🪙 نیم سکه',              source: 'gold', mul: 10 },
+    { id: '137140', keys: ['rob', 'rob_sekke', 'rob_sekee', 'rob_sekkeh'],                   label: '🪙 ربع سکه',              source: 'gold', mul: 10 },
+    { id: '137207', keys: ['24ayar', 'geram24', 'gold24', 'gold_24k', 'gold_24'],            label: '🥇 طلای ۲۴ عیار',         source: 'gold', mul: 10 },
+    { id: '137225', keys: ['18ayar', 'geram18', 'gold18', 'gold_18k', 'gold_18'],            label: '🥇 طلای ۱۸ عیار',         source: 'gold', mul: 10 },
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini', 'mini_size', 'mesghal', 'gold_mesghal', '18ayar'], label: '🥇 طلای دست دوم', source: 'gold', mul: 10 }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
+/* ✅ استخراج مقاوم مقدار — ارقام فارسی، جداکننده، فیلدهای بیشتر */
 function findNavasanPrice(data, keys, mul) {
-    if (!data) return 0;
+    if (!data || typeof data !== 'object') return 0;
     for (var i = 0; i < keys.length; i++) {
         var item = data[keys[i]];
-        if (item) {
-            var val = item.value || item.price || item.p || item.last || 0;
-            var v = Number(String(val).replace(/[,\s]/g, ''));
-            if (isFinite(v) && v > 0) return v * (mul || 1);
+        if (!item) continue;
+
+        var rawVal;
+        if (typeof item === 'number' || typeof item === 'string') {
+            rawVal = item;
+        } else {
+            rawVal = item.value || item.price || item.p || item.last ||
+                     item.close || item.rate || item.val || 0;
         }
+
+        var normalized = String(rawVal)
+            .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); })
+            .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+            .replace(/[,٬\u060C]/g, '')
+            .replace(/\s+/g, '')
+            .trim();
+
+        var v = Number(normalized);
+        if (isFinite(v) && v > 0) return v * (mul || 1);
     }
     return 0;
 }
@@ -960,34 +978,49 @@ function findNavasanPrice(data, keys, mul) {
 async function fetchTgjuRates() {
     var results = {};
     var prev = TGJU_RATES_CACHE.values || {};
-    
-    // خواندن از Navasan CDN (بدون نیاز به پروکسی و بدون خطای CORS)
+    var freshCount = 0;
+
+    /* دریافت موازی هر دو فایل — با fallback پروکسی */
     var goldData = null, fiatData = null;
-    try { goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 10000); } catch (e) {}
-    try { fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 10000); } catch (e) {}
+    try {
+        var arr = await Promise.all([
+            tryFetchJson(NAVASAN_GOLD_CDN, 12000).catch(function () { return null; }),
+            tryFetchJson(NAVASAN_FIAT_CDN, 12000).catch(function () { return null; })
+        ]);
+        goldData = arr[0];
+        fiatData = arr[1];
+    } catch (e) { /* ادامه می‌دهیم */ }
+
+    /* اگر مستقیم نشد، از پروکسی امتحان کن */
+    if (!goldData) {
+        try { goldData = await tryFetchJsonWithFallback(NAVASAN_GOLD_CDN, 10000); } catch (e) {}
+    }
+    if (!fiatData) {
+        try { fiatData = await tryFetchJsonWithFallback(NAVASAN_FIAT_CDN, 10000); } catch (e) {}
+    }
 
     TGJU_ITEMS.forEach(function (item) {
         var data = item.source === 'fiat' ? fiatData : goldData;
         var val = findNavasanPrice(data, item.keys, item.mul);
-        
+
         if (val > 0) {
             var prevVal = prev[item.id] ? prev[item.id].price : 0;
             var dir = 'same';
-            
+
             if (prevVal > 0) {
                 if (val > prevVal + 10) dir = 'up';
                 else if (val < prevVal - 10) dir = 'down';
             }
-            
-            results[item.id] = {
-                price: val,
-                change: '',
-                dir: dir
-            };
+
+            results[item.id] = { price: val, change: '', dir: dir };
+            freshCount++;
+        } else if (prev[item.id] && prev[item.id].price > 0) {
+            /* ✅ اگر این بار دریافت نشد، مقدار قبلی رو نگه دار */
+            results[item.id] = prev[item.id];
         }
     });
 
-    return results;
+    return { values: results, freshCount: freshCount };
 }
 
 async function updateTgjuRatesWidget(forceRefresh) {
@@ -1004,12 +1037,17 @@ async function updateTgjuRatesWidget(forceRefresh) {
     }
 
     try {
-        var results = await fetchTgjuRates();
+        var fetched = await fetchTgjuRates();
+        var results = fetched.values || {};
         var hasAny = false;
         for (var k in results) { hasAny = true; break; }
 
         if (hasAny) {
-            TGJU_RATES_CACHE = { values: results, ts: Date.now() };
+            /* ✅ اگر داده تازه نیامد، ts را به‌روز نکن تا دوباره تلاش کند */
+            TGJU_RATES_CACHE = {
+                values: results,
+                ts: fetched.freshCount > 0 ? Date.now() : (TGJU_RATES_CACHE.ts || Date.now())
+            };
             DB.save('tgjuRatesCache', TGJU_RATES_CACHE);
             renderTgjuRatesWidget();
         } else if (!TGJU_RATES_CACHE.ts) {
@@ -1030,29 +1068,38 @@ function renderTgjuRatesWidget() {
     var c = TGJU_RATES_CACHE;
     var hide = getHideState('widgets');
     var html = '';
+    var visibleCount = 0;
 
     TGJU_ITEMS.forEach(function (item) {
         var info = c.values[item.id];
         var val = info ? info.price : 0;
-        
+        var hasPrice = val > 0;
+        if (hasPrice) visibleCount++;
+
         var chgCls = info ? info.dir : 'same';
-        
         var textColor = '';
         var arrow = '';
-        if (chgCls === 'up') {
-            textColor = '#059669';
-            arrow = '▲ ';
-        } else if (chgCls === 'down') {
-            textColor = '#dc2626';
-            arrow = '▼ ';
-        }
+        if (chgCls === 'up')        { textColor = '#059669'; arrow = '▲ '; }
+        else if (chgCls === 'down') { textColor = '#dc2626'; arrow = '▼ '; }
+
+        var amountText;
+        if (hide)          amountText = '—';
+        else if (hasPrice) amountText = formatRial(val) + ' ریال';
+        else               amountText = '—';
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
-             +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : arrow) + '</span>'
+             +  '<span class="amount">' + amountText + '</span>'
+             +  '<span class="rate-chg" style="color:' + textColor + ';font-weight:800;background:transparent">'
+             +  (hide ? '' : arrow) + '</span>'
              +  '</div>';
     });
+
+    if (visibleCount === 0 && !hide) {
+        box.innerHTML = '<div class="widget-empty">⚠️ هنوز نرخی دریافت نشده.<br>'
+                      + '<span style="font-size:.75rem;opacity:.8">روی 🔄 بزنید یا اینترنت را بررسی کنید.</span></div>';
+        return;
+    }
 
     box.innerHTML = html;
 }
@@ -1066,6 +1113,69 @@ function bindTgjuRatesRefreshButton() {
             updateTgjuRatesWidget(true);
         });
     }
+}
+
+/* ============================================================
+   ✅ ابزار عیب‌یابی — برای تشخیص کلید ناموجود در API
+   در کنسول مرورگر اجرا کنید: await window.debugTgju()
+   ============================================================ */
+async function debugTgju() {
+    console.log('%c🔍 [TGJU Debug] شروع عیب‌یابی...', 'color:#4a90e2;font-weight:bold');
+
+    var goldData = null, fiatData = null;
+    try {
+        goldData = await tryFetchJson(NAVASAN_GOLD_CDN, 12000);
+        console.log('%c📦 gold.json دریافت شد', 'color:#059669');
+        if (goldData) {
+            console.log('کلیدهای موجود در gold.json:', Object.keys(goldData));
+        }
+    } catch (e) {
+        console.error('❌ gold.json دریافت نشد:', e);
+    }
+
+    try {
+        fiatData = await tryFetchJson(NAVASAN_FIAT_CDN, 12000);
+        console.log('%c📦 fiat.json دریافت شد', 'color:#059669');
+        if (fiatData) {
+            console.log('کلیدهای موجود در fiat.json:', Object.keys(fiatData));
+        }
+    } catch (e) {
+        console.error('❌ fiat.json دریافت نشد:', e);
+    }
+
+    console.log('%c📋 بررسی هر آیتم TGJU:', 'color:#4a90e2;font-weight:bold');
+    var report = [];
+    TGJU_ITEMS.forEach(function (item) {
+        var data = item.source === 'fiat' ? fiatData : goldData;
+        var val = findNavasanPrice(data, item.keys, item.mul);
+        var status = val > 0 ? '✅' : '❌';
+        var matchedKey = '';
+        if (val > 0 && data) {
+            for (var i = 0; i < item.keys.length; i++) {
+                if (data[item.keys[i]]) { matchedKey = item.keys[i]; break; }
+            }
+        }
+        report.push({
+            'ID': item.id,
+            'عنوان': item.label,
+            'منبع': item.source,
+            'کلید موفق': matchedKey || '(هیچ)',
+            'مقدار': val > 0 ? val.toLocaleString('fa-IR') + ' ریال' : '—',
+            'وضعیت': status
+        });
+        console.log(status + ' ' + item.label + ' | کلید موفق: ' + (matchedKey || '—') + ' | ' + (val > 0 ? val.toLocaleString('fa-IR') + ' ریال' : 'دریافت نشد'));
+    });
+
+    console.table(report);
+
+    var missing = report.filter(function (r) { return r['وضعیت'] === '❌'; });
+    if (missing.length === 0) {
+        console.log('%c✅ همه آیتم‌ها قیمت دارند', 'color:#059669;font-weight:bold');
+    } else {
+        console.warn('%c⚠️ ' + missing.length + ' آیتم قیمت ندارند:', 'color:#dc2626;font-weight:bold');
+        console.warn('کلیدهای این آیتم‌ها را با Object.keys(goldData) یا Object.keys(fiatData) مقایسه کنید.');
+    }
+    return report;
 }
 
 /* ============================================================
@@ -1095,9 +1205,9 @@ function updateHomeWidgets() {
     if (state.widgets.cashBalances)          renderCashBalancesWidget();
     if (state.widgets.upcomingInstallments)  updateHomeUpcomingInstallments();
     if (state.widgets.birthdays)             renderBirthdaysWidget();
-    
+
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
-    
+
     if (state.widgets.tgjuRates) {
         bindTgjuRatesRefreshButton();
         updateTgjuRatesWidget();
@@ -1150,4 +1260,14 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — complete');
+/* ✅ صادرسازی TGJU */
+window.TGJU_ITEMS                      = TGJU_ITEMS;
+window.TGJU_RATES_CACHE                = TGJU_RATES_CACHE;
+window.findNavasanPrice                = findNavasanPrice;
+window.fetchTgjuRates                  = fetchTgjuRates;
+window.updateTgjuRatesWidget           = updateTgjuRatesWidget;
+window.renderTgjuRatesWidget           = renderTgjuRatesWidget;
+window.bindTgjuRatesRefreshButton      = bindTgjuRatesRefreshButton;
+window.debugTgju                       = debugTgju;
+
+console.log('✅ [modules/widgets.js] loaded — complete (TGJU fixed)');
