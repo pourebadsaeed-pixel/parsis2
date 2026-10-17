@@ -934,25 +934,23 @@ function renderTodayChecklistWidget(category) {
    بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از ajax.json)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', key: 'price_dollar_rl', label: '💵 دلار آمریکا' },
-    { id: '137123', key: 'price_eur', label: '💶 یورو' },
-    { id: '137137', key: 'sekke_bahar', label: '🪙 تمام سکه بهار آزادی' },
-    { id: '137139', key: 'nim_sekke', label: '🪙 نیم سکه' },
-    { id: '137140', key: 'rob_sekke', label: '🪙 ربع سکه' },
-    { id: '137138', key: 'sekke_emami', label: '🪙 سکه امامی' },
-    { id: '137141', key: 'sekke_gerami', label: '🪙 سکه گرمی' },
-    { id: '137225', key: 'geram18', label: '🥇 طلای ۱۸ عیار' },
-    { id: '137207', key: 'geram24', label: '🥇 طلای ۲۴ عیار' },
-    { id: '137221', key: 'mesghal', label: '🥇 مثقال طلا' },
-    { id: '137222', key: 'gold_mini_size', label: '🥇 طلای دست دوم' },
-    { id: '137218', key: 'gold_ounce', label: '🥇 انس جهانی طلا' }
+    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
+    { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
+    { id: '137137', keys: ['sekke_bahar', 'sekke', 'seke_bahar'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
+    { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
+    { id: '137141', keys: ['sekke_gerami', 'gerami', 'seke_gerami'], label: '🪙 سکه گرمی' },
+    { id: '137225', keys: ['geram18', 'gold18'], label: '🥇 طلای ۱۸ عیار' },
+    { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
+    { id: '137221', keys: ['mesghal'], label: '🥇 مثقال طلا' },
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' },
+    { id: '137218', keys: ['gold_ounce', 'ons'], label: '🥇 انس جهانی طلا' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
-/* ✅ تابع کمکی برای تحلیل جهت تغییرات (بهبود یافته) */
 function parseTgjuChange(entry) {
-    // اگر فیلد dt وجود داشت، از آن استفاده کن (دقیق‌ترین)
     var trend = String(entry.dt || '').toLowerCase();
     if (trend === 'high' || trend === 'up' || trend === 'positive') {
         return { dir: 'up', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
@@ -961,7 +959,6 @@ function parseTgjuChange(entry) {
         return { dir: 'down', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
     }
 
-    // در غیر این صورت بر اساس علامت عدد تغییر
     var rawD = entry.d !== undefined ? entry.d : entry.dp;
     if (rawD === undefined || rawD === null) {
         return { dir: 'same', amount: '', percent: '' };
@@ -994,7 +991,15 @@ async function fetchTgjuRates() {
     if (!data || !data.current) return results;
 
     TGJU_ITEMS.forEach(function (item) {
-        var entry = data.current[item.key];
+        var entry = null;
+        // بررسی کلیدهای جایگزین
+        for (var i = 0; i < item.keys.length; i++) {
+            if (data.current[item.keys[i]]) {
+                entry = data.current[item.keys[i]];
+                break;
+            }
+        }
+
         if (entry && entry.p) {
             var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
             var price = Number(priceStr);
@@ -1068,7 +1073,6 @@ function renderTgjuRatesWidget() {
         var chgAmount = info ? info.change : '';
         var chgPercent = info ? info.percent : '';
         
-        // اگر درصد موجود بود، درصد را نشان بده، در غیر این صورت مبلغ
         var chgDisplay = '';
         if (!hide) {
             if (chgPercent && chgPercent !== '0' && chgPercent !== '') {
@@ -1078,7 +1082,6 @@ function renderTgjuRatesWidget() {
             }
         }
 
-        // فلش جهت‌دار
         var arrow = '';
         if (chgCls === 'up') arrow = '▲ ';
         else if (chgCls === 'down') arrow = '▼ ';
