@@ -940,12 +940,9 @@ var TGJU_ITEMS = [
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
     { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
-    { id: '137141', keys: ['sekke_gerami', 'gerami', 'seke_gerami'], label: '🪙 سکه گرمی' },
     { id: '137225', keys: ['geram18', 'gold18'], label: '🥇 طلای ۱۸ عیار' },
     { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
-    { id: '137221', keys: ['mesghal'], label: '🥇 مثقال طلا' },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' },
-    { id: '137218', keys: ['gold_ounce', 'ons'], label: '🥇 انس جهانی طلا' }
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
@@ -992,7 +989,6 @@ async function fetchTgjuRates() {
 
     TGJU_ITEMS.forEach(function (item) {
         var entry = null;
-        // بررسی کلیدهای جایگزین
         for (var i = 0; i < item.keys.length; i++) {
             if (data.current[item.keys[i]]) {
                 entry = data.current[item.keys[i]];
