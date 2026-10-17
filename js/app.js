@@ -1,12 +1,11 @@
 /* ============================================================
    پارسیس — راه‌اندازی نهایی برنامه
    مسیر: js/app.js
-   وابستگی: همه فایل‌های core, ui, modules
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۱ — اتصال دکمه‌های تنظیمات
+   بخش ۱ — Settings
    ============================================================ */
 function bindSettingsButtons() {
     var settingsBtn = document.getElementById('settings-btn');
@@ -58,7 +57,7 @@ function bindSettingsButtons() {
 }
 
 /* ============================================================
-   بخش ۲ — اتصال تنظیمات نمایش
+   بخش ۲ — Currency & Hide
    ============================================================ */
 function bindCurrencyHide() {
     var setLang = document.getElementById('set-language');
@@ -122,7 +121,7 @@ function bindCurrencyHide() {
 }
 
 /* ============================================================
-   بخش ۳ — انواع بانکی و صندوق
+   بخش ۳ — bank/cash types
    ============================================================ */
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
@@ -151,7 +150,7 @@ function bindBankCashTypes() {
 }
 
 /* ============================================================
-   بخش ۴ — پیامک
+   بخش ۴ — SMS
    ============================================================ */
 function bindSmsButtons() {
     function onSmsAutoRead(val) {
@@ -216,11 +215,9 @@ function bindSmsButtons() {
 }
 
 /* ============================================================
-   بخش ۵ — Widget Toggles (تغییر: از بخش ترتیب انجام می‌شود)
+   بخش ۵ — Widget toggles (legacy)
    ============================================================ */
 function bindWidgetToggles() {
-    /* تغییر: حالا از بخش «ترتیب و صفحه ویجت‌ها» در تنظیمات انجام می‌شود،
-       اما این تابع را نگه می‌داریم برای سازگاری */
     var wT = document.querySelectorAll('[data-widget-toggle]');
     for (var wt = 0; wt < wT.length; wt++) {
         wT[wt].addEventListener('change', function () {
@@ -233,7 +230,7 @@ function bindWidgetToggles() {
 }
 
 /* ============================================================
-   بخش ۶ — فرم‌های اطلاعات پایه
+   بخش ۶ — Base forms
    ============================================================ */
 function bindBaseDataForms() {
     if (typeof bindFiscalForm === 'function') bindFiscalForm();
@@ -245,18 +242,12 @@ function bindBaseDataForms() {
     if (typeof bindChartForm === 'function') bindChartForm();
 }
 
-/* ============================================================
-   بخش ۷ — فرم‌های نقدینگی
-   ============================================================ */
 function bindCashForms() {
     if (typeof bindEstimatesForm === 'function') bindEstimatesForm();
     if (typeof bindSourcesForm === 'function') bindSourcesForm();
     if (typeof bindFacilitiesForm === 'function') bindFacilitiesForm();
 }
 
-/* ============================================================
-   بخش ۸ — فرم سند و الگو
-   ============================================================ */
 function bindVoucherTemplatesForms() {
     if (typeof bindVoucherForm === 'function') bindVoucherForm();
     if (typeof bindVoucherListFilters === 'function') bindVoucherListFilters();
@@ -264,7 +255,8 @@ function bindVoucherTemplatesForms() {
 }
 
 /* ============================================================
-   بخش ۹ — دکمه‌های گزارش‌ها
+   بخش ۷ — Report buttons
+   ⚠️ گزارش نرخ ارز و طلا (rr-*) و قیمت پایانی روز (dc-*) حذف شدند
    ============================================================ */
 function bindReportButtons() {
     if (typeof bindCashFlowReportButtons === 'function') bindCashFlowReportButtons();
@@ -277,7 +269,6 @@ function bindReportButtons() {
         'ri-print':  ['#ri-result',  'تراکنش‌های تکمیل نشده'],
         'rf-print':  ['#rf-result',  'خلاصه تسهیلات'],
         'rff-print': ['#rff-result', 'گزارش جامع تسهیلات'],
-        'rr-print':  ['#rr-result',  'گزارش نرخ ارز و طلا'],
         'rc-print':  ['#rc-result',  'گزارش مقایسه‌ای دوره‌ها']
     };
     Object.keys(printButtons).forEach(function (id) {
@@ -297,7 +288,6 @@ function bindReportButtons() {
         'ri-export':  ['#ri-result',  'incomplete-transactions'],
         'rf-export':  ['#rf-result',  'facility-summary'],
         'rff-export': ['#rff-result', 'facility-full-report'],
-        'rr-export':  ['#rr-result',  'rates'],
         'rc-export':  ['#rc-result',  'comparison-report']
     };
     Object.keys(exportButtons).forEach(function (id) {
@@ -312,7 +302,6 @@ function bindReportButtons() {
     if (typeof bindRatesRefreshButton === 'function') bindRatesRefreshButton();
     if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
     if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
-    if (typeof bindRatesReportButtons === 'function') bindRatesReportButtons();
 
     var rtRun = document.getElementById('rt-run');
     if (rtRun && typeof runTrialBalance === 'function') {
@@ -330,20 +319,10 @@ function bindReportButtons() {
     if (raRun && typeof runAccountReport === 'function') {
         raRun.addEventListener('click', runAccountReport);
     }
-
-    var dcSave = document.getElementById('dc-save');
-    if (dcSave && typeof renderDailyClosePage === 'function') {
-        dcSave.addEventListener('click', function () {
-            var box = document.getElementById('dc-result');
-            if (!box || box.querySelector('.widget-empty')) {
-                renderDailyClosePage();
-            }
-        });
-    }
 }
 
 /* ============================================================
-   بخش ۱۰ — Modal Closers
+   بخش ۸ — Modal closers
    ============================================================ */
 function bindModalClosers() {
     var closeVp = document.getElementById('close-vpreview');
@@ -409,7 +388,7 @@ function bindModalClosers() {
 }
 
 /* ============================================================
-   بخش ۱۱ — Sidebar / Nav
+   بخش ۹ — Sidebar
    ============================================================ */
 function bindSidebarNavApp() {
     if (typeof initSidebarSearch === 'function') initSidebarSearch();
@@ -420,7 +399,7 @@ function bindSidebarNavApp() {
 }
 
 /* ============================================================
-   بخش ۱۲ — فیلترهای صفحات
+   بخش ۱۰ — Filter inputs
    ============================================================ */
 function bindFilterInputs() {
     var filterMap = {
@@ -450,7 +429,7 @@ function bindFilterInputs() {
 }
 
 /* ============================================================
-   بخش ۱۳ — Export Buttons
+   بخش ۱۱ — Export
    ============================================================ */
 function bindExportButtons() {
     var eB = document.querySelectorAll('.export-btn[data-export]');
@@ -464,7 +443,7 @@ function bindExportButtons() {
 }
 
 /* ============================================================
-   بخش ۱۴ — init اصلی
+   بخش ۱۲ — init
    ============================================================ */
 function init() {
     if (typeof applyTheme === 'function') applyTheme(state.theme);
@@ -577,7 +556,6 @@ function init() {
     if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
 
     if (typeof checkClipboardSupport === 'function') checkClipboardSupport();
-
     if (typeof clearNoteForm === 'function') clearNoteForm();
 
     if (typeof makeCardCollapsible === 'function') {
@@ -607,19 +585,13 @@ function init() {
 
     if (typeof aiInit === 'function') aiInit();
     if (typeof aiRender === 'function') aiRender();
-
     if (typeof renderEstimateItems === 'function') renderEstimateItems();
-
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
-
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 300);
 
     console.log('🎉 ' + APP_NAME + ' v' + APP_VERSION + ' — آماده است.');
 }
 
-/* ============================================================
-   بخش ۱۵ — شروع
-   ============================================================ */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
@@ -627,7 +599,7 @@ if (document.readyState === 'loading') {
 }
 
 /* ============================================================
-   بخش ۱۶ — Service Worker (PWA)
+   Service Worker
    ============================================================ */
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(function (e) {
@@ -636,7 +608,7 @@ if ('serviceWorker' in navigator) {
 }
 
 /* ============================================================
-   بخش ۱۷ — Global Error Handler
+   Global error handler
    ============================================================ */
 window.addEventListener('error', function (e) {
     console.error('[Global Error]', e.error || e.message);
@@ -647,7 +619,7 @@ window.addEventListener('unhandledrejection', function (e) {
 });
 
 /* ============================================================
-   بخش ۱۸ — صادرسازی
+   Exports
    ============================================================ */
 window.bindSettingsButtons      = bindSettingsButtons;
 window.bindCurrencyHide         = bindCurrencyHide;
