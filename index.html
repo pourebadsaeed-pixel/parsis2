@@ -89,9 +89,7 @@
                 <button data-page="report-incomplete">🔍 تراکنش‌های تکمیل نشده</button>
                 <button data-page="report-facility">🏦 خلاصه تسهیلات</button>
                 <button data-page="report-facility-full">📊 گزارش جامع تسهیلات</button>
-                <button data-page="report-rates">📈 گزارش نرخ ارز و طلا</button>
                 <button data-page="report-compare">📊 گزارش مقایسه‌ای</button>
-                <button data-page="daily-close">📅 قیمت پایانی روز</button>
             </div>
         </div>
     </nav>
@@ -1167,48 +1165,6 @@
     </div>
 </section>
 
-<!-- ============ REPORT RATES ============ -->
-<section id="page-report-rates" class="page">
-    <h2>📈 گزارش نرخ ارز و طلا</h2>
-    <div class="card">
-        <div class="grid-3">
-            <div class="field"><label>دارایی</label>
-                <select id="rr-asset">
-                    <option value="price_dollar_rl">💵 دلار</option>
-                    <option value="geram18">🥇 طلای ۱۸ عیار (گرم)</option>
-                    <option value="geram24">🥇 طلای ۲۴ عیار (گرم)</option>
-                    <option value="gold_mini_size">🥇 طلای دسته دوم (گرم)</option>
-                    <option value="sekke_emami">🪙 سکه امامی</option>
-                    <option value="sekke_bahar">🪙 سکه بهار آزادی</option>
-                    <option value="nim_sekke">🪙 نیم سکه</option>
-                    <option value="rob_sekke">🪙 ربع سکه</option>
-                </select>
-            </div>
-            <div class="field"><label>بازه زمانی</label>
-                <select id="rr-range">
-                    <option value="7d">۷ روز اخیر</option>
-                    <option value="30d" selected>۳۰ روز اخیر</option>
-                    <option value="90d">۹۰ روز اخیر</option>
-                </select>
-            </div>
-            <div class="field"><label>&nbsp;</label>
-                <button id="rr-run" class="btn-primary" style="width:100%">🔍 دریافت گزارش</button>
-            </div>
-        </div>
-        <div class="form-buttons">
-            <button id="rr-print" class="btn-secondary">🖨 چاپ</button>
-            <button id="rr-export" class="btn-secondary">📊 اکسل</button>
-        </div>
-    </div>
-    <div class="card">
-        <div class="list-header" data-col-table="rr-table" data-hide-key="rr">
-            <span class="count-badge" id="rr-count">۰</span>
-            <span class="unit-chip" id="rr-unit"></span>
-        </div>
-        <div id="rr-result"><div class="widget-empty">برای دریافت داده، روی «دریافت گزارش» بزنید.</div></div>
-    </div>
-</section>
-
 <!-- ============ REPORT COMPARE ============ -->
 <section id="page-report-compare" class="page">
     <h2>📊 گزارش مقایسه‌ای دوره‌ها</h2>
@@ -1269,38 +1225,13 @@
     </div>
 </section>
 
-<!-- ============ DAILY CLOSE ============ -->
-<section id="page-daily-close" class="page">
-    <h2>📅 قیمت پایانی روز</h2>
-    <div class="card">
-        <div class="grid-2">
-            <div class="field"><label>تاریخ</label><input type="text" id="dc-date" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>&nbsp;</label>
-                <button id="dc-save" class="btn-primary" style="width:100%">💾 ذخیره قیمت‌های پایانی</button>
-            </div>
-        </div>
-        <p class="muted" style="margin-top:10px;font-size:0.8rem">💡 قیمت‌ها به‌صورت خودکار دریافت می‌شوند. می‌توانید قبل از ذخیره، مقادیر را به‌صورت دستی ویرایش کنید.</p>
-    </div>
-    <div class="card">
-        <div class="list-header" data-col-table="dc-table" data-hide-key="dc">
-            <span class="count-badge" id="dc-count">۰</span>
-            <span class="unit-chip" id="dc-unit"></span>
-        </div>
-        <div id="dc-result"><div class="widget-empty">در حال دریافت...</div></div>
-    </div>
-    <div class="card">
-        <h3 style="margin-bottom:12px;color:var(--primary-dark);font-size:0.95rem">📋 تاریخ‌های ذخیره‌شده</h3>
-        <div id="dc-history-list"></div>
-    </div>
-</section>
-
 </main>
 </div>
 
 <datalist id="std-desc-list"></datalist>
 <div id="col-menu" class="col-menu hidden"></div>
 
-<!-- ============ SETTINGS MODAL (Collapsible) ============ -->
+<!-- ============ SETTINGS MODAL ============ -->
 <div id="settings-overlay" class="overlay"></div>
 <div id="settings-modal" class="modal">
     <div class="modal-head"><h2>⚙ تنظیمات</h2><button id="close-settings" class="close-btn">×</button></div>
@@ -1577,7 +1508,7 @@
 </div>
 
 <!-- ============================================================
-     SCRIPTS — ترتیب حیاتی است
+     SCRIPTS
      ============================================================ -->
 
 <!-- Core -->
@@ -1641,7 +1572,7 @@
 <!-- Fixes -->
 <script src="./js/modules/fix-sidebar.js"></script>
 
-<!-- App Bootstrap (آخرین فایل) -->
+<!-- App Bootstrap -->
 <script src="./js/app.js"></script>
 </body>
 </html>
