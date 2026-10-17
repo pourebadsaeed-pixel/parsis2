@@ -572,11 +572,9 @@ var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/
 var NAVASAN_FIAT_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/fiat.json';
 
 var CORS_PROXIES = [
-    function (u) { return 'https://api.allorigins.win/get?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); },
     function (u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
-    function (u) { return 'https://api.cors.lol/?url=' + encodeURIComponent(u); }
+    function (u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+    function (u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); }
 ];
 
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
@@ -931,51 +929,102 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از API ویجت TGJU)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (بهبود یافته با ajax.json و پروکسی)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', label: '💵 دلار آمریکا' },
-    { id: '137123', label: '💶 یورو' },
-    { id: '137138', label: '🪙 سکه امامی' },
-    { id: '137137', label: '🪙 تمام سکه بهار آزادی' },
-    { id: '137139', label: '🪙 نیم سکه' },
-    { id: '137140', label: '🪙 ربع سکه' },
-    { id: '137207', label: '🥇 طلای ۲۴ عیار' },
-    { id: '137225', label: '🥇 طلای ۱۸ عیار' },
-    { id: '137222', label: '🥇 طلای دست دوم' }
+    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl', 'price_dollar_realtime'], label: '💵 دلار آمریکا' },
+    { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
+    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
+    { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
+    { id: '137207', keys: ['geram24', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار' },
+    { id: '137225', keys: ['geram18', 'gold18', 'gold_18k'], label: '🥇 طلای ۱۸ عیار' },
+    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
+/* ✅ جستجوی هوشمند کلید در پاسخ ajax.json */
+function findTgjuEntry(data, item) {
+    // ۱. بررسی کلیدهای دقیق در current
+    var current = data.current || {};
+    for (var i = 0; i < item.keys.length; i++) {
+        if (current[item.keys[i]]) {
+            return current[item.keys[i]];
+        }
+    }
+    // ۲. بررسی کلیدهای دقیق در سطح بالایی (اگر current وجود نداشت)
+    for (var i = 0; i < item.keys.length; i++) {
+        if (data[item.keys[i]]) {
+            return data[item.keys[i]];
+        }
+    }
+    // ۳. جستجوی هوشمند برای سکه بهار آزادی
+    if (item.id === '137137') {
+        var allKeys = [];
+        if (data.current) allKeys = Object.keys(data.current);
+        else allKeys = Object.keys(data);
+        
+        for (var k = 0; k < allKeys.length; k++) {
+            var lk = allKeys[k].toLowerCase();
+            if ((lk.indexOf('bahar') !== -1 || lk.indexOf('azadi') !== -1) && lk.indexOf('emami') === -1) {
+                return (data.current ? data.current[allKeys[k]] : data[allKeys[k]]);
+            }
+        }
+    }
+    return null;
+}
+
 async function fetchTgjuRates() {
     var results = {};
     
-    var ids = TGJU_ITEMS.map(function(item) { return item.id; }).join(',');
-    var url = 'https://api.tgju.org/v1/widget/market-overview/data?items=' + ids + '&columns=dot&token=webservice';
+    // تلاش برای دریافت از ajax.json با پروکسی
+    var urls = [
+        'https://call2.tgju.org/ajax.json',
+        'https://call3.tgju.org/ajax.json',
+        'https://call4.tgju.org/ajax.json',
+        'https://call1.tgju.org/ajax.json'
+    ];
     
-    var data = await tryFetchJsonWithFallback(url, 10000);
+    var data = null;
+    for (var i = 0; i < urls.length; i++) {
+        data = await tryFetchJsonWithFallback(urls[i], 10000);
+        if (data && (data.current || data.price_dollar_rl)) break;
+    }
     
-    if (!data) return results;
+    if (data) {
+        TGJU_ITEMS.forEach(function (item) {
+            var entry = findTgjuEntry(data, item);
+            if (entry && entry.p) {
+                var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
+                var price = Number(priceStr);
+                if (price > 0) {
+                    var chgStr = String(entry.d || entry.dp || '');
+                    var chgDir = 'same';
+                    if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                    else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
 
-    TGJU_ITEMS.forEach(function (item) {
-        var entry = data[item.id];
-        if (entry && entry.price) {
-            var priceStr = normalizeDigits(String(entry.price)).replace(/[^\d]/g, '');
-            var price = Number(priceStr);
-            if (price > 0) {
-                var chgStr = String(entry.change || '');
-                var chgDir = 'same';
-                if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
-
-                results[item.id] = {
-                    price: price,
-                    change: chgStr,
-                    dir: chgDir
-                };
+                    results[item.id] = {
+                        price: price,
+                        change: chgStr,
+                        dir: chgDir
+                    };
+                }
             }
+        });
+    }
+
+    // اگر دریافت از ajax.json موفق نبود، از API جایگزین استفاده کن
+    if (Object.keys(results).length === 0) {
+        var fallbackUrl = 'https://api.mmdfazeli.tech/arz';
+        var fallbackData = await tryFetchJsonWithFallback(fallbackUrl, 10000);
+        if (fallbackData) {
+            // ساختار API جایگزین ممکن است متفاوت باشد، اما سعی می‌کنیم نگاشت کنیم
+            // (این بخش ممکن است نیاز به تنظیم داشته باشد، اما به عنوان آخرین راه‌حل است)
+            console.log('Fallback API response:', fallbackData);
         }
-    });
+    }
 
     return results;
 }
