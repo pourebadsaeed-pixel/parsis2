@@ -930,10 +930,11 @@ function renderTodayChecklistWidget(category) {
 /* ============================================================
    بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU
    ✅ منبع: API خود TGJU (call1.tgju.org/ajax.json)
-   ✅ بدون هیچ منبع جایگزین
+   ✅ با پروکسی CORS برای رفع خطای GitHub Pages
    ============================================================ */
 
 var TGJU_AJAX_URL = 'https://call1.tgju.org/ajax.json';
+var TGJU_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
 var TGJU_ITEMS = [
     { id: 'usd',       keys: ['price_dollar_rl'],                  label: '💵 دلار آمریکا' },
@@ -967,9 +968,10 @@ async function fetchTgjuRates() {
 
     var tgjuData = null;
     try {
-        tgjuData = await tryFetchJson(TGJU_AJAX_URL, 10000);
+        var proxyUrl = TGJU_CORS_PROXY + encodeURIComponent(TGJU_AJAX_URL);
+        tgjuData = await tryFetchJson(proxyUrl, 12000);
     } catch (e) {
-        console.warn('[TGJU] خطا در دریافت:', e);
+        console.warn('[TGJU] خطا در دریافت از طریق پروکسی:', e);
     }
 
     if (tgjuData && tgjuData.current) {
@@ -1173,4 +1175,4 @@ window.updateTgjuRatesWidget           = updateTgjuRatesWidget;
 window.renderTgjuRatesWidget           = renderTgjuRatesWidget;
 window.bindTgjuRatesRefreshButton      = bindTgjuRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — TGJU مستقیم از خود سایت');
+console.log('✅ [modules/widgets.js] loaded — TGJU via CORS proxy');
