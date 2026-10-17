@@ -129,20 +129,25 @@ function parseBankSms(text) {
     }
 
     /* اعداد بزرگ */
-    var bigNums = [], seenVals = {};
+    var bigNums = [];
     var numRe = /\d{1,3}(?:,\d{3})+|\d{4,}/g, nm;
     while ((nm = numRe.exec(t)) !== null) {
         var val = Number(nm[0].replace(/,/g, ''));
         if (val < 1000) continue;
-        if (val === result.balance) continue;
-        if (seenVals[val]) continue;
-        seenVals[val] = true;
 
         var idx = nm.index;
         var cb = idx > 0 ? t.charAt(idx - 1) : '';
         var ca = idx + nm[0].length < t.length ? t.charAt(idx + nm[0].length) : '';
         var neg = /[-−\u2212]/.test(cb) || /[-−\u2212]/.test(ca);
         var pos = cb === '+' || ca === '+';
+
+        var existing = bigNums.find(function (x) { return x.value === val; });
+        if (existing) {
+            /* اگر همین عدد قبلاً بوده، علائم رو مرج کن */
+            if (pos && !existing.pos) { existing.pos = true; existing.idx = idx; }
+            if (neg && !existing.neg) { existing.neg = true; existing.idx = idx; }
+            continue;
+        }
 
         bigNums.push({ value: val, neg: neg, pos: pos, idx: idx });
     }
@@ -160,6 +165,10 @@ function parseBankSms(text) {
         if (bn.neg) score += 5;
         if (bn.pos) score += 5;
         score += Math.min(bn.value.toString().length, 10) * 0.5;
+
+        /* اگر برابر مانده بود، جریمه کن */
+        if (result.balance && bn.value === result.balance) score -= 3;
+
         if (score > bestScore) {
             bestScore = score;
             chosen = bn;
@@ -331,6 +340,7 @@ function addSmsToInbox(rawText, source) {
 
 /* ============================================================
    بخش ۵ — رندر صندوق
+   ✅ اصلاح: دکمه ساخت سند همیشه برای status === 'new' فعال است
    ============================================================ */
 function renderSmsInbox() {
     var box = document.getElementById('sms-inbox-list');
@@ -375,7 +385,8 @@ function renderSmsInbox() {
         if (p.matchedAccountTitle) parsedHtml += '<span class="pill" style="background:#d1fae5;color:#065f46">🎯 '
                                               + esc(p.matchedAccountTitle) + '</span>';
 
-        var canConvert = (s.status === 'new') && p.amount > 0 && p.direction;
+        /* ✅ دکمه ساخت سند همیشه برای وضعیت new فعال است */
+        var canConvert = (s.status === 'new');
 
         html += '<div class="sms-item ' + statusClass + '">'
              +  '<div class="sms-item-head"><div>'
@@ -707,7 +718,6 @@ function isBankSms(text) {
     var t = String(text).trim();
     if (t.length < 15) return false;
 
-    /* نفی OTP و کدهای امنیتی */
     if (/کد\s*(ورود|تایید|تأیید|فعال\s*سازی|فعالسازی|احراز|ثبت\s*نام)/.test(t)) return false;
     if (/رمز\s*(یک\s*بار|یکبار|پویا|دوم|موقت)/.test(t)) return false;
     if (/\bOTP\b/i.test(t)) return false;
@@ -715,7 +725,6 @@ function isBankSms(text) {
     if (/کد\s*تخفیف|کد\s*معرف|کد\s*هدیه|کد\s*پنل/.test(t)) return false;
     if (/^\s*\D*\d{4,6}\D*\s*$/.test(t) && !/ریال|تومان|مبلغ|برداشت|واریز/.test(t)) return false;
 
-    /* اگر بانک کاربر را تطبیق داد، قطعاً بانکی */
     if (typeof findMatchingBankAccount === 'function') {
         try {
             if (findMatchingBankAccount(t)) return true;
@@ -893,7 +902,7 @@ function clearPendingSms() {
 }
 
 /* ============================================================
-   بخش ۱۴ — به‌روزرسانی Badge (inbox + pending)
+   بخش ۱۴ — به‌روزرسانی Badge
    ============================================================ */
 window.updateSmsBadge = function () {
     var inboxCount   = (typeof getUnreadSmsCount === 'function') ? getUnreadSmsCount() : 0;
@@ -1585,7 +1594,6 @@ window.openEditSmsPattern = openEditSmsPattern;
 
 /* ============================================================
    بخش ۲۲ — تبدیل پیامک به سند
-   ✅ اصلاحات: try/catch + لاگ + fallback برای معین بانک
    ============================================================ */
 window.convertSmsToVoucher = function (smsId) {
     console.log('🔄 [SMS] convertSmsToVoucher called with smsId:', smsId);
@@ -1676,7 +1684,6 @@ window.convertSmsToVoucher = function (smsId) {
 
         var bankMoein = getBankMoeinId();
         if (!bankMoein) {
-            /* ✅ fallback: اگر معین بانک تعریف نشده، از کاربر بخواه انتخاب کند */
             var allAccounts = DB.load('accounts', []);
             var leaves = allAccounts.filter(function (a) {
                 return !allAccounts.some(function (x) { return x.parent === a.id; });
