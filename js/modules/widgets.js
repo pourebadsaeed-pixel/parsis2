@@ -931,97 +931,47 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از ajax.json)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (استفاده از API ویجت TGJU)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
-    { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'seke', 'sekke'], label: '🪙 تمام سکه بهار آزادی' },
-    { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
-    { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
-    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
-    { id: '137225', keys: ['geram18', 'gold18'], label: '🥇 طلای ۱۸ عیار' },
-    { id: '137207', keys: ['geram24', 'gold24'], label: '🥇 طلای ۲۴ عیار' },
-    { id: '137222', keys: ['gold_mini_size', 'gold_mini'], label: '🥇 طلای دست دوم' }
+    { id: '137119', label: '💵 دلار آمریکا' },
+    { id: '137123', label: '💶 یورو' },
+    { id: '137138', label: '🪙 سکه امامی' },
+    { id: '137137', label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137139', label: '🪙 نیم سکه' },
+    { id: '137140', label: '🪙 ربع سکه' },
+    { id: '137207', label: '🥇 طلای ۲۴ عیار' },
+    { id: '137225', label: '🥇 طلای ۱۸ عیار' },
+    { id: '137222', label: '🥇 طلای دست دوم' }
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
-function parseTgjuChange(entry) {
-    var trend = String(entry.dt || '').toLowerCase();
-    if (trend === 'high' || trend === 'up' || trend === 'positive') {
-        return { dir: 'up', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
-    }
-    if (trend === 'low' || trend === 'down' || trend === 'negative') {
-        return { dir: 'down', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
-    }
-
-    var rawD = entry.d !== undefined ? entry.d : entry.dp;
-    if (rawD === undefined || rawD === null) {
-        return { dir: 'same', amount: '', percent: '' };
-    }
-
-    var strD = normalizeDigits(String(rawD)).replace(/[,\s]/g, '').trim();
-    var numD = parseFloat(strD);
-    if (isNaN(numD)) numD = 0;
-
-    if (numD < 0) return { dir: 'down', amount: rawD, percent: entry.dp || '' };
-    if (numD > 0) return { dir: 'up', amount: rawD, percent: entry.dp || '' };
-    return { dir: 'same', amount: rawD, percent: entry.dp || '' };
-}
-
-/* ✅ تابع جستجوی هوشمند کلید (Fallback) */
-function findTgjuEntry(dataCurrent, item) {
-    for (var i = 0; i < item.keys.length; i++) {
-        if (dataCurrent[item.keys[i]]) {
-            return dataCurrent[item.keys[i]];
-        }
-    }
-    
-    if (item.id === '137137') {
-        for (var k in dataCurrent) {
-            if (!dataCurrent.hasOwnProperty(k)) continue;
-            var lk = k.toLowerCase();
-            if ((lk.indexOf('bahar') !== -1 || lk.indexOf('azadi') !== -1) && lk.indexOf('emami') === -1) {
-                return dataCurrent[k];
-            }
-        }
-    }
-    
-    return null;
-}
-
 async function fetchTgjuRates() {
     var results = {};
-    var urls = [
-        'https://call2.tgju.org/ajax.json',
-        'https://call3.tgju.org/ajax.json',
-        'https://call4.tgju.org/ajax.json',
-        'https://call1.tgju.org/ajax.json'
-    ];
     
-    var data = null;
-    for (var i = 0; i < urls.length; i++) {
-        data = await tryFetchJsonWithFallback(urls[i], 10000);
-        if (data && data.current) break;
-    }
+    var ids = TGJU_ITEMS.map(function(item) { return item.id; }).join(',');
+    var url = 'https://api.tgju.org/v1/widget/market-overview/data?items=' + ids + '&columns=dot&token=webservice';
     
-    if (!data || !data.current) return results;
+    var data = await tryFetchJsonWithFallback(url, 10000);
+    
+    if (!data) return results;
 
     TGJU_ITEMS.forEach(function (item) {
-        var entry = findTgjuEntry(data.current, item);
-
-        if (entry && entry.p) {
-            var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
+        var entry = data[item.id];
+        if (entry && entry.price) {
+            var priceStr = normalizeDigits(String(entry.price)).replace(/[^\d]/g, '');
             var price = Number(priceStr);
             if (price > 0) {
-                var chgInfo = parseTgjuChange(entry);
+                var chgStr = String(entry.change || '');
+                var chgDir = 'same';
+                if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+
                 results[item.id] = {
                     price: price,
-                    change: chgInfo.amount,
-                    percent: chgInfo.percent,
-                    dir: chgInfo.dir,
-                    time: entry.t || ''
+                    change: chgStr,
+                    dir: chgDir
                 };
             }
         }
@@ -1071,43 +1021,20 @@ function renderTgjuRatesWidget() {
     var c = TGJU_RATES_CACHE;
     var hide = getHideState('widgets');
     var html = '';
-    var shown = 0;
 
     TGJU_ITEMS.forEach(function (item) {
         var info = c.values[item.id];
         var val = info ? info.price : 0;
-        
-        // ❌ شرط مخفی کردن حذف شد. حالا حتی اگر قیمت نیاید، نمایش داده می‌شود.
-        shown++;
 
         var chgCls = info ? info.dir : 'same';
-        var chgAmount = info ? info.change : '';
-        var chgPercent = info ? info.percent : '';
-        
-        var chgDisplay = '';
-        if (!hide) {
-            if (chgPercent && chgPercent !== '0' && chgPercent !== '') {
-                chgDisplay = chgPercent + '٪';
-            } else if (chgAmount && chgAmount !== '0' && chgAmount !== '') {
-                chgDisplay = chgAmount;
-            }
-        }
-
-        var arrow = '';
-        if (chgCls === 'up') arrow = '▲ ';
-        else if (chgCls === 'down') arrow = '▼ ';
+        var chgDisplay = info ? info.change : '';
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg ' + chgCls + '">' + (hide ? '' : arrow + chgDisplay) + '</span>'
+             +  '<span class="rate-chg ' + chgCls + '">' + (hide ? '' : chgDisplay) + '</span>'
              +  '</div>';
     });
-
-    if (shown === 0) {
-        box.innerHTML = '<div class="widget-empty">داده‌ای موجود نیست.</div>';
-        return;
-    }
 
     box.innerHTML = html;
 }
