@@ -1022,34 +1022,40 @@ async function fetchTgjuRates() {
         });
     }
 
-    // مرحله ۲: اگر سکه امامی یا بهار آزادی پیدا نشدند، با API اختصاصی ویجت TGJU بگیر
+    // مرحله ۲: اگر سکه امامی یا بهار آزادی پیدا نشدند، از API جایگزین استفاده کن
     var missingIds = [];
     TGJU_ITEMS.forEach(function(item) {
         if (!results[item.id] || results[item.id].price <= 0) missingIds.push(item.id);
     });
 
     if (missingIds.length > 0) {
-        var idsStr = missingIds.join(',');
-        var wUrl = 'https://api.tgju.org/v1/widget/market-overview/data?items=' + idsStr + '&columns=dot&token=webservice';
-        var wData = await tryFetchJsonWithFallback(wUrl, 8000);
+        var fallbackUrl = 'https://tgju.amirhossein.info/gold';
+        var fData = await tryFetchJsonWithFallback(fallbackUrl, 8000);
         
-        if (wData) {
-            missingIds.forEach(function (id) {
-                var entry = wData[id];
-                if (entry && entry.price) {
-                    var p = Number(String(entry.price).replace(/[^\d]/g, ''));
-                    if (p > 0) {
-                        var chgStr = String(entry.change || '');
-                        var chgDir = 'same';
-                        if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                        else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+        if (fData && Array.isArray(fData)) {
+            fData.forEach(function (cat) {
+                if (cat.prices && Array.isArray(cat.prices)) {
+                    cat.prices.forEach(function (p) {
+                        var pKey = (p.key || '').toLowerCase();
+                        var targetItem = null;
                         
-                        results[id] = {
-                            price: p,
-                            change: chgStr,
-                            dir: chgDir
-                        };
-                    }
+                        if (pKey.indexOf('emami') !== -1) {
+                            targetItem = TGJU_ITEMS.find(function (t) { return t.id === '137138'; });
+                        } else if (pKey.indexOf('bahar') !== -1 || pKey.indexOf('azadi') !== -1) {
+                            targetItem = TGJU_ITEMS.find(function (t) { return t.id === '137137'; });
+                        }
+                        
+                        if (targetItem && p.price) {
+                            var pr = Number(String(p.price).replace(/[^\d]/g, ''));
+                            if (pr > 0) {
+                                results[targetItem.id] = {
+                                    price: pr,
+                                    change: '',
+                                    dir: p.status === 'low' ? 'down' : (p.status === 'high' ? 'up' : 'same')
+                                };
+                            }
+                        }
+                    });
                 }
             });
         }
