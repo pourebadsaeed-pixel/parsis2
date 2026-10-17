@@ -1,7 +1,6 @@
 /* ============================================================
    پارسیس — وضعیت سراسری + migrations اولیه
    مسیر: js/core/state.js
-   وابستگی: db.js, constants.js
    ============================================================ */
 'use strict';
 
@@ -45,14 +44,15 @@ var state = {
         cashBalances: true,
         upcomingInstallments: true,
         birthdays: true,
-        liveRates: true
+        liveRates: true,
+        tgjuCoins: true // ✅ ویجت جدید
     }),
 
     widgetOrder: DB.load(LS_KEYS.WIDGET_ORDER, [
         'calendar', 'calendarNext3', 'calendarDay', 'calendarAgenda',
         'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork',
         'bankTotal', 'cashBalances', 'bankBalances',
-        'upcomingInstallments', 'birthdays', 'liveRates'
+        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins' // ✅ اضافه شد
     ]),
 
     widgetPages: DB.load(LS_KEYS.WIDGET_PAGES, {
@@ -68,7 +68,8 @@ var state = {
         bankBalances:           2,
         upcomingInstallments:   1,
         birthdays:              3,
-        liveRates:              3
+        liveRates:              3,
+        tgjuCoins:              2 // ✅ پیش‌فرض در صفحه ۲
     }),
 
     homePage:        DB.load(LS_KEYS.HOME_PAGE, 1),
@@ -90,19 +91,15 @@ function saveState(k) {
 
 /* ============================================================
    بخش ۳ — نرمال‌سازی خودکار
-   - اطمینان از کامل بودن widgetOrder
-   - اطمینان از تعریف همه کلیدهای widgets و widgetPages
    ============================================================ */
 (function normalizeWidgetState() {
     var allKeys = [
         'calendar', 'calendarNext3', 'calendarDay', 'calendarAgenda',
         'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork',
         'bankTotal', 'bankBalances', 'cashBalances',
-        'upcomingInstallments', 'birthdays', 'liveRates'
+        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins' // ✅
     ];
 
-    /* widgetOrder: هر کلید موجود را حفظ کن، کلیدهای گم‌شده را اضافه کن،
-       کلیدهای غیرمجاز را حذف کن */
     var order = (state.widgetOrder || []).slice();
     allKeys.forEach(function (k) {
         if (order.indexOf(k) === -1) order.push(k);
@@ -111,14 +108,12 @@ function saveState(k) {
         return allKeys.indexOf(k) !== -1;
     });
 
-    /* widgets: هر کلید گم‌شده را با پیش‌فرض true پر کن */
     allKeys.forEach(function (k) {
         if (typeof state.widgets[k] === 'undefined') {
             state.widgets[k] = (k.indexOf('calendar') === 0) ? false : true;
         }
     });
 
-    /* widgetPages: هر کلید گم‌شده را با پیش‌فرض 1 پر کن */
     allKeys.forEach(function (k) {
         if (typeof state.widgetPages[k] === 'undefined') {
             state.widgetPages[k] = 1;
