@@ -2158,7 +2158,8 @@ body.resizing-cols .report-table th { user-select:none !important; }
 
 /* ================ CASH FLOW ================ */
 .cf-table {
-  width:100%;
+  width:auto;
+  min-width:100%;
   border-collapse:collapse;
   background:var(--card-solid);
   border-radius:14px;
