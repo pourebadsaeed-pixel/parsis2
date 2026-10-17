@@ -972,19 +972,16 @@ function parseTgjuChange(entry) {
 
 /* ✅ تابع جستجوی هوشمند کلید (Fallback) */
 function findTgjuEntry(dataCurrent, item) {
-    // ۱. تلاش با کلیدهای دقیق
     for (var i = 0; i < item.keys.length; i++) {
         if (dataCurrent[item.keys[i]]) {
             return dataCurrent[item.keys[i]];
         }
     }
     
-    // ۲. جستجوی هوشمند برای سکه بهار آزادی (اگر کلید دقیق پیدا نشد)
     if (item.id === '137137') {
         for (var k in dataCurrent) {
             if (!dataCurrent.hasOwnProperty(k)) continue;
             var lk = k.toLowerCase();
-            // هر کلیدی که شامل bahar یا azadi باشد و emami نباشد
             if ((lk.indexOf('bahar') !== -1 || lk.indexOf('azadi') !== -1) && lk.indexOf('emami') === -1) {
                 return dataCurrent[k];
             }
