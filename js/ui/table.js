@@ -1,6 +1,13 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
+   
+   🆕 تغییر منطق resize:
+     • پیش‌فرض: auto-fit به محتوا
+     • شروع drag: عرض همه ستون‌ها capture می‌شود → بقیه ستون‌ها جابه‌جا نمی‌شوند
+     • محدوده: ۱۰px تا ۵۰۰۰px
+     • ذخیره: همه عرض‌ها
+     • reset: دکمه ↻ در هدر یا double-click روی resizer
    ============================================================ */
 'use strict';
 
@@ -56,8 +63,9 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
-var COL_MIN_W = 20;
-var COL_MAX_W = 3000;
+/* ✅ محدوده بسیار باز — آزادی کامل برای کاربر */
+var COL_MIN_W = 10;
+var COL_MAX_W = 5000;
 
 function makeTableResizable(table) {
     if (!table || table.dataset.resizable === '1') return;
@@ -79,19 +87,45 @@ function makeTableResizable(table) {
             if (th.querySelector('.col-resizer')) return;
             var res = document.createElement('div');
             res.className = 'col-resizer';
-            res.title = 'بکش • دابل‌کلیک: بازنشانی این ستون';
+            res.title = 'بکش تا عرض تغییر کند • دابل‌کلیک: بازنشانی همه ستون‌ها';
             th.appendChild(res);
 
             var startX = 0, startW = 0, isDragging = false;
 
+            /* ✅ شروع drag: عرض همه ستون‌های قابل‌مشاهده را capture کن
+               تا بقیه ستون‌ها هنگام drag جابه‌جا نشوند */
             function start(x) {
+                if (isDragging) return;
                 isDragging = true;
                 startX = x;
                 startW = th.offsetWidth;
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
+
+                /* capture عرض فعلی همه TH ها (قبل از fixed شدن) */
+                var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
+                var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
+                var capturedWidths = [];
+                for (var j = 0; j < allThs.length; j++) {
+                    if (allThs[j].style.display === 'none') {
+                        capturedWidths.push(0);
+                    } else {
+                        capturedWidths.push(allThs[j].offsetWidth);
+                    }
+                }
+
+                /* تبدیل به fixed layout */
                 ensureFixedLayout(table);
+
+                /* اعمال عرض capture شده به همه ستون‌ها — تا هیچ ستونی نپرد */
+                for (var k = 0; k < allThs.length; k++) {
+                    if (capturedWidths[k] > 0) {
+                        allThs[k].style.width = capturedWidths[k] + 'px';
+                        allThs[k].style.minWidth = capturedWidths[k] + 'px';
+                        allThs[k].style.maxWidth = capturedWidths[k] + 'px';
+                    }
+                }
             }
 
             function move(x) {
@@ -109,25 +143,28 @@ function makeTableResizable(table) {
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
                 document.body.classList.remove('resizing-cols');
+
+                /* ✅ ذخیره عرض همه ستون‌های قابل‌مشاهده */
                 if (!colWidths[tableId]) colWidths[tableId] = [];
-                colWidths[tableId][origIdx] = th.offsetWidth;
+                var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
+                if (curHdr) {
+                    var allThs = curHdr.querySelectorAll('th');
+                    for (var j = 0; j < allThs.length; j++) {
+                        var oi = allThs[j].getAttribute('data-orig-index');
+                        var cidx = oi !== null ? parseInt(oi, 10) : j;
+                        if (allThs[j].style.display !== 'none') {
+                            colWidths[tableId][cidx] = allThs[j].offsetWidth;
+                        }
+                    }
+                }
                 saveColWidths();
             }
 
+            /* دابل‌کلیک = بازنشانی کل جدول به auto-fit */
             res.addEventListener('dblclick', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                th.style.width = '';
-                th.style.minWidth = '';
-                th.style.maxWidth = '';
-                if (colWidths[tableId]) {
-                    delete colWidths[tableId][origIdx];
-                    saveColWidths();
-                }
-                if (!tableHasAnyWidth(tableId)) {
-                    removeFixedLayout(table);
-                }
-                showToast('↔ عرض این ستون بازنشانی شد.');
+                resetColumnWidths(tableId);
             });
 
             res.addEventListener('click', function (e) { e.stopPropagation(); });
@@ -156,6 +193,9 @@ function makeTableResizable(table) {
     applyColWidths(tableId);
 }
 
+/* ============================================================
+   بازنشانی عرض یک جدول به حالت auto-fit
+   ============================================================ */
 function resetColumnWidths(tableId) {
     if (!tableId) return;
     delete colWidths[tableId];
@@ -177,7 +217,7 @@ function resetColumnWidths(tableId) {
     table.style.minWidth = '';
     table.style.width = '';
 
-    showToast('↔ عرض ستون‌ها به حالت پیش‌فرض برگشت.');
+    showToast('↔ عرض ستون‌ها به حالت پیش‌فرض (fit محتوا) برگشت.');
 }
 
 function resetAllColumnWidths() {
@@ -206,7 +246,7 @@ function resetAllColumnWidths() {
 var MANAGED_TABLE_IDS = [
     'fiscal-table', 'persons-table', 'comp-table', 'ba-table', 'cb-table', 'proj-table',
     'voucher-table-list', 'rt-table', 'ri-table', 'rf-table', 'rff-table', 'cfs-table',
-    'rr-table', 'cf-table', 'cfd-table', 'dc-table', 'rc-table', 'ra-acc-table'
+    'cf-table', 'cfd-table', 'rc-table', 'ra-acc-table'
 ];
 
 function makeAllTablesResizable() {
@@ -217,7 +257,7 @@ function makeAllTablesResizable() {
 }
 
 /* ============================================================
-   ✅ جدید: تابع عمومی برای تاشو کردن پنل فیلتر
+   تاشو کردن پنل فیلتر
    ============================================================ */
 function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
     var page = document.getElementById('page-' + pageId);
@@ -743,7 +783,7 @@ function buildHeaderButtons() {
                 rBtn.type = 'button';
                 rBtn.className = 'col-reset-btn';
                 rBtn.innerHTML = '↻';
-                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض';
+                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض (fit محتوا)';
                 rBtn.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     resetColumnWidths(tableId);
@@ -766,7 +806,7 @@ function buildHeaderButtons() {
 }
 
 /* ============================================================
-   صادرسازی
+   Exports
    ============================================================ */
 window.colWidths = colWidths;
 window.saveColWidths = saveColWidths;
@@ -804,4 +844,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete');
+console.log('✅ [ui/table.js] loaded — complete (new resize logic)');
