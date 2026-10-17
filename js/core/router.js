@@ -6,43 +6,34 @@
 'use strict';
 
 /* ============================================================
-   بخش ۱ — goToPage: هدایت به صفحه + اجرای dispatcher
+   بخش ۱ — goToPage
    ============================================================ */
 function goToPage(name) {
     if (!name) return;
 
-    /* ۱) مخفی کردن همه صفحات، نمایش صفحه‌ی هدف */
     var pages = document.querySelectorAll('.page');
     for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
     var target = document.getElementById('page-' + name);
     if (target) target.classList.add('active');
 
-    /* ۲) آپدیت دکمه‌های فعال در سایدبار */
     var btns = document.querySelectorAll('.nav-group-items button');
     for (var j = 0; j < btns.length; j++) {
         btns[j].classList.toggle('active',
             btns[j].getAttribute('data-page') === name);
     }
 
-    /* ۳) بستن سایدبار (اگر باز است) */
     if (typeof closeSidebar === 'function') closeSidebar();
-
-    /* ۴) ثبت در آمار صفحات پرکاربرد */
     if (typeof trackFormUsage === 'function') trackFormUsage(name);
 
-    /* ۵) فراخوانی renderer مخصوص هر صفحه */
     runPageRenderer(name);
-
-    /* ۶) اعمال کمک‌ابزارهای عمومی */
     applyPageHelpers();
 }
 
 /* ============================================================
-   بخش ۲ — Dispatcher: کدام تابع برای کدام صفحه
+   بخش ۲ — Dispatcher
    ============================================================ */
 function runPageRenderer(name) {
     var dispatch = {
-        /* اطلاعات پایه */
         'chart-define':         function () { if (typeof renderChartTree === 'function') renderChartTree('chart-tree', true); },
         'fiscal':               function () { if (typeof renderFiscalList === 'function') renderFiscalList(); },
         'persons':              function () { if (typeof renderPersonsList === 'function') renderPersonsList(); },
@@ -51,12 +42,10 @@ function runPageRenderer(name) {
         'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
         'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
 
-        /* نقدینگی */
         'estimate-daily':       function () { if (typeof refreshEstPeriodSelect === 'function') refreshEstPeriodSelect(); if (typeof renderEstimateList === 'function') renderEstimateList(); },
         'cashflow-sources':     function () { if (typeof refreshCfsMoeinSelect === 'function') refreshCfsMoeinSelect(); if (typeof renderCfsList === 'function') renderCfsList(); },
         'facilities':           function () { if (typeof renderFacilitiesList === 'function') renderFacilitiesList(); if (typeof refreshFacBankSelect === 'function') refreshFacBankSelect(); },
 
-        /* عملیات */
         'voucher-list':         function () {
             if (typeof refreshPeriodFilters === 'function') refreshPeriodFilters();
             if (typeof renderVoucherList === 'function') renderVoucherList();
@@ -82,10 +71,8 @@ function runPageRenderer(name) {
             if (typeof renderPendingSmsBox === 'function') renderPendingSmsBox();
         },
 
-        /* داشبورد */
         'dashboard':            function () { if (typeof renderDashboard === 'function') renderDashboard(); },
 
-        /* گزارش‌ها */
         'report-cashflow': function () {
             var fromEl = document.getElementById('cf-from');
             if (fromEl && !fromEl.value) {
@@ -126,14 +113,9 @@ function runPageRenderer(name) {
             if (typeof refreshRffBankSelect === 'function') refreshRffBankSelect();
             if (typeof runFacilityFullReport === 'function') runFacilityFullReport();
         },
-        'report-rates':         function () { if (typeof runRatesReport === 'function') runRatesReport(); },
         'report-compare':       function () { if (typeof runComparisonReport === 'function') runComparisonReport(); },
-        'daily-close':          function () { if (typeof renderDailyClosePage === 'function') renderDailyClosePage(); },
 
-        /* صفحه اصلی */
         'home':                 function () { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); },
-
-        /* تقویم */
         'jalali-calendar':      function () { if (typeof calRender === 'function') setTimeout(calRender, 80); }
     };
 
@@ -141,31 +123,19 @@ function runPageRenderer(name) {
 }
 
 /* ============================================================
-   بخش ۳ — کمک‌ابزارهای عمومی پس از هر ناوبری
+   بخش ۳ — کمک‌ابزارهای عمومی
    ============================================================ */
 function applyPageHelpers() {
-    /* تقویم‌ها */
     if (typeof attachDatePickers === 'function') attachDatePickers();
-
-    /* نوار بالای صفحه */
     updateTopbarPeriod();
-
-    /* جدول‌ها */
     if (typeof applyColVisibilityAll === 'function') applyColVisibilityAll();
     if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
     if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     if (typeof updateEyeButtons === 'function') updateEyeButtons();
-
-    /* فیلتر ردیف ستون‌ها */
     if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
-
-    /* مرتب‌سازی سراسری */
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
-
-    /* دکمه‌های اشتراک‌گذاری */
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
 
-    /* اعمال ترتیب ستون‌های ذخیره‌شده */
     setTimeout(function () {
         var allTables = document.querySelectorAll('table[data-table-id]');
         for (var i = 0; i < allTables.length; i++) {
@@ -175,8 +145,7 @@ function applyPageHelpers() {
 }
 
 /* ============================================================
-   بخش ۴ — ابزار شروع سال مالی فعال
-   خروجی: رشته‌ی "YYYY/01/01" یا رشته‌ی خالی
+   بخش ۴ — شروع سال مالی فعال
    ============================================================ */
 function getActiveFiscalYearStart() {
     var periods = DB.load('fiscalPeriods', []);
@@ -188,7 +157,7 @@ function getActiveFiscalYearStart() {
 }
 
 /* ============================================================
-   بخش ۵ — به‌روزرسانی نشان دوره فعال در تاپ‌بار
+   بخش ۵ — topbar period
    ============================================================ */
 function updateTopbarPeriod() {
     var el = document.getElementById('topbar-period');
@@ -199,7 +168,7 @@ function updateTopbarPeriod() {
 }
 
 /* ============================================================
-   بخش ۶ — بازخوانی صفحه‌ی جاری (پس از تغییر تنظیمات)
+   بخش ۶ — rerender
    ============================================================ */
 function rerenderCurrentPage() {
     var active = document.querySelector('.page.active');
@@ -223,9 +192,7 @@ function rerenderCurrentPage() {
         'report-incomplete':    'runIncompleteReport',
         'report-facility':      'runFacilityReport',
         'report-facility-full': 'runFacilityFullReport',
-        'report-rates':         'runRatesReport',
         'report-compare':       'runComparisonReport',
-        'daily-close':          'renderDailyCloseHistory',
         'notes':                'renderNotesList',
         'dashboard':            'renderDashboard',
         'home':                 'updateHomeWidgets'
@@ -234,9 +201,6 @@ function rerenderCurrentPage() {
     if (fnName && typeof window[fnName] === 'function') window[fnName]();
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.goToPage               = goToPage;
 window.runPageRenderer        = runPageRenderer;
 window.applyPageHelpers       = applyPageHelpers;
