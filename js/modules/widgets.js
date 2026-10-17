@@ -936,7 +936,7 @@ function renderTodayChecklistWidget(category) {
 var TGJU_ITEMS = [
     { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'seke', 'sekke'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'seke', 'sekke'], label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
     { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
@@ -1077,7 +1077,7 @@ function renderTgjuRatesWidget() {
         var info = c.values[item.id];
         var val = info ? info.price : 0;
         
-        if (val <= 0 && c.ts) return;
+        // ❌ شرط مخفی کردن حذف شد. حالا حتی اگر قیمت نیاید، نمایش داده می‌شود.
         shown++;
 
         var chgCls = info ? info.dir : 'same';
