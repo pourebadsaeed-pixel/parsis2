@@ -69,7 +69,7 @@ var state = {
         upcomingInstallments:   1,
         birthdays:              3,
         liveRates:              3,
-        tgjuCoins:              2 // ✅ پیش‌فرض در صفحه ۲
+        tgjuCoins:              1 // ✅ تغییر کرد به صفحه ۱ تا در همان ابتدا رندر شود
     }),
 
     homePage:        DB.load(LS_KEYS.HOME_PAGE, 1),
@@ -97,7 +97,7 @@ function saveState(k) {
         'calendar', 'calendarNext3', 'calendarDay', 'calendarAgenda',
         'todayChecklistPersonal', 'todayChecklistFamily', 'todayChecklistWork',
         'bankTotal', 'bankBalances', 'cashBalances',
-        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins' // ✅
+        'upcomingInstallments', 'birthdays', 'liveRates', 'tgjuCoins'
     ];
 
     var order = (state.widgetOrder || []).slice();
@@ -129,8 +129,6 @@ function saveState(k) {
    بخش ۴ — Migrations (یکبار در شروع اجرا می‌شوند)
    ============================================================ */
 (function runMigrations() {
-
-    /* ---- ۴.۱ — انتقال link → links در حساب‌ها ---- */
     try {
         var accounts = DB.load('accounts', []);
         var changed = false;
@@ -153,7 +151,6 @@ function saveState(k) {
         console.warn('[migrate accounts]', e);
     }
 
-    /* ---- ۴.۲ — افزودن archived به یادداشت‌ها ---- */
     try {
         var notes = DB.load('notes', []);
         var nch = false;
@@ -172,7 +169,6 @@ function saveState(k) {
         console.warn('[migrate notes]', e);
     }
 
-    /* ---- ۴.۳ — اطمینان از بازه‌ی درست homePage ---- */
     try {
         var hp = Number(state.homePage || 1);
         if (hp < 1 || hp > MAX_HOME_PAGES) {
@@ -183,7 +179,6 @@ function saveState(k) {
         console.warn('[migrate homePage]', e);
     }
 
-    /* ---- ۴.۴ — تبدیل todayChecklist قدیمی به ۳ چک‌لیست ---- */
     try {
         var w = DB.load(LS_KEYS.WIDGETS, null);
         if (w && typeof w.todayChecklist !== 'undefined') {
