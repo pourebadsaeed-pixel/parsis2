@@ -403,7 +403,16 @@ function renderSmsInbox() {
             var id = this.getAttribute('data-id');
 
             if (action === 'convert') {
-                if (window.convertSmsToVoucher) window.convertSmsToVoucher(id);
+                if (window.convertSmsToVoucher) {
+                    try {
+                        window.convertSmsToVoucher(id);
+                    } catch (e) {
+                        console.error('خطای ساخت سند:', e);
+                        alert('خطا در ساخت سند:\n' + (e.message || e));
+                    }
+                } else {
+                    alert('تابع ساخت سند بارگذاری نشده.');
+                }
                 return;
             }
 
@@ -482,6 +491,7 @@ function checkClipboardSupport() {
         el.className = 'method-status no';
     }
 }
+
 /* ============================================================
    بخش ۷ — سیستم الگوی پیامک
    ============================================================ */
@@ -1060,6 +1070,7 @@ function bindPendingEventsNew(box) {
         });
     });
 }
+
 /* ============================================================
    بخش ۱۶ — ذخیره الگو از باکس ثبت‌نشده
    ============================================================ */
@@ -1574,162 +1585,200 @@ window.openEditSmsPattern = openEditSmsPattern;
 
 /* ============================================================
    بخش ۲۲ — تبدیل پیامک به سند
+   ✅ اصلاحات: try/catch + لاگ + fallback برای معین بانک
    ============================================================ */
 window.convertSmsToVoucher = function (smsId) {
-    var list = getSmsInbox();
-    var item = list.find(function (s) { return s.id === smsId; });
-    if (!item) {
-        showToast('پیامک یافت نشد.');
-        return;
-    }
+    console.log('🔄 [SMS] convertSmsToVoucher called with smsId:', smsId);
 
-    var raw = normalizeDigits(item.rawText);
-    var p = item.parsed || {};
-    var amount = p.amount || 0;
-    var direction = '';
-    var bankAccountId = p.matchedAccountId || '';
-
-    var amtRes = extractAmountWithSign(raw);
-    if (amtRes.amount > 0 && amtRes.sign) {
-        amount = amtRes.amount;
-        direction = amtRes.sign === '+' ? 'in' : 'out';
-    }
-
-    var matched = findMatchingSmsPattern(item.rawText);
-    var patternDirMatches = false;
-    var patternLabel = '';
-
-    if (matched && matched.pattern) {
-        if (!direction && matched.pattern.direction) {
-            direction = matched.pattern.direction;
-            patternDirMatches = true;
-        } else if (direction && matched.pattern.direction === direction) {
-            patternDirMatches = true;
-        }
-        if (!bankAccountId && matched.pattern.linkedAccountId) {
-            bankAccountId = matched.pattern.linkedAccountId;
-        }
-        if (patternDirMatches) patternLabel = matched.pattern.label || '';
-    }
-
-    if (!direction) direction = detectSmsDirection(raw);
-
-    if (!amount || amount > 1e12) {
-        if (amtRes.amount > 0) amount = amtRes.amount;
-        else {
-            var mamt = raw.match(/مبلغ\s*[:ـ]?\s*([\d][\d,]*)/);
-            if (mamt) amount = Number(mamt[1].replace(/,/g, ''));
-        }
-    }
-
-    if (!amount || amount > 1e13) {
-        alert('⚠️ مبلغ قابل تشخیص نیست.\nبرای این پیامک از باکس «ثبت نشده» الگو تعریف کن.');
-        return;
-    }
-
-    if (!direction) {
-        var d = prompt('نوع تراکنش:\n1 = برداشت\n2 = واریز', '1');
-        if (d === '1') direction = 'out';
-        else if (d === '2') direction = 'in';
-        else return;
-    }
-
-    if (!bankAccountId) {
-        var accounts = DB.load('bankAccounts', []);
-        if (accounts.length === 0) {
-            alert('⚠️ هیچ حساب بانکی تعریف نشده.');
+    try {
+        var list = getSmsInbox();
+        var item = list.find(function (s) { return s.id === smsId; });
+        if (!item) {
+            console.warn('❌ پیامک یافت نشد:', smsId);
+            showToast('پیامک یافت نشد.');
             return;
         }
-        if (accounts.length === 1) {
-            bankAccountId = accounts[0].id;
-        } else {
-            var opts = accounts.map(function (a, i) {
-                return (i + 1) + '. ' + (a.bank || '') + ' — ' + (a.account || '');
+
+        var raw = normalizeDigits(item.rawText);
+        var p = item.parsed || {};
+        var amount = p.amount || 0;
+        var direction = '';
+        var bankAccountId = p.matchedAccountId || '';
+
+        var amtRes = extractAmountWithSign(raw);
+        if (amtRes.amount > 0 && amtRes.sign) {
+            amount = amtRes.amount;
+            direction = amtRes.sign === '+' ? 'in' : 'out';
+        }
+
+        var matched = findMatchingSmsPattern(item.rawText);
+        var patternDirMatches = false;
+        var patternLabel = '';
+
+        if (matched && matched.pattern) {
+            if (!direction && matched.pattern.direction) {
+                direction = matched.pattern.direction;
+                patternDirMatches = true;
+            } else if (direction && matched.pattern.direction === direction) {
+                patternDirMatches = true;
+            }
+            if (!bankAccountId && matched.pattern.linkedAccountId) {
+                bankAccountId = matched.pattern.linkedAccountId;
+            }
+            if (patternDirMatches) patternLabel = matched.pattern.label || '';
+        }
+
+        if (!direction) direction = detectSmsDirection(raw);
+
+        if (!amount || amount > 1e12) {
+            if (amtRes.amount > 0) amount = amtRes.amount;
+            else {
+                var mamt = raw.match(/مبلغ\s*[:ـ]?\s*([\d][\d,]*)/);
+                if (mamt) amount = Number(mamt[1].replace(/,/g, ''));
+            }
+        }
+
+        if (!amount || amount > 1e13) {
+            console.warn('❌ مبلغ قابل تشخیص نیست:', amount);
+            alert('⚠️ مبلغ قابل تشخیص نیست.\nبرای این پیامک از باکس «ثبت نشده» الگو تعریف کن.');
+            return;
+        }
+
+        if (!direction) {
+            var d = prompt('نوع تراکنش:\n1 = برداشت\n2 = واریز', '1');
+            if (d === '1') direction = 'out';
+            else if (d === '2') direction = 'in';
+            else return;
+        }
+
+        if (!bankAccountId) {
+            var accounts = DB.load('bankAccounts', []);
+            if (accounts.length === 0) {
+                alert('⚠️ هیچ حساب بانکی تعریف نشده.');
+                return;
+            }
+            if (accounts.length === 1) {
+                bankAccountId = accounts[0].id;
+            } else {
+                var opts = accounts.map(function (a, i) {
+                    return (i + 1) + '. ' + (a.bank || '') + ' — ' + (a.account || '');
+                }).join('\n');
+                var ans = prompt('حساب بانکی:\n\n' + opts + '\n\nشماره:');
+                if (!ans) return;
+                var idx = Number(normalizeDigits(ans)) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= accounts.length) {
+                    alert('نامعتبر');
+                    return;
+                }
+                bankAccountId = accounts[idx].id;
+            }
+        }
+
+        var bankMoein = getBankMoeinId();
+        if (!bankMoein) {
+            /* ✅ fallback: اگر معین بانک تعریف نشده، از کاربر بخواه انتخاب کند */
+            var allAccounts = DB.load('accounts', []);
+            var leaves = allAccounts.filter(function (a) {
+                return !allAccounts.some(function (x) { return x.parent === a.id; });
+            });
+            if (leaves.length === 0) {
+                alert('⚠️ چارت حساب‌ها خالی است. ابتدا حساب تعریف کنید.');
+                return;
+            }
+            var mOpts = leaves.map(function (a, i) {
+                return (i + 1) + '. ' + a.code + ' — ' + a.name;
             }).join('\n');
-            var ans = prompt('حساب بانکی:\n\n' + opts + '\n\nشماره:');
-            if (!ans) return;
-            var idx = Number(normalizeDigits(ans)) - 1;
-            if (isNaN(idx) || idx < 0 || idx >= accounts.length) {
+            var mAns = prompt('⚠️ معین بانک تعریف نشده است.\nلطفاً معین بانک را انتخاب کنید:\n\n' + mOpts + '\n\nشماره:', '1');
+            if (!mAns) return;
+            var mIdx = Number(normalizeDigits(mAns)) - 1;
+            if (isNaN(mIdx) || mIdx < 0 || mIdx >= leaves.length) {
                 alert('نامعتبر');
                 return;
             }
-            bankAccountId = accounts[idx].id;
+            bankMoein = leaves[mIdx].id;
         }
-    }
 
-    var bankMoein = getBankMoeinId();
-    if (!bankMoein) {
-        alert('⚠️ معین بانک تعریف نشده.');
-        return;
-    }
-
-    var autoDesc = patternLabel;
-    if (!autoDesc) {
-        var bankName = p.bankName || '';
-        var accObj = DB.load('bankAccounts', []).find(function (b) { return b.id === bankAccountId; });
-        if (accObj && accObj.bank) bankName = accObj.bank;
-        autoDesc = (direction === 'in' ? 'واریز' : 'برداشت') + (bankName ? ' - ' + bankName : '');
-    }
-
-    var bankDetail = { bank: bankAccountId };
-    var lines = [];
-
-    if (direction === 'out') {
-        lines.push({
-            id: uid(), account: '', details: {},
-            debit: amount, credit: 0,
-            description: autoDesc
-        });
-        lines.push({
-            id: uid(), account: bankMoein, details: bankDetail,
-            debit: 0, credit: amount,
-            description: autoDesc, locked: true
-        });
-    } else {
-        lines.push({
-            id: uid(), account: bankMoein, details: bankDetail,
-            debit: amount, credit: 0,
-            description: autoDesc, locked: true
-        });
-        lines.push({
-            id: uid(), account: '', details: {},
-            debit: 0, credit: amount,
-            description: autoDesc
-        });
-    }
-
-    var vl = DB.load('vouchers', []);
-    var v = {
-        id: uid(),
-        number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
-        date: todayJalaliStr(),
-        type: 'general',
-        periodId: state.activePeriodId || '',
-        desc: autoDesc,
-        lines: lines,
-        status: 'draft'
-    };
-
-    vl.push(v);
-    DB.save('vouchers', vl);
-
-    for (var i = 0; i < list.length; i++) {
-        if (list[i].id === smsId) {
-            list[i].status = 'converted';
-            list[i].voucherId = v.id;
-            list[i].parsed.amount = amount;
-            list[i].parsed.direction = direction;
-            list[i].parsed.matchedAccountId = bankAccountId;
+        var autoDesc = patternLabel;
+        if (!autoDesc) {
+            var bankName = p.bankName || '';
+            var accObj = DB.load('bankAccounts', []).find(function (b) { return b.id === bankAccountId; });
+            if (accObj && accObj.bank) bankName = accObj.bank;
+            autoDesc = (direction === 'in' ? 'واریز' : 'برداشت') + (bankName ? ' - ' + bankName : '');
         }
+
+        var bankDetail = { bank: bankAccountId };
+        var lines = [];
+
+        if (direction === 'out') {
+            lines.push({
+                id: uid(), account: '', details: {},
+                debit: amount, credit: 0,
+                description: autoDesc
+            });
+            lines.push({
+                id: uid(), account: bankMoein, details: bankDetail,
+                debit: 0, credit: amount,
+                description: autoDesc, locked: true
+            });
+        } else {
+            lines.push({
+                id: uid(), account: bankMoein, details: bankDetail,
+                debit: amount, credit: 0,
+                description: autoDesc, locked: true
+            });
+            lines.push({
+                id: uid(), account: '', details: {},
+                debit: 0, credit: amount,
+                description: autoDesc
+            });
+        }
+
+        var vl = DB.load('vouchers', []);
+        var v = {
+            id: uid(),
+            number: (typeof getNextVoucherNumberForPeriod === 'function')
+                    ? getNextVoucherNumberForPeriod(state.activePeriodId || '')
+                    : String(vl.length + 1),
+            date: todayJalaliStr(),
+            type: 'general',
+            periodId: state.activePeriodId || '',
+            desc: autoDesc,
+            lines: lines,
+            status: 'draft'
+        };
+
+        vl.push(v);
+        DB.save('vouchers', vl);
+
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].id === smsId) {
+                list[i].status = 'converted';
+                list[i].voucherId = v.id;
+                list[i].parsed.amount = amount;
+                list[i].parsed.direction = direction;
+                list[i].parsed.matchedAccountId = bankAccountId;
+            }
+        }
+        saveSmsInbox(list);
+
+        if (typeof renderSmsInbox === 'function') renderSmsInbox();
+        if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
+
+        if (typeof loadVoucherForEdit === 'function') {
+            console.log('✅ [SMS] loading voucher for edit:', v.id);
+            loadVoucherForEdit(v);
+        } else {
+            console.warn('⚠️ loadVoucherForEdit یافت نشد. به فهرست اسناد می‌رویم.');
+            if (typeof goToPage === 'function') goToPage('voucher-list');
+        }
+
+        var dirLabel = direction === 'out' ? '🔴 برداشت' : '🟢 واریز';
+        showToast('✅ پیش‌نویس — ' + dirLabel + (patternLabel ? ' | ' + patternLabel : ''));
+
+    } catch (err) {
+        console.error('❌ [SMS convert] خطا:', err);
+        alert('⚠️ خطا در ساخت سند:\n\n' + (err.message || err) + '\n\nجزئیات بیشتر در Console مرورگر.');
     }
-    saveSmsInbox(list);
-
-    if (typeof renderSmsInbox === 'function') renderSmsInbox();
-    if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
-    if (typeof loadVoucherForEdit === 'function') loadVoucherForEdit(v);
-
-    var dirLabel = direction === 'out' ? '🔴 برداشت' : '🟢 واریز';
-    showToast('✅ پیش‌نویس — ' + dirLabel + (patternLabel ? ' | ' + patternLabel : ''));
 };
 
 /* ============================================================
@@ -1781,7 +1830,7 @@ function initSmsPatternSystem() {
 })();
 
 /* ============================================================
-   بخش ۲۴ — Migration: تبدیل todayChecklist + افزودن ویجت‌های تقویم
+   بخش ۲۴ — Migration
    ============================================================ */
 (function migrateWidgetsV3() {
     try {
@@ -1881,7 +1930,7 @@ function initSmsPatternSystem() {
 })();
 
 /* ============================================================
-   بخش ۲۵ — Init: صفحه ۴
+   بخش ۲۵ — Init صفحه ۴
    ============================================================ */
 (function initPage4() {
     function setup() {
@@ -1909,7 +1958,7 @@ function initSmsPatternSystem() {
 })();
 
 /* ============================================================
-   بخش ۲۶ — Patch: ستون «نمایش در ویجت/داشبورد»
+   بخش ۲۶ — Patch: ستون نمایش در ویجت/داشبورد
    ============================================================ */
 (function patchShowInDashColumn() {
     function ensureCheckboxInRow(tr, id, storageKey) {
@@ -1995,7 +2044,6 @@ function initSmsPatternSystem() {
         };
     }
 
-    /* پچ با تاخیر چون توابع باید قبلا تعریف شده باشند */
     setTimeout(function () {
         patchList('renderPersonsList',    'persons-table', 'persons-list-body', 'persons');
         patchList('renderBankAccountsList', 'ba-table',     'ba-list-body',      'bankAccounts');
