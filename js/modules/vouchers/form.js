@@ -156,7 +156,6 @@ function findVoucherById(id) {
 
 /* ============================================================
    بخش ۷ — بررسی مشکلات سند
-   ✅ اصلاح: اگر معین چند تفصیلی دارد، فقط یکی باید پر شود
    ============================================================ */
 function getVoucherIssues(v) {
     var issues = [];
@@ -193,7 +192,6 @@ function getVoucherIssues(v) {
             continue;
         }
 
-        /* ✅ فقط یکی از تفصیلی‌های مرتبط باید انتخاب شود */
         if (acc.links && acc.links.length > 0) {
             var validLinks = acc.links.filter(function (lt) {
                 return getLinkedItems(lt).length > 0;
@@ -227,24 +225,7 @@ function getVoucherIssues(v) {
 }
 
 /* ============================================================
-   صادرسازی
-   ============================================================ */
-window.voucherLines                     = voucherLines;
-window.currentVoucherStatus             = currentVoucherStatus;
-window.sortAccountsByCode               = sortAccountsByCode;
-window.getLeafAccountsSortedByCode      = getLeafAccountsSortedByCode;
-window.getOrCreateVoucherStatusBar      = getOrCreateVoucherStatusBar;
-window.setVoucherStatusBar              = setVoucherStatusBar;
-window.getNextVoucherNumberForPeriod    = getNextVoucherNumberForPeriod;
-window.validateDateInActivePeriod       = validateDateInActivePeriod;
-window.getVoucherAmount                 = getVoucherAmount;
-window.findVoucherById                  = findVoucherById;
-window.getVoucherIssues                 = getVoucherIssues;
-
-console.log('✅ [modules/vouchers/form.js part 1] loaded');
-
-/* ============================================================
-   بخش ۸ — رندر اقلام سند (بزرگ‌ترین تابع)
+   بخش ۸ — رندر اقلام سند
    ============================================================ */
 function renderVoucherLines() {
     var box = document.getElementById('voucher-lines');
@@ -442,7 +423,9 @@ function renderVoucherLines() {
         cD.type = 'button';
         cD.className = 'calc-btn';
         cD.textContent = '🧮';
-        cD.addEventListener('click', function () {
+        cD.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             calcOpen(
                 function () { return line.debit || 0; },
                 function (v) {
@@ -486,7 +469,9 @@ function renderVoucherLines() {
         cC.type = 'button';
         cC.className = 'calc-btn';
         cC.textContent = '🧮';
-        cC.addEventListener('click', function () {
+        cC.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             calcOpen(
                 function () { return line.credit || 0; },
                 function (v) {
@@ -655,7 +640,6 @@ function renderVoucherLines() {
 
     updateVoucherTotals();
 
-    /* auto-scroll به ردیف تازه کپی/جابجا شده */
     if (window._focusLineId) {
         var tid = window._focusLineId;
         window._focusLineId = null;
