@@ -199,6 +199,9 @@ function calcButtonPress(key) {
         var parts = calcExpr.split(/[+\-*/]/);
         var lastPart = parts[parts.length - 1];
         if (lastPart.indexOf('.') === -1) calcExpr += '.';
+    } else if (key === '00') {
+        if (calcExpr === '0') calcExpr = '0';
+        else calcExpr += '00';
     } else if (/^\d$/.test(key)) {
         if (calcExpr === '0') calcExpr = key;
         else calcExpr += key;
@@ -217,9 +220,19 @@ function calcClose() {
 function initCalculator() {
     var box = document.getElementById('calc-buttons');
     if (!box) return;
-    var keys = ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', '=', '+', '←', 'C'];
+    
+    // ✅ چیدمان استاندارد ماشین‌حساب (اعداد ۷ ۸ ۹ / ۴ ۵ ۶ / ۱ ۲ ۳)
+    var keys = [
+        'C', '←', '/', '*',
+        '7', '8', '9', '-',
+        '4', '5', '6', '+',
+        '1', '2', '3', '=',
+        '0', '00', '.'
+    ];
+    
     box.innerHTML = '';
     keys.forEach(function (k) {
+        if (!k) return;
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'calc-btn-key' + (['+', '-', '*', '/'].indexOf(k) !== -1 ? ' op' : '') + (k === '=' ? ' eq' : '');
