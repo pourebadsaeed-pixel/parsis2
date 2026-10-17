@@ -3,11 +3,9 @@
    مسیر: js/ui/table.js
    
    🆕 تغییر منطق resize:
-     • پیش‌فرض: auto-fit به محتوا
-     • شروع drag: عرض همه ستون‌ها capture می‌شود → بقیه ستون‌ها جابه‌جا نمی‌شوند
-     • محدوده: ۱۰px تا ۵۰۰۰px
-     • ذخیره: همه عرض‌ها
-     • reset: دکمه ↻ در هدر یا double-click روی resizer
+     • هنگام کشیدن مرز، ستون مجاور (چپ در RTL) به صورت خودکار
+       بزرگ/کوچک می‌شود تا جدول پهنای ثابتی داشته باشد.
+     • حداقل عرض به ۱۰px کاهش یافت (امکان جمع کردن کامل).
    ============================================================ */
 'use strict';
 
@@ -91,9 +89,9 @@ function makeTableResizable(table) {
             th.appendChild(res);
 
             var startX = 0, startW = 0, isDragging = false;
+            var capturedWidths = [];
 
-            /* ✅ شروع drag: عرض همه ستون‌های قابل‌مشاهده را capture کن
-               تا بقیه ستون‌ها هنگام drag جابه‌جا نشوند */
+            /* ✅ شروع drag: عرض همه ستون‌ها را ذخیره کن */
             function start(x) {
                 if (isDragging) return;
                 isDragging = true;
@@ -103,10 +101,9 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
 
-                /* capture عرض فعلی همه TH ها (قبل از fixed شدن) */
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
-                var capturedWidths = [];
+                capturedWidths = [];
                 for (var j = 0; j < allThs.length; j++) {
                     if (allThs[j].style.display === 'none') {
                         capturedWidths.push(0);
@@ -115,10 +112,8 @@ function makeTableResizable(table) {
                     }
                 }
 
-                /* تبدیل به fixed layout */
                 ensureFixedLayout(table);
 
-                /* اعمال عرض capture شده به همه ستون‌ها — تا هیچ ستونی نپرد */
                 for (var k = 0; k < allThs.length; k++) {
                     if (capturedWidths[k] > 0) {
                         allThs[k].style.width = capturedWidths[k] + 'px';
@@ -128,10 +123,41 @@ function makeTableResizable(table) {
                 }
             }
 
+            /* ✅ حرکت: عرض ستون فعلی تغییر می‌کند و ستون مجاور برعکس آن */
             function move(x) {
                 if (!isDragging) return;
+                
                 var diff = startX - x;
                 var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
+                
+                /* پیدا کردن ستون مجاور سمت چپ (در RTL یعنی idx + 1 در DOM) */
+                var nextTh = null;
+                var nextStartW = 0;
+                
+                if (idx < capturedWidths.length - 1) {
+                    for (var p = idx + 1; p < capturedWidths.length; p++) {
+                        var candidate = th.parentNode.children[p];
+                        if (candidate && candidate.style.display !== 'none') {
+                            nextTh = candidate;
+                            nextStartW = capturedWidths[p];
+                            break;
+                        }
+                    }
+                }
+                
+                /* اگر ستون مجاوری وجود داشت، عرض آن را برعکس تغییر بده */
+                if (nextTh) {
+                    var combinedWidth = startW + nextStartW;
+                    var nextW = combinedWidth - w;
+                    if (nextW < COL_MIN_W) {
+                        nextW = COL_MIN_W;
+                        w = combinedWidth - COL_MIN_W;
+                    }
+                    nextTh.style.width = nextW + 'px';
+                    nextTh.style.minWidth = nextW + 'px';
+                    nextTh.style.maxWidth = nextW + 'px';
+                }
+                
                 th.style.width = w + 'px';
                 th.style.minWidth = w + 'px';
                 th.style.maxWidth = w + 'px';
@@ -144,7 +170,6 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = '';
                 document.body.classList.remove('resizing-cols');
 
-                /* ✅ ذخیره عرض همه ستون‌های قابل‌مشاهده */
                 if (!colWidths[tableId]) colWidths[tableId] = [];
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 if (curHdr) {
@@ -160,7 +185,6 @@ function makeTableResizable(table) {
                 saveColWidths();
             }
 
-            /* دابل‌کلیک = بازنشانی کل جدول به auto-fit */
             res.addEventListener('dblclick', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -844,4 +868,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete (new resize logic)');
+console.log('✅ [ui/table.js] loaded — complete (Excel-like resize)');
