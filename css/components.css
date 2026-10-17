@@ -488,9 +488,7 @@
 }
 
 /* ============================================================
-   ✅ جدید: ستون‌های قابل تغییر عرض (Fixed Layout)
-   هر جدولی که کاربر عرض ستونش را تغییر دهد، این کلاس به آن اضافه می‌شود
-   و از آن پس محتوا بر اساس عرض تعیین‌شده نمایش داده می‌شود.
+   ✅ ستون‌های قابل تغییر عرض (Fixed Layout)
    ============================================================ */
 .data-table.w-col-resized,
 .report-table.w-col-resized,
@@ -968,6 +966,7 @@ body.resizing-cols .report-table th { user-select:none !important; }
   align-items:center;
   justify-content:center;
   transition: all var(--transition);
+  z-index: 10; /* ✅ اضافه شده برای کلیک‌پذیری */
 }
 .ln-amount-wrap .calc-btn:hover { background:var(--primary); color:#fff; }
 .voucher-line .ln-actions {
