@@ -936,13 +936,10 @@ function renderTodayChecklistWidget(category) {
 var TGJU_ITEMS = [
     { id: '137119', key: 'price_dollar_rl', label: '💵 دلار آمریکا' },
     { id: '137123', key: 'price_eur', label: '💶 یورو' },
-    { id: '137120', key: 'price_gbp', label: '💷 پوند' },
-    { id: '137121', key: 'price_aed', label: '💴 درهم امارات' },
-    { id: '137122', key: 'crypto-tether', label: '💰 تتر' },
-    { id: '137138', key: 'sekke_emami', label: '🪙 سکه امامی' },
-    { id: '137137', key: 'sekke_bahar', label: '🪙 سکه بهار آزادی' },
+    { id: '137137', key: 'sekke_bahar', label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', key: 'nim_sekke', label: '🪙 نیم سکه' },
     { id: '137140', key: 'rob_sekke', label: '🪙 ربع سکه' },
+    { id: '137138', key: 'sekke_emami', label: '🪙 سکه امامی' },
     { id: '137141', key: 'sekke_gerami', label: '🪙 سکه گرمی' },
     { id: '137225', key: 'geram18', label: '🥇 طلای ۱۸ عیار' },
     { id: '137207', key: 'geram24', label: '🥇 طلای ۲۴ عیار' },
@@ -952,6 +949,32 @@ var TGJU_ITEMS = [
 ];
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
+
+/* ✅ تابع کمکی برای تحلیل جهت تغییرات (بهبود یافته) */
+function parseTgjuChange(entry) {
+    // اگر فیلد dt وجود داشت، از آن استفاده کن (دقیق‌ترین)
+    var trend = String(entry.dt || '').toLowerCase();
+    if (trend === 'high' || trend === 'up' || trend === 'positive') {
+        return { dir: 'up', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
+    }
+    if (trend === 'low' || trend === 'down' || trend === 'negative') {
+        return { dir: 'down', amount: entry.d || entry.dp || '', percent: entry.dp || '' };
+    }
+
+    // در غیر این صورت بر اساس علامت عدد تغییر
+    var rawD = entry.d !== undefined ? entry.d : entry.dp;
+    if (rawD === undefined || rawD === null) {
+        return { dir: 'same', amount: '', percent: '' };
+    }
+
+    var strD = normalizeDigits(String(rawD)).replace(/[,\s]/g, '').trim();
+    var numD = parseFloat(strD);
+    if (isNaN(numD)) numD = 0;
+
+    if (numD < 0) return { dir: 'down', amount: rawD, percent: entry.dp || '' };
+    if (numD > 0) return { dir: 'up', amount: rawD, percent: entry.dp || '' };
+    return { dir: 'same', amount: rawD, percent: entry.dp || '' };
+}
 
 async function fetchTgjuRates() {
     var results = {};
@@ -976,9 +999,12 @@ async function fetchTgjuRates() {
             var priceStr = normalizeDigits(String(entry.p)).replace(/[^\d]/g, '');
             var price = Number(priceStr);
             if (price > 0) {
+                var chgInfo = parseTgjuChange(entry);
                 results[item.id] = {
                     price: price,
-                    change: entry.d || '',
+                    change: chgInfo.amount,
+                    percent: chgInfo.percent,
+                    dir: chgInfo.dir,
                     time: entry.t || ''
                 };
             }
@@ -1032,20 +1058,35 @@ function renderTgjuRatesWidget() {
     var shown = 0;
 
     TGJU_ITEMS.forEach(function (item) {
-        var val = c.values[item.id] ? c.values[item.id].price : 0;
+        var info = c.values[item.id];
+        var val = info ? info.price : 0;
         
         if (val <= 0 && c.ts) return;
         shown++;
 
-        var chg = c.values[item.id] ? c.values[item.id].change : '';
-        var chgCls = 'same';
-        if (chg && chg.indexOf('-') !== -1) chgCls = 'down';
-        else if (chg && chg !== '0') chgCls = 'up';
+        var chgCls = info ? info.dir : 'same';
+        var chgAmount = info ? info.change : '';
+        var chgPercent = info ? info.percent : '';
+        
+        // اگر درصد موجود بود، درصد را نشان بده، در غیر این صورت مبلغ
+        var chgDisplay = '';
+        if (!hide) {
+            if (chgPercent && chgPercent !== '0' && chgPercent !== '') {
+                chgDisplay = chgPercent + '٪';
+            } else if (chgAmount && chgAmount !== '0' && chgAmount !== '') {
+                chgDisplay = chgAmount;
+            }
+        }
+
+        // فلش جهت‌دار
+        var arrow = '';
+        if (chgCls === 'up') arrow = '▲ ';
+        else if (chgCls === 'down') arrow = '▼ ';
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg ' + chgCls + '">' + (chg && !hide ? chg : '') + '</span>'
+             +  '<span class="rate-chg ' + chgCls + '">' + (hide ? '' : arrow + chgDisplay) + '</span>'
              +  '</div>';
     });
 
