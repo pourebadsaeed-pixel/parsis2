@@ -2,10 +2,10 @@
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
    
-   🆕 تغییر منطق resize:
-     • هنگام کشیدن مرز، ستون مجاور (چپ در RTL) به صورت خودکار
-       بزرگ/کوچک می‌شود تا جدول پهنای ثابتی داشته باشد.
-     • حداقل عرض به ۱۰px کاهش یافت (امکان جمع کردن کامل).
+   🆕 اصلاح نهایی resize:
+     • ستون کاملاً جمع می‌شود و روی متن قرار می‌گیرد.
+     • جدول هنگام درگ به حالت fixed می‌رود تا از مقاومت مرورگر جلوگیری شود.
+     • بقیه ستون‌ها هنگام درگ دست‌نخورده می‌مانند (مانند اکسل).
    ============================================================ */
 'use strict';
 
@@ -61,7 +61,7 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
-/* ✅ محدوده بسیار باز — آزادی کامل برای کاربر */
+/* ✅ حداقل و حداکثر عرض — حداقل ۱۰ پیکسل اجازه می‌دهد کاملاً روی متن بیفتد */
 var COL_MIN_W = 10;
 var COL_MAX_W = 5000;
 
@@ -89,74 +89,41 @@ function makeTableResizable(table) {
             th.appendChild(res);
 
             var startX = 0, startW = 0, isDragging = false;
-            var capturedWidths = [];
 
-            /* ✅ شروع drag: عرض همه ستون‌ها را ذخیره کن */
-            function start(x) {
+            function start(e) {
                 if (isDragging) return;
                 isDragging = true;
+                var x = e.touches ? e.touches[0].clientX : e.clientX;
                 startX = x;
                 startW = th.offsetWidth;
+                
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
-
+                
+                /* ✅ اجبار به fixed layout تا مرورگر بهانه نیاورد و اجازه دهد ستون کوچک شود */
+                ensureFixedLayout(table);
+                table.style.width = 'auto';
+                table.style.minWidth = '0';
+                
+                /* ✅ قفل کردن عرض بقیه ستون‌ها تا موقع کشیدن جابه‌جا نشوند */
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
-                capturedWidths = [];
                 for (var j = 0; j < allThs.length; j++) {
-                    if (allThs[j].style.display === 'none') {
-                        capturedWidths.push(0);
-                    } else {
-                        capturedWidths.push(allThs[j].offsetWidth);
-                    }
-                }
-
-                ensureFixedLayout(table);
-
-                for (var k = 0; k < allThs.length; k++) {
-                    if (capturedWidths[k] > 0) {
-                        allThs[k].style.width = capturedWidths[k] + 'px';
-                        allThs[k].style.minWidth = capturedWidths[k] + 'px';
-                        allThs[k].style.maxWidth = capturedWidths[k] + 'px';
+                    if (allThs[j].style.display !== 'none') {
+                        allThs[j].style.width = allThs[j].offsetWidth + 'px';
+                        allThs[j].style.minWidth = allThs[j].offsetWidth + 'px';
+                        allThs[j].style.maxWidth = allThs[j].offsetWidth + 'px';
                     }
                 }
             }
 
-            /* ✅ حرکت: عرض ستون فعلی تغییر می‌کند و ستون مجاور برعکس آن */
-            function move(x) {
+            function move(e) {
                 if (!isDragging) return;
+                var x = e.touches ? e.touches[0].clientX : e.clientX;
+                var diff = startX - x; /* RTL: کشیدن به راست → diff منفی → عرض کم می‌شود */
                 
-                var diff = startX - x;
                 var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
-                
-                /* پیدا کردن ستون مجاور سمت چپ (در RTL یعنی idx + 1 در DOM) */
-                var nextTh = null;
-                var nextStartW = 0;
-                
-                if (idx < capturedWidths.length - 1) {
-                    for (var p = idx + 1; p < capturedWidths.length; p++) {
-                        var candidate = th.parentNode.children[p];
-                        if (candidate && candidate.style.display !== 'none') {
-                            nextTh = candidate;
-                            nextStartW = capturedWidths[p];
-                            break;
-                        }
-                    }
-                }
-                
-                /* اگر ستون مجاوری وجود داشت، عرض آن را برعکس تغییر بده */
-                if (nextTh) {
-                    var combinedWidth = startW + nextStartW;
-                    var nextW = combinedWidth - w;
-                    if (nextW < COL_MIN_W) {
-                        nextW = COL_MIN_W;
-                        w = combinedWidth - COL_MIN_W;
-                    }
-                    nextTh.style.width = nextW + 'px';
-                    nextTh.style.minWidth = nextW + 'px';
-                    nextTh.style.maxWidth = nextW + 'px';
-                }
                 
                 th.style.width = w + 'px';
                 th.style.minWidth = w + 'px';
@@ -170,6 +137,7 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = '';
                 document.body.classList.remove('resizing-cols');
 
+                /* ذخیره عرض همه ستون‌ها */
                 if (!colWidths[tableId]) colWidths[tableId] = [];
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 if (curHdr) {
@@ -191,24 +159,22 @@ function makeTableResizable(table) {
                 resetColumnWidths(tableId);
             });
 
-            res.addEventListener('click', function (e) { e.stopPropagation(); });
-
             res.addEventListener('mousedown', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                start(e.pageX);
+                start(e);
             });
 
             res.addEventListener('touchstart', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                start(e.touches[0].pageX);
+                start(e);
             }, { passive: false });
 
-            document.addEventListener('mousemove', function (e) { if (isDragging) move(e.pageX); });
+            document.addEventListener('mousemove', move);
             document.addEventListener('mouseup', end);
             document.addEventListener('touchmove', function (e) {
-                if (isDragging) { move(e.touches[0].pageX); e.preventDefault(); }
+                if (isDragging) { move(e); e.preventDefault(); }
             }, { passive: false });
             document.addEventListener('touchend', end);
         })(ths[i], i);
@@ -807,7 +773,7 @@ function buildHeaderButtons() {
                 rBtn.type = 'button';
                 rBtn.className = 'col-reset-btn';
                 rBtn.innerHTML = '↻';
-                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض (fit محتوا)';
+                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض';
                 rBtn.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     resetColumnWidths(tableId);
@@ -868,4 +834,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete (Excel-like resize)');
+console.log('✅ [ui/table.js] loaded — complete (pure resize)');
