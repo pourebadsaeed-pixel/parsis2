@@ -221,7 +221,10 @@ function initCalculator() {
     var box = document.getElementById('calc-buttons');
     if (!box) return;
     
-    // ✅ چیدمان استاندارد ماشین‌حساب (اعداد ۷ ۸ ۹ / ۴ ۵ ۶ / ۱ ۲ ۳)
+    // ✅ اجبار چیدمان به چپ به راست (LTR)
+    box.style.direction = 'ltr';
+
+    // ✅ چیدمان استاندارد ماشین‌حساب (از چپ به راست)
     var keys = [
         'C', '←', '/', '*',
         '7', '8', '9', '-',
