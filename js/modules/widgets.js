@@ -929,13 +929,13 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (بهبود یافته با ajax.json و پروکسی)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای TGJU (سیستم ترکیبی برای دریافت دقیق)
    ============================================================ */
 var TGJU_ITEMS = [
-    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl', 'price_dollar_realtime'], label: '💵 دلار آمریکا' },
+    { id: '137119', keys: ['price_dollar_rl', 'dolar_rl'], label: '💵 دلار آمریکا' },
     { id: '137123', keys: ['price_eur', 'eur'], label: '💶 یورو' },
-    { id: '137138', keys: ['sekke_emami', 'seke_emami'], label: '🪙 سکه امامی' },
-    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi'], label: '🪙 تمام سکه بهار آزادی' },
+    { id: '137138', keys: ['sekke_emami', 'seke_emami', 'sekke_emami'], label: '🪙 سکه امامی' },
+    { id: '137137', keys: ['sekke_bahar', 'seke_bahar', 'sekke_azadi', 'seke_azadi', 'seke'], label: '🪙 تمام سکه بهار آزادی' },
     { id: '137139', keys: ['nim_sekke', 'nim', 'nim_seke'], label: '🪙 نیم سکه' },
     { id: '137140', keys: ['rob_sekke', 'rob', 'rob_seke'], label: '🪙 ربع سکه' },
     { id: '137207', keys: ['geram24', 'gold24', 'gold_24k'], label: '🥇 طلای ۲۴ عیار' },
@@ -945,41 +945,42 @@ var TGJU_ITEMS = [
 
 var TGJU_RATES_CACHE = DB.load('tgjuRatesCache', { values: {}, ts: 0 });
 
-/* ✅ جستجوی هوشمند کلید در پاسخ ajax.json */
 function findTgjuEntry(data, item) {
-    // ۱. بررسی کلیدهای دقیق در current
-    var current = data.current || {};
+    var current = data.current || data;
+    
+    // ۱. بررسی کلیدهای دقیق با اطمینان از اینکه قیمت صفر نباشد
     for (var i = 0; i < item.keys.length; i++) {
-        if (current[item.keys[i]]) {
-            return current[item.keys[i]];
+        var k = item.keys[i];
+        if (current[k] && current[k].p) {
+            var p = Number(String(current[k].p).replace(/[^\d]/g, ''));
+            if (p > 0) return current[k];
         }
     }
-    // ۲. بررسی کلیدهای دقیق در سطح بالایی (اگر current وجود نداشت)
-    for (var i = 0; i < item.keys.length; i++) {
-        if (data[item.keys[i]]) {
-            return data[item.keys[i]];
-        }
-    }
-    // ۳. جستجوی هوشمند برای سکه بهار آزادی
-    if (item.id === '137137') {
-        var allKeys = [];
-        if (data.current) allKeys = Object.keys(data.current);
-        else allKeys = Object.keys(data);
+    
+    // ۲. جستجوی هوشمند
+    for (var key in current) {
+        if (!current.hasOwnProperty(key)) continue;
+        var kl = key.toLowerCase();
         
-        for (var k = 0; k < allKeys.length; k++) {
-            var lk = allKeys[k].toLowerCase();
-            if ((lk.indexOf('bahar') !== -1 || lk.indexOf('azadi') !== -1) && lk.indexOf('emami') === -1) {
-                return (data.current ? data.current[allKeys[k]] : data[allKeys[k]]);
-            }
+        // برای سکه امامی
+        if (item.id === '137138' && kl.indexOf('emami') !== -1) {
+            var p2 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
+            if (p2 > 0) return current[key];
+        }
+        // برای سکه بهار آزادی (نباید کلمه امامی داشته باشد)
+        if (item.id === '137137' && (kl.indexOf('bahar') !== -1 || kl.indexOf('azadi') !== -1) && kl.indexOf('emami') === -1) {
+            var p3 = Number(String(current[key].p || '').replace(/[^\d]/g, ''));
+            if (p3 > 0) return current[key];
         }
     }
+    
     return null;
 }
 
 async function fetchTgjuRates() {
     var results = {};
     
-    // تلاش برای دریافت از ajax.json با پروکسی
+    // مرحله اول: تلاش برای دریافت از ajax.json (بهترین منبع)
     var urls = [
         'https://call2.tgju.org/ajax.json',
         'https://call3.tgju.org/ajax.json',
@@ -989,7 +990,7 @@ async function fetchTgjuRates() {
     
     var data = null;
     for (var i = 0; i < urls.length; i++) {
-        data = await tryFetchJsonWithFallback(urls[i], 10000);
+        data = await tryFetchJsonWithFallback(urls[i], 8000);
         if (data && (data.current || data.price_dollar_rl)) break;
     }
     
@@ -1002,8 +1003,10 @@ async function fetchTgjuRates() {
                 if (price > 0) {
                     var chgStr = String(entry.d || entry.dp || '');
                     var chgDir = 'same';
-                    if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
-                    else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+                    var dt = String(entry.dt || '').toLowerCase();
+                    
+                    if (dt === 'high' || dt === 'up' || chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                    else if (dt === 'low' || dt === 'down' || chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
 
                     results[item.id] = {
                         price: price,
@@ -1015,14 +1018,36 @@ async function fetchTgjuRates() {
         });
     }
 
-    // اگر دریافت از ajax.json موفق نبود، از API جایگزین استفاده کن
-    if (Object.keys(results).length === 0) {
-        var fallbackUrl = 'https://api.mmdfazeli.tech/arz';
-        var fallbackData = await tryFetchJsonWithFallback(fallbackUrl, 10000);
-        if (fallbackData) {
-            // ساختار API جایگزین ممکن است متفاوت باشد، اما سعی می‌کنیم نگاشت کنیم
-            // (این بخش ممکن است نیاز به تنظیم داشته باشد، اما به عنوان آخرین راه‌حل است)
-            console.log('Fallback API response:', fallbackData);
+    // مرحله دوم: اگر سکه امامی یا بهار آزادی هنوز پیدا نشده‌اند، از API اختصاصی ویجت TGJU استفاده کن
+    var missingIds = [];
+    TGJU_ITEMS.forEach(function(item) {
+        if (!results[item.id]) missingIds.push(item.id);
+    });
+
+    if (missingIds.length > 0) {
+        var idsStr = missingIds.join(',');
+        var wUrl = 'https://api.tgju.org/v1/widget/market-overview/data?items=' + idsStr + '&columns=dot&token=webservice';
+        var wData = await tryFetchJsonWithFallback(wUrl, 8000);
+        
+        if (wData) {
+            missingIds.forEach(function (id) {
+                var entry = wData[id];
+                if (entry && entry.price) {
+                    var p = Number(String(entry.price).replace(/[^\d]/g, ''));
+                    if (p > 0) {
+                        var chgStr = String(entry.change || '');
+                        var chgDir = 'same';
+                        if (chgStr.indexOf('▲') !== -1 || chgStr.indexOf('+') !== -1) chgDir = 'up';
+                        else if (chgStr.indexOf('▼') !== -1 || chgStr.indexOf('-') !== -1) chgDir = 'down';
+                        
+                        results[id] = {
+                            price: p,
+                            change: chgStr,
+                            dir: chgDir
+                        };
+                    }
+                }
+            });
         }
     }
 
@@ -1074,14 +1099,24 @@ function renderTgjuRatesWidget() {
     TGJU_ITEMS.forEach(function (item) {
         var info = c.values[item.id];
         var val = info ? info.price : 0;
-
+        
         var chgCls = info ? info.dir : 'same';
         var chgDisplay = info ? info.change : '';
+        
+        // ✅ تنظیم رنگ قرمز و سبز به صورت مستقیم
+        var textColor = '';
+        if (chgCls === 'up') {
+            textColor = '#059669'; // سبز
+            if (chgDisplay && chgDisplay.indexOf('▲') === -1 && chgDisplay.indexOf('+') === -1) chgDisplay = '▲ ' + chgDisplay;
+        } else if (chgCls === 'down') {
+            textColor = '#dc2626'; // قرمز
+            if (chgDisplay && chgDisplay.indexOf('▼') === -1 && chgDisplay.indexOf('-') === -1) chgDisplay = '▼ ' + chgDisplay;
+        }
 
         html += '<div class="rate-row">'
              +  '<span class="name">' + item.label + '</span>'
              +  '<span class="amount">' + (hide ? '—' : (val > 0 ? formatRial(val) : '—')) + ' ریال</span>'
-             +  '<span class="rate-chg ' + chgCls + '">' + (hide ? '' : chgDisplay) + '</span>'
+             +  '<span class="rate-chg" style="color: ' + textColor + '; font-weight: 800; background: transparent;">' + (hide ? '' : chgDisplay) + '</span>'
              +  '</div>';
     });
 
