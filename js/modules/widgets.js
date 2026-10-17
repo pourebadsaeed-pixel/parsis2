@@ -84,7 +84,7 @@ function renderWidgetOrderUI() {
         upcomingInstallments: '⏰ اقساط ۳ روز آینده',
         birthdays: '🎂 تولدها',
         liveRates: '💱 نرخ لحظه‌ای ارز و طلا',
-        tgjuCoins: '🪙 قیمت لحظه‌ای سکه (TGJU)' // ✅ ویجت جدید
+        tgjuCoins: '🪙 قیمت لحظه‌ای سکه (TGJU)'
     };
 
     var order = state.widgetOrder || [];
@@ -566,7 +566,24 @@ function updateHomeUpcomingInstallments() {
 }
 
 /* ============================================================
-   بخش ۱۲ — به‌روزرسانی همه ویجت‌ها
+   بخش ۱۲ — ویجت TGJU (رفرش دستی)
+   ============================================================ */
+function bindTgjuRefreshButton() {
+    var btn = document.getElementById('tgju-refresh');
+    if (btn && !btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', function () {
+            var box = document.getElementById('tgju-coins-widget');
+            if (box) {
+                box.innerHTML = '<tgju type="market-overview" items="137138,137137,137139,137140,137141" columns="dot" token="webservice"></tgju>';
+                showToast('🔄 در حال دریافت مجدد نرخ‌ها...');
+            }
+        });
+    }
+}
+
+/* ============================================================
+   بخش ۱۳ — به‌روزرسانی همه ویجت‌ها
    ============================================================ */
 function updateHomeWidgets() {
     applyWidgetOrder();
@@ -594,14 +611,17 @@ function updateHomeWidgets() {
     if (state.widgets.birthdays)             renderBirthdaysWidget();
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
     
-    /* ✅ ویجت TGJU به صورت خودکار توسط اسکریپت خارجی رندر می‌شود، نیازی به کد جاوااسکریپت اینجا ندارد */
+    // ✅ اتصال دکمه رفرش TGJU
+    if (state.widgets.tgjuCoins) {
+        bindTgjuRefreshButton();
+    }
 
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
 
 /* ============================================================
-   بخش ۱۳ — ویجت نرخ لحظه‌ای ارز و طلا (Priceto/Navasan)
+   بخش ۱۴ — ویجت نرخ لحظه‌ای ارز و طلا (Priceto/Navasan)
    ============================================================ */
 var PRICETO_BASE = 'https://api.priceto.day/v1/latest/irr';
 var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/gold.json';
@@ -617,7 +637,6 @@ var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
     values: {}, ts: 0, prev: {}, timestamps: {}, lastUpdate: ''
 });
 
-/* ---------- fetch با timeout ---------- */
 function fetchWithTimeout(url, opts, ms) {
     return new Promise(function (resolve, reject) {
         var controller = new AbortController();
@@ -861,7 +880,7 @@ function renderLiveRatesWidget() {
 }
 
 /* ============================================================
-   بخش ۱۴ — ویجت چک‌لیست (شخصی/خانواده/شغلی)
+   بخش ۱۵ — ویجت چک‌لیست
    ============================================================ */
 function renderTodayChecklistWidget(category) {
     var meta = null;
@@ -961,7 +980,7 @@ function renderTodayChecklistWidget(category) {
 }
 
 /* ============================================================
-   بخش ۱۵ — اتصال دکمه به‌روزرسانی نرخ‌ها
+   بخش ۱۶ — اتصال دکمه به‌روزرسانی نرخ‌ها
    ============================================================ */
 function bindRatesRefreshButton() {
     var btn = document.getElementById('live-rates-refresh');
@@ -1003,4 +1022,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — complete with TGJU widget');
+console.log('✅ [modules/widgets.js] loaded — complete with TGJU widget fix');
