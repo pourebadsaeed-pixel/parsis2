@@ -83,7 +83,8 @@ function renderWidgetOrderUI() {
         cashBalances: '💰 صندوق‌ها',
         upcomingInstallments: '⏰ اقساط ۳ روز آینده',
         birthdays: '🎂 تولدها',
-        liveRates: '💱 نرخ لحظه‌ای ارز و طلا'
+        liveRates: '💱 نرخ لحظه‌ای ارز و طلا',
+        tgjuCoins: '🪙 قیمت لحظه‌ای سکه (TGJU)' // ✅ ویجت جدید
     };
 
     var order = state.widgetOrder || [];
@@ -592,13 +593,15 @@ function updateHomeWidgets() {
     if (state.widgets.upcomingInstallments)  updateHomeUpcomingInstallments();
     if (state.widgets.birthdays)             renderBirthdaysWidget();
     if (state.widgets.liveRates && typeof renderLiveRatesWidget === 'function') renderLiveRatesWidget();
+    
+    /* ✅ ویجت TGJU به صورت خودکار توسط اسکریپت خارجی رندر می‌شود، نیازی به کد جاوااسکریپت اینجا ندارد */
 
     if (typeof window.updateSmsBadge === 'function') window.updateSmsBadge();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
 
 /* ============================================================
-   بخش ۱۳ — ویجت نرخ لحظه‌ای ارز و طلا
+   بخش ۱۳ — ویجت نرخ لحظه‌ای ارز و طلا (Priceto/Navasan)
    ============================================================ */
 var PRICETO_BASE = 'https://api.priceto.day/v1/latest/irr';
 var NAVASAN_GOLD_CDN = 'https://cdn.jsdelivr.net/gh/HosseinOdd/Navasan-API@main/data/gold.json';
@@ -859,7 +862,6 @@ function renderLiveRatesWidget() {
 
 /* ============================================================
    بخش ۱۴ — ویجت چک‌لیست (شخصی/خانواده/شغلی)
-   ✅ اصلاح: عنوان یادداشت با فونت B Titr + خط تیره قبل از متن
    ============================================================ */
 function renderTodayChecklistWidget(category) {
     var meta = null;
@@ -1001,4 +1003,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — complete');
+console.log('✅ [modules/widgets.js] loaded — complete with TGJU widget');
