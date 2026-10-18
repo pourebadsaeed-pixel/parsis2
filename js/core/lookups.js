@@ -133,16 +133,16 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (بازسازی کامل جدول برای رفع مشکل صفحه‌بندی)
+   بخش چاپ مستقیم PDF (با رفع کامل خرابی حروف و فضای خالی)
    ============================================================ */
-function printHtmlReport(selector, title) {
+async function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
     if (!activePage) {
         alert('صفحه‌ای یافت نشد.');
         return;
     }
 
-    showToast('⏳ در حال آماده‌سازی چاپ...');
+    showToast('⏳ در حال ساخت فایل PDF...');
 
     var dateRange = '';
     var dateInputs = activePage.querySelectorAll('.date-picker');
@@ -156,13 +156,14 @@ function printHtmlReport(selector, title) {
     });
     if (dates.length > 0) dateRange = dates.join(' | ');
 
-    // 🌟 استخراج داده‌های خام جدول‌ها (بدون هیچ استایل مزاحمی)
+    // 🌟 استخراج داده‌های خالص جدول‌ها
     var tablesHtml = '';
     var sourceTables = activePage.querySelectorAll('table');
     
     sourceTables.forEach(function(tbl) {
         // نادیده گرفتن جدول‌های فیلتر یا خالی
-        if (tbl.closest('.column-filter-row') || tbl.offsetWidth === 0) return;
+        if (tbl.closest('.column-filter-row') || tbl.classList.contains('column-filter-row')) return;
+        if (tbl.offsetWidth === 0) return; 
 
         var thead = tbl.querySelector('thead');
         var tbody = tbl.querySelector('tbody');
@@ -170,7 +171,6 @@ function printHtmlReport(selector, title) {
 
         if (!tbody || tbody.children.length === 0) return; 
 
-        // پیدا کردن عنوان گروه (برای گزارش‌های جزئیات)
         var groupTitle = '';
         var parentGroup = tbl.closest('.cfd-group');
         if (parentGroup) {
@@ -179,7 +179,7 @@ function printHtmlReport(selector, title) {
         }
 
         if (groupTitle) {
-            tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(groupTitle)}</div>`;
+            tablesHtml += `<div class="group-title">${esc(groupTitle)}</div>`;
         }
 
         tablesHtml += '<table>';
@@ -194,163 +194,92 @@ function printHtmlReport(selector, title) {
         return;
     }
 
-    // تشخیص افقی یا عمودی بودن بر اساس تعداد ستون‌های اولین جدول
+    // تشخیص افقی یا عمودی بودن بر اساس تعداد ستون‌ها
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
     var firstThs = tempDiv.querySelector('table thead tr:first-child');
     var isLandscape = firstThs && firstThs.querySelectorAll('th').length > 6;
 
-    // نام‌گذاری فایل
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
-    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
+    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
 
-    // 🌟 قالب HTML کاملاً تمیز و مستقل
+    // 🌟 قالب HTML کاملاً تمیز
     var htmlContent = `
-        <!DOCTYPE html>
-        <html dir="rtl" lang="fa">
-        <head>
-            <meta charset="UTF-8">
-            <title>${esc(fileName)}</title>
-            <style>
-                /* تنظیمات کاغذ A4 */
-                @page { 
-                    size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
-                    margin: 12mm 10mm 15mm 10mm; 
-                    @bottom-center {
-                        content: "صفحه " counter(page) " از " counter(pages);
-                        font-family: Tahoma, sans-serif;
-                        font-size: 10pt;
-                        color: #64748b;
-                    }
-                }
-                
-                body { 
-                    font-family: 'B Nazanin', Tahoma, sans-serif; 
-                    font-size: 11pt;
-                    direction: rtl; 
-                    color: #000; 
-                    margin: 0; 
-                    padding: 0;
-                }
-                
-                .header {
-                    text-align: center; 
-                    margin-bottom: 20px; 
-                    border-bottom: 2px solid #1e40af; 
-                    padding-bottom: 10px;
-                }
-                .header h1 { 
-                    font-family: 'B Titr', Tahoma, sans-serif; 
-                    font-size: 14pt; 
-                    margin: 0 0 5px 0; 
-                    color: #1e40af; 
-                }
-                .header .date-range { 
-                    font-size: 11pt; 
-                    color: #475569; 
-                    font-weight: bold;
-                }
-                
-                /* تنظیمات حیاتی جدول */
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-bottom: 15px; 
-                }
-                tr { 
-                    page-break-inside: avoid !important; /* جلوگیری از نصفه شدن ردیف */
-                }
-                thead { 
-                    display: table-header-group; /* تکرار هدر در همه صفحات */
-                }
-                tfoot {
-                    display: table-row-group; /* نمایش جمع کل */
-                }
-                
-                th, td { 
-                    border: 1px solid #64748b; 
-                    padding: 6px 8px; 
-                    text-align: center; 
-                    vertical-align: middle;
-                    word-wrap: break-word;
-                }
-                
-                /* استایل هدر (خاکستری و بولد) */
-                th { 
-                    background-color: #e2e8f0 !important; 
-                    font-weight: bold !important; 
-                    font-family: 'B Titr', Tahoma, sans-serif;
-                    color: #1e40af; 
-                    font-size: 11pt;
-                }
-                
-                /* استایل جمع کل (خاکستری و بولد) */
-                tfoot td {
-                    background-color: #e2e8f0 !important;
-                    font-weight: bold !important;
-                    font-family: 'B Titr', Tahoma, sans-serif;
-                    color: #1e40af;
-                }
-                
-                td:first-child {
-                    text-align: right;
-                    font-weight: bold;
-                }
-                
-                /* اعداد */
-                .num, .ltr { 
-                    direction: ltr; 
-                    font-family: Arial, Tahoma, sans-serif; 
-                    font-size: 10pt;
-                    white-space: nowrap;
-                }
-                
-                /* رنگ‌بندی مبالغ */
-                .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold; }
-                .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>${esc(title)}</h1>
-                ${dateRange ? `<div class="date-range">${esc(dateRange)}</div>` : ''}
+        <div id="pdf-export-root" style="direction: rtl; background: #fff; padding: 10px; width: 100%; box-sizing: border-box;">
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
+                <h1 style="font-family: Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                ${dateRange ? `<div style="font-family: Tahoma, sans-serif; font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
             </div>
             <div>
                 ${tablesHtml}
             </div>
-        </body>
-        </html>
+        </div>
+        <style>
+            #pdf-export-root { font-family: Tahoma, sans-serif; }
+            table { width: 100% !important; border-collapse: collapse !important; margin-bottom: 15px !important; font-size: 10pt !important; table-layout: fixed !important; }
+            th, td { border: 1px solid #64748b !important; padding: 5px 8px !important; text-align: center !important; word-wrap: break-word !important; font-family: Tahoma, sans-serif !important; }
+            th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af !important; }
+            tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af !important; }
+            td:first-child { text-align: right !important; }
+            .num, .ltr { direction: ltr !important; font-family: Arial, sans-serif !important; }
+            .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold !important; }
+            .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold !important; }
+            .group-title { margin-top: 15px; margin-bottom: 10px; font-weight: bold; font-size: 12pt; color: #1e40af; font-family: Tahoma, sans-serif; }
+        </style>
     `;
 
-    // 🌟 استفاده از iframe با ابعاد واقعی به جای ارتفاع صفر
-    var iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.bottom = '0';
-    iframe.style.right = '0';
-    iframe.style.width = '800px'; // عرض فیکس برای محاسبه درست ارتفاع
-    iframe.style.height = '1000px';
-    iframe.style.border = 'none';
-    iframe.style.visibility = 'hidden'; // مخفی کردن ظاهری
-    document.body.appendChild(iframe);
+    try {
+        if (!window.html2pdf) {
+            await new Promise(function(resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
 
-    var doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
+        var opt = {
+            margin: [10, 10, 15, 10], 
+            filename: fileName,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: false, // 🌟 این خط باعث رفع خرابی حروف فارسی می‌شود
+                scrollX: 0, 
+                scrollY: 0 
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: 'a4', 
+                orientation: isLandscape ? 'landscape' : 'portrait', 
+                compress: true 
+            },
+            pagebreak: { mode: ['css', 'legacy'] }
+        };
 
-    // صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
-    setTimeout(function() {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+        var worker = html2pdf().set(opt).from(htmlContent).toPdf();
         
-        setTimeout(function() { 
-            if (document.body.contains(iframe)) document.body.removeChild(iframe); 
-        }, 5000);
-    }, 500);
+        worker.get('pdf').then(function(pdf) {
+            var totalPages = pdf.internal.getNumberOfPages();
+            for (var i = 1; i <= totalPages; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(10);
+                pdf.setTextColor(100);
+                // درج شماره صفحه به صورت انگلیسی در پایین صفحه
+                pdf.text((i) + ' / ' + totalPages, pdf.internal.pageSize.getWidth() / 2, pdf.internal.pageSize.getHeight() - 5, { align: 'center' });
+            }
+        }).save();
+
+        showToast('✅ فایل PDF در حال دانلود است...');
+    } catch (e) {
+        console.error('PDF generation error:', e);
+        alert('خطا در ایجاد فایل PDF.');
+    }
 }
 
 /* ============================================================
@@ -455,4 +384,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine (Clean Table)');
+console.log('✅ [core/lookups.js] loaded — HTML2PDF Direct Download (Fixed Text & Space)');
