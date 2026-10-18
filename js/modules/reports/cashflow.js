@@ -262,9 +262,9 @@ function runCashFlowReport() {
    بخش ۵ — استایل‌های اختصاصی گزارش گردش وجه نقد
    ============================================================ */
 (function injectCfdStyle() {
-    if (document.getElementById('cfd-style-v5')) return;
+    if (document.getElementById('cfd-style-v6')) return;
     var s = document.createElement('style');
-    s.id = 'cfd-style-v5';
+    s.id = 'cfd-style-v6';
     s.textContent = `
         .cfd-multi-wrap { position:relative; margin: 0 14px 14px 14px; z-index:50; }
         .cfd-multi-btn { width:100%; padding:10px 14px; background:var(--card-solid); border:1.5px solid var(--border); border-radius:12px; text-align:right; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-family:inherit; font-weight:700; color:var(--text); box-shadow:var(--shadow-sm); }
@@ -419,7 +419,6 @@ function runCashFlowByDescReport() {
         var newSel = _cfdAllDescs.filter(function(d) {
             return _cfdSelectedDescs.indexOf(d) !== -1;
         });
-        // فقط اگر قبلاً همه را لغو نکرده باشد، آیتم‌های جدید را اضافه کن
         if (_cfdSelectedDescs.length > 0) {
             _cfdAllDescs.forEach(function(d) {
                 if (newSel.indexOf(d) === -1) newSel.push(d);
@@ -523,7 +522,7 @@ function renderCfdMultiSelect() {
 }
 
 /* ============================================================
-   بخش ۹ — رندر جدول‌ها (بدون دست زدن به کمبوباکس)
+   بخش ۹ — رندر جدول‌ها (با فضای خالی یکسان)
    ============================================================ */
 function renderCfdTables() {
     var container = document.getElementById('cfd-tables-container');
@@ -542,6 +541,18 @@ function renderCfdTables() {
         });
     }
     
+    var viewMode = document.getElementById('cfd-view').value;
+    var hide = getHideState('cfd');
+    
+    // 🔴 اصلاح اصلی: اگر هیچ آیتمی انتخاب نشده بود، در هر سه حالت فقط یک کارت تمیز نشان بده
+    if (keys.length === 0) {
+        container.innerHTML = '<div class="card" style="margin-top:10px"><p class="muted" style="text-align:center;padding:20px">هیچ بابت موردنظری انتخاب نشده است. (از منوی بالا بابت‌ها را انتخاب کنید)</p></div>';
+        document.getElementById('cfd-count').textContent = '۰ دسته';
+        var unitEl = document.getElementById('cfd-unit');
+        if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
+        return;
+    }
+
     keys.sort(function(a, b) {
         var va, vb;
         var col = _cfdSort.col;
@@ -559,8 +570,6 @@ function renderCfdTables() {
         return _cfdSort.dir === 'asc' ? String(va).localeCompare(String(vb), 'fa') : String(vb).localeCompare(String(va), 'fa');
     });
     
-    var viewMode = document.getElementById('cfd-view').value;
-    var hide = getHideState('cfd');
     var html = '';
     
     if (viewMode === 'main' || viewMode === 'full') {
@@ -610,10 +619,6 @@ function renderCfdTables() {
             html += '<td class="num ' + pctCls + '">' + (hide ? '—' : pctText) + '</td>';
             html += '</tr>';
         });
-        
-        if (keys.length === 0) {
-            html += '<tr><td colspan="7" class="empty-row">هیچ بابت موردنظری انتخاب نشده است.</td></tr>';
-        }
 
         html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>';
         html += '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : moneyHtml(tIn)) + '</td>';
@@ -671,14 +676,6 @@ function renderCfdTables() {
             }
             html += '</tbody></table></div></div></div>';
         });
-        
-        if (keys.length === 0) {
-            html += '<div class="cfd-group" style="margin-top:14px">'
-                 +   '<div class="cfd-head">'
-                 +     '<div class="cfd-title">هیچ بابت موردنظری انتخاب نشده است.</div>'
-                 +   '</div>'
-                 + '</div>';
-        }
     }
 
     container.innerHTML = html;
@@ -837,4 +834,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — Details view empty state and stopPropagation fixed');
+console.log('✅ [modules/reports/cashflow.js] loaded — Empty state layout fixed');
