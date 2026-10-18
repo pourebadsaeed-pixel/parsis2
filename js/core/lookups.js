@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (با نام‌گذاری اصلاح شده)
+   بخش چاپ مستقیم PDF (با رفع مشکل حروف و نام‌گذاری دقیق)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -224,32 +224,31 @@ async function printHtmlReport(selector, title) {
         if (tempDiv.querySelectorAll('th').length > 6) isLandscape = true;
     }
 
-    // ✅ نام‌گذاری صحیح فایل طبق فرمت درخواستی: نام-سال-ماه-روز-ساعت-دقیقه
+    // ✅ نام‌گذاری دقیق فایل
     var now = new Date();
-    var dParts = todayJalaliStr().split('/'); // [1405, 07, 26]
-    var dateStr = dParts[0] + '-' + pad2(dParts[1]) + '-' + pad2(dParts[2]);
-    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
-    var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim();
-    var fileName = safeTitle + '-' + dateStr + '-' + timeStr + '.pdf';
+    var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    var dateStr = todayJalaliStr().replace(/\//g, '-');
+    var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
+    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
 
-    var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: Tahoma, Arial, sans-serif; color: #000; background: #fff;">';
+    var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: \'B Nazanin\', Tahoma, sans-serif; color: #000; background: #fff;">';
     
     pagesData.forEach(function(page, idx) {
         htmlContent += `
             <div class="pdf-page" style="page-break-after: ${idx < totalPages - 1 ? 'always' : 'auto'}; padding: 10px; position: relative; min-height: 270mm;">
                 <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
-                    <h1 style="font-family: Tahoma, Arial, sans-serif; font-size: 16px; margin: 0 0 5px 0; color: #1e40af; font-weight: bold;">${esc(title)}</h1>
-                    ${dateRange ? `<div style="font-size: 13px; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
+                    <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                    ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
                 </div>
                 
-                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-size:13px; color:#1e40af;">${esc(page.title)}</div>` : ''}
+                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-family:'B Titr',Tahoma; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
                 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px;">
+                <table>
                     ${page.thead}
                     <tbody>${page.rows}</tbody>
                 </table>
                 
-                <div style="position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 12px; color: #64748b;">
+                <div style="position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 10pt; color: #64748b;">
                     صفحه ${toFa(idx + 1)} از ${toFa(totalPages)}
                 </div>
             </div>
@@ -259,13 +258,13 @@ async function printHtmlReport(selector, title) {
 
     htmlContent += `
         <style>
-            * { direction: rtl; }
-            table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 13px !important; }
-            td, th { border: 1px solid #94a3b8 !important; padding: 8px 6px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; }
-            th { background-color: #e2e8f0 !important; font-family: Tahoma, Arial, sans-serif !important; font-size: 13px !important; color: #1e40af !important; font-weight: bold; }
+            * { direction: rtl !important; }
+            table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
+            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; }
+            th { background-color: #e2e8f0 !important; font-family: 'B Titr', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
             td:first-child { text-align: right !important; font-weight: bold !important; padding-right: 12px !important; }
-            .num, .ltr { font-family: Tahoma, Arial, sans-serif !important; font-size: 12px !important; text-align: center !important; white-space: nowrap !important; }
+            .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: center !important; white-space: nowrap !important; }
             .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
             .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
         </style>
@@ -289,7 +288,7 @@ async function printHtmlReport(selector, title) {
             html2canvas: { 
                 scale: 2, 
                 useCORS: true, 
-                letterRendering: false,
+                letterRendering: false, // 🌟 اصلاح خرابی حروف فارسی
                 scrollX: 0, 
                 scrollY: 0 
             },
@@ -407,4 +406,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Fixed File Naming & PDF Fonts');
+console.log('✅ [core/lookups.js] loaded — Auto PDF Download (Text fixed)');
