@@ -157,11 +157,10 @@ async function printHtmlReport(selector, title) {
 
     showToast('⏳ در حال آماده‌سازی فایل PDF...');
 
-    // ۱. استخراج داده‌های جدول (بدون فیلترها و دکمه‌ها)
+    // ۱. استخراج داده‌های جدول
     var tablesHtml = '';
     
     if (selector === '#cfd-result') {
-        // گزارش گردش وجه نقد: جدول اصلی + جدول‌های جزئیات
         var mainTable = el.querySelector('#cfd-table');
         if (mainTable) tablesHtml += mainTable.outerHTML;
 
@@ -170,33 +169,36 @@ async function printHtmlReport(selector, title) {
             var titleText = titleEl ? titleEl.textContent.trim() : '';
             var tbl = g.querySelector('table');
             if (tbl) {
-                tablesHtml += '<div style="margin-top:30px; margin-bottom:10px; font-weight:bold; font-family:\'B Titr\', Tahoma; font-size:14px; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
+                tablesHtml += '<div style="margin-top:25px; margin-bottom:8px; font-weight:bold; font-family:\'B Titr\', Tahoma; font-size:14px; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
                 tablesHtml += tbl.outerHTML;
             }
         });
     } else if (selector === '#ra-result') {
-        // گزارش مرور حساب‌ها
         var raTable = el.querySelector('#ra-acc-table');
         if (raTable) tablesHtml = raTable.outerHTML;
     } else {
-        // سایر گزارش‌ها (تراز، مقایسه‌ای، تسهیلات و...)
         var tbls = el.querySelectorAll('table');
-        tbls.forEach(function(t) {
-            tablesHtml += t.outerHTML;
-        });
+        tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
     }
 
-    // ۲. تشخیص خودکار حالت افقی (Landscape) بر اساس تعداد ستون‌ها
+    // ۲. پردازش و پاکسازی جدول‌ها
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
+    
+    tempDiv.querySelectorAll('.column-filter-row, .ar-filter-row, .cfd-filter-row').forEach(function(r) { r.remove(); });
+    
     var maxCols = 0;
     tempDiv.querySelectorAll('table').forEach(function(t) {
         var cols = t.querySelectorAll('thead tr:first-child th').length;
         if (cols > maxCols) maxCols = cols;
+        t.querySelectorAll('th, td').forEach(function(cell) {
+            if (cell.style.display === 'none') cell.remove();
+        });
     });
+    
     var isLandscape = maxCols > 6;
 
-    // ۳. استخراج بازه تاریخی از فیلترها
+    // ۳. استخراج بازه تاریخی
     var dateRange = '';
     var activePage = document.querySelector('.page.active');
     if (activePage) {
@@ -212,59 +214,69 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // تعیین عرض دقیق برای جلوگیری از فشردگی (A4)
-    // عرض A4 در 96dpi حدود 794px (عمودی) و 1123px (افقی) است.
-    var targetWidthPx = isLandscape ? 1100 : 750;
+    // ابعاد دقیق A4 (با کمی کاهش برای حاشیه امن)
+    // در DPI 96، عرض A4 برابر است با:
+    // Portrait: 794px - Landscape: 1123px
+    var targetWidthPx = isLandscape ? 1100 : 780;
 
-    // ۴. ساخت قالب کاملاً تمیز و مستقل
+    // ۴. ساخت قالب تمیز و مستقل
     var htmlContent = `
         <div id="pdf-export-root" style="width: ${targetWidthPx}px; background: #fff; padding: 20px; box-sizing: border-box; direction: rtl; font-family: 'B Nazanin', Tahoma, sans-serif; color: #000;">
-            <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #1e40af; padding-bottom: 12px;">
-                <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 18px; margin: 0 0 8px 0; color: #1e40af;">${esc(title)}</h1>
-                ${dateRange ? `<div style="font-size: 14px; color: #333; font-weight: bold;">${esc(dateRange)}</div>` : ''}
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
+                <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 16px; margin: 0 0 8px 0; color: #1e40af;">${esc(title)}</h1>
+                ${dateRange ? `<div style="font-size: 13px; color: #333; font-weight: bold;">${esc(dateRange)}</div>` : ''}
             </div>
             <div style="font-size: 13px; width: 100%;">
-                ${tablesHtml}
+                ${tempDiv.innerHTML}
             </div>
         </div>
         <style>
-            /* استایل‌های ایزوله فقط برای این خروجی */
+            /* استایل‌های ضدضربه برای چاپ */
             #pdf-export-root table {
                 width: 100% !important;
+                max-width: 100% !important;
                 border-collapse: collapse !important;
-                table-layout: auto !important; /* اجازه می‌دهد ستون‌ها بر اساس محتوا تنظیم شوند */
-                margin-bottom: 20px !important;
+                table-layout: fixed !important; 
+                margin-bottom: 15px !important;
+                border: 1.5px solid #475569 !important;
+                word-break: break-word !important;
             }
             #pdf-export-root th, 
             #pdf-export-root td {
-                border: 1px solid #64748b !important;
-                padding: 8px 6px !important;
+                border: 1px solid #94a3b8 !important;
+                padding: 4px 2px !important; 
                 text-align: center !important;
                 vertical-align: middle !important;
                 word-wrap: break-word !important;
                 white-space: normal !important;
                 color: #000 !important;
+                font-size: 10px !important; 
+                overflow: hidden !important;
             }
             #pdf-export-root th {
-                background-color: #f1f5f9 !important;
+                background-color: #e2e8f0 !important;
                 font-family: 'B Titr', Tahoma, sans-serif !important;
-                font-size: 12px !important;
+                font-size: 11px !important;
+                color: #0f172a !important;
             }
             #pdf-export-root td:first-child {
                 text-align: right !important;
-                padding-right: 10px !important;
+                padding-right: 6px !important;
                 font-weight: bold;
+                font-size: 11px !important;
             }
             #pdf-export-root tr:nth-child(even) td {
                 background-color: #f8fafc !important;
             }
-            #pdf-export-root tr { page-break-inside: avoid !important; }
+            #pdf-export-root tr { 
+                page-break-inside: avoid !important; 
+                page-break-after: auto !important; 
+            }
             
             /* اصلاح رنگ اعداد */
             #pdf-export-root .num, #pdf-export-root .ltr {
                 direction: ltr !important;
                 font-family: Tahoma, sans-serif !important;
-                font-size: 11px !important;
             }
             #pdf-export-root .dr, #pdf-export-root .neg-money, 
             #pdf-export-root td[style*="color:#c0392b"], 
@@ -280,11 +292,16 @@ async function printHtmlReport(selector, title) {
         </style>
     `;
 
-    // ۵. قرار دادن در محیط مخفی
+    // ۵. قرار دادن در محیط رندر (خارج از دید کاربر اما رندر شده)
     var tempWrapper = document.createElement('div');
-    tempWrapper.style.position = 'absolute';
-    tempWrapper.style.left = '-9999px';
+    tempWrapper.style.position = 'fixed';
     tempWrapper.style.top = '0';
+    tempWrapper.style.left = '0';
+    tempWrapper.style.opacity = '0.01'; // تقریبا نامرئی (برای جلوگیری از خطای رندر)
+    tempWrapper.style.pointerEvents = 'none';
+    tempWrapper.style.zIndex = '-9999';
+    tempWrapper.style.width = targetWidthPx + 'px';
+    tempWrapper.style.background = '#fff';
     tempWrapper.innerHTML = htmlContent;
     document.body.appendChild(tempWrapper);
 
@@ -300,7 +317,7 @@ async function printHtmlReport(selector, title) {
         }
         
         var opt = {
-            margin: 10,
+            margin: 10, // حاشیه ۱۰ میلی‌متری
             filename: (title || 'گزارش').replace(/\s+/g, '-') + '.pdf',
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { 
@@ -309,22 +326,23 @@ async function printHtmlReport(selector, title) {
                 letterRendering: true,
                 scrollY: 0,
                 scrollX: 0,
-                windowWidth: targetWidthPx // فیکس کردن عرض پنجره
+                windowWidth: targetWidthPx 
             },
             jsPDF: { 
                 unit: 'mm', 
                 format: 'a4', 
-                orientation: isLandscape ? 'landscape' : 'portrait' 
+                orientation: isLandscape ? 'landscape' : 'portrait',
+                compress: true
             },
-            pagebreak: { mode: ['css', 'legacy'] }
+            // اجبار به جلوگیری از نصفه شدن ردیف‌ها
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
         
-        // استفاده از عنصر ایزوله شده برای تولید PDF
         await html2pdf().set(opt).from(tempWrapper.firstElementChild).save();
-        showToast('✅ فایل PDF دانلود شد.');
+        showToast('✅ فایل PDF با موفقیت دانلود شد.');
     } catch (e) {
         console.error('PDF generation error:', e);
-        alert('خطا در ایجاد فایل PDF.');
+        alert('خطا در ایجاد فایل PDF: ' + e.message);
     } finally {
         document.body.removeChild(tempWrapper);
     }
