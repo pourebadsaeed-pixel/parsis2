@@ -42,11 +42,9 @@ function loadHtml2Canvas() {
     if (_html2canvasLoadPromise) return _html2canvasLoadPromise;
 
     _html2canvasLoadPromise = new Promise(function (resolve, reject) {
-        // 🌟 استفاده از سه CDN معتبر برای جلوگیری از خطا
         var urls = [
             'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-            'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
-            'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'
+            'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
         ];
         var idx = 0;
         function tryNext() {
@@ -105,11 +103,12 @@ async function shareAsImage(el, title, filename) {
     var h2c;
     try { h2c = await loadHtml2Canvas(); } catch (e) {
         showToast('⚠️ خطا در بارگذاری کتابخانه تصویر. لطفا اینترنت را بررسی کنید.');
-        return; // 🌟 حذف فال‌بک متنی نامناسب
+        return;
     }
 
-    var isWidget = el.classList && el.classList.contains('widget-card');
-    var targetWidth = isWidget ? 800 : 1200;
+    // 🌟 ۱. حفظ ابعاد و عرض اصلی (بدون تغییر سایز ستون‌ها)
+    var size = getFullSize(el);
+    var targetWidth = size.width;
 
     var collapsedCards = [];
     el.querySelectorAll('.card.collapsed').forEach(function (card) {
@@ -125,6 +124,7 @@ async function shareAsImage(el, title, filename) {
     });
 
     var rootSaved = { width: el.style.width, minWidth: el.style.minWidth, maxWidth: el.style.maxWidth, overflow: el.style.overflow, overflowX: el.style.overflowX };
+    // فقط عرض را به اندازه طبیعی خودش قفل می‌کنیم تا اسکرول‌ها باز شوند
     el.style.width = targetWidth + 'px';
     el.style.minWidth = targetWidth + 'px';
     el.style.maxWidth = 'none';
@@ -150,8 +150,9 @@ async function shareAsImage(el, title, filename) {
     });
 
     await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(r, 200); }); }); });
-    var size = getFullSize(el);
+    size = getFullSize(el);
 
+    // 🌟 تنظیم Scale برای وضوح بالا
     var scale = 3;
     var MAX_CHUNK_H = 3000;
     var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
@@ -187,7 +188,6 @@ async function shareAsImage(el, title, filename) {
     };
 
     var blobs = [];
-    // 🌟 نام‌گذاری دقیق فایل تصویر
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
@@ -202,7 +202,7 @@ async function shareAsImage(el, title, filename) {
             var canvas = await h2c(el, {
                 backgroundColor: '#ffffff', scale: scale, useCORS: true, allowTaint: false, logging: false,
                 scrollX: 0, scrollY: 0, x: 0, y: y, width: size.width, height: h, windowWidth: size.width, windowHeight: size.height,
-                letterRendering: false, onclone: oncloneFn // letterRendering false برای فارسی
+                letterRendering: true, onclone: oncloneFn // letterRendering true برای فارسی
             });
 
             var blob = await new Promise(function (resolve, reject) {
@@ -308,4 +308,4 @@ window.unlockElement = unlockElement;
 window.restoreElement = restoreElement;
 window.getFullSize = getFullSize;
 
-console.log('✅ [ui/share.js] loaded — Ultra HD Export Ready');
+console.log('✅ [ui/share.js] loaded — Aspect Ratio Preserved');
