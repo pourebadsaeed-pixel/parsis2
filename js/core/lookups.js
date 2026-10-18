@@ -146,20 +146,8 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش ۵ — چاپ حرفه‌ای (PDF دانلود مستقیم)
+   بخش ۵ — چاپ حرفه‌ای (PDF دانلود مستقیم، اصلاح بریدگی و فشردگی)
    ============================================================ */
-// بارگذاری داینامیک کتابخانه html2pdf
-function loadHtml2PdfLibrary() {
-    if (window.html2pdf) return Promise.resolve();
-    return new Promise(function(resolve, reject) {
-        var s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-    });
-}
-
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
     if (!el) {
@@ -196,7 +184,7 @@ async function printHtmlReport(selector, title) {
         var cols = t.querySelectorAll('thead tr:first-child th').length;
         if (cols > maxCols) maxCols = cols;
     });
-    var isLandscape = maxCols > 7;
+    var isLandscape = maxCols > 6;
 
     // ۴. استخراج بازه تاریخی از فیلترها
     var dateRange = '';
@@ -214,42 +202,73 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
+    // تعیین عرض دقیق برای جلوگیری از فشردگی (A4)
+    var targetWidth = isLandscape ? '270mm' : '185mm';
+
     // ۵. قالب‌بندی HTML با فونت و استایل زیبا
     var htmlContent = `
-        <div style="font-family: 'B Nazanin', Tahoma, sans-serif; direction: rtl; padding: 10px; color: #000; background: #fff; width: 100%; box-sizing: border-box;">
+        <div style="font-family: 'B Nazanin', Tahoma, sans-serif; direction: rtl; padding: 0; margin: 0 auto; color: #000; background: #fff; width: ${targetWidth}; box-sizing: border-box;">
             <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #4a90e2; padding-bottom: 10px;">
                 <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 12pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
                 ${dateRange ? `<div style="font-size: 11pt; color: #333; font-weight: bold;">${esc(dateRange)}</div>` : ''}
             </div>
-            <div style="font-size: 11pt;">
+            <div style="font-size: 11pt; width: 100%;">
                 ${clone.innerHTML}
             </div>
         </div>
         <style>
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 9pt; }
-            th, td { border: 1px solid #94a3b8; padding: 6px 8px; text-align: right; }
+            /* استایل‌های حیاتی برای جلوگیری از پرش و فشردگی */
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+            table { width: 100% !important; border-collapse: collapse !important; margin-bottom: 15px; font-size: 9pt; table-layout: auto !important; }
+            th, td { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: right; word-break: break-word !important; white-space: normal !important; }
             th { background-color: #f1f5f9 !important; font-weight: bold; color: #1e40af; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
-            .num { text-align: center !important; direction: ltr; }
+            
+            /* استایل اعداد */
+            .num { text-align: center !important; direction: ltr !important; white-space: nowrap !important; }
             .dr { color: #dc2626 !important; font-weight: bold; }
             .cr { color: #059669 !important; font-weight: bold; }
-            .neg-money { color: #dc2626 !important; font-weight: bold; }
+            .neg-money { color: #dc2626 !important; font-weight: bold; direction: ltr !important; display: inline-block; }
+            
+            /* خنثی کردن استایل‌های کارت و اسکرول که باعث مشکل در چاپ می‌شوند */
             .card { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; }
-            .table-wrap { overflow: visible !important; border: none !important; }
+            .table-wrap { overflow: visible !important; border: none !important; max-width: none !important; }
+            .cfd-hscroll { overflow: visible !important; border: none !important; }
             .ar-wrap { border: none !important; }
-            .ar-tbl, .report-table, .data-table { border: 1px solid #94a3b8 !important; }
+            .ar-tbl, .report-table, .data-table, .cfd-table { border: 1px solid #94a3b8 !important; table-layout: auto !important; }
+            
+            /* مخفی کردن منوهای جمع‌شونده و بخش‌های اضافی گزارش جزئیات */
+            .cfd-details { display: block !important; }
+            .cfd-group { page-break-inside: avoid !important; margin-bottom: 20px !important; }
         </style>
     `;
 
     // ۶. تولید و دانلود فایل PDF
     try {
-        await loadHtml2PdfLibrary();
+        if (!window.html2pdf) {
+            await new Promise(function(resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+        
         var opt = {
-            margin: 10,
+            margin: [10, 10, 10, 10], // حاشیه بالا، راست، پایین، چپ
             filename: (title || 'گزارش').replace(/\s+/g, '-') + '.pdf',
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait' }
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: true,
+                scrollY: 0,
+                scrollX: 0,
+                windowWidth: isLandscape ? 1200 : 800 // فیکس کردن پنجره برای رندر بهتر
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] } // استفاده از CSS برای شکستن صفحه
         };
         
         html2pdf().set(opt).from(htmlContent).save().then(function() {
@@ -388,4 +407,4 @@ window.printHtmlReport              = printHtmlReport;
 window.exportToCsv                  = exportToCsv;
 window.exportReportTable            = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Beautiful PDF Print Engine');
+console.log('✅ [core/lookups.js] loaded — Beautiful PDF Print Engine (Fixed Breaking & Squeezing)');
