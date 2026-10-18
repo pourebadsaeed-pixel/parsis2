@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (رفع کامل پرش کیبورد و پاک شدن فیلتر)
+   پارسیس — گزارش مرور حساب‌ها (با پیمایش آزاد، فیلتر و مرتب‌سازی)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -324,6 +324,19 @@ function rollupBalances(accounts, balances) {
     return rolled;
 }
 
+function getRootAccountId(accId, accounts) {
+    if (!accounts) accounts = DB.load('accounts', []);
+    var acc = accounts.find(function (a) { return a.id === accId; });
+    if (!acc) return '';
+    var safety = 0;
+    while (acc.parent && safety < 20) {
+        acc = accounts.find(function (a) { return a.id === acc.parent; });
+        if (!acc) break;
+        safety++;
+    }
+    return acc ? acc.id : '';
+}
+
 function getDescendantIds(accountId) {
     var accounts = DB.load('accounts', []);
     if (!Array.isArray(accounts)) return [accountId];
@@ -397,10 +410,8 @@ function applyDOMFilters() {
         '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(totalMC)) + '</td>' +
         '</tr>';
         
-    // اعمال مخفی‌سازی ستون‌ها روی فوتر جدید
     if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
     
-    // اعمال ترتیب ستون‌ها روی فوتر جدید
     if (typeof columnOrders !== 'undefined' && columnOrders['ra-acc-table']) {
         var savedOrder = columnOrders['ra-acc-table'];
         var footRow = tfoot.querySelector('tr');
@@ -485,14 +496,12 @@ function renderAccountReview() {
         });
     }
 
-    /* اعمال فیلترهای اولیه (فقط برای مواردی که با تیک «فقط دارای مانده» یا فیلتر تفصیلی کنترل می‌شوند) */
     list = list.filter(function(a) {
         var net = a.debit - a.credit;
         if (filterBal && Math.abs(net) < 0.5) return false;
         return true;
     });
 
-    /* اعمال مرتب‌سازی */
     list.sort(function(a, b) {
         var col = _arSort.col, dir = _arSort.dir === 'asc' ? 1 : -1;
         var va, vb;
@@ -507,7 +516,6 @@ function renderAccountReview() {
         return String(va).localeCompare(String(vb), 'fa') * dir;
     });
 
-    // تولید HTML
     var tD = 0, tC = 0, tMD = 0, tMC = 0;
     var rowsHtml = '';
 
@@ -639,7 +647,6 @@ function renderAccountReview() {
 
     bindAccountReviewEvents(accounts, box);
 
-    /* مرتب‌سازی */
     box.querySelectorAll('.ar-th-sort').forEach(function (th) {
         th.addEventListener('click', function (e) {
             if (e.target.tagName === 'INPUT') return;
@@ -654,7 +661,6 @@ function renderAccountReview() {
         });
     });
 
-    /* فیلترها — فقط DOM را فیلتر می‌کند تا کیبورد نپرد */
     box.querySelectorAll('.ar-filter-input').forEach(function (inp) {
         inp.addEventListener('input', function () {
             var col = this.getAttribute('data-col');
@@ -686,13 +692,12 @@ function renderAccountReview() {
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
         
-        // اعمال فیلترهای قبلی (اگر وجود داشته باشند)
         applyDOMFilters();
     }, 50);
 }
 
 /* ============================================================
-   بخش ۷ — اتصالات داخلی گزارش و پاکسازی فیلترها هنگام پیمایش
+   بخش ۷ — اتصالات داخلی گزارش
    ============================================================ */
 function bindAccountReviewEvents(accounts, box) {
     function clearFilters() {
@@ -1048,9 +1053,9 @@ window.renderAccountReview            = renderAccountReview;
 window.bindAccountReviewEvents        = bindAccountReviewEvents;
 window.computeAccountBalances         = computeAccountBalances;
 window.rollupBalances                 = rollupBalances;
-window.filterVouchers                 = filterVouchers;
+window.getRootAccountId               = getRootAccountId;
 window.getDescendantIds               = getDescendantIds;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Keyboard and filter reset fully fixed');
+console.log('✅ [modules/reports/account.js] loaded — getRootAccountId restored');
