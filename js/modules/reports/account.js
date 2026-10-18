@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (رفع کامل مشکل پرش کیبورد و ستون‌ها)
+   پارسیس — گزارش مرور حساب‌ها (رفع کامل پرش کیبورد و پاک شدن فیلتر)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -11,8 +11,8 @@ var _AR = {
     activeLevel: 1,
     path: [],
     selectedId: null,
-    detailFilter: null,     // شناسه تفصیلی که می‌خواهیم معین‌هایش را ببینیم
-    detailFilterType: null  // نوع تفصیلی (شخص، بانک و...)
+    detailFilter: null,
+    detailFilterType: null
 };
 
 var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
@@ -202,6 +202,7 @@ function rebuildAccountFilterPanel() {
     });
     document.getElementById('ra-run').addEventListener('click', function () {
         _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
+        _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
         renderAccountReview();
     });
     document.getElementById('ra-print').addEventListener('click', function () {
@@ -344,21 +345,80 @@ function getDescendantIds(accountId) {
 }
 
 /* ============================================================
-   بخش ۵ — رندر گزارش (با اصلاح کامل پرش کیبورد و ستون‌ها)
+   بخش ۵ — فیلتر کردن ردیف‌های موجود (بدون بازسازی HTML)
    ============================================================ */
-function renderAccountReview(onlyRows) {
-    // ذخیره فوکوس و مکان‌نما (Cursor) قبل از هر تغییری
-    var activeEl = document.activeElement;
-    var activeCol = null;
-    var selStart = 0, selEnd = 0;
-    if (activeEl && activeEl.classList && activeEl.classList.contains('ar-filter-input')) {
-        activeCol = activeEl.getAttribute('data-col');
-        try {
-            selStart = activeEl.selectionStart;
-            selEnd = activeEl.selectionEnd;
-        } catch (e) {}
+function applyDOMFilters() {
+    var table = document.getElementById('ra-acc-table');
+    if (!table) return;
+    var tbody = document.getElementById('ra-tbody');
+    var tfoot = document.getElementById('ra-tfoot');
+    if (!tbody || !tfoot) return;
+    
+    var trs = tbody.querySelectorAll('tr.ar-row');
+    var totalD = 0, totalC = 0, totalMD = 0, totalMC = 0;
+    var hide = getHideState('ra');
+    
+    trs.forEach(function(tr) {
+        var codeTxt = (tr.querySelector('td[data-orig-index="0"]') || {}).textContent || '';
+        var nameTxt = (tr.querySelector('td[data-orig-index="1"]') || {}).textContent || '';
+        var debitTxt = (tr.querySelector('td[data-orig-index="2"]') || {}).textContent || '';
+        var creditTxt = (tr.querySelector('td[data-orig-index="3"]') || {}).textContent || '';
+        var mdTxt = (tr.querySelector('td[data-orig-index="4"]') || {}).textContent || '';
+        var mcTxt = (tr.querySelector('td[data-orig-index="5"]') || {}).textContent || '';
+        
+        var match = true;
+        var f = _arFilters;
+        
+        if (f.code && codeTxt.indexOf(f.code) === -1) match = false;
+        if (f.name && nameTxt.indexOf(f.name) === -1) match = false;
+        if (f.debit && debitTxt.indexOf(f.debit) === -1) match = false;
+        if (f.credit && creditTxt.indexOf(f.credit) === -1) match = false;
+        if (f.md && mdTxt.indexOf(f.md) === -1) match = false;
+        if (f.mc && mcTxt.indexOf(f.mc) === -1) match = false;
+        
+        if (match) {
+            tr.style.display = '';
+            totalD += Number(tr.getAttribute('data-debit')) || 0;
+            totalC += Number(tr.getAttribute('data-credit')) || 0;
+            totalMD += Number(tr.getAttribute('data-md')) || 0;
+            totalMC += Number(tr.getAttribute('data-mc')) || 0;
+        } else {
+            tr.style.display = 'none';
+        }
+    });
+    
+    // آپدیت جمع کل در فوتر
+    tfoot.innerHTML = '<tr>' +
+        '<td data-orig-index="0"></td>' +
+        '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>' +
+        '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(totalD)) + '</td>' +
+        '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(totalC)) + '</td>' +
+        '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(totalMD)) + '</td>' +
+        '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(totalMC)) + '</td>' +
+        '</tr>';
+        
+    // اعمال مخفی‌سازی ستون‌ها روی فوتر جدید
+    if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
+    
+    // اعمال ترتیب ستون‌ها روی فوتر جدید
+    if (typeof columnOrders !== 'undefined' && columnOrders['ra-acc-table']) {
+        var savedOrder = columnOrders['ra-acc-table'];
+        var footRow = tfoot.querySelector('tr');
+        if (footRow) {
+            var cells = Array.from(footRow.children);
+            var map = {};
+            cells.forEach(function(c) { if(c.hasAttribute('data-orig-index')) map[c.getAttribute('data-orig-index')] = c; });
+            savedOrder.forEach(function(origIdx) {
+                if (map[origIdx]) footRow.appendChild(map[origIdx]);
+            });
+        }
     }
+}
 
+/* ============================================================
+   بخش ۶ — رندر کامل گزارش
+   ============================================================ */
+function renderAccountReview() {
     var box = document.getElementById('ra-result');
     if (!box) return;
 
@@ -425,27 +485,10 @@ function renderAccountReview(onlyRows) {
         });
     }
 
-    /* اعمال فیلترها */
+    /* اعمال فیلترهای اولیه (فقط برای مواردی که با تیک «فقط دارای مانده» یا فیلتر تفصیلی کنترل می‌شوند) */
     list = list.filter(function(a) {
         var net = a.debit - a.credit;
-        var md = net > 0 ? net : 0;
-        var mc = net < 0 ? -net : 0;
-
         if (filterBal && Math.abs(net) < 0.5) return false;
-
-        if (_arFilters.code && String(a.code || '').toLowerCase().indexOf(_arFilters.code.toLowerCase()) === -1) return false;
-        if (_arFilters.name && String(a.name || '').toLowerCase().indexOf(_arFilters.name.toLowerCase()) === -1) return false;
-        
-        var strDebit = hide ? '' : moneyHtml(a.debit);
-        var strCredit = hide ? '' : moneyHtml(a.credit);
-        var strMd = hide ? '' : moneyHtml(md);
-        var strMc = hide ? '' : moneyHtml(mc);
-
-        if (_arFilters.debit && strDebit.indexOf(_arFilters.debit) === -1) return false;
-        if (_arFilters.credit && strCredit.indexOf(_arFilters.credit) === -1) return false;
-        if (_arFilters.md && strMd.indexOf(_arFilters.md) === -1) return false;
-        if (_arFilters.mc && strMc.indexOf(_arFilters.mc) === -1) return false;
-
         return true;
     });
 
@@ -464,7 +507,7 @@ function renderAccountReview(onlyRows) {
         return String(va).localeCompare(String(vb), 'fa') * dir;
     });
 
-    // محاسبه جمع‌ها و تولید HTML جدول
+    // تولید HTML
     var tD = 0, tC = 0, tMD = 0, tMC = 0;
     var rowsHtml = '';
 
@@ -484,6 +527,10 @@ function renderAccountReview(onlyRows) {
 
         rowsHtml += '<tr class="' + rowCls + '" '
              +  'data-id="' + (a.isDetail ? '' : a.id) + '" '
+             +  'data-debit="' + a.debit + '" '
+             +  'data-credit="' + a.credit + '" '
+             +  'data-md="' + md + '" '
+             +  'data-mc="' + mc + '" '
              +  (a.isDetail ? 'data-detail-id="' + a.id + '" data-link="' + a.linkType + '"' : '')
              +  '>';
 
@@ -518,7 +565,7 @@ function renderAccountReview(onlyRows) {
 
     if (list.length === 0) {
         rowsHtml += '<tr><td colspan="6" class="ar-empty">'
-             +  (filterBal || Object.values(_arFilters).some(Boolean) || _AR.detailFilter ? 'هیچ موردی با این فیلترها یافت نشد.' : 'داده‌ای در این سطح نیست.')
+             +  (filterBal || _AR.detailFilter ? 'هیچ موردی با این فیلترها یافت نشد.' : 'داده‌ای در این سطح نیست.')
              +  '</td></tr>';
     }
 
@@ -530,73 +577,6 @@ function renderAccountReview(onlyRows) {
     footHtml += '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(tMD)) + '</td>';
     footHtml += '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(tMC)) + '</td>';
     footHtml += '</tr>';
-
-    // اگر فقط می‌خواهیم ردیف‌ها را آپدیت کنیم (هنگام تایپ در فیلتر)
-    if (onlyRows) {
-        var tbody = document.getElementById('ra-tbody');
-        var tfoot = document.getElementById('ra-tfoot');
-        if (tbody) tbody.innerHTML = rowsHtml;
-        if (tfoot) tfoot.innerHTML = footHtml;
-        
-        // ۱. اعمال مخفی‌سازی ستون‌ها روی ردیف‌های جدید
-        if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
-        
-        // ۲. اعمال ترتیب ستون‌ها فقط روی بدنه و فوتر (بدون دست زدن به هدر و باکس جستجو)
-        var table = document.getElementById('ra-acc-table');
-        if (table && typeof columnOrders !== 'undefined' && columnOrders['ra-acc-table']) {
-            var savedOrder = columnOrders['ra-acc-table'];
-            var bodyRows = table.querySelectorAll('tbody tr, tfoot tr');
-            for (var r = 0; r < bodyRows.length; r++) {
-                var row = bodyRows[r];
-                var cells = Array.from(row.children);
-                if (cells.length <= 1) continue;
-                var map = {};
-                cells.forEach(function(c) { 
-                    if(c.hasAttribute('data-orig-index')) map[c.getAttribute('data-orig-index')] = c; 
-                });
-                savedOrder.forEach(function(origIdx) {
-                    if (map[origIdx]) row.appendChild(map[origIdx]);
-                });
-            }
-        }
-        
-        // ۳. بازگرداندن فوکوس و مکان‌نما
-        if (activeCol) {
-            var newInp = document.querySelector('.ar-filter-input[data-col="' + activeCol + '"]');
-            if (newInp) {
-                newInp.focus();
-                try { newInp.setSelectionRange(selStart, selEnd); } catch (e) {}
-            }
-        }
-
-        // ۴. اتصال مجدد رویداد کلیک به ردیف‌های جدید
-        box.querySelectorAll('.ar-row').forEach(function (tr) {
-            tr.addEventListener('click', function (e) {
-                if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
-                if (e.target.classList && e.target.classList.contains('ar-turnover-btn')) return;
-
-                var id = tr.getAttribute('data-id') || tr.getAttribute('data-detail-id');
-                var isDetail = tr.hasAttribute('data-detail-id');
-                
-                _AR.selectedId = id;
-                if (isDetail) {
-                    _AR.detailFilter = id;
-                    _AR.detailFilterType = tr.getAttribute('data-link');
-                    _AR.activeLevel = 3;
-                    _AR.path = [];
-                } else {
-                    _AR.detailFilter = null;
-                    _AR.detailFilterType = null;
-                    _AR.path[_AR.activeLevel - 1] = id;
-                    _AR.path = _AR.path.slice(0, _AR.activeLevel);
-                    _AR.activeLevel++;
-                }
-                renderAccountReview();
-            });
-        });
-        
-        return; // خروج، بدون دست زدن به بقیه جدول
-    }
 
     var html = '<div class="ar-wrap">';
 
@@ -674,12 +654,12 @@ function renderAccountReview(onlyRows) {
         });
     });
 
-    /* فیلترها — درخواست آپدیت فقط ردیف‌ها */
+    /* فیلترها — فقط DOM را فیلتر می‌کند تا کیبورد نپرد */
     box.querySelectorAll('.ar-filter-input').forEach(function (inp) {
         inp.addEventListener('input', function () {
             var col = this.getAttribute('data-col');
             _arFilters[col] = this.value;
-            renderAccountReview(true); 
+            applyDOMFilters();
         });
     });
 
@@ -705,14 +685,20 @@ function renderAccountReview(onlyRows) {
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
+        
+        // اعمال فیلترهای قبلی (اگر وجود داشته باشند)
+        applyDOMFilters();
     }, 50);
 }
 
 /* ============================================================
-   بخش ۶ — اتصالات داخلی گزارش (پیمایش آزاد)
+   بخش ۷ — اتصالات داخلی گزارش و پاکسازی فیلترها هنگام پیمایش
    ============================================================ */
 function bindAccountReviewEvents(accounts, box) {
-    // کلیک روی سطوح (گروه، کل، معین، تفصیل)
+    function clearFilters() {
+        _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
+    }
+
     box.querySelectorAll('.ar-lvl').forEach(function (el) {
         el.addEventListener('click', function () {
             var lvl = Number(this.getAttribute('data-lvl'));
@@ -720,6 +706,7 @@ function bindAccountReviewEvents(accounts, box) {
             
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
+            clearFilters();
 
             if (lvl < _AR.activeLevel) {
                 _AR.path = _AR.path.slice(0, lvl - 1);
@@ -735,6 +722,8 @@ function bindAccountReviewEvents(accounts, box) {
         a.addEventListener('click', function () {
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
+            clearFilters();
+            
             var id = this.getAttribute('data-goto');
             var idx = _AR.path.indexOf(id);
             if (idx >= 0) {
@@ -753,6 +742,8 @@ function bindAccountReviewEvents(accounts, box) {
         a.addEventListener('click', function () {
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
+            clearFilters();
+            
             _AR.path = [];
             _AR.activeLevel = 1;
             _AR.selectedId = null;
@@ -769,6 +760,8 @@ function bindAccountReviewEvents(accounts, box) {
             var isDetail = tr.hasAttribute('data-detail-id');
             
             _AR.selectedId = id;
+            clearFilters();
+            
             if (isDetail) {
                 _AR.detailFilter = id;
                 _AR.detailFilterType = tr.getAttribute('data-link');
@@ -787,7 +780,7 @@ function bindAccountReviewEvents(accounts, box) {
 }
 
 /* ============================================================
-   بخش ۷ — باز کردن گردش حساب
+   بخش ۸ — باز کردن گردش حساب
    ============================================================ */
 window._AR_openTurnover = function (btn) {
     try {
@@ -1014,7 +1007,7 @@ function closeTurnover() {
 }
 
 /* ============================================================
-   بخش ۸ — پچ goToPage
+   بخش ۹ — پچ goToPage
    ============================================================ */
 (function initAccountReviewFinal() {
     function apply() {
@@ -1060,4 +1053,4 @@ window.getDescendantIds               = getDescendantIds;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Keyboard jump and column visibility fixed');
+console.log('✅ [modules/reports/account.js] loaded — Keyboard and filter reset fully fixed');
