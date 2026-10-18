@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (با رفع کامل خرابی حروف و فونت استاندارد)
+   بخش چاپ مستقیم PDF (با رفع کامل خرابی حروف و جمع کل)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -176,20 +176,30 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
+    // اصلاح تابع تکه‌تکه کردن برای اضافه کردن جمع کل (tfoot)
     function chunkTable(tbl, tableTitle) {
         var thead = tbl.querySelector('thead');
         var tbody = tbl.querySelector('tbody');
+        var tfoot = tbl.querySelector('tfoot'); 
         var rows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
-        var theadHtml = thead ? thead.outerHTML : '';
         
-        if (rows.length === 0) return [{thead: theadHtml, rows: '', title: tableTitle}];
+        var theadHtml = thead ? thead.outerHTML : '';
+        var tfootHtml = tfoot ? tfoot.outerHTML : ''; 
+        
+        if (rows.length === 0) return [{thead: theadHtml, rows: '', tfoot: tfootHtml, title: tableTitle}];
         
         var chunks = [];
-        var rowsPerPage = 20; 
+        var rowsPerPage = 18; 
         for (var i = 0; i < rows.length; i += rowsPerPage) {
-            chunks.push(rows.slice(i, i + rowsPerPage).map(r => r.outerHTML).join(''));
+            var isLast = (i + rowsPerPage >= rows.length);
+            chunks.push({
+                thead: theadHtml, 
+                rows: rows.slice(i, i + rowsPerPage).map(r => r.outerHTML).join(''),
+                tfoot: isLast ? tfootHtml : '', // جمع کل فقط در صفحه آخر
+                title: tableTitle
+            });
         }
-        return chunks.map(chunk => ({ thead: theadHtml, rows: chunk, title: tableTitle }));
+        return chunks;
     }
 
     var pagesData = [];
@@ -226,25 +236,22 @@ async function printHtmlReport(selector, title) {
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
 
-    // 🌟 تزریق فونت Vazirmatn برای رفع خرابی حروف در PDF
-    var htmlContent = `
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
-        <div id="pdf-export-root" style="direction: rtl; font-family: 'Vazirmatn', Tahoma, sans-serif; color: #000; background: #fff;">
-    `;
+    var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: Tahoma, sans-serif; color: #000; background: #fff;">';
     
     pagesData.forEach(function(page, idx) {
         htmlContent += `
             <div class="pdf-page" style="page-break-after: ${idx < totalPages - 1 ? 'always' : 'auto'}; padding: 10px; position: relative; min-height: 270mm;">
                 <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
-                    <h1 style="font-family: 'Vazirmatn', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                    <h1 style="font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
                     ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
                 </div>
                 
-                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-family:'Vazirmatn',Tahoma; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
+                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
                 
                 <table>
                     ${page.thead}
                     <tbody>${page.rows}</tbody>
+                    ${page.tfoot}
                 </table>
                 
                 <div style="position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 10pt; color: #64748b;">
@@ -259,8 +266,8 @@ async function printHtmlReport(selector, title) {
         <style>
             * { direction: rtl !important; box-sizing: border-box; }
             table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
-            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; }
-            th { background-color: #e2e8f0 !important; font-family: 'Vazirmatn', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
+            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; font-family: Tahoma, sans-serif !important; }
+            th { background-color: #e2e8f0 !important; font-size: 11pt !important; color: #1e40af !important; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
             td:first-child { text-align: right !important; font-weight: bold !important; padding-right: 12px !important; }
             .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: center !important; white-space: nowrap !important; }
@@ -287,7 +294,7 @@ async function printHtmlReport(selector, title) {
             html2canvas: { 
                 scale: 2, 
                 useCORS: true, 
-                letterRendering: true, // 🌟 اجبار به رندر حروف به صورت یکجا
+                letterRendering: false, // 🌟 خاموش کردن برای رفع خرابی حروف
                 scrollX: 0, 
                 scrollY: 0 
             },
@@ -405,4 +412,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Fixed PDF Font Rendering');
+console.log('✅ [core/lookups.js] loaded — Fixed PDF Fonts and Footer');
