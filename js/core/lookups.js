@@ -133,76 +133,72 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (رفع کامل مشکل صفحه‌بندی با استفاده از پنجره جدید)
+   بخش چاپ (بازسازی کامل جدول برای رفع مشکل صفحه‌بندی)
    ============================================================ */
 function printHtmlReport(selector, title) {
-    var el = document.querySelector(selector);
-    if (!el) {
-        alert('ابتدا گزارش را اجرا کنید.');
+    var activePage = document.querySelector('.page.active');
+    if (!activePage) {
+        alert('صفحه‌ای یافت نشد.');
         return;
     }
 
     showToast('⏳ در حال آماده‌سازی چاپ...');
 
-    var clone = el.cloneNode(true);
-    var removeSelectors = [
-        '.list-header', '.column-filter-row', '.ar-filter-row', '.cfd-filter-row',
-        '.row-actions', '.share-btn', '.widget-share-btn', '.cfd-multi-wrap',
-        '.cfd-section-title', '.filters-toggle-btn', '.col-resizer', '.eye-toggle-btn',
-        '.col-toggle-btn', '.export-btn', '.card-collapse-btn', '.ar-turnover-btn',
-        '.ar-filter-badge', '.ar-side', '.ar-tb', '.cfd-head'
-    ];
-    removeSelectors.forEach(function(sel) {
-        clone.querySelectorAll(sel).forEach(function(n) { n.remove(); });
+    var dateRange = '';
+    var dateInputs = activePage.querySelectorAll('.date-picker');
+    var dates = [];
+    dateInputs.forEach(function(inp) {
+        if (inp.value) {
+            var label = inp.closest('.field') ? inp.closest('.field').querySelector('label') : null;
+            var labelText = label ? label.textContent.trim() : '';
+            dates.push((labelText ? labelText + ': ' : '') + toFa(inp.value));
+        }
+    });
+    if (dates.length > 0) dateRange = dates.join(' | ');
+
+    // 🌟 استخراج داده‌های خام جدول‌ها (بدون هیچ استایل مزاحمی)
+    var tablesHtml = '';
+    var sourceTables = activePage.querySelectorAll('table');
+    
+    sourceTables.forEach(function(tbl) {
+        // نادیده گرفتن جدول‌های فیلتر یا خالی
+        if (tbl.closest('.column-filter-row') || tbl.offsetWidth === 0) return;
+
+        var thead = tbl.querySelector('thead');
+        var tbody = tbl.querySelector('tbody');
+        var tfoot = tbl.querySelector('tfoot');
+
+        if (!tbody || tbody.children.length === 0) return; 
+
+        // پیدا کردن عنوان گروه (برای گزارش‌های جزئیات)
+        var groupTitle = '';
+        var parentGroup = tbl.closest('.cfd-group');
+        if (parentGroup) {
+            var titleEl = parentGroup.querySelector('.cfd-title');
+            if (titleEl) groupTitle = titleEl.textContent.trim();
+        }
+
+        if (groupTitle) {
+            tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(groupTitle)}</div>`;
+        }
+
+        tablesHtml += '<table>';
+        if (thead) tablesHtml += thead.outerHTML;
+        if (tbody) tablesHtml += tbody.outerHTML;
+        if (tfoot) tablesHtml += tfoot.outerHTML;
+        tablesHtml += '</table>';
     });
 
-    if (selector === '#ra-result') {
-        var arBody = clone.querySelector('.ar-body');
-        if (arBody) clone.innerHTML = arBody.innerHTML;
+    if (!tablesHtml) {
+        alert('جدولی برای چاپ یافت نشد.');
+        return;
     }
 
-    var dateRange = '';
-    var activePage = document.querySelector('.page.active');
-    if (activePage) {
-        var dateInputs = activePage.querySelectorAll('.date-picker');
-        var dates = [];
-        dateInputs.forEach(function(inp) {
-            if (inp.value) {
-                var label = inp.closest('.field') ? inp.closest('.field').querySelector('label') : null;
-                var labelText = label ? label.textContent.trim() : '';
-                dates.push((labelText ? labelText + ': ' : '') + toFa(inp.value));
-            }
-        });
-        if (dates.length > 0) dateRange = dates.join(' | ');
-    }
-
-    var tablesHtml = '';
-    if (selector === '#cfd-result') {
-        var mainTable = clone.querySelector('#cfd-table');
-        if (mainTable) tablesHtml += mainTable.outerHTML;
-        clone.querySelectorAll('.cfd-group').forEach(function(g) {
-            var titleEl = g.querySelector('.cfd-title');
-            var titleText = titleEl ? titleEl.textContent.trim() : '';
-            var tbl = g.querySelector('table');
-            if (tbl) {
-                tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(titleText)}</div>`;
-                tablesHtml += tbl.outerHTML;
-            }
-        });
-    } else {
-        var tbls = clone.querySelectorAll('table');
-        tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
-    }
-
-    // تشخیص افقی یا عمودی بودن
+    // تشخیص افقی یا عمودی بودن بر اساس تعداد ستون‌های اولین جدول
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
-    var maxCols = 0;
-    tempDiv.querySelectorAll('table').forEach(function(t) {
-        var cols = t.querySelectorAll('thead tr:first-child th').length;
-        if (cols > maxCols) maxCols = cols;
-    });
-    var isLandscape = maxCols > 6;
+    var firstThs = tempDiv.querySelector('table thead tr:first-child');
+    var isLandscape = firstThs && firstThs.querySelectorAll('th').length > 6;
 
     // نام‌گذاری فایل
     var now = new Date();
@@ -211,6 +207,7 @@ function printHtmlReport(selector, title) {
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
 
+    // 🌟 قالب HTML کاملاً تمیز و مستقل
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -218,7 +215,7 @@ function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(fileName)}</title>
             <style>
-                /* تنظیمات کاغذ A4 و مارجین‌ها */
+                /* تنظیمات کاغذ A4 */
                 @page { 
                     size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
                     margin: 12mm 10mm 15mm 10mm; 
@@ -257,37 +254,31 @@ function printHtmlReport(selector, title) {
                     font-weight: bold;
                 }
                 
-                /* تنظیمات جدول */
+                /* تنظیمات حیاتی جدول */
                 table { 
                     width: 100%; 
                     border-collapse: collapse; 
                     margin-bottom: 15px; 
                 }
-                
-                /* جلوگیری از نصفه شدن ردیف‌ها */
                 tr { 
-                    page-break-inside: avoid !important; 
+                    page-break-inside: avoid !important; /* جلوگیری از نصفه شدن ردیف */
                 }
-                
-                /* 🌟 تکرار هدر در همه صفحات */
                 thead { 
-                    display: table-header-group; 
+                    display: table-header-group; /* تکرار هدر در همه صفحات */
                 }
-                
-                /* 🌟 نمایش جمع کل در انتهای جدول */
                 tfoot {
-                    display: table-row-group;
+                    display: table-row-group; /* نمایش جمع کل */
                 }
                 
                 th, td { 
                     border: 1px solid #64748b; 
-                    padding: 4px 8px; 
+                    padding: 6px 8px; 
                     text-align: center; 
                     vertical-align: middle;
                     word-wrap: break-word;
                 }
                 
-                /* 🌟 استایل هدر (خاکستری و بولد) */
+                /* استایل هدر (خاکستری و بولد) */
                 th { 
                     background-color: #e2e8f0 !important; 
                     font-weight: bold !important; 
@@ -296,7 +287,7 @@ function printHtmlReport(selector, title) {
                     font-size: 11pt;
                 }
                 
-                /* 🌟 استایل جمع کل (خاکستری و بولد) */
+                /* استایل جمع کل (خاکستری و بولد) */
                 tfoot td {
                     background-color: #e2e8f0 !important;
                     font-weight: bold !important;
@@ -309,6 +300,7 @@ function printHtmlReport(selector, title) {
                     font-weight: bold;
                 }
                 
+                /* اعداد */
                 .num, .ltr { 
                     direction: ltr; 
                     font-family: Arial, Tahoma, sans-serif; 
@@ -316,8 +308,9 @@ function printHtmlReport(selector, title) {
                     white-space: nowrap;
                 }
                 
-                .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold; }
-                .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold; }
+                /* رنگ‌بندی مبالغ */
+                .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold; }
+                .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold; }
             </style>
         </head>
         <body>
@@ -332,30 +325,32 @@ function printHtmlReport(selector, title) {
         </html>
     `;
 
-    // 🌟 استفاده از Window.open به جای Iframe با ارتفاع صفر (رفع مشکل بریدگی زودهنگام)
-    var printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        alert('لطفاً پاپ‌آپ (Popup) را در مرورگر خود مجاز کنید.');
-        return;
-    }
-    
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    // 🌟 استفاده از iframe با ابعاد واقعی به جای ارتفاع صفر
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.bottom = '0';
+    iframe.style.right = '0';
+    iframe.style.width = '800px'; // عرض فیکس برای محاسبه درست ارتفاع
+    iframe.style.height = '1000px';
+    iframe.style.border = 'none';
+    iframe.style.visibility = 'hidden'; // مخفی کردن ظاهری
+    document.body.appendChild(iframe);
+
+    var doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
 
     // صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
-    printWindow.onload = function() {
-        setTimeout(function() {
-            printWindow.focus();
-            printWindow.print();
-            showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
-            
-            // بستن پنجره پس از چاپ (اختیاری)
-            printWindow.onafterprint = function() {
-                printWindow.close();
-            };
-        }, 500);
-    };
+    setTimeout(function() {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+        
+        setTimeout(function() { 
+            if (document.body.contains(iframe)) document.body.removeChild(iframe); 
+        }, 5000);
+    }, 500);
 }
 
 /* ============================================================
@@ -460,4 +455,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine (Popup Fixed)');
+console.log('✅ [core/lookups.js] loaded — Native Print Engine (Clean Table)');
