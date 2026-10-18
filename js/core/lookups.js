@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (با رفع مشکل حروف و نام‌گذاری دقیق)
+   بخش چاپ مستقیم PDF (با رفع کامل خرابی حروف و فونت استاندارد)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -143,10 +143,6 @@ async function printHtmlReport(selector, title) {
     }
 
     showToast('⏳ در حال ساخت فایل PDF...');
-
-    if (document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-    }
 
     var clone = el.cloneNode(true);
     var removeSelectors = [
@@ -224,24 +220,27 @@ async function printHtmlReport(selector, title) {
         if (tempDiv.querySelectorAll('th').length > 6) isLandscape = true;
     }
 
-    // ✅ نام‌گذاری دقیق فایل
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
 
-    var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: \'B Nazanin\', Tahoma, sans-serif; color: #000; background: #fff;">';
+    // 🌟 تزریق فونت Vazirmatn برای رفع خرابی حروف در PDF
+    var htmlContent = `
+        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+        <div id="pdf-export-root" style="direction: rtl; font-family: 'Vazirmatn', Tahoma, sans-serif; color: #000; background: #fff;">
+    `;
     
     pagesData.forEach(function(page, idx) {
         htmlContent += `
             <div class="pdf-page" style="page-break-after: ${idx < totalPages - 1 ? 'always' : 'auto'}; padding: 10px; position: relative; min-height: 270mm;">
                 <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
-                    <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                    <h1 style="font-family: 'Vazirmatn', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
                     ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
                 </div>
                 
-                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-family:'B Titr',Tahoma; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
+                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-family:'Vazirmatn',Tahoma; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
                 
                 <table>
                     ${page.thead}
@@ -258,10 +257,10 @@ async function printHtmlReport(selector, title) {
 
     htmlContent += `
         <style>
-            * { direction: rtl !important; }
+            * { direction: rtl !important; box-sizing: border-box; }
             table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
             td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; }
-            th { background-color: #e2e8f0 !important; font-family: 'B Titr', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
+            th { background-color: #e2e8f0 !important; font-family: 'Vazirmatn', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
             td:first-child { text-align: right !important; font-weight: bold !important; padding-right: 12px !important; }
             .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: center !important; white-space: nowrap !important; }
@@ -288,7 +287,7 @@ async function printHtmlReport(selector, title) {
             html2canvas: { 
                 scale: 2, 
                 useCORS: true, 
-                letterRendering: false, // 🌟 اصلاح خرابی حروف فارسی
+                letterRendering: true, // 🌟 اجبار به رندر حروف به صورت یکجا
                 scrollX: 0, 
                 scrollY: 0 
             },
@@ -406,4 +405,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Auto PDF Download (Text fixed)');
+console.log('✅ [core/lookups.js] loaded — Fixed PDF Font Rendering');
