@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (بدون پنجره پرینت)
+   بخش چاپ مستقیم PDF (با صفحه‌بندی دستی و جلوگیری از حذف ردیف)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -161,24 +161,6 @@ async function printHtmlReport(selector, title) {
         if (arBody) clone.innerHTML = arBody.innerHTML;
     }
 
-    var tablesHtml = '';
-    if (selector === '#cfd-result') {
-        var mainTable = clone.querySelector('#cfd-table');
-        if (mainTable) tablesHtml += mainTable.outerHTML;
-        clone.querySelectorAll('.cfd-group').forEach(function(g) {
-            var titleEl = g.querySelector('.cfd-title');
-            var titleText = titleEl ? titleEl.textContent.trim() : '';
-            var tbl = g.querySelector('table');
-            if (tbl) {
-                tablesHtml += '<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-family:\'B Titr\', Tahoma; font-size:12pt; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
-                tablesHtml += tbl.outerHTML;
-            }
-        });
-    } else {
-        var tbls = clone.querySelectorAll('table');
-        tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
-    }
-
     var dateRange = '';
     var activePage = document.querySelector('.page.active');
     if (activePage) {
@@ -194,46 +176,92 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    var tempDiv = document.createElement('div');
-    tempDiv.innerHTML = tablesHtml;
-    var maxCols = 0;
-    tempDiv.querySelectorAll('table').forEach(function(t) {
-        var cols = t.querySelectorAll('thead tr:first-child th').length;
-        if (cols > maxCols) maxCols = cols;
-    });
-    var isLandscape = maxCols > 6;
+    // 🌟 تقسیم جدول به صفحات ۲۰ ردیفی برای جلوگیری از حذف ردیف‌ها
+    function chunkTable(tbl, tableTitle) {
+        var thead = tbl.querySelector('thead');
+        var tbody = tbl.querySelector('tbody');
+        var rows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
+        var theadHtml = thead ? thead.outerHTML : '';
+        
+        if (rows.length === 0) return [{thead: theadHtml, rows: '', title: tableTitle}];
+        
+        var chunks = [];
+        var rowsPerPage = 20; 
+        for (var i = 0; i < rows.length; i += rowsPerPage) {
+            chunks.push(rows.slice(i, i + rowsPerPage).map(r => r.outerHTML).join(''));
+        }
+        return chunks.map(chunk => ({ thead: theadHtml, rows: chunk, title: tableTitle }));
+    }
 
-    // تاریخ و ساعت برای نام فایل
+    var pagesData = [];
+    
+    if (selector === '#cfd-result') {
+        var mainTable = clone.querySelector('#cfd-table');
+        if (mainTable) pagesData = pagesData.concat(chunkTable(mainTable, null));
+        
+        clone.querySelectorAll('.cfd-group').forEach(function(g) {
+            var titleEl = g.querySelector('.cfd-title');
+            var titleText = titleEl ? titleEl.textContent.trim() : '';
+            var tbl = g.querySelector('table');
+            if (tbl) pagesData = pagesData.concat(chunkTable(tbl, titleText));
+        });
+    } else {
+        clone.querySelectorAll('table').forEach(function(tbl) {
+            pagesData = pagesData.concat(chunkTable(tbl, null));
+        });
+    }
+
+    var totalPages = pagesData.length;
+    if (totalPages === 0) totalPages = 1; // حداقل یک صفحه
+
+    var isLandscape = false;
+    if (pagesData.length > 0) {
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = pagesData[0].thead;
+        if (tempDiv.querySelectorAll('th').length > 6) isLandscape = true;
+    }
+
     var now = new Date();
     var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
-    var safeTitle = (title || 'گزارش').replace(/\s+/g, '-');
+    var safeTitle = (title || 'گزارش').replace(/\s+/g, '-').replace(/[\\/:*?"<>|]/g, '');
     var fileName = safeTitle + '-' + dateStr + '-' + timeStr + '.pdf';
 
-    var htmlContent = `
-        <div id="pdf-export-root" style="width: 100%; direction: rtl; font-family: 'B Nazanin', Tahoma, sans-serif; color: #000; background: #fff;">
-            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
-                <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 12pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
-                ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
+    var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: \'B Nazanin\', Tahoma, sans-serif; color: #000; background: #fff;">';
+    
+    pagesData.forEach(function(page, idx) {
+        htmlContent += `
+            <div class="pdf-page" style="page-break-after: ${idx < totalPages - 1 ? 'always' : 'auto'}; padding: 10px; position: relative; min-height: 270mm;">
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
+                    <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                    ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
+                </div>
+                
+                ${page.title ? `<div style="margin-bottom:10px; font-weight:bold; font-family:'B Titr',Tahoma; font-size:12pt; color:#1e40af;">${esc(page.title)}</div>` : ''}
+                
+                <table>
+                    ${page.thead}
+                    <tbody>${page.rows}</tbody>
+                </table>
+                
+                <div style="position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 10pt; color: #64748b;">
+                    صفحه ${toFa(idx + 1)} از ${toFa(totalPages)}
+                </div>
             </div>
-            <div style="font-size: 12pt;">
-                ${tablesHtml}
-            </div>
-        </div>
+        `;
+    });
+    htmlContent += '</div>';
+
+    htmlContent += `
         <style>
             table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
-            th, td { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; }
+            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; }
             th { background-color: #e2e8f0 !important; font-family: 'B Titr', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
             td:first-child { text-align: right !important; font-weight: bold !important; }
             .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: right !important; padding-right: 12px !important; white-space: nowrap !important; }
             .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
             .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
-            
-            /* 🌟 تنظیمات طلایی برای جلوگیری از فضای خالی و بریدگی */
-            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
-            thead { display: table-header-group !important; } /* تکرار هدر در همه صفحات */
-            .empty-row, .ar-empty { display: none !important; }
         </style>
     `;
 
@@ -249,22 +277,11 @@ async function printHtmlReport(selector, title) {
         }
 
         var opt = {
-            margin: [15, 10, 15, 10], // حاشیه کم برای استفاده حداکثری از فضا
+            margin: [5, 5, 5, 5],
             filename: fileName,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 3, 
-                useCORS: true, 
-                letterRendering: true,
-                scrollX: 0,
-                scrollY: 0
-            },
-            jsPDF: { 
-                unit: 'mm', 
-                format: 'a4', 
-                orientation: isLandscape ? 'landscape' : 'portrait',
-                compress: true
-            },
+            html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait', compress: true },
             pagebreak: { mode: ['css', 'legacy'] }
         };
 
@@ -378,4 +395,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Auto PDF Download');
+console.log('✅ [core/lookups.js] loaded — Auto PDF Download (Chunked)');
