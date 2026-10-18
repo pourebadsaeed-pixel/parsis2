@@ -146,7 +146,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش ۵ — چاپ حرفه‌ای (PDF هوشمند، فیت‌شده و راست‌چین)
+   بخش ۵ — چاپ حرفه‌ای (استفاده از موتور چاپ مرورگر برای کیفیت عالی)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -155,7 +155,7 @@ async function printHtmlReport(selector, title) {
         return;
     }
 
-    showToast('⏳ در حال آماده‌سازی فایل PDF...');
+    showToast('⏳ در حال آماده‌سازی پیش‌نمایش چاپ...');
 
     // ۱. استخراج داده‌های جدول
     var tablesHtml = '';
@@ -169,7 +169,7 @@ async function printHtmlReport(selector, title) {
             var titleText = titleEl ? titleEl.textContent.trim() : '';
             var tbl = g.querySelector('table');
             if (tbl) {
-                tablesHtml += '<div style="margin-top:30px; margin-bottom:10px; font-weight:bold; font-family:\'B Titr\', Tahoma; font-size:14px; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
+                tablesHtml += '<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:14px; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
                 tablesHtml += tbl.outerHTML;
             }
         });
@@ -197,135 +197,142 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // ۳. ساخت قالب اولیه (با عرض عمودی)
-    var htmlContent = `
-        <div id="pdf-export-root" style="width: 750px; background: #fff; padding: 30px; box-sizing: border-box; direction: rtl; text-align: right; font-family: 'B Nazanin', Tahoma, sans-serif; color: #000;">
-            <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #1e40af; padding-bottom: 12px;">
-                <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 18px; margin: 0 0 8px 0; color: #1e40af;">${esc(title)}</h1>
-                ${dateRange ? `<div style="font-size: 14px; color: #333; font-weight: bold;">${esc(dateRange)}</div>` : ''}
-            </div>
-            <div style="font-size: 13px; width: 100%;">
-                ${tablesHtml}
-            </div>
-        </div>
-        <style>
-            #pdf-export-root table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-                table-layout: fixed !important; 
-                margin-bottom: 20px !important;
-            }
-            #pdf-export-root th, 
-            #pdf-export-root td {
-                border: 1px solid #64748b !important;
-                padding: 8px 4px !important;
-                vertical-align: middle !important;
-                word-wrap: break-word !important;
-                white-space: normal !important;
-                color: #000 !important;
-            }
-            #pdf-export-root th {
-                background-color: #f1f5f9 !important;
-                font-family: 'B Titr', Tahoma, sans-serif !important;
-                font-size: 12px !important;
-                text-align: center !important;
-            }
-            /* ستون اول (شرح) راست چین */
-            #pdf-export-root td:first-child {
-                text-align: right !important;
-                padding-right: 8px !important;
-                font-weight: bold;
-            }
-            /* بقیه ستون‌ها وسط چین */
-            #pdf-export-root td {
-                text-align: center !important;
-            }
-            #pdf-export-root tr:nth-child(even) td {
-                background-color: #f8fafc !important;
-            }
-            
-            /* جلوگیری از بهم ریختگی اعداد */
-            #pdf-export-root .num, #pdf-export-root .ltr {
-                direction: ltr !important;
-                font-family: Tahoma, sans-serif !important;
-                font-size: 11px !important;
-                white-space: nowrap !important;
-            }
-            #pdf-export-root .dr, #pdf-export-root .neg-money, 
-            #pdf-export-root td[style*="color:#c0392b"], 
-            #pdf-export-root td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
-            
-            #pdf-export-root .cr, 
-            #pdf-export-root td[style*="color:#1e9e6a"], 
-            #pdf-export-root td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
-            
-            #pdf-export-root tr { page-break-inside: avoid !important; }
-            #pdf-export-root .empty-row, #pdf-export-root .ar-empty { display: none !important; }
-        </style>
-    `;
-
-    // ۴. رندر در محیط مخفی برای سنجش عرض واقعی
+    // ۳. ایجاد یک محیط مخفی تمیز برای سنجش ابعاد
     var tempWrapper = document.createElement('div');
     tempWrapper.style.position = 'absolute';
     tempWrapper.style.left = '-9999px';
     tempWrapper.style.top = '0';
-    tempWrapper.innerHTML = htmlContent;
+    tempWrapper.innerHTML = `
+        <div id="pdf-export-root" style="width: 750px; direction: rtl; font-family: Tahoma, sans-serif;">
+            ${tablesHtml}
+        </div>
+        <style>
+            #pdf-export-root table { width: 100%; border-collapse: collapse; table-layout: auto; }
+            #pdf-export-root th, #pdf-export-root td { border: 1px solid #64748b; padding: 6px; white-space: nowrap; }
+        </style>
+    `;
     document.body.appendChild(tempWrapper);
 
-    // ۵. تشخیص هوشمند جهت کاغذ (Landscape یا Portrait)
+    // سنجش عرض واقعی جدول برای تشخیص افقی یا عمودی بودن
     var actualTableWidth = 0;
     var testTables = tempWrapper.querySelectorAll('table');
     testTables.forEach(function(t) {
         if (t.scrollWidth > actualTableWidth) actualTableWidth = t.scrollWidth;
     });
-
-    // اگر عرض جدول بیشتر از 750 پیکسل بود، یعنی در حالت عمودی جا نمی‌شود
-    var isLandscape = actualTableWidth > 750;
     
-    // اگر افقی شد، عرض ظرف را بیشتر می‌کنیم تا فشرده نشود
-    if (isLandscape) {
-        tempWrapper.querySelector('#pdf-export-root').style.width = '1050px';
-    }
+    // اگر عرض جدول بیشتر از 800 پیکسل بود، باید افقی چاپ شود
+    var isLandscape = actualTableWidth > 800;
+    document.body.removeChild(tempWrapper);
 
-    try {
-        if (!window.html2pdf) {
-            await new Promise(function(resolve, reject) {
-                var s = document.createElement('script');
-                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-                s.onload = resolve;
-                s.onerror = reject;
-                document.head.appendChild(s);
-            });
-        }
-        
-        var opt = {
-            margin: 10,
-            filename: (title || 'گزارش').replace(/\s+/g, '-') + '.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, 
-                useCORS: true, 
-                letterRendering: true,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: isLandscape ? 1100 : 800 // تنظیم عرض پنجره مرورگر برای رندر صحیح
-            },
-            jsPDF: { 
-                unit: 'mm', 
-                format: 'a4', 
-                orientation: isLandscape ? 'landscape' : 'portrait' 
-            },
-            pagebreak: { mode: ['css', 'legacy'] }
-        };
-        
-        await html2pdf().set(opt).from(tempWrapper.querySelector('#pdf-export-root')).save();
-        showToast('✅ فایل PDF دانلود شد.');
-    } catch (e) {
-        console.error('PDF generation error:', e);
-        alert('خطا در ایجاد فایل PDF.');
-    } finally {
-        document.body.removeChild(tempWrapper);
-    }
+    // ۴. ساخت قالب HTML نهایی و بسیار تمیز برای موتور چاپ مرورگر
+    var htmlContent = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="fa">
+        <head>
+            <meta charset="UTF-8">
+            <title>${esc(title)}</title>
+            <style>
+                /* تنظیم خودکار جهت کاغذ A4 */
+                @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 10mm; }
+                
+                body { 
+                    font-family: 'B Nazanin', Tahoma, sans-serif; 
+                    direction: rtl; 
+                    background: #fff; 
+                    color: #000; 
+                    margin: 0; 
+                    padding: 0; 
+                }
+                .header {
+                    text-align: center; 
+                    margin-bottom: 20px; 
+                    border-bottom: 2px solid #1e40af; 
+                    padding-bottom: 10px;
+                }
+                h1 { 
+                    font-family: 'B Titr', Tahoma, sans-serif; 
+                    font-size: 16pt; 
+                    margin: 0 0 5px 0; 
+                    color: #1e40af; 
+                }
+                .date-range { 
+                    font-size: 11pt; 
+                    color: #333; 
+                    font-weight: bold; 
+                }
+                
+                /* استایل عالی برای جداول */
+                table { 
+                    width: 100% !important; 
+                    border-collapse: collapse !important; 
+                    margin-bottom: 15px !important; 
+                    font-size: 10pt !important; 
+                }
+                th, td { 
+                    border: 1px solid #64748b !important; 
+                    padding: 8px 6px !important; 
+                    text-align: center !important; 
+                    vertical-align: middle !important;
+                }
+                th { 
+                    background-color: #f1f5f9 !important; 
+                    font-weight: bold !important; 
+                }
+                /* ستون اول (شرح) راست‌چین */
+                td:first-child { 
+                    text-align: right !important; 
+                    font-weight: bold !important;
+                }
+                
+                /* اعداد انگلیسی و چپ‌چین در سلول‌ها */
+                .num, .ltr { 
+                    direction: ltr !important; 
+                    font-family: Arial, Tahoma, sans-serif !important; 
+                    white-space: nowrap !important; 
+                }
+                
+                /* رنگ‌بندی */
+                .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold !important; }
+                .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold !important; }
+                
+                /* جلوگیری از نصفه شدن ردیف‌ها */
+                tr { page-break-inside: avoid !important; }
+                .empty-row, .ar-empty { display: none !important; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>${esc(title)}</h1>
+                ${dateRange ? `<div class="date-range">${esc(dateRange)}</div>` : ''}
+            </div>
+            <div>
+                ${tablesHtml}
+            </div>
+        </body>
+        </html>
+    `;
+
+    // ۵. ارسال به iFrame برای باز کردن پنجره چاپ
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    var doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    // صبر کوتاه برای لود فونت‌ها و سپس باز کردن پنجره چاپ
+    setTimeout(function() {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        // پاکسازی
+        setTimeout(function() { document.body.removeChild(iframe); }, 1000);
+        showToast('🖨️ پنجره چاپ باز شد. لطفاً "Save as PDF" را انتخاب کنید.');
+    }, 500);
 }
 
 /* ============================================================
@@ -455,4 +462,4 @@ window.printHtmlReport              = printHtmlReport;
 window.exportToCsv                  = exportToCsv;
 window.exportReportTable            = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Smart PDF Print Engine (Fixed)');
+console.log('✅ [core/lookups.js] loaded — Native Print Engine');
