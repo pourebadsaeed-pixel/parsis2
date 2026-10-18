@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (رفع کامل خرابی حروف فارسی)
+   بخش چاپ مستقیم PDF (با نام‌گذاری اصلاح شده)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -144,7 +144,6 @@ async function printHtmlReport(selector, title) {
 
     showToast('⏳ در حال ساخت فایل PDF...');
 
-    // مکث برای لود کامل فونت‌ها
     if (document.fonts && document.fonts.ready) {
         await document.fonts.ready;
     }
@@ -181,7 +180,6 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // تقسیم جدول به صفحات ۲۰ ردیفی
     function chunkTable(tbl, tableTitle) {
         var thead = tbl.querySelector('thead');
         var tbody = tbl.querySelector('tbody');
@@ -226,14 +224,14 @@ async function printHtmlReport(selector, title) {
         if (tempDiv.querySelectorAll('th').length > 6) isLandscape = true;
     }
 
+    // ✅ نام‌گذاری صحیح فایل طبق فرمت درخواستی: نام-سال-ماه-روز-ساعت-دقیقه
     var now = new Date();
-    var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
-    var dParts = todayJalaliStr().split('/');
-    var dateStr = dParts[2] + '-' + dParts[1] + '-' + dParts[0]; 
+    var dParts = todayJalaliStr().split('/'); // [1405, 07, 26]
+    var dateStr = dParts[0] + '-' + pad2(dParts[1]) + '-' + pad2(dParts[2]);
+    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim();
-    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
+    var fileName = safeTitle + '-' + dateStr + '-' + timeStr + '.pdf';
 
-    // استفاده از فونت Tahoma برای جلوگیری از به‌هم‌ریختگی حروف
     var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: Tahoma, Arial, sans-serif; color: #000; background: #fff;">';
     
     pagesData.forEach(function(page, idx) {
@@ -267,10 +265,7 @@ async function printHtmlReport(selector, title) {
             th { background-color: #e2e8f0 !important; font-family: Tahoma, Arial, sans-serif !important; font-size: 13px !important; color: #1e40af !important; font-weight: bold; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
             td:first-child { text-align: right !important; font-weight: bold !important; padding-right: 12px !important; }
-            
-            /* اصلاح رندر اعداد */
             .num, .ltr { font-family: Tahoma, Arial, sans-serif !important; font-size: 12px !important; text-align: center !important; white-space: nowrap !important; }
-            
             .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
             .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
         </style>
@@ -294,7 +289,7 @@ async function printHtmlReport(selector, title) {
             html2canvas: { 
                 scale: 2, 
                 useCORS: true, 
-                letterRendering: false, // 🌟 این مورد باعث می‌شود حروف فارسی به هم بچسبند
+                letterRendering: false,
                 scrollX: 0, 
                 scrollY: 0 
             },
@@ -412,4 +407,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Fixed Persian Fonts in PDF');
+console.log('✅ [core/lookups.js] loaded — Fixed File Naming & PDF Fonts');
