@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — جستجوی حساب‌ها، چاپ، CSV
    مسیر: js/core/lookups.js
-   وابستگی: constants.js, utils.js, db.js, state.js, toast.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — برچسب حساب
-   ============================================================ */
 function getAccountLabel(accId, accounts) {
     if (!accounts) accounts = DB.load('accounts', []);
     var acc = accounts.find(function (a) { return a.id === accId; });
@@ -33,9 +29,6 @@ function getAccountSearchText(accId, accounts) {
     return parts.join(' ').toLowerCase();
 }
 
-/* ============================================================
-   بخش ۲ — برچسب تفصیلی
-   ============================================================ */
 function getDetailLabel(linkType, did) {
     if (linkType === 'person') {
         var p = DB.load('persons', []).find(function (x) { return x.id === did; });
@@ -87,9 +80,6 @@ function getLinkedItemLabel(type, item) {
     return '';
 }
 
-/* ============================================================
-   بخش ۳ — جستجوی بانک و حساب‌های برگ
-   ============================================================ */
 function getBankMoeinId() {
     var accounts = DB.load('accounts', []);
     var m = accounts.find(function (a) { return a.links && a.links.indexOf('bank') !== -1; });
@@ -127,9 +117,6 @@ function getLeafAccountsSortedByCode() {
     return sortAccountsByCode(leaves);
 }
 
-/* ============================================================
-   بخش ۴ — پر کردن select با آیتم‌ها
-   ============================================================ */
 function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
     sel.innerHTML = '';
     var ph = document.createElement('option');
@@ -146,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش ۵ — چاپ حرفه‌ای (قالب استاندارد، زیبا و دقیق)
+   بخش چاپ مستقیم PDF (بدون پنجره پرینت)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -155,12 +142,9 @@ async function printHtmlReport(selector, title) {
         return;
     }
 
-    showToast('⏳ در حال آماده‌سازی پیش‌نمایش چاپ...');
+    showToast('⏳ در حال ساخت فایل PDF...');
 
-    // ۱. کپی کردن محتوای گزارش برای دستکاری بدون تغییر در صفحه اصلی
     var clone = el.cloneNode(true);
-
-    // ۲. حذف فیلترها، جستجوها و دکمه‌های اضافی
     var removeSelectors = [
         '.list-header', '.column-filter-row', '.ar-filter-row', '.cfd-filter-row',
         '.row-actions', '.share-btn', '.widget-share-btn', '.cfd-multi-wrap',
@@ -172,13 +156,11 @@ async function printHtmlReport(selector, title) {
         clone.querySelectorAll(sel).forEach(function(n) { n.remove(); });
     });
 
-    // در گزارش مرور حساب‌ها، فقط خود جدول را می‌خواهیم
     if (selector === '#ra-result') {
         var arBody = clone.querySelector('.ar-body');
         if (arBody) clone.innerHTML = arBody.innerHTML;
     }
 
-    // ۳. استخراج جدول‌ها
     var tablesHtml = '';
     if (selector === '#cfd-result') {
         var mainTable = clone.querySelector('#cfd-table');
@@ -197,7 +179,6 @@ async function printHtmlReport(selector, title) {
         tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
     }
 
-    // ۴. استخراج بازه تاریخی
     var dateRange = '';
     var activePage = document.querySelector('.page.active');
     if (activePage) {
@@ -213,7 +194,6 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // ۵. تشخیص خودکار حالت افقی (Landscape) بر اساس تعداد ستون‌ها
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
     var maxCols = 0;
@@ -223,156 +203,89 @@ async function printHtmlReport(selector, title) {
     });
     var isLandscape = maxCols > 6;
 
-    // ۶. ساخت قالب HTML نهایی با استایل‌های درخواستی
+    // تاریخ و ساعت برای نام فایل
+    var now = new Date();
+    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
+    var dateStr = todayJalaliStr().replace(/\//g, '-');
+    var safeTitle = (title || 'گزارش').replace(/\s+/g, '-');
+    var fileName = safeTitle + '-' + dateStr + '-' + timeStr + '.pdf';
+
     var htmlContent = `
-        <!DOCTYPE html>
-        <html dir="rtl" lang="fa">
-        <head>
-            <meta charset="UTF-8">
-            <title>${esc(title)}</title>
-            <style>
-                /* تنظیمات صفحه و شماره‌گذاری */
-                @page { 
-                    size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
-                    margin: 15mm 10mm; 
-                    @bottom-center {
-                        content: "صفحه " counter(page) " از " counter(pages);
-                        font-family: 'B Nazanin', Tahoma, sans-serif;
-                        font-size: 10pt;
-                        color: #64748b;
-                    }
-                }
-                
-                body { 
-                    font-family: 'B Nazanin', Tahoma, sans-serif; 
-                    font-size: 12pt; /* فونت بی نازنین 12 */
-                    direction: rtl; 
-                    color: #0f172a; 
-                    margin: 0; 
-                    padding: 0;
-                }
-                
-                /* هدر گزارش */
-                .header {
-                    text-align: center; 
-                    margin-bottom: 20px; 
-                    border-bottom: 2px solid #1e40af; 
-                    padding-bottom: 10px;
-                }
-                .header h1 { 
-                    font-family: 'B Titr', Tahoma, sans-serif; 
-                    font-size: 12pt; /* عنوان بی تیتر 12 */
-                    margin: 0 0 5px 0; 
-                    color: #1e40af; 
-                }
-                .header .date-range { 
-                    font-size: 11pt; 
-                    color: #475569; 
-                    font-weight: bold;
-                }
-                
-                /* استایل جدول */
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-bottom: 20px; 
-                    font-size: 12pt; /* فونت جدول 12 */
-                    page-break-inside: auto;
-                }
-                tr { page-break-inside: avoid; page-break-after: auto; }
-                
-                /* سلول‌ها: متن وسط‌چین */
-                th, td { 
-                    border: 1px solid #94a3b8; 
-                    padding: 6px 8px; 
-                    text-align: center; 
-                    vertical-align: middle;
-                }
-                
-                /* هدر جدول رنگ‌آمیزی شده */
-                th { 
-                    background-color: #e2e8f0; 
-                    color: #1e40af; 
-                    font-weight: bold; 
-                }
-                
-                /* ردیف‌های یک‌درمیان */
-                tr:nth-child(even) { 
-                    background-color: #f8fafc; 
-                }
-                
-                /* مبالغ: راست‌چین و با جهت چپ‌به‌راست برای نمایش صحیح سه‌رقمی */
-                td.num, td.ltr { 
-                    direction: ltr; 
-                    text-align: right; 
-                    font-family: Arial, Tahoma, sans-serif; 
-                    font-size: 11pt; 
-                    padding-right: 12px;
-                }
-                
-                /* رنگ‌آمیزی مقادیر منفی و مثبت */
-                .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { 
-                    color: #dc2626 !important; 
-                    font-weight: bold; 
-                }
-                .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { 
-                    color: #059669 !important; 
-                    font-weight: bold; 
-                }
-                
-                /* حذف دکمه‌های عملیات در صورت باقی ماندن */
-                .row-actions { display: none !important; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>${esc(title)}</h1>
-                ${dateRange ? `<div class="date-range">${esc(dateRange)}</div>` : ''}
+        <div id="pdf-export-root" style="width: 100%; direction: rtl; font-family: 'B Nazanin', Tahoma, sans-serif; color: #000; background: #fff;">
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">
+                <h1 style="font-family: 'B Titr', Tahoma, sans-serif; font-size: 12pt; margin: 0 0 5px 0; color: #1e40af;">${esc(title)}</h1>
+                ${dateRange ? `<div style="font-size: 11pt; color: #475569; font-weight: bold;">${esc(dateRange)}</div>` : ''}
             </div>
-            <div>
+            <div style="font-size: 12pt;">
                 ${tablesHtml}
             </div>
-        </body>
-        </html>
+        </div>
+        <style>
+            table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
+            th, td { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; }
+            th { background-color: #e2e8f0 !important; font-family: 'B Titr', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
+            tr:nth-child(even) { background-color: #f8fafc !important; }
+            td:first-child { text-align: right !important; font-weight: bold !important; }
+            .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: right !important; padding-right: 12px !important; white-space: nowrap !important; }
+            .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
+            .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
+            
+            /* 🌟 تنظیمات طلایی برای جلوگیری از فضای خالی و بریدگی */
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+            thead { display: table-header-group !important; } /* تکرار هدر در همه صفحات */
+            .empty-row, .ar-empty { display: none !important; }
+        </style>
     `;
 
-    // ۷. ارسال به iFrame برای باز کردن پنجره چاپ مرورگر
-    var iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
+    try {
+        if (!window.html2pdf) {
+            await new Promise(function(resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
 
-    var doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
+        var opt = {
+            margin: [15, 10, 15, 10], // حاشیه کم برای استفاده حداکثری از فضا
+            filename: fileName,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 3, 
+                useCORS: true, 
+                letterRendering: true,
+                scrollX: 0,
+                scrollY: 0
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: 'a4', 
+                orientation: isLandscape ? 'landscape' : 'portrait',
+                compress: true
+            },
+            pagebreak: { mode: ['css', 'legacy'] }
+        };
 
-    // صبر کوتاه برای لود فونت‌ها و سپس باز کردن پنجره چاپ
-    setTimeout(function() {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        setTimeout(function() { document.body.removeChild(iframe); }, 1000);
-        showToast('🖨️ پنجره چاپ باز شد. لطفاً "Save as PDF" را انتخاب کنید.');
-    }, 500);
+        await html2pdf().set(opt).from(htmlContent).save();
+        showToast('✅ فایل PDF با موفقیت دانلود شد.');
+    } catch (e) {
+        console.error('PDF generation error:', e);
+        alert('خطا در ایجاد فایل PDF.');
+    }
 }
 
 /* ============================================================
-   بخش ۶ — CSV Export
+   بخش CSV Export
    ============================================================ */
 function exportToCsv(key, filename) {
     var data = DB.load(key, []);
     if (!Array.isArray(data)) data = [];
-    if (data.length === 0) {
-        alert('داده‌ای نیست.');
-        return;
-    }
+    if (data.length === 0) { alert('داده‌ای نیست.'); return; }
     var keys = [];
     data.forEach(function (row) {
-        Object.keys(row).forEach(function (k) {
-            if (keys.indexOf(k) === -1) keys.push(k);
-        });
+        Object.keys(row).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
     });
     var lines = [keys.join(',')];
     data.forEach(function (row) {
@@ -399,17 +312,12 @@ function exportToCsv(key, filename) {
 
 function exportReportTable(selector, filename) {
     var el = document.querySelector(selector);
-    if (!el) {
-        alert('ابتدا گزارش را اجرا کن.');
-        return;
-    }
+    if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
     var table = el.querySelector('table');
     var detailList = el.querySelector('.rff-detail-list');
     var rows = [];
-
     if (detailList) {
-        rows.push(['گزارش جامع تسهیلات — جزئیات']);
-        rows.push([]);
+        rows.push(['گزارش جامع تسهیلات — جزئیات']); rows.push([]);
         var cards = detailList.querySelectorAll('.rff-fac-card');
         for (var c = 0; c < cards.length; c++) {
             var card = cards[c];
@@ -438,23 +346,13 @@ function exportReportTable(selector, filename) {
             }
             if (row2.length > 0) rows.push(row2);
         }
-    } else {
-        alert('ابتدا گزارش را اجرا کن.');
-        return;
-    }
+    } else { alert('ابتدا گزارش را اجرا کن.'); return; }
 
-    if (rows.length === 0) {
-        alert('داده‌ای برای خروجی نیست.');
-        return;
-    }
-
+    if (rows.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
     var lines = [];
     for (var r = 0; r < rows.length; r++) {
-        lines.push(rows[r].map(function (c) {
-            return '"' + String(c).replace(/"/g, '""') + '"';
-        }).join(','));
+        lines.push(rows[r].map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','));
     }
-
     var csv = '\uFEFF' + lines.join('\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
@@ -462,27 +360,22 @@ function exportReportTable(selector, filename) {
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
     var a = document.createElement('a');
-    a.href = url;
-    a.download = filename + '-' + dateStr + '_' + timeStr + '.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = filename + '-' + dateStr + '_' + timeStr + '.csv';
+    a.click(); URL.revokeObjectURL(url);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
-window.getAccountLabel              = getAccountLabel;
-window.getAccountSearchText         = getAccountSearchText;
-window.getDetailLabel               = getDetailLabel;
-window.getLinkedItems               = getLinkedItems;
-window.getLinkedItemLabel           = getLinkedItemLabel;
-window.getBankMoeinId               = getBankMoeinId;
-window.getLeafAccounts              = getLeafAccounts;
-window.sortAccountsByCode           = sortAccountsByCode;
-window.getLeafAccountsSortedByCode  = getLeafAccountsSortedByCode;
-window.buildOptionsInto             = buildOptionsInto;
-window.printHtmlReport              = printHtmlReport;
-window.exportToCsv                  = exportToCsv;
-window.exportReportTable            = exportReportTable;
+window.getAccountLabel = getAccountLabel;
+window.getAccountSearchText = getAccountSearchText;
+window.getDetailLabel = getDetailLabel;
+window.getLinkedItems = getLinkedItems;
+window.getLinkedItemLabel = getLinkedItemLabel;
+window.getBankMoeinId = getBankMoeinId;
+window.getLeafAccounts = getLeafAccounts;
+window.sortAccountsByCode = sortAccountsByCode;
+window.getLeafAccountsSortedByCode = getLeafAccountsSortedByCode;
+window.buildOptionsInto = buildOptionsInto;
+window.printHtmlReport = printHtmlReport;
+window.exportToCsv = exportToCsv;
+window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Beautiful Standard Print Engine');
+console.log('✅ [core/lookups.js] loaded — Auto PDF Download');
