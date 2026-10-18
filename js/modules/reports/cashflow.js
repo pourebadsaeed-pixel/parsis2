@@ -262,9 +262,9 @@ function runCashFlowReport() {
    بخش ۵ — استایل‌های اختصاصی گزارش گردش وجه نقد
    ============================================================ */
 (function injectCfdStyle() {
-    if (document.getElementById('cfd-style-v3')) return;
+    if (document.getElementById('cfd-style-v4')) return;
     var s = document.createElement('style');
-    s.id = 'cfd-style-v3';
+    s.id = 'cfd-style-v4';
     s.textContent = `
         .cfd-multi-wrap { position:relative; margin: 0 14px 14px 14px; z-index:50; }
         .cfd-multi-btn { width:100%; padding:10px 14px; background:var(--card-solid); border:1.5px solid var(--border); border-radius:12px; text-align:right; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-family:inherit; font-weight:700; color:var(--text); box-shadow:var(--shadow-sm); }
@@ -304,7 +304,7 @@ function applyCfdFilters() {
     trs.forEach(function(tr) {
         var show = true;
         var tds = tr.querySelectorAll('td');
-        if (tds.length < 2) return; // skip empty or footer rows
+        if (tds.length < 2) return; 
         
         inputs.forEach(function(inp) {
             var colIdx = Number(inp.getAttribute('data-col'));
@@ -412,15 +412,19 @@ function runCashFlowByDescReport() {
     _cfdBuckets = buckets;
     _cfdAllDescs = Object.keys(buckets).sort();
 
+    // اصلاح باگ: اگر کاربر همه را لغو انتخاب کرده بود، دوباره آنها را تیک نزن
     if (_cfdSelectedDescs === null) {
         _cfdSelectedDescs = _cfdAllDescs.slice();
     } else {
         var newSel = _cfdAllDescs.filter(function(d) {
             return _cfdSelectedDescs.indexOf(d) !== -1;
         });
-        _cfdAllDescs.forEach(function(d) {
-            if (newSel.indexOf(d) === -1) newSel.push(d);
-        });
+        // فقط اگر قبلاً همه را لغو نکرده باشد، آیتم‌های جدید را اضافه کن
+        if (_cfdSelectedDescs.length > 0) {
+            _cfdAllDescs.forEach(function(d) {
+                if (newSel.indexOf(d) === -1) newSel.push(d);
+            });
+        }
         _cfdSelectedDescs = newSel;
     }
 
@@ -488,7 +492,8 @@ function renderCfdMultiSelect() {
     };
     
     document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) {
-        cb.onchange = function() {
+        cb.onchange = function(e) {
+            if (e) e.stopPropagation();
             var val = this.value;
             if (this.checked) {
                 if (_cfdSelectedDescs.indexOf(val) === -1) _cfdSelectedDescs.push(val);
@@ -500,14 +505,16 @@ function renderCfdMultiSelect() {
         };
     });
     
-    document.getElementById('cfd-ms-all').onclick = function() {
+    document.getElementById('cfd-ms-all').onclick = function(e) {
+        if (e) e.stopPropagation();
         _cfdSelectedDescs = _cfdAllDescs.slice();
         document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) { cb.checked = true; });
         document.getElementById('cfd-ms-btn-text').textContent = '🏷 فیلتر بابت‌ها (' + toFa(_cfdSelectedDescs.length) + ' از ' + toFa(_cfdAllDescs.length) + ')';
         renderCfdTables();
     };
     
-    document.getElementById('cfd-ms-none').onclick = function() {
+    document.getElementById('cfd-ms-none').onclick = function(e) {
+        if (e) e.stopPropagation();
         _cfdSelectedDescs = [];
         document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) { cb.checked = false; });
         document.getElementById('cfd-ms-btn-text').textContent = '🏷 فیلتر بابت‌ها (' + toFa(_cfdSelectedDescs.length) + ' از ' + toFa(_cfdAllDescs.length) + ')';
@@ -552,11 +559,6 @@ function renderCfdTables() {
         return _cfdSort.dir === 'asc' ? String(va).localeCompare(String(vb), 'fa') : String(vb).localeCompare(String(va), 'fa');
     });
     
-    if (keys.length === 0 && _cfdSelectedDescs.length === 0) {
-        container.innerHTML = '<div class="card"><p class="muted" style="text-align:center;padding:16px">هیچ بابت موردنظری انتخاب نشده است.</p></div>';
-        return;
-    }
-    
     var viewMode = document.getElementById('cfd-view').value;
     var hide = getHideState('cfd');
     var html = '';
@@ -577,7 +579,6 @@ function renderCfdTables() {
         html += '<th class="cfd-sort-th" data-sort="pct">درصد ' + sortIcon('pct') + '</th>';
         html += '</tr>';
         
-        // استفاده از کلاس column-filter-row برای جلوگیری از افزودن فیلتر خودکار توسط observers.js
         html += '<tr class="column-filter-row cfd-filter-row"><th></th>';
         html += '<th><input type="text" class="cfd-f-input" data-col="1" placeholder="..."></th>';
         html += '<th><input type="text" class="cfd-f-input" data-col="2" placeholder="..."></th>';
@@ -609,6 +610,10 @@ function renderCfdTables() {
             html += '<td class="num ' + pctCls + '">' + (hide ? '—' : pctText) + '</td>';
             html += '</tr>';
         });
+        
+        if (keys.length === 0) {
+            html += '<tr><td colspan="7" class="empty-row">هیچ بابت موردنظری انتخاب نشده است.</td></tr>';
+        }
 
         html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>';
         html += '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : moneyHtml(tIn)) + '</td>';
@@ -664,6 +669,10 @@ function renderCfdTables() {
             }
             html += '</tbody></table></div></div></div>';
         });
+        
+        if (keys.length === 0 && viewMode === 'details') {
+            html += '<div class="card"><p class="muted" style="text-align:center;padding:16px">هیچ بابت موردنظری انتخاب نشده است.</p></div>';
+        }
     }
 
     container.innerHTML = html;
@@ -822,4 +831,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — Multi-select fixed, Input issue fixed');
+console.log('✅ [modules/reports/cashflow.js] loaded — None button and empty table fixed');
