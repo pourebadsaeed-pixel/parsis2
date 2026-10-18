@@ -140,8 +140,7 @@ function getFullSize(el) {
 }
 
 /* ============================================================
-   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر
-   ✅ اصلاح: عرض حداقل مناسب برای جلوگیری از کشیدگی + چیدمان تک‌ستونه
+   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر (با کیفیت بالا)
    ============================================================ */
 async function shareAsImage(el, title, filename) {
     if (!el) {
@@ -166,17 +165,9 @@ async function shareAsImage(el, title, filename) {
         return;
     }
 
-    /* ============================================================
-       تشخیص نوع هدف (widget یا report)
-       ============================================================ */
     var isWidget = el.classList && el.classList.contains('widget-card');
     var isListHeaderTarget = el.classList && el.classList.contains('card');
 
-    /* ✅ عرض هدف بر اساس نوع محتوا:
-         - ویجت: حداقل 720px تا متن به‌خوبی جا شود
-         - گزارش/کارت: حداقل 900px
-         - جدول: بر اساس max-content ولی حداقل 900px
-    */
     var MIN_WIDGET_WIDTH = 720;
     var MIN_REPORT_WIDTH = 900;
 
@@ -205,9 +196,6 @@ async function shareAsImage(el, title, filename) {
         }
     });
 
-    /* ============================================================
-       ✅ کلید اصلی: تعیین عرض مناسب قبل از capture
-       ============================================================ */
     var rootSaved = {
         width:      el.style.width,
         minWidth:   el.style.minWidth,
@@ -217,14 +205,12 @@ async function shareAsImage(el, title, filename) {
         display:    el.style.display
     };
 
-    /* تعیین عرض هدف */
     var targetWidth;
     if (isWidget) {
         targetWidth = MIN_WIDGET_WIDTH;
     } else if (isListHeaderTarget) {
         targetWidth = MIN_REPORT_WIDTH;
     } else {
-        /* برای جدول‌ها بر اساس محتوای واقعی */
         var naturalW = 0;
         el.querySelectorAll('table').forEach(function (t) {
             var w = Math.max(t.scrollWidth || 0, t.offsetWidth || 0);
@@ -233,7 +219,6 @@ async function shareAsImage(el, title, filename) {
         targetWidth = Math.max(MIN_REPORT_WIDTH, naturalW + 40);
     }
 
-    /* ✅ اعمال عرض ثابت (نه max-content که باعث کشیدگی می‌شود) */
     el.style.width = targetWidth + 'px';
     el.style.minWidth = targetWidth + 'px';
     el.style.maxWidth = 'none';
@@ -241,7 +226,6 @@ async function shareAsImage(el, title, filename) {
     el.style.overflowX = 'visible';
     el.style.boxSizing = 'border-box';
 
-    /* ✅ اگر ویجت در گرید است، آن را از گرید خارج کن (روی کلون تأثیر می‌گذارد) */
     var parentGridStyle = null;
     var parentEl = el.parentElement;
     if (parentEl && parentEl.classList && parentEl.classList.contains('home-grid')) {
@@ -249,18 +233,15 @@ async function shareAsImage(el, title, filename) {
             display: parentEl.style.display,
             gridTemplateColumns: parentEl.style.gridTemplateColumns
         };
-        /* روی خود المان grid-column تنظیم کن که تک‌ستونه شود */
         var savedGridColumn = el.style.gridColumn;
         el.style.gridColumn = '1 / -1';
         el.dataset._savedGridColumn = savedGridColumn || '';
     }
 
-    /* ✅ بازنشانی شبکه‌بندی داخلی ویجت (مثلاً checklist items) */
     var gridOverrides = [];
     el.querySelectorAll('*').forEach(function (node) {
         var cs = window.getComputedStyle(node);
         if (cs.display === 'grid' && cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none') {
-            /* اگه شبکه 2 ستونه است، در حالت capture 1 ستونه کن */
             if (cs.gridTemplateColumns.indexOf('repeat') !== -1 ||
                 cs.gridTemplateColumns.split(' ').length > 1) {
                 gridOverrides.push({
@@ -283,7 +264,6 @@ async function shareAsImage(el, title, filename) {
         }
     });
 
-    /* صبر برای رندر مجدد */
     await new Promise(function (r) {
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
@@ -293,25 +273,26 @@ async function shareAsImage(el, title, filename) {
     });
 
     var size = getFullSize(el);
-    console.log('📸 [share] ابعاد نهایی:', size.width, '×', size.height);
 
     /* ============================================================
-       محاسبه scale بر اساس اندازه نهایی
+       ✅ ارتقای کیفیت: افزایش Scale و حد مجاز پیکسل
        ============================================================ */
     var dpr = window.devicePixelRatio || 1;
-    var scale = Math.max(2.5, Math.min(4, dpr * 2));
-    var maxPixels = 60 * 1000 * 1000;
+    // افزایش وضوح از 2.5 به 4 (حداقل) تا 5 (برای دستگاه‌های با رزولوشن بالا)
+    var scale = Math.max(4, Math.min(5, dpr * 3));
+    
+    // افزایش سقف مجاز به 150 میلیون پیکسل برای جلوگیری از افت کیفیت
+    var maxPixels = 150 * 1000 * 1000;
     if (size.width * size.height * scale * scale > maxPixels) {
         scale = Math.max(2, Math.sqrt(maxPixels / (size.width * size.height)));
     }
-    console.log('📸 [share] scale:', scale);
 
     var MAX_CHUNK_H = 3500;
     var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
     if (chunkCount < 1) chunkCount = 1;
 
     /* ============================================================
-       onclone: اعمال دوباره تنظیمات روی کلون html2canvas
+       onclone: اعمال دوباره تنظیمات و رفع تاری (Anti-Blur)
        ============================================================ */
     var oncloneFn = function (clonedDoc, clonedEl) {
         clonedEl.style.overflow = 'visible';
@@ -321,8 +302,10 @@ async function shareAsImage(el, title, filename) {
         clonedEl.style.width = size.width + 'px';
         clonedEl.style.minWidth = size.width + 'px';
         clonedEl.style.boxSizing = 'border-box';
+        // جلوگیری از اعمال زوم یا ترنسفورم که باعث تاری می‌شود
+        clonedEl.style.transform = 'none';
+        clonedEl.style.zoom = '1';
 
-        /* ✅ اجبار به چیدمان تک‌ستونه روی کلون */
         clonedEl.querySelectorAll('*').forEach(function (node) {
             var cs = window.getComputedStyle(node);
             if (cs.overflow && cs.overflow !== 'visible') node.style.overflow = 'visible';
@@ -335,12 +318,15 @@ async function shareAsImage(el, title, filename) {
             if (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') {
                 node.style.maxWidth = 'none';
             }
-            /* grid 2-ستونه → 1-ستونه */
             if (cs.display === 'grid' && cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none') {
                 if (cs.gridTemplateColumns.indexOf('repeat') !== -1 ||
                     cs.gridTemplateColumns.split(' ').length > 1) {
                     node.style.gridTemplateColumns = '1fr';
                 }
+            }
+            // رفع تاری متن با خنثی کردن ترنسفورم‌ها
+            if (cs.transform && cs.transform !== 'none') {
+                node.style.transform = 'none';
             }
         });
 
@@ -375,6 +361,7 @@ async function shareAsImage(el, title, filename) {
                 height: h,
                 windowWidth: size.width,
                 windowHeight: size.height,
+                letterRendering: true, // بهبود رندر متن
                 onclone: oncloneFn
             });
 
@@ -388,7 +375,6 @@ async function shareAsImage(el, title, filename) {
         }
     } catch (e) {
         console.error('❌ [share]', e);
-        /* بازگردانی */
         savedStyles.forEach(restoreElement);
         el.style.width = rootSaved.width || '';
         el.style.minWidth = rootSaved.minWidth || '';
@@ -401,7 +387,6 @@ async function shareAsImage(el, title, filename) {
             if (btn) btn.classList.add('collapsed');
         });
         hiddenNodes.forEach(function (x) { x.el.style.display = x.old; });
-        /* بازگردانی grid overrides */
         gridOverrides.forEach(function (o) {
             o.node.style.gridTemplateColumns = o.oldTemplate || '';
             o.node.style.display = o.oldDisplay || '';
@@ -413,9 +398,7 @@ async function shareAsImage(el, title, filename) {
         return;
     }
 
-    /* ============================================================
-       بازگردانی همه استایل‌ها
-       ============================================================ */
+    /* بازگردانی */
     savedStyles.forEach(restoreElement);
     el.style.width = rootSaved.width || '';
     el.style.minWidth = rootSaved.minWidth || '';
@@ -564,4 +547,4 @@ window.unlockElement     = unlockElement;
 window.restoreElement    = restoreElement;
 window.getFullSize       = getFullSize;
 
-console.log('✅ [ui/share.js] loaded — complete');
+console.log('✅ [ui/share.js] loaded — High Quality Image Export (scale 4-5)');
