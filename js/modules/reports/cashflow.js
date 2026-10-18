@@ -1,9 +1,16 @@
 /* ============================================================
    پارسیس — گزارش نقدینگی و گردش وجه نقد
    مسیر: js/modules/reports/cashflow.js
-   وابستگی: core/* + ui/* + vouchers/*
    ============================================================ */
 'use strict';
+
+/* ============================================================
+   وضعیت (State) برای فیلترها و مرتب‌سازی گزارش گردش وجه نقد
+   ============================================================ */
+var _cfdAllDescs = [];
+var _cfdSelectedDescs = null;
+var _cfdSearchText = '';
+var _cfdSort = { col: 'name', dir: 'asc' };
 
 /* ============================================================
    بخش ۱ — نمایش مبالغ HTML-محور
@@ -166,7 +173,6 @@ function runCashFlowReport() {
 
     items.sort(function (a, b) { return compareVals(a.sortDate, b.sortDate); });
 
-    /* ✅ تغییر: اضافه کردن کلاس data-table برای هماهنگی کامل با فهرست اسناد و حذف عرض‌های ثابت */
     var html = '<div class="cf-report"><div class="table-wrap">';
     html += '<table class="cf-table data-table" id="cf-table" data-table-id="cf-table"><thead><tr>'
          +  '<th>عنوان دسته</th>'
@@ -252,7 +258,68 @@ function runCashFlowReport() {
 }
 
 /* ============================================================
-   بخش ۵ — گزارش گردش وجه نقد
+   بخش ۵ — استایل‌های اختصاصی گزارش گردش وجه نقد
+   ============================================================ */
+(function injectCfdStyle() {
+    if (document.getElementById('cfd-style-v2')) return;
+    var s = document.createElement('style');
+    s.id = 'cfd-style-v2';
+    s.textContent = `
+        .cfd-multi-wrap { position:relative; margin: 0 14px 14px 14px; z-index:50; }
+        .cfd-multi-btn { width:100%; padding:10px 14px; background:var(--card-solid); border:1.5px solid var(--border); border-radius:12px; text-align:right; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-family:inherit; font-weight:700; color:var(--text); box-shadow:var(--shadow-sm); }
+        .cfd-multi-btn:hover { border-color:var(--primary); }
+        .cfd-multi-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--card-solid); border:1.5px solid var(--primary); border-radius:12px; box-shadow:var(--shadow-lg); display:none; flex-direction:column; max-height:320px; z-index:100; }
+        .cfd-multi-dropdown.show { display:flex; }
+        .cfd-multi-search { padding:8px; border-bottom:1px solid var(--border); background:var(--card-alt); }
+        .cfd-multi-search input { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-family:inherit; outline:none; }
+        .cfd-multi-search input:focus { border-color:var(--primary); }
+        .cfd-multi-actions { display:flex; gap:8px; padding:8px; border-bottom:1px solid var(--border); background:var(--card-alt); }
+        .cfd-multi-actions button { flex:1; padding:6px; background:var(--primary-light); color:var(--primary-dark); border:none; border-radius:6px; font-family:inherit; font-weight:700; cursor:pointer; font-size:0.8rem; }
+        .cfd-multi-actions button:hover { background:var(--primary); color:#fff; }
+        .cfd-multi-list { overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:4px; }
+        .cfd-multi-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:0.85rem; }
+        .cfd-multi-item:hover { background:var(--primary-soft); }
+        .cfd-multi-item input[type=checkbox] { accent-color:var(--primary); width:16px; height:16px; }
+        .cfd-filter-row th { background:var(--card-alt) !important; padding:4px 6px !important; border-bottom:2px solid var(--border) !important; }
+        .cfd-f-input { width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.75rem; outline:none; box-sizing:border-box; }
+        .cfd-f-input:focus { border-color:var(--primary); }
+        .cfd-sort-th { cursor:pointer; user-select:none; }
+        .cfd-sort-th:hover { background:#c8dcef !important; }
+    `;
+    document.head.appendChild(s);
+})();
+
+/* ============================================================
+   بخش ۶ — اعمال فیلتر روی جدول اصلی (با نرمال‌سازی اعداد)
+   ============================================================ */
+function applyCfdFilters() {
+    var table = document.getElementById('cfd-table');
+    if (!table) return;
+    var inputs = table.querySelectorAll('.cfd-f-input');
+    var trs = table.querySelectorAll('tbody tr');
+    
+    trs.forEach(function(tr) {
+        var show = true;
+        var tds = tr.querySelectorAll('td');
+        
+        inputs.forEach(function(inp) {
+            var colIdx = Number(inp.getAttribute('data-col'));
+            // نرمال‌سازی: تبدیل اعداد فارسی به انگلیسی و حذف کاما برای جستجوی بهتر
+            var val = normalizeDigits(inp.value.trim()).replace(/,/g, '').toLowerCase();
+            if (!val) return;
+            
+            var cellText = normalizeDigits(tds[colIdx].textContent.trim()).replace(/,/g, '').toLowerCase();
+            if (cellText.indexOf(val) === -1) {
+                show = false;
+            }
+        });
+        
+        tr.style.display = show ? '' : 'none';
+    });
+}
+
+/* ============================================================
+   بخش ۷ — گزارش گردش وجه نقد (با فیلتر چندانتخابی و مرتب‌سازی)
    ============================================================ */
 function runCashFlowByDescReport() {
     if (typeof makeFilterPanelCollapsible === 'function') {
@@ -328,83 +395,147 @@ function runCashFlowByDescReport() {
         });
     });
 
-    var keys = Object.keys(buckets);
+    var allDescs = Object.keys(buckets).sort();
+    _cfdAllDescs = allDescs;
+
+    // مقداردهی اولیه فیلتر چندانتخابی
+    if (_cfdSelectedDescs === null) {
+        _cfdSelectedDescs = allDescs.slice();
+    } else {
+        var newSel = allDescs.filter(function(d) {
+            return _cfdSelectedDescs.indexOf(d) !== -1;
+        });
+        allDescs.forEach(function(d) {
+            if (newSel.indexOf(d) === -1) newSel.push(d);
+        });
+        _cfdSelectedDescs = newSel;
+    }
+
+    var keys = allDescs.filter(function(k) {
+        return _cfdSelectedDescs.indexOf(k) !== -1;
+    });
+
     if (onlyBal) {
         keys = keys.filter(function (k) {
             return Math.abs(buckets[k].in - buckets[k].out) > 0.5;
         });
     }
-    keys.sort(function (a, b) { return compareVals(a, b); });
 
-    if (keys.length === 0) {
+    // مرتب‌سازی
+    keys.sort(function(a, b) {
+        var va, vb;
+        var col = _cfdSort.col;
+        if (col === 'name') { va = a; vb = b; }
+        else if (col === 'in') { va = buckets[a].in; vb = buckets[b].in; }
+        else if (col === 'out') { va = buckets[a].out; vb = buckets[b].out; }
+        else if (col === 'bal') { va = buckets[a].in - buckets[a].out; vb = buckets[b].in - buckets[b].out; }
+        else if (col === 'count') { va = buckets[a].details.length; vb = buckets[b].details.length; }
+        else if (col === 'pct') { va = (buckets[a].in - buckets[a].out); vb = (buckets[b].in - buckets[b].out); }
+        else { va = a; vb = b; }
+
+        if (typeof va === 'number' && typeof vb === 'number') {
+            return _cfdSort.dir === 'asc' ? va - vb : vb - va;
+        }
+        return _cfdSort.dir === 'asc' ? String(va).localeCompare(String(vb), 'fa') : String(vb).localeCompare(String(va), 'fa');
+    });
+
+    if (keys.length === 0 && !_cfdSelectedDescs.length) {
         document.getElementById('cfd-result').innerHTML =
-            '<div class="card"><p class="muted" style="text-align:center;padding:16px">در این بازه گردشی ثبت نشده است.</p></div>';
-        document.getElementById('cfd-count').textContent = '۰';
+            '<div class="cfd-multi-wrap">'
+            + '<button type="button" class="cfd-multi-btn" id="cfd-ms-btn"><span>🏷 فیلتر بابت‌ها (۰ مورد)</span><span>▼</span></button>'
+            + '</div>'
+            + '<div class="card"><p class="muted" style="text-align:center;padding:16px">هیچ بابت موردنظری انتخاب نشده است.</p></div>';
+        bindCfdMultiSelectEvents();
         return;
     }
 
-    var grandIn = 0, grandOut = 0;
-    keys.forEach(function (k) {
-        grandIn += buckets[k].in;
-        grandOut += buckets[k].out;
-    });
-    var grandBalance = grandIn - grandOut;
-    var grandAbs = Math.abs(grandBalance) || 1;
-
     var html = '';
 
+    // ۱. فیلتر چندانتخابی بابت‌ها
+    html += '<div class="cfd-multi-wrap">';
+    html += '<button type="button" class="cfd-multi-btn" id="cfd-ms-btn">';
+    html += '<span>🏷 فیلتر بابت‌ها (' + toFa(_cfdSelectedDescs.length) + ' از ' + toFa(_cfdAllDescs.length) + ')</span>';
+    html += '<span style="font-size:0.8rem;color:var(--text-muted)">▼</span>';
+    html += '</button>';
+    html += '<div class="cfd-multi-dropdown" id="cfd-ms-dropdown">';
+    html += '<div class="cfd-multi-search"><input type="text" id="cfd-ms-search" placeholder="جستجو در بابت‌ها..." value="' + esc(_cfdSearchText) + '"></div>';
+    html += '<div class="cfd-multi-actions"><button type="button" id="cfd-ms-all">انتخاب همه</button><button type="button" id="cfd-ms-none">لغو انتخاب همه</button></div>';
+    html += '<div class="cfd-multi-list" id="cfd-ms-list">';
+    
+    _cfdAllDescs.forEach(function(desc) {
+        var isChecked = _cfdSelectedDescs.indexOf(desc) !== -1 ? 'checked' : '';
+        var match = !_cfdSearchText || desc.toLowerCase().indexOf(_cfdSearchText.toLowerCase()) !== -1;
+        html += '<label class="cfd-multi-item" style="display:' + (match ? 'flex' : 'none') + '" data-desc="' + esc(desc) + '">';
+        html += '<input type="checkbox" class="cfd-ms-cb" value="' + esc(desc) + '" ' + isChecked + '>';
+        html += '<span>' + esc(desc) + '</span>';
+        html += '</label>';
+    });
+    html += '</div></div></div>';
+
+    // ۲. جدول گزارش اصلی
     if (viewMode === 'main' || viewMode === 'full') {
         html += '<div class="cfd-section-title">📋 گزارش اصلی</div>';
-        /* ✅ تغییر: اضافه کردن data-table و حذف عرض‌های ثابت */
-        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table data-table" id="cfd-table" data-table-id="cfd-table"><thead><tr>'
-             +  '<th>#</th>'
-             +  '<th>بابت / شرح</th>'
-             +  '<th>ورود (بدهکار)</th>'
-             +  '<th>خروج (بستانکار)</th>'
-             +  '<th>مانده</th>'
-             +  '<th>تعداد</th>'
-             +  '<th>درصد</th>'
-             +  '</tr></thead><tbody>';
+        html += '<div class="cfd-scroll-wrap"><div class="table-wrap"><table class="report-table data-table" id="cfd-table" data-table-id="cfd-table"><thead>';
+        
+        var sortIcon = function(col) { return _cfdSort.col === col ? (_cfdSort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'; };
+        
+        html += '<tr>';
+        html += '<th style="width:40px">#</th>';
+        html += '<th class="cfd-sort-th" data-sort="name">بابت / شرح ' + sortIcon('name') + '</th>';
+        html += '<th class="cfd-sort-th" data-sort="in">ورود (بدهکار) ' + sortIcon('in') + '</th>';
+        html += '<th class="cfd-sort-th" data-sort="out">خروج (بستانکار) ' + sortIcon('out') + '</th>';
+        html += '<th class="cfd-sort-th" data-sort="bal">مانده ' + sortIcon('bal') + '</th>';
+        html += '<th class="cfd-sort-th" data-sort="count">تعداد ' + sortIcon('count') + '</th>';
+        html += '<th class="cfd-sort-th" data-sort="pct">درصد ' + sortIcon('pct') + '</th>';
+        html += '</tr>';
+        
+        html += '<tr class="cfd-filter-row"><th></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="1" placeholder="..."></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="2" placeholder="..."></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="3" placeholder="..."></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="4" placeholder="..."></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="5" placeholder="..."></th>';
+        html += '<th><input type="text" class="cfd-f-input" data-col="6" placeholder="..."></th>';
+        html += '</tr></thead><tbody>';
 
         var tIn = 0, tOut = 0;
-        for (var i = 0; i < keys.length; i++) {
-            var k = keys[i];
+        var grandAbs = Object.keys(buckets).reduce(function(s, k) { return s + Math.abs(buckets[k].in - buckets[k].out); }, 0) || 1;
+
+        keys.forEach(function (k, i) {
             var b = buckets[k];
             var bal = b.in - b.out;
             tIn += b.in;
             tOut += b.out;
             var pct = (bal / grandAbs) * 100;
             var pctCls = pct >= 0 ? 'cr' : 'dr';
-            var pctText;
-            if (pct < 0) pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)';
-            else pctText = '+' + toFa(Math.abs(pct).toFixed(2)) + '٪';
+            var pctText = pct < 0 ? '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)' : '+' + toFa(Math.abs(pct).toFixed(2)) + '٪';
 
-            html += '<tr><td class="num">' + toFa(i + 1) + '</td>'
-                 +  '<td><strong>' + esc(k) + '</strong></td>'
-                 +  '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : (b.in ? moneyHtml(b.in) : '—')) + '</td>'
-                 +  '<td class="num" style="color:#c0392b">' + (hide ? '—' : (b.out ? moneyHtml(b.out) : '—')) + '</td>'
-                 +  '<td class="num" style="font-weight:bold">' + (hide ? '—' : moneyHtml(bal)) + '</td>'
-                 +  '<td class="num">' + toFa(b.details.length) + '</td>'
-                 +  '<td class="num ' + pctCls + '">' + (hide ? '—' : pctText) + '</td></tr>';
-        }
+            html += '<tr>';
+            html += '<td class="num">' + toFa(i + 1) + '</td>';
+            html += '<td><strong>' + esc(k) + '</strong></td>';
+            html += '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : (b.in ? moneyHtml(b.in) : '—')) + '</td>';
+            html += '<td class="num" style="color:#c0392b">' + (hide ? '—' : (b.out ? moneyHtml(b.out) : '—')) + '</td>';
+            html += '<td class="num" style="font-weight:bold">' + (hide ? '—' : moneyHtml(bal)) + '</td>';
+            html += '<td class="num">' + toFa(b.details.length) + '</td>';
+            html += '<td class="num ' + pctCls + '">' + (hide ? '—' : pctText) + '</td>';
+            html += '</tr>';
+        });
 
-        var totalBal = tIn - tOut;
-        var totalPctText = totalBal < 0 ? '(۱۰۰.۰۰٪)' : '+۱۰۰.۰۰٪';
-
-        html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>'
-             +  '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : moneyHtml(tIn)) + '</td>'
-             +  '<td class="num" style="color:#c0392b">' + (hide ? '—' : moneyHtml(tOut)) + '</td>'
-             +  '<td class="num">' + (hide ? '—' : moneyHtml(tIn - tOut)) + '</td><td></td>'
-             +  '<td class="num">' + (hide ? '—' : totalPctText) + '</td></tr></tfoot></table></div></div>';
+        html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td>';
+        html += '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : moneyHtml(tIn)) + '</td>';
+        html += '<td class="num" style="color:#c0392b">' + (hide ? '—' : moneyHtml(tOut)) + '</td>';
+        html += '<td class="num">' + (hide ? '—' : moneyHtml(tIn - tOut)) + '</td><td></td>';
+        html += '<td class="num">' + (hide ? '—' : (tIn - tOut < 0 ? '(۱۰۰.۰۰٪)' : '+۱۰۰.۰۰٪')) + '</td></tr></tfoot>';
+        html += '</table></div></div>';
     }
 
+    // ۳. جزئیات اسناد
     if (viewMode === 'details' || viewMode === 'full') {
         if (viewMode === 'full') {
             html += '<div class="cfd-section-title" style="margin-top:22px">📖 جزئیات اسناد</div>';
         }
 
-        for (var j = 0; j < keys.length; j++) {
-            var k2 = keys[j];
+        keys.forEach(function (k2, j) {
             var b2 = buckets[k2];
 
             html += '<div class="cfd-group" style="margin-top:14px">'
@@ -418,7 +549,6 @@ function runCashFlowByDescReport() {
                  +   '</div>'
                  +   '<div class="cfd-details">'
                  +     '<div class="cfd-hscroll">'
-                 /* ✅ حذف عرض‌های ثابت از جدول جزئیات */
                  +       '<table class="data-table cfd-detail-table" data-table-id="cfd-detail-' + j + '">'
                  +         '<thead><tr><th>#</th>'
                  +         '<th>تاریخ</th>'
@@ -445,7 +575,7 @@ function runCashFlowByDescReport() {
                      + '</tr>';
             }
             html += '</tbody></table></div></div></div>';
-        }
+        });
     }
 
     document.getElementById('cfd-result').innerHTML = html;
@@ -454,6 +584,7 @@ function runCashFlowByDescReport() {
     var unitEl = document.getElementById('cfd-unit');
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
+    // اتصال رویدادهای جزئیات (باز کردن سند با کلیک)
     document.querySelectorAll('#cfd-result .cfd-row').forEach(function (row) {
         row.addEventListener('click', function (e) {
             if (e.target.closest('button')) return;
@@ -468,6 +599,28 @@ function runCashFlowByDescReport() {
             var vid = this.getAttribute('data-vid');
             if (typeof openVoucherForEditById === 'function') openVoucherForEditById(vid);
         });
+    });
+
+    // اتصال رویدادهای فیلتر چندانتخابی
+    bindCfdMultiSelectEvents();
+
+    // اتصال رویدادهای مرتب‌سازی جدول اصلی
+    document.querySelectorAll('#cfd-table .cfd-sort-th').forEach(function(th) {
+        th.addEventListener('click', function() {
+            var col = this.getAttribute('data-sort');
+            if (_cfdSort.col === col) {
+                _cfdSort.dir = _cfdSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                _cfdSort.col = col;
+                _cfdSort.dir = 'asc';
+            }
+            runCashFlowByDescReport();
+        });
+    });
+
+    // اتصال رویدادهای فیلتر ستون‌ها (جستجو)
+    document.querySelectorAll('#cfd-table .cfd-f-input').forEach(function(inp) {
+        inp.addEventListener('input', applyCfdFilters);
     });
 
     setTimeout(function () {
@@ -486,7 +639,82 @@ function runCashFlowByDescReport() {
 }
 
 /* ============================================================
-   بخش ۶ — خلاصه گردش وجه نقد برای داشبورد
+   بخش ۸ — اتصال رویدادهای مربوط به فیلتر چندانتخابی
+   ============================================================ */
+function bindCfdMultiSelectEvents() {
+    var msBtn = document.getElementById('cfd-ms-btn');
+    var msDd = document.getElementById('cfd-ms-dropdown');
+    var msSearch = document.getElementById('cfd-ms-search');
+
+    if (msBtn) {
+        msBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            msDd.classList.toggle('show');
+            if (msDd.classList.contains('show') && msSearch) msSearch.focus();
+        });
+    }
+
+    if (!window._cfdOutsideBound) {
+        window._cfdOutsideBound = true;
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.cfd-multi-wrap')) {
+                var dd = document.getElementById('cfd-ms-dropdown');
+                if (dd) dd.classList.remove('show');
+            }
+        });
+    }
+
+    if (msSearch) {
+        msSearch.addEventListener('input', function() {
+            _cfdSearchText = this.value;
+            var q = _cfdSearchText.toLowerCase();
+            var list = document.getElementById('cfd-ms-list');
+            if (list) {
+                list.querySelectorAll('.cfd-multi-item').forEach(function(item) {
+                    var desc = item.getAttribute('data-desc').toLowerCase();
+                    item.style.display = desc.indexOf(q) !== -1 ? 'flex' : 'none';
+                });
+            }
+        });
+    }
+
+    document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var val = this.value;
+            if (this.checked) {
+                if (_cfdSelectedDescs.indexOf(val) === -1) _cfdSelectedDescs.push(val);
+            } else {
+                _cfdSelectedDescs = _cfdSelectedDescs.filter(function(d) { return d !== val; });
+            }
+            runCashFlowByDescReport();
+            var newDd = document.getElementById('cfd-ms-dropdown');
+            var newSearch = document.getElementById('cfd-ms-search');
+            if (newDd) {
+                newDd.classList.add('show');
+                if (newSearch) { newSearch.focus(); newSearch.setSelectionRange(newSearch.value.length, newSearch.value.length); }
+            }
+        });
+    });
+
+    var msAll = document.getElementById('cfd-ms-all');
+    if (msAll) msAll.addEventListener('click', function() {
+        _cfdSelectedDescs = _cfdAllDescs.slice();
+        runCashFlowByDescReport();
+        var newDd = document.getElementById('cfd-ms-dropdown');
+        if (newDd) newDd.classList.add('show');
+    });
+
+    var msNone = document.getElementById('cfd-ms-none');
+    if (msNone) msNone.addEventListener('click', function() {
+        _cfdSelectedDescs = [];
+        runCashFlowByDescReport();
+        var newDd = document.getElementById('cfd-ms-dropdown');
+        if (newDd) newDd.classList.add('show');
+    });
+}
+
+/* ============================================================
+   بخش ۹ — خلاصه گردش وجه نقد برای داشبورد
    ============================================================ */
 function buildCashFlowDescSummaryForDash() {
     var d = new Date();
@@ -522,7 +750,7 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* ============================================================
-   بخش ۷ — اتصال دکمه‌های گردش وجه نقد
+   بخش ۱۰ — اتصال دکمه‌های گردش وجه نقد
    ============================================================ */
 function bindCashFlowReportButtons() {
     var runCf = document.getElementById('cf-run');
@@ -577,4 +805,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — complete');
+console.log('✅ [modules/reports/cashflow.js] loaded — Multi-select, Sort, Filter Fixed');
