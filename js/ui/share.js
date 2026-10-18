@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — اشتراک‌گذاری (متن + تصویر)
+   پارسیس — اشتراک‌گذاری (متن + تصویر با کیفیت فوق‌العاده)
    مسیر: js/ui/share.js
    وابستگی: core/* + ui/toast.js
    ============================================================ */
@@ -40,7 +40,7 @@ function reportToText(containerEl) {
 }
 
 /* ============================================================
-   بخش ۲ — بارگذاری html2canvas (به‌صورت lazy)
+   بخش ۲ — بارگذاری html2canvas
    ============================================================ */
 var _html2canvasLoadPromise = null;
 
@@ -140,19 +140,20 @@ function getFullSize(el) {
 }
 
 /* ============================================================
-   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر (با کیفیت بالا)
+   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر (کیفیت HD)
    ============================================================ */
 async function shareAsImage(el, title, filename) {
     if (!el) {
         showToast('محتوایی برای اشتراک نیست.');
         return;
     }
-    if (typeof loadHtml2Canvas !== 'function') {
-        showToast('⚠️ کتابخانه یافت نشد');
-        return;
+    
+    // صبر برای لود کامل فونت‌ها
+    if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
     }
 
-    showToast('📸 آماده‌سازی تصویر با کیفیت بالا...');
+    showToast('📸 آماده‌سازی تصویر با کیفیت فوق‌العاده...');
 
     var h2c;
     try {
@@ -168,8 +169,9 @@ async function shareAsImage(el, title, filename) {
     var isWidget = el.classList && el.classList.contains('widget-card');
     var isListHeaderTarget = el.classList && el.classList.contains('card');
 
-    var MIN_WIDGET_WIDTH = 720;
-    var MIN_REPORT_WIDTH = 900;
+    // افزایش عرض پایه برای خوانایی بهتر در گزارش‌های شلوغ
+    var MIN_WIDGET_WIDTH = 800;
+    var MIN_REPORT_WIDTH = 1200;
 
     /* بازکردن کارت‌های جمع‌شده */
     var collapsedCards = [];
@@ -216,7 +218,7 @@ async function shareAsImage(el, title, filename) {
             var w = Math.max(t.scrollWidth || 0, t.offsetWidth || 0);
             if (w > naturalW) naturalW = w;
         });
-        targetWidth = Math.max(MIN_REPORT_WIDTH, naturalW + 40);
+        targetWidth = Math.max(MIN_REPORT_WIDTH, naturalW + 60); // 60px padding
     }
 
     el.style.width = targetWidth + 'px';
@@ -275,24 +277,24 @@ async function shareAsImage(el, title, filename) {
     var size = getFullSize(el);
 
     /* ============================================================
-       ✅ ارتقای کیفیت: افزایش Scale و حد مجاز پیکسل
+       ✅ تنظیمات نهایی برای کیفیت HD
        ============================================================ */
     var dpr = window.devicePixelRatio || 1;
-    // افزایش وضوح از 2.5 به 4 (حداقل) تا 5 (برای دستگاه‌های با رزولوشن بالا)
-    var scale = Math.max(4, Math.min(5, dpr * 3));
+    // قفل کردن مقیاس روی 4 (حتی اگر دستگاه DPR پایینی داشته باشد)
+    var scale = 4; 
     
-    // افزایش سقف مجاز به 150 میلیون پیکسل برای جلوگیری از افت کیفیت
-    var maxPixels = 150 * 1000 * 1000;
+    // افزایش حد مجاز به 200 میلیون پیکسل برای جلوگیری از افت کیفیت
+    var maxPixels = 200 * 1000 * 1000;
     if (size.width * size.height * scale * scale > maxPixels) {
-        scale = Math.max(2, Math.sqrt(maxPixels / (size.width * size.height)));
+        scale = Math.max(2.5, Math.sqrt(maxPixels / (size.width * size.height)));
     }
 
-    var MAX_CHUNK_H = 3500;
+    var MAX_CHUNK_H = 3000; // برش به تکه‌های 3000 پیکسلی برای جلوگیری از کرش کردن مرورگر
     var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
     if (chunkCount < 1) chunkCount = 1;
 
     /* ============================================================
-       onclone: اعمال دوباره تنظیمات و رفع تاری (Anti-Blur)
+       onclone: حذف افکت‌های تاری‌کننده و افزایش شارپنس
        ============================================================ */
     var oncloneFn = function (clonedDoc, clonedEl) {
         clonedEl.style.overflow = 'visible';
@@ -302,12 +304,13 @@ async function shareAsImage(el, title, filename) {
         clonedEl.style.width = size.width + 'px';
         clonedEl.style.minWidth = size.width + 'px';
         clonedEl.style.boxSizing = 'border-box';
-        // جلوگیری از اعمال زوم یا ترنسفورم که باعث تاری می‌شود
         clonedEl.style.transform = 'none';
         clonedEl.style.zoom = '1';
 
         clonedEl.querySelectorAll('*').forEach(function (node) {
             var cs = window.getComputedStyle(node);
+            
+            // رفع تاری و سرریز
             if (cs.overflow && cs.overflow !== 'visible') node.style.overflow = 'visible';
             if (cs.overflowX && cs.overflowX !== 'visible') node.style.overflowX = 'visible';
             if (cs.overflowY && cs.overflowY !== 'visible') node.style.overflowY = 'visible';
@@ -318,16 +321,25 @@ async function shareAsImage(el, title, filename) {
             if (cs.maxWidth && cs.maxWidth !== 'none' && cs.maxWidth !== 'auto') {
                 node.style.maxWidth = 'none';
             }
+            
+            // چیدمان گرید
             if (cs.display === 'grid' && cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none') {
                 if (cs.gridTemplateColumns.indexOf('repeat') !== -1 ||
                     cs.gridTemplateColumns.split(' ').length > 1) {
                     node.style.gridTemplateColumns = '1fr';
                 }
             }
-            // رفع تاری متن با خنثی کردن ترنسفورم‌ها
-            if (cs.transform && cs.transform !== 'none') {
-                node.style.transform = 'none';
-            }
+            
+            // ✅ خنثی کردن افکت‌هایی که باعث تاری متن می‌شوند
+            if (cs.transform && cs.transform !== 'none') node.style.transform = 'none';
+            if (cs.boxShadow && cs.boxShadow !== 'none') node.style.boxShadow = 'none';
+            if (cs.textShadow && cs.textShadow !== 'none') node.style.textShadow = 'none';
+            if (cs.filter && cs.filter !== 'none') node.style.filter = 'none';
+            if (cs.backdropFilter && cs.backdropFilter !== 'none') node.style.backdropFilter = 'none';
+            
+            // ✅ افزایش شارپنس فونت
+            node.style.textRendering = 'optimizeLegibility';
+            node.style.webkitFontSmoothing = 'antialiased';
         });
 
         clonedEl.querySelectorAll(hideSel).forEach(function (n) {
@@ -344,7 +356,7 @@ async function shareAsImage(el, title, filename) {
             var h = Math.min(MAX_CHUNK_H, size.height - y);
 
             if (chunkCount > 1) {
-                showToast('📸 تکه ' + toFa(i + 1) + ' از ' + toFa(chunkCount) + '...');
+                showToast('📸 تکه ' + toFa(i + 1) + ' از ' + toFa(chunkCount) + ' با کیفیت بالا...');
             }
 
             var canvas = await h2c(el, {
@@ -361,7 +373,7 @@ async function shareAsImage(el, title, filename) {
                 height: h,
                 windowWidth: size.width,
                 windowHeight: size.height,
-                letterRendering: true, // بهبود رندر متن
+                letterRendering: true,
                 onclone: oncloneFn
             });
 
@@ -398,7 +410,7 @@ async function shareAsImage(el, title, filename) {
         return;
     }
 
-    /* بازگردانی */
+    /* بازگردانی استایل‌ها */
     savedStyles.forEach(restoreElement);
     el.style.width = rootSaved.width || '';
     el.style.minWidth = rootSaved.minWidth || '';
@@ -442,7 +454,7 @@ async function shareAsImage(el, title, filename) {
                 title: shareTitle,
                 text: shareTitle
             });
-            showToast('✅ ' + toFa(files.length) + ' تصویر اشتراک شد.');
+            showToast('✅ ' + toFa(files.length) + ' تصویر با کیفیت بالا اشتراک شد.');
             return;
         } catch (e) {
             if (e && e.name === 'AbortError') return;
@@ -463,7 +475,7 @@ async function shareAsImage(el, title, filename) {
             setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
         }, i * 400);
     });
-    showToast('💾 ' + toFa(files.length) + ' تصویر دانلود شد.');
+    showToast('💾 ' + toFa(files.length) + ' تصویر HD دانلود شد.');
 }
 
 /* ============================================================
@@ -475,7 +487,7 @@ function buildShareButtons() {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'share-btn';
-        btn.title = 'اشتراک‌گذاری گزارش (تصویر)';
+        btn.title = 'اشتراک‌گذاری گزارش (تصویر HD)';
         btn.innerHTML = '📤';
         h.appendChild(btn);
     });
@@ -485,7 +497,7 @@ function buildShareButtons() {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'widget-share-btn';
-        btn.title = 'اشتراک‌گذاری ویجت (تصویر)';
+        btn.title = 'اشتراک‌گذاری ویجت (تصویر HD)';
         btn.innerHTML = '📤';
         if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
         w.appendChild(btn);
@@ -547,4 +559,4 @@ window.unlockElement     = unlockElement;
 window.restoreElement    = restoreElement;
 window.getFullSize       = getFullSize;
 
-console.log('✅ [ui/share.js] loaded — High Quality Image Export (scale 4-5)');
+console.log('✅ [ui/share.js] loaded — Ultra HD Export Ready');
