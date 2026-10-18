@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (استفاده از موتور بومی مرورگر برای رفع قطعی مشکل فارسی)
+   بخش چاپ (استفاده از موتور بومی مرورگر با استایل‌های سفارشی)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -210,7 +210,7 @@ function printHtmlReport(selector, title) {
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
 
-    // 🌟 قالب HTML استاندارد و تمیز مخصوص موتور چاپ مرورگر
+    // 🌟 قالب HTML استاندارد با استایل‌های درخواستی برای موتور چاپ مرورگر
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -218,15 +218,21 @@ function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(fileName)}</title>
             <style>
-                /* تنظیم کاغذ */
+                /* تنظیم کاغذ و شماره صفحه */
                 @page { 
                     size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
-                    margin: 15mm 10mm; 
+                    margin: 10mm; /* کاهش حاشیه برای جا شدن ردیف‌های بیشتر */
+                    @bottom-center {
+                        content: "صفحه " counter(page) " از " counter(pages);
+                        font-family: Tahoma, sans-serif;
+                        font-size: 10pt;
+                        color: #64748b;
+                    }
                 }
                 
                 body { 
                     font-family: 'B Nazanin', Tahoma, sans-serif; 
-                    font-size: 12pt;
+                    font-size: 11pt;
                     direction: rtl; 
                     color: #000; 
                     margin: 0; 
@@ -252,36 +258,52 @@ function printHtmlReport(selector, title) {
                     font-weight: bold;
                 }
                 
-                /* تنظیمات طلایی جدول برای جلوگیری از حذف شدن و نصفه شدن ردیف‌ها */
+                /* تنظیمات جدول */
                 table { 
                     width: 100%; 
                     border-collapse: collapse; 
                     margin-bottom: 15px; 
-                    font-size: 11pt;
                 }
+                
+                /* جلوگیری از نصفه شدن ردیف‌ها */
                 tr { 
                     page-break-inside: avoid !important; 
-                    page-break-after: auto; 
                 }
+                
+                /* 🌟 تکرار هدر در همه صفحات */
                 thead { 
-                    display: table-header-group; /* تکرار هدر در همه صفحات */
+                    display: table-header-group; 
                 }
+                /* 🌟 نمایش جمع کل در انتهای جدول */
                 tfoot {
-                    display: table-row-group; /* نمایش جمع کل در انتهای جدول */
+                    display: table-row-group;
                 }
                 
                 th, td { 
                     border: 1px solid #64748b; 
-                    padding: 6px 8px; 
+                    padding: 4px 8px; /* کاهش پدینگ برای فشرده شدن ردیف‌ها */
                     text-align: center; 
                     vertical-align: middle;
                     word-wrap: break-word;
                 }
+                
+                /* 🌟 استایل هدر (خاکستری و بولد) */
                 th { 
-                    background-color: #e2e8f0; 
+                    background-color: #e2e8f0 !important; 
+                    font-weight: bold !important; 
                     font-family: 'B Titr', Tahoma, sans-serif;
                     color: #1e40af; 
+                    font-size: 11pt;
                 }
+                
+                /* 🌟 استایل جمع کل (خاکستری و بولد) */
+                tfoot td {
+                    background-color: #e2e8f0 !important;
+                    font-weight: bold !important;
+                    font-family: 'B Titr', Tahoma, sans-serif;
+                    color: #1e40af;
+                }
+                
                 td:first-child {
                     text-align: right;
                     font-weight: bold;
@@ -291,10 +313,11 @@ function printHtmlReport(selector, title) {
                 .num, .ltr { 
                     direction: ltr; 
                     font-family: Arial, Tahoma, sans-serif; 
+                    font-size: 10pt;
                     white-space: nowrap;
                 }
                 
-                /* رنگ‌بندی */
+                /* رنگ‌بندی مبالغ */
                 .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold; }
                 .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold; }
             </style>
@@ -311,7 +334,7 @@ function printHtmlReport(selector, title) {
         </html>
     `;
 
-    // ایجاد iframe مخفی برای باز کردن پنجره چاپ مرورگر
+    // ایجاد iframe مخفی برای باز کردن پنجره چاپ
     var iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0';
@@ -324,13 +347,12 @@ function printHtmlReport(selector, title) {
     doc.write(htmlContent);
     doc.close();
 
-    // صبر برای لود فونت‌ها
+    // صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
     setTimeout(function() {
         iframe.contentWindow.focus();
-        iframe.contentWindow.print(); // باز کردن پنجره چاپ مرورگر
+        iframe.contentWindow.print();
         showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
         
-        // پاکسازی
         setTimeout(function() { 
             if (document.body.contains(iframe)) document.body.removeChild(iframe); 
         }, 5000);
@@ -439,4 +461,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine');
+console.log('✅ [core/lookups.js] loaded — Native Print Engine (Styled)');
