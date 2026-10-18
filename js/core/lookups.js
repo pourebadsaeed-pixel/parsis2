@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (استفاده از موتور بومی مرورگر با استایل‌های سفارشی)
+   بخش چاپ (رفع کامل مشکل صفحه‌بندی با استفاده از پنجره جدید)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -194,7 +194,7 @@ function printHtmlReport(selector, title) {
         tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
     }
 
-    // تشخیص افقی یا عمودی بودن بر اساس تعداد ستون‌ها
+    // تشخیص افقی یا عمودی بودن
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
     var maxCols = 0;
@@ -204,14 +204,13 @@ function printHtmlReport(selector, title) {
     });
     var isLandscape = maxCols > 6;
 
-    // ساخت نام فایل با تاریخ و ساعت
+    // نام‌گذاری فایل
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
 
-    // 🌟 قالب HTML با صفحه‌بندی هوشمند مرورگر
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -240,7 +239,6 @@ function printHtmlReport(selector, title) {
                     padding: 0;
                 }
                 
-                /* هدر گزارش */
                 .header {
                     text-align: center; 
                     margin-bottom: 20px; 
@@ -266,7 +264,7 @@ function printHtmlReport(selector, title) {
                     margin-bottom: 15px; 
                 }
                 
-                /* 🌟 جلوگیری از نصفه شدن ردیف‌ها هنگام رفتن به صفحه بعد */
+                /* جلوگیری از نصفه شدن ردیف‌ها */
                 tr { 
                     page-break-inside: avoid !important; 
                 }
@@ -289,7 +287,7 @@ function printHtmlReport(selector, title) {
                     word-wrap: break-word;
                 }
                 
-                /* 🌟 استایل هدر جدول (خاکستری و بولد) */
+                /* 🌟 استایل هدر (خاکستری و بولد) */
                 th { 
                     background-color: #e2e8f0 !important; 
                     font-weight: bold !important; 
@@ -298,7 +296,7 @@ function printHtmlReport(selector, title) {
                     font-size: 11pt;
                 }
                 
-                /* 🌟 استایل ردیف جمع کل (خاکستری و بولد) */
+                /* 🌟 استایل جمع کل (خاکستری و بولد) */
                 tfoot td {
                     background-color: #e2e8f0 !important;
                     font-weight: bold !important;
@@ -311,7 +309,6 @@ function printHtmlReport(selector, title) {
                     font-weight: bold;
                 }
                 
-                /* اعداد */
                 .num, .ltr { 
                     direction: ltr; 
                     font-family: Arial, Tahoma, sans-serif; 
@@ -319,7 +316,6 @@ function printHtmlReport(selector, title) {
                     white-space: nowrap;
                 }
                 
-                /* رنگ‌بندی مبالغ */
                 .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold; }
                 .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold; }
             </style>
@@ -336,27 +332,30 @@ function printHtmlReport(selector, title) {
         </html>
     `;
 
-    var iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
+    // 🌟 استفاده از Window.open به جای Iframe با ارتفاع صفر (رفع مشکل بریدگی زودهنگام)
+    var printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert('لطفاً پاپ‌آپ (Popup) را در مرورگر خود مجاز کنید.');
+        return;
+    }
+    
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
 
-    var doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
-
-    setTimeout(function() {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
-        
-        setTimeout(function() { 
-            if (document.body.contains(iframe)) document.body.removeChild(iframe); 
-        }, 5000);
-    }, 500);
+    // صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
+    printWindow.onload = function() {
+        setTimeout(function() {
+            printWindow.focus();
+            printWindow.print();
+            showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+            
+            // بستن پنجره پس از چاپ (اختیاری)
+            printWindow.onafterprint = function() {
+                printWindow.close();
+            };
+        }, 500);
+    };
 }
 
 /* ============================================================
@@ -447,9 +446,6 @@ function exportReportTable(selector, filename) {
     a.click(); URL.revokeObjectURL(url);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.getAccountLabel = getAccountLabel;
 window.getAccountSearchText = getAccountSearchText;
 window.getDetailLabel = getDetailLabel;
@@ -464,4 +460,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine (Smart Pagination)');
+console.log('✅ [core/lookups.js] loaded — Native Print Engine (Popup Fixed)');
