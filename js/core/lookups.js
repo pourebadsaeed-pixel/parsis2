@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ مستقیم PDF (با صفحه‌بندی دستی و جلوگیری از حذف ردیف)
+   بخش چاپ مستقیم PDF (با رفع مشکل خرابی حروف و نام‌گذاری جدید)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -143,6 +143,11 @@ async function printHtmlReport(selector, title) {
     }
 
     showToast('⏳ در حال ساخت فایل PDF...');
+
+    // مکث برای اطمینان از لود کامل فونت‌های فارسی
+    if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+    }
 
     var clone = el.cloneNode(true);
     var removeSelectors = [
@@ -176,7 +181,7 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // 🌟 تقسیم جدول به صفحات ۲۰ ردیفی برای جلوگیری از حذف ردیف‌ها
+    // تقسیم جدول به صفحات ۲۰ ردیفی برای جلوگیری از حذف ردیف‌ها
     function chunkTable(tbl, tableTitle) {
         var thead = tbl.querySelector('thead');
         var tbody = tbl.querySelector('tbody');
@@ -212,7 +217,7 @@ async function printHtmlReport(selector, title) {
     }
 
     var totalPages = pagesData.length;
-    if (totalPages === 0) totalPages = 1; // حداقل یک صفحه
+    if (totalPages === 0) totalPages = 1;
 
     var isLandscape = false;
     if (pagesData.length > 0) {
@@ -221,11 +226,12 @@ async function printHtmlReport(selector, title) {
         if (tempDiv.querySelectorAll('th').length > 6) isLandscape = true;
     }
 
+    // ✅ نام‌گذاری فایل مطابق فرمت درخواستی
     var now = new Date();
-    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
+    var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
-    var safeTitle = (title || 'گزارش').replace(/\s+/g, '-').replace(/[\\/:*?"<>|]/g, '');
-    var fileName = safeTitle + '-' + dateStr + '-' + timeStr + '.pdf';
+    var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); // حفظ فاصله‌ها
+    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ').pdf';
 
     var htmlContent = '<div id="pdf-export-root" style="direction: rtl; font-family: \'B Nazanin\', Tahoma, sans-serif; color: #000; background: #fff;">';
     
@@ -254,12 +260,14 @@ async function printHtmlReport(selector, title) {
 
     htmlContent += `
         <style>
+            /* رفع خرابی حروف با اعمال اجبار RTL و جلوگیری از کشیدگی */
+            * { direction: rtl !important; }
             table { width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; margin-bottom: 15px !important; font-size: 11pt !important; }
-            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; }
+            td, th { border: 1px solid #94a3b8 !important; padding: 6px 8px !important; text-align: center !important; vertical-align: middle !important; word-wrap: break-word !important; white-space: normal !important; }
             th { background-color: #e2e8f0 !important; font-family: 'B Titr', Tahoma, sans-serif !important; font-size: 11pt !important; color: #1e40af !important; }
             tr:nth-child(even) { background-color: #f8fafc !important; }
-            td:first-child { text-align: right !important; font-weight: bold !important; }
-            .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: right !important; padding-right: 12px !important; white-space: nowrap !important; }
+            td:first-child { text-align: right !important; font-weight: bold !important; padding-right: 12px !important; }
+            .num, .ltr { direction: ltr !important; font-family: Arial, Tahoma, sans-serif !important; font-size: 10pt !important; text-align: center !important; white-space: nowrap !important; }
             .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { color: #dc2626 !important; font-weight: bold !important; }
             .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { color: #059669 !important; font-weight: bold !important; }
         </style>
@@ -280,7 +288,13 @@ async function printHtmlReport(selector, title) {
             margin: [5, 5, 5, 5],
             filename: fileName,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: false, // 🌟 این خط باعث می‌شود حروف فارسی به هم بچسبند و خراب نشوند
+                scrollX: 0, 
+                scrollY: 0 
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait', compress: true },
             pagebreak: { mode: ['css', 'legacy'] }
         };
@@ -395,4 +409,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Auto PDF Download (Chunked)');
+console.log('✅ [core/lookups.js] loaded — Auto PDF Download (Text fixed)');
