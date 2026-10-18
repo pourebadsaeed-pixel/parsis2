@@ -4,6 +4,9 @@
    ============================================================ */
 'use strict';
 
+/* ============================================================
+   بخش ۱ — اشتراک‌گذاری متنی
+   ============================================================ */
 function shareAsText(title, text) {
     var fullText = '📊 ' + title + '\n\n' + text;
     if (navigator.share) {
@@ -35,6 +38,9 @@ function reportToText(containerEl) {
     return lines.join('\n');
 }
 
+/* ============================================================
+   بخش ۲ — بارگذاری html2canvas (به‌صورت lazy)
+   ============================================================ */
 var _html2canvasLoadPromise = null;
 
 function loadHtml2Canvas() {
@@ -60,6 +66,9 @@ function loadHtml2Canvas() {
     return _html2canvasLoadPromise;
 }
 
+/* ============================================================
+   بخش ۳ — آزادسازی محدودیت‌های سرریز
+   ============================================================ */
 function unlockElement(el) {
     if (!el || !el.style) return null;
     var cs = window.getComputedStyle(el);
@@ -82,6 +91,9 @@ function restoreElement(s) {
     s.el.style.overflowY = s.overflowY || '';
 }
 
+/* ============================================================
+   بخش ۴ — اندازه‌ی واقعی عنصر
+   ============================================================ */
 function getFullSize(el) {
     var w = Math.max(el.scrollWidth || 0, el.offsetWidth || 0, el.clientWidth || 0);
     var h = Math.max(el.scrollHeight || 0, el.offsetHeight || 0, el.clientHeight || 0);
@@ -95,9 +107,15 @@ function getFullSize(el) {
     return { width: Math.ceil(w), height: Math.ceil(h) };
 }
 
+/* ============================================================
+   بخش ۵ — تابع اصلی اشتراک‌گذاری تصویر (کیفیت بالا و نام‌گذاری سفارشی)
+   ============================================================ */
 async function shareAsImage(el, title, filename) {
     if (!el) { showToast('محتوایی برای اشتراک نیست.'); return; }
+    
+    // اطمینان از لود کامل فونت‌ها
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    
     showToast('📸 آماده‌سازی تصویر HD...');
 
     var h2c;
@@ -107,6 +125,7 @@ async function shareAsImage(el, title, filename) {
     }
 
     var isWidget = el.classList && el.classList.contains('widget-card');
+    // افزایش عرض پایه برای خوانایی بهتر
     var targetWidth = isWidget ? 800 : 1200;
 
     var collapsedCards = [];
@@ -150,9 +169,9 @@ async function shareAsImage(el, title, filename) {
     await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(r, 200); }); }); });
     var size = getFullSize(el);
 
-    // ✅ مقیاس ۳ برای وضوح کامل، اما با جلوگیری از کرش کردن
-    var scale = 3;
-    var MAX_CHUNK_H = 3000;
+    // تنظیم مقیاس روی ۳ برای وضوح بالا بدون کرش کردن
+    var scale = 3; 
+    var MAX_CHUNK_H = 3000; // برش برای جلوگیری از خطای حافظه
     var chunkCount = Math.ceil(size.height / MAX_CHUNK_H);
 
     var oncloneFn = function (clonedDoc, clonedEl) {
@@ -176,7 +195,7 @@ async function shareAsImage(el, title, filename) {
                 if (cs.gridTemplateColumns.indexOf('repeat') !== -1 || cs.gridTemplateColumns.split(' ').length > 1) node.style.gridTemplateColumns = '1fr';
             }
             
-            // حذف سایه و ترنسفورم برای شارپنس بالا
+            // حذف سایه و افکت‌ها برای شارپنس ۱۰۰٪
             if (cs.transform && cs.transform !== 'none') node.style.transform = 'none';
             if (cs.boxShadow && cs.boxShadow !== 'none') node.style.boxShadow = 'none';
             if (cs.textShadow && cs.textShadow !== 'none') node.style.textShadow = 'none';
@@ -188,8 +207,14 @@ async function shareAsImage(el, title, filename) {
     };
 
     var blobs = [];
-    // نام فایل بر اساس نام گزارش
-    var safeName = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '-').trim() + '-' + todayJalaliStr().replace(/\//g, '-');
+    
+    // ✅ ساخت نام فایل طبق فرمت درخواستی: نام گزارش-(ساعت-روز-ماه-سال)
+    var now = new Date();
+    var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    var dParts = todayJalaliStr().split('/');
+    var dateStr = dParts[2] + '-' + dParts[1] + '-' + dParts[0]; // DD-MM-YYYY
+    var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim();
+    var safeName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
 
     try {
         for (var i = 0; i < chunkCount; i++) {
@@ -198,9 +223,21 @@ async function shareAsImage(el, title, filename) {
             if (chunkCount > 1) showToast('📸 تکه ' + toFa(i + 1) + ' از ' + toFa(chunkCount) + '...');
 
             var canvas = await h2c(el, {
-                backgroundColor: '#ffffff', scale: scale, useCORS: true, allowTaint: false, logging: false,
-                scrollX: 0, scrollY: 0, x: 0, y: y, width: size.width, height: h, windowWidth: size.width, windowHeight: size.height,
-                letterRendering: true, onclone: oncloneFn
+                backgroundColor: '#ffffff', 
+                scale: scale, 
+                useCORS: true, 
+                allowTaint: false, 
+                logging: false,
+                scrollX: 0, 
+                scrollY: 0, 
+                x: 0, 
+                y: y, 
+                width: size.width, 
+                height: h, 
+                windowWidth: size.width, 
+                windowHeight: size.height,
+                letterRendering: false, // جلوگیری از خرابی حروف فارسی
+                onclone: oncloneFn
             });
 
             var blob = await new Promise(function (resolve, reject) {
@@ -220,6 +257,7 @@ async function shareAsImage(el, title, filename) {
         return;
     }
 
+    // بازگردانی استایل‌ها
     savedStyles.forEach(restoreElement);
     el.style.width = rootSaved.width || ''; el.style.minWidth = rootSaved.minWidth || '';
     el.style.maxWidth = rootSaved.maxWidth || ''; el.style.overflow = rootSaved.overflow || ''; el.style.overflowX = rootSaved.overflowX || ''; el.style.boxSizing = '';
@@ -254,6 +292,9 @@ async function shareAsImage(el, title, filename) {
     showToast('💾 ' + toFa(files.length) + ' تصویر HD دانلود شد.');
 }
 
+/* ============================================================
+   بخش ۶ — ساخت دکمه‌های اشتراک‌گذاری
+   ============================================================ */
 function buildShareButtons() {
     document.querySelectorAll('.list-header').forEach(function (h) {
         if (h.querySelector('.share-btn')) return;
@@ -270,10 +311,14 @@ function buildShareButtons() {
     });
 }
 
+/* ============================================================
+   بخش ۷ — Event Delegation
+   ============================================================ */
 (function bindShareDelegation() {
     function handle(e) {
         var target = e.target;
         if (!target || !target.closest) return;
+        
         var btn = target.closest('.share-btn');
         if (btn) {
             e.stopPropagation(); e.preventDefault();
@@ -284,6 +329,7 @@ function buildShareButtons() {
             if (typeof shareAsImage === 'function') shareAsImage(targetEl, title.trim(), 'parsis-report');
             return;
         }
+        
         var wBtn = target.closest('.widget-share-btn');
         if (wBtn) {
             e.stopPropagation(); e.preventDefault();
@@ -297,6 +343,9 @@ function buildShareButtons() {
     document.addEventListener('click', handle, true);
 })();
 
+/* ============================================================
+   صادرسازی نهایی
+   ============================================================ */
 window.shareAsText = shareAsText;
 window.reportToText = reportToText;
 window.loadHtml2Canvas = loadHtml2Canvas;
