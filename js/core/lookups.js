@@ -194,7 +194,7 @@ function printHtmlReport(selector, title) {
         tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
     }
 
-    // تشخیص افقی یا عمودی بودن
+    // تشخیص افقی یا عمودی بودن بر اساس تعداد ستون‌ها
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tablesHtml;
     var maxCols = 0;
@@ -204,13 +204,14 @@ function printHtmlReport(selector, title) {
     });
     var isLandscape = maxCols > 6;
 
+    // ساخت نام فایل با تاریخ و ساعت
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
     var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
 
-    // 🌟 قالب HTML استاندارد با استایل‌های درخواستی برای موتور چاپ مرورگر
+    // 🌟 قالب HTML با صفحه‌بندی هوشمند مرورگر
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -218,10 +219,10 @@ function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(fileName)}</title>
             <style>
-                /* تنظیم کاغذ و شماره صفحه */
+                /* تنظیمات کاغذ A4 و مارجین‌ها */
                 @page { 
                     size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
-                    margin: 10mm; /* کاهش حاشیه برای جا شدن ردیف‌های بیشتر */
+                    margin: 12mm 10mm 15mm 10mm; 
                     @bottom-center {
                         content: "صفحه " counter(page) " از " counter(pages);
                         font-family: Tahoma, sans-serif;
@@ -265,7 +266,7 @@ function printHtmlReport(selector, title) {
                     margin-bottom: 15px; 
                 }
                 
-                /* جلوگیری از نصفه شدن ردیف‌ها */
+                /* 🌟 جلوگیری از نصفه شدن ردیف‌ها هنگام رفتن به صفحه بعد */
                 tr { 
                     page-break-inside: avoid !important; 
                 }
@@ -274,6 +275,7 @@ function printHtmlReport(selector, title) {
                 thead { 
                     display: table-header-group; 
                 }
+                
                 /* 🌟 نمایش جمع کل در انتهای جدول */
                 tfoot {
                     display: table-row-group;
@@ -281,13 +283,13 @@ function printHtmlReport(selector, title) {
                 
                 th, td { 
                     border: 1px solid #64748b; 
-                    padding: 4px 8px; /* کاهش پدینگ برای فشرده شدن ردیف‌ها */
+                    padding: 4px 8px; 
                     text-align: center; 
                     vertical-align: middle;
                     word-wrap: break-word;
                 }
                 
-                /* 🌟 استایل هدر (خاکستری و بولد) */
+                /* 🌟 استایل هدر جدول (خاکستری و بولد) */
                 th { 
                     background-color: #e2e8f0 !important; 
                     font-weight: bold !important; 
@@ -296,7 +298,7 @@ function printHtmlReport(selector, title) {
                     font-size: 11pt;
                 }
                 
-                /* 🌟 استایل جمع کل (خاکستری و بولد) */
+                /* 🌟 استایل ردیف جمع کل (خاکستری و بولد) */
                 tfoot td {
                     background-color: #e2e8f0 !important;
                     font-weight: bold !important;
@@ -334,7 +336,6 @@ function printHtmlReport(selector, title) {
         </html>
     `;
 
-    // ایجاد iframe مخفی برای باز کردن پنجره چاپ
     var iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0';
@@ -347,7 +348,6 @@ function printHtmlReport(selector, title) {
     doc.write(htmlContent);
     doc.close();
 
-    // صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
     setTimeout(function() {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
@@ -447,6 +447,9 @@ function exportReportTable(selector, filename) {
     a.click(); URL.revokeObjectURL(url);
 }
 
+/* ============================================================
+   صادرسازی
+   ============================================================ */
 window.getAccountLabel = getAccountLabel;
 window.getAccountSearchText = getAccountSearchText;
 window.getDetailLabel = getDetailLabel;
@@ -461,4 +464,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine (Styled)');
+console.log('✅ [core/lookups.js] loaded — Native Print Engine (Smart Pagination)');
