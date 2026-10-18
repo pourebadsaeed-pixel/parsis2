@@ -15,7 +15,125 @@ window._voucherFormSavedAndClean = false;
 window._voucherSaved_backup = null;
 
 /* ============================================================
-   بخش ۲ — توابع کمکی مرتب‌سازی معین‌ها
+   بخش ۲ — استایل و کامپوننت لیست کشویی جستجوپذیر
+   ============================================================ */
+(function injectVoucherSearchableCss() {
+    if (document.getElementById('cs-voucher-style')) return;
+    var s = document.createElement('style');
+    s.id = 'cs-voucher-style';
+    s.textContent = `
+        .cs-wrapper { position: relative; width: 100%; margin-top: 8px; }
+        .cs-trigger { padding:10px; font-size:0.82rem; border:1.5px solid var(--border); border-radius:10px; background:var(--card-solid); cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none; min-height:40px; }
+        .cs-trigger:hover { border-color:var(--primary); }
+        .cs-trigger::after { content:'▼'; font-size:0.7rem; color:var(--text-muted); }
+        .cs-trigger.disabled { pointer-events: none; opacity: 0.6; background: var(--primary-soft); }
+        .cs-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--card-solid); border:1.5px solid var(--primary); border-radius:10px; z-index:100; display:none; box-shadow:var(--shadow-md); overflow:hidden; }
+        .cs-wrapper.open .cs-dropdown { display:block; }
+        
+        .cs-search-box { padding:8px; border-bottom:1px solid var(--border); background:var(--card-alt); }
+        .cs-search-input { width:100%; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-family:inherit; font-size:0.8rem; outline:none; }
+        .cs-search-input:focus { border-color:var(--primary); }
+        
+        .cs-options { list-style:none; margin:0; padding:0; max-height:200px; overflow-y:auto; }
+        .cs-options li { padding:10px 12px; font-size:0.82rem; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.15s; }
+        .cs-options li:last-child { border-bottom:none; }
+        .cs-options li:hover { background:var(--primary-soft); color:var(--primary-dark); }
+        .cs-options li.selected { background:var(--primary-light); font-weight:800; color:var(--primary-dark); }
+        .cs-options li.empty { text-align:center; color:var(--text-muted); font-size:0.75rem; cursor:default; }
+    `;
+    document.head.appendChild(s);
+})();
+
+if (!window._csGlobalListenerAdded) {
+    window._csGlobalListenerAdded = true;
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.cs-wrapper')) {
+            document.querySelectorAll('.cs-wrapper.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+        }
+    });
+}
+
+function createSearchableSelect(items, selectedValue, placeholder, onChange, disabled) {
+    var wrap = document.createElement('div');
+    wrap.className = 'cs-wrapper';
+
+    var trigger = document.createElement('div');
+    trigger.className = 'cs-trigger' + (disabled ? ' disabled' : '');
+    var selItem = items.find(function(i) { return i.value === selectedValue; });
+    trigger.textContent = selItem ? selItem.text : placeholder;
+    wrap.appendChild(trigger);
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'cs-dropdown';
+
+    var searchBox = document.createElement('div');
+    searchBox.className = 'cs-search-box';
+    var searchInp = document.createElement('input');
+    searchInp.type = 'text';
+    searchInp.className = 'cs-search-input';
+    searchInp.placeholder = 'جستجو...';
+    searchBox.appendChild(searchInp);
+    dropdown.appendChild(searchBox);
+
+    var list = document.createElement('ul');
+    list.className = 'cs-options';
+    dropdown.appendChild(list);
+    wrap.appendChild(dropdown);
+
+    function renderOptions(q) {
+        list.innerHTML = '';
+        q = (q || '').toLowerCase();
+        var filtered = items.filter(function(i) { return !q || i.text.toLowerCase().indexOf(q) !== -1; });
+        
+        if (filtered.length === 0) {
+            list.innerHTML = '<li class="empty">یافت نشد</li>';
+            return;
+        }
+        
+        filtered.forEach(function(i) {
+            var li = document.createElement('li');
+            li.textContent = i.text;
+            if (i.value === selectedValue) li.className = 'selected';
+            
+            li.onclick = function(e) {
+                e.stopPropagation();
+                selectedValue = i.value;
+                trigger.textContent = i.text;
+                wrap.classList.remove('open');
+                searchInp.value = '';
+                renderOptions('');
+                if (onChange) onChange(i.value);
+            };
+            list.appendChild(li);
+        });
+    }
+    renderOptions('');
+
+    if (!disabled) {
+        trigger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isOpen = wrap.classList.contains('open');
+            document.querySelectorAll('.cs-wrapper.open').forEach(function(el) {
+                if (el !== wrap) el.classList.remove('open');
+            });
+            if (!isOpen) {
+                wrap.classList.add('open');
+                setTimeout(function() { searchInp.focus(); }, 50);
+            } else {
+                wrap.classList.remove('open');
+            }
+        });
+        
+        searchInp.addEventListener('input', function() { renderOptions(this.value); });
+    }
+
+    return wrap;
+}
+
+/* ============================================================
+   بخش ۳ — توابع کمکی مرتب‌سازی معین‌ها
    ============================================================ */
 function sortAccountsByCode(arr) {
     return arr.slice().sort(function (a, b) {
@@ -42,7 +160,7 @@ function getLeafAccountsSortedByCode() {
 }
 
 /* ============================================================
-   بخش ۳ — نوار وضعیت سند
+   بخش ۴ — نوار وضعیت سند
    ============================================================ */
 function getOrCreateVoucherStatusBar() {
     var bar = document.getElementById('voucher-status-bar');
@@ -103,7 +221,7 @@ function setVoucherStatusBar(status, vId) {
 }
 
 /* ============================================================
-   بخش ۴ — شماره‌گذاری خودکار سند
+   بخش ۵ — شماره‌گذاری خودکار سند
    ============================================================ */
 function getNextVoucherNumberForPeriod(periodId) {
     var vouchers = DB.load('vouchers', []);
@@ -118,7 +236,7 @@ function getNextVoucherNumberForPeriod(periodId) {
 }
 
 /* ============================================================
-   بخش ۵ — اعتبارسنجی تاریخ در دوره فعال
+   بخش ۶ — اعتبارسنجی تاریخ در دوره فعال
    ============================================================ */
 function validateDateInActivePeriod(dateStr) {
     if (!dateStr) return { ok: false, msg: 'تاریخ خالی است' };
@@ -138,7 +256,7 @@ function validateDateInActivePeriod(dateStr) {
 }
 
 /* ============================================================
-   بخش ۶ — مبلغ کل سند
+   بخش ۷ — مبلغ کل سند و بررسی مشکلات
    ============================================================ */
 function getVoucherAmount(v) {
     var t = 0;
@@ -154,9 +272,6 @@ function findVoucherById(id) {
     return null;
 }
 
-/* ============================================================
-   بخش ۷ — بررسی مشکلات سند
-   ============================================================ */
 function getVoucherIssues(v) {
     var issues = [];
     if (!v) return ['سند نامعتبر'];
@@ -225,7 +340,7 @@ function getVoucherIssues(v) {
 }
 
 /* ============================================================
-   بخش ۸ — رندر اقلام سند
+   بخش ۸ — رندر اقلام سند (با کامپوننت جستجوپذیر)
    ============================================================ */
 function renderVoucherLines() {
     var box = document.getElementById('voucher-lines');
@@ -240,6 +355,11 @@ function renderVoucherLines() {
 
     var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
+    
+    // آماده‌سازی لیست حساب‌ها برای کامپوننت
+    var accItems = leaves.map(function(a) {
+        return { value: a.id, text: getAccountLabel(a.id, accounts) };
+    });
 
     for (var i = 0; i < voucherLines.length; i++) (function (idx) {
         var line = voucherLines[idx];
@@ -255,141 +375,49 @@ function renderVoucherLines() {
         numSpan.textContent = '#' + toFa(idx + 1) + (line.locked ? ' 🔒' : '');
         wrap.appendChild(numSpan);
 
-        /* ردیف ۱: انتخاب معین */
-        var mainGrid = document.createElement('div');
-        mainGrid.className = 'ln-search-row';
-        mainGrid.style.paddingTop = '14px';
-
-        var sA = document.createElement('input');
-        sA.type = 'text';
-        sA.className = 'ln-search';
-        sA.placeholder = '🔍 جستجوی معین...';
-
-        var selA = document.createElement('select');
-
-        var fillA = function (q) {
-            var cur = line.account;
-            var f = leaves.filter(function (l) {
-                if (!q) return true;
-                return getAccountSearchText(l.id, accounts).indexOf(q) !== -1;
-            });
-            selA.innerHTML = '';
-            var ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = '— معین —';
-            selA.appendChild(ph);
-            for (var k = 0; k < f.length; k++) {
-                var o = document.createElement('option');
-                o.value = f[k].id;
-                o.textContent = getAccountLabel(f[k].id, accounts);
-                if (cur === f[k].id) o.selected = true;
-                selA.appendChild(o);
-            }
-        };
-        fillA('');
-
-        if (line.locked) selA.disabled = true;
-
-        sA.addEventListener('input', function () {
-            fillA(normalizeDigits(this.value.trim().toLowerCase()));
-        });
-        selA.addEventListener('change', function () {
-            line.account = this.value;
+        /* --- ردیف ۱: انتخاب معین (جستجوپذیر) --- */
+        var accSelect = createSearchableSelect(accItems, line.account, '— انتخاب معین —', function(val) {
+            line.account = val;
             line.details = {};
-            renderVoucherLines();
-        });
+            renderVoucherLines(); // رندر مجدد برای نمایش/مخفی کردن تفصیلی
+        }, line.locked);
+        
+        // ایجاد فاصله از شماره ردیف
+        accSelect.style.marginTop = '14px';
+        wrap.appendChild(accSelect);
 
-        mainGrid.appendChild(sA);
-        mainGrid.appendChild(selA);
-        wrap.appendChild(mainGrid);
-
-        /* ردیف ۲: تفصیلی ترکیبی */
+        /* --- ردیف ۲: انتخاب تفصیلی (جستجوپذیر) --- */
         var acc = accounts.find(function (a) { return a.id === line.account; });
         if (acc && acc.links && acc.links.length > 0) {
             var combined = [];
             acc.links.forEach(function (lt) {
-                var items = getLinkedItems(lt);
-                items.forEach(function (it) {
+                getLinkedItems(lt).forEach(function (it) {
                     var lbl = getLinkedItemLabel(lt, it);
                     combined.push({
-                        linkType: lt,
-                        id: it.id,
-                        label: linkTypeName(lt) + ': ' + lbl,
-                        searchText: (lbl + ' ' + linkTypeName(lt)).toLowerCase()
+                        value: lt + '::' + it.id,
+                        text: linkTypeName(lt) + ': ' + lbl
                     });
                 });
             });
 
-            var currentLT = null, currentID = null;
-            if (line.details) {
-                acc.links.forEach(function (lt) {
-                    if (line.details[lt]) {
-                        currentLT = lt;
-                        currentID = line.details[lt];
-                    }
-                });
-            }
-
-            var detGrid = document.createElement('div');
-            detGrid.className = 'ln-search-row';
-            detGrid.style.marginTop = '8px';
-
-            var sD = document.createElement('input');
-            sD.type = 'text';
-            sD.className = 'ln-search';
-            sD.placeholder = '🔍 جستجوی تفصیلی...';
-
-            var selD = document.createElement('select');
-
-            var fillD = function (q) {
-                selD.innerHTML = '';
-                var ph = document.createElement('option');
-                ph.value = '';
-                ph.textContent = '— تفصیلی —';
-                selD.appendChild(ph);
-                combined.forEach(function (c) {
-                    if (q && c.searchText.indexOf(q) === -1) return;
-                    var o = document.createElement('option');
-                    o.value = c.linkType + '::' + c.id;
-                    o.textContent = c.label;
-                    if (c.linkType === currentLT && c.id === currentID) o.selected = true;
-                    selD.appendChild(o);
-                });
-            };
-            fillD('');
-
-            if (line.locked) selD.disabled = true;
-
-            sD.addEventListener('input', function () {
-                var q = normalizeDigits(this.value.trim().toLowerCase());
-                var curVal = selD.value;
-                fillD(q);
-                if (curVal) {
-                    for (var k = 0; k < selD.options.length; k++) {
-                        if (selD.options[k].value === curVal) {
-                            selD.selectedIndex = k;
-                            break;
-                        }
-                    }
-                }
+            var currentDetVal = null;
+            acc.links.forEach(function (lt) {
+                if (line.details[lt]) currentDetVal = lt + '::' + line.details[lt];
             });
 
-            selD.addEventListener('change', function () {
+            var detSelect = createSearchableSelect(combined, currentDetVal, '— انتخاب تفصیلی —', function(val) {
                 line.details = {};
-                if (this.value) {
-                    var parts = this.value.split('::');
+                if (val) {
+                    var parts = val.split('::');
                     line.details[parts[0]] = parts[1];
-                    currentLT = parts[0];
-                    currentID = parts[1];
                 }
-            });
-
-            detGrid.appendChild(sD);
-            detGrid.appendChild(selD);
-            wrap.appendChild(detGrid);
+            }, line.locked);
+            
+            detSelect.style.marginTop = '8px';
+            wrap.appendChild(detSelect);
         }
 
-        /* ردیف ۳: مبالغ + شماره/تاریخ پیگیری */
+        /* --- ردیف ۳: مبالغ + شماره/تاریخ پیگیری --- */
         var r3 = document.createElement('div');
         r3.className = 'ln-row r4';
         r3.style.marginTop = '10px';
@@ -507,7 +535,7 @@ function renderVoucherLines() {
         r3.appendChild(iTD);
         wrap.appendChild(r3);
 
-        /* ردیف ۴: شرح + دکمه‌ها */
+        /* --- ردیف ۴: شرح + دکمه‌ها --- */
         var r4 = document.createElement('div');
         r4.className = 'desc-row';
         r4.style.marginTop = '8px';
@@ -553,7 +581,7 @@ function renderVoucherLines() {
         r4.appendChild(btnAddDesc);
         wrap.appendChild(r4);
 
-        /* ردیف ۵: دکمه‌های عملیات */
+        /* --- ردیف ۵: دکمه‌های عملیات --- */
         var aW = document.createElement('div');
         aW.className = 'ln-actions';
 
@@ -659,7 +687,7 @@ function renderVoucherLines() {
 }
 
 /* ============================================================
-   بخش ۹ — کپی ردیف
+   بخش ۹ — کپی و جابجایی ردیف
    ============================================================ */
 function copyVoucherLine(idx) {
     var src = voucherLines[idx];
@@ -672,9 +700,6 @@ function copyVoucherLine(idx) {
     showToast('📋 ردیف کپی شد در پایین');
 }
 
-/* ============================================================
-   بخش ۱۰ — جابجایی ردیف
-   ============================================================ */
 function moveLine(idx, dir) {
     var ni = idx + dir;
     if (ni < 0 || ni >= voucherLines.length) return;
@@ -686,7 +711,7 @@ function moveLine(idx, dir) {
 }
 
 /* ============================================================
-   بخش ۱۱ — جمع‌های سند
+   بخش ۱۰ — جمع‌های سند
    ============================================================ */
 function updateVoucherTotals() {
     var td = 0, tc = 0;
@@ -714,7 +739,7 @@ function updateVoucherTotals() {
 }
 
 /* ============================================================
-   بخش ۱۲ — فرم سند جدید
+   بخش ۱۱ — فرم سند جدید
    ============================================================ */
 function newVoucherForm() {
     document.getElementById('v-id').value = '';
@@ -732,7 +757,7 @@ function newVoucherForm() {
 }
 
 /* ============================================================
-   بخش ۱۳ — بارگذاری سند برای ویرایش
+   بخش ۱۲ — بارگذاری سند برای ویرایش
    ============================================================ */
 function loadVoucherForEdit(v) {
     document.getElementById('v-id').value = v.id;
@@ -751,7 +776,7 @@ function loadVoucherForEdit(v) {
 }
 
 /* ============================================================
-   بخش ۱۴ — ذخیره سند (پیش‌نویس یا تأیید)
+   بخش ۱۳ — ذخیره سند (پیش‌نویس یا تأیید)
    ============================================================ */
 function persistVoucher(approve) {
     if (currentVoucherStatus === 'approved' && !approve) {
@@ -814,9 +839,11 @@ function persistVoucher(approve) {
 
     var l = DB.load('vouchers', []);
     if (id) {
+        var found = false;
         for (var kk = 0; kk < l.length; kk++) {
-            if (l[kk].id === id) l[kk] = vch;
+            if (l[kk].id === id) { l[kk] = vch; found = true; }
         }
+        if (!found) l.push(vch);
     } else {
         l.push(vch);
     }
@@ -842,7 +869,7 @@ function persistVoucher(approve) {
 }
 
 /* ============================================================
-   بخش ۱۵ — تشخیص تغییر پس از ذخیره
+   بخش ۱۴ — تشخیص تغییر پس از ذخیره
    ============================================================ */
 (function attachVoucherDirtyListener() {
     function markDirty(e) {
@@ -869,7 +896,7 @@ function persistVoucher(approve) {
 })();
 
 /* ============================================================
-   بخش ۱۶ — اعمال الگو
+   بخش ۱۵ — اعمال الگو
    ============================================================ */
 function applyTemplate(tplId) {
     var list = DB.load('voucherTemplates', []);
@@ -905,7 +932,7 @@ function applyTemplate(tplId) {
 }
 
 /* ============================================================
-   بخش ۱۷ — ذخیره سند به‌عنوان الگو
+   بخش ۱۶ — ذخیره سند به‌عنوان الگو
    ============================================================ */
 function saveVoucherAsTemplate() {
     var valid = voucherLines.filter(function (l) { return l.account; });
@@ -947,7 +974,7 @@ function saveVoucherAsTemplate() {
 }
 
 /* ============================================================
-   بخش ۱۸ — اتصال دکمه‌های فرم سند
+   بخش ۱۷ — اتصال دکمه‌های فرم سند
    ============================================================ */
 function bindVoucherForm() {
     var addBtn = document.getElementById('add-line');
@@ -994,7 +1021,7 @@ function bindVoucherForm() {
 }
 
 /* ============================================================
-   بخش ۱۹ — بارگذاری نوار وضعیت در شروع
+   بخش ۱۸ — بارگذاری نوار وضعیت در شروع
    ============================================================ */
 (function initVoucherStatusBarOnLoad() {
     function check() {
@@ -1027,4 +1054,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — complete');
+console.log('✅ [modules/vouchers/form.js] loaded — Searchable Dropdown added');
