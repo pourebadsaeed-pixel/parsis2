@@ -357,6 +357,32 @@ function getDescendantIds(accountId) {
     return result;
 }
 
+function getPeriodMonthRange() {
+    var d = new Date();
+    var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    var y = j[0], m = j[1];
+    var from = y + '/' + pad2(m) + '/01';
+    var to = y + '/' + pad2(m) + '/' + pad2(daysInJalaliMonth(y, m));
+    return { from: from, to: to, year: y, month: m };
+}
+
+function refreshReportPeriodSelects() {
+    var ps = DB.load('fiscalPeriods', []);
+    ['ra-period', 'rt-period', 'ri-period'].forEach(function (id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var v = sel.value;
+        sel.innerHTML = '<option value="">همه</option>';
+        for (var i = 0; i < ps.length; i++) {
+            var o = document.createElement('option');
+            o.value = ps[i].id;
+            o.textContent = ps[i].title;
+            sel.appendChild(o);
+        }
+        sel.value = v;
+    });
+}
+
 /* ============================================================
    بخش ۵ — فیلتر کردن ردیف‌های موجود (بدون بازسازی HTML)
    ============================================================ */
@@ -1055,7 +1081,9 @@ window.computeAccountBalances         = computeAccountBalances;
 window.rollupBalances                 = rollupBalances;
 window.getRootAccountId               = getRootAccountId;
 window.getDescendantIds               = getDescendantIds;
+window.getPeriodMonthRange            = getPeriodMonthRange;
+window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — getRootAccountId restored');
+console.log('✅ [modules/reports/account.js] loaded — All missing functions restored');
