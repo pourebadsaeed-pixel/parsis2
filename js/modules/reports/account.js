@@ -346,7 +346,7 @@ function getDescendantIds(accountId) {
 /* ============================================================
    بخش ۵ — رندر گزارش (با قابلیت فیلتر و مرتب‌سازی)
    ============================================================ */
-function renderAccountReview() {
+function renderAccountReview(onlyRows) {
     var box = document.getElementById('ra-result');
     if (!box) return;
 
@@ -373,7 +373,6 @@ function renderAccountReview() {
     else if (_AR.activeLevel === 3) parentId = _AR.path[1] || null;
     else if (_AR.activeLevel === 4) parentId = _AR.path[2] || null;
 
-    // پیدا کردن معین‌های مرتبط با تفصیلی (اگر در حالت فیلتر باشیم)
     var filterParents = null;
     if (_AR.detailFilter && _AR.detailFilterType) {
         var dKey = _AR.detailFilterType + '::' + _AR.detailFilter;
@@ -393,7 +392,6 @@ function renderAccountReview() {
                 if (a.parent !== parentId) return;
             }
 
-            // اگر فیلتر تفصیلی فعال است، فقط معین‌های مرتبط را نشان بده
             if (filterParents && filterParents.indexOf(a.id) === -1) return;
 
             list.push({
@@ -454,7 +452,109 @@ function renderAccountReview() {
         return String(va).localeCompare(String(vb), 'fa') * dir;
     });
 
+    // محاسبه جمع‌ها و تولید HTML جدول
     var tD = 0, tC = 0, tMD = 0, tMC = 0;
+    var rowsHtml = '';
+
+    list.forEach(function (a) {
+        var net = a.debit - a.credit;
+        var md = net > 0 ? net : 0;
+        var mc = net < 0 ? -net : 0;
+        
+        tD += a.debit; tC += a.credit; tMD += md; tMC += mc;
+
+        var rowCls = 'ar-row' + (a.id === _AR.selectedId && _AR.activeLevel === 4 ? ' selected' : '');
+        var badgeCls = 'b' + Math.min(_AR.activeLevel, 4);
+        var lvlName = _AR_LEVELS[_AR.activeLevel];
+
+        var turnoverAcc = a.isDetail ? '' : a.id; 
+        var turnoverDetailAttr = a.isDetail ? ' data-turnover-detail="' + a.id + '" data-turnover-link="' + a.linkType + '"' : '';
+
+        rowsHtml += '<tr class="' + rowCls + '" '
+             +  'data-id="' + (a.isDetail ? '' : a.id) + '" '
+             +  (a.isDetail ? 'data-detail-id="' + a.id + '" data-link="' + a.linkType + '"' : '')
+             +  '>';
+
+        rowsHtml += '<td class="ar-code" data-orig-index="0">'
+             +  '<span>' + esc(a.code || '—') + '</span>'
+             +  '</td>';
+
+        var nameExtra = '';
+        if (a.isDetail && a.linkType) {
+            nameExtra = ' <span class="ar-link-badge">' + linkTypeName(a.linkType) + '</span>';
+        } else if (!a.isDetail) {
+            nameExtra = ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>';
+        }
+
+        rowsHtml += '<td class="ar-name" data-orig-index="1">'
+             +    '<div class="ar-name-wrap">'
+             +      '<span class="ar-name-text">' + esc(a.name || '') + nameExtra + '</span>'
+             +      '<button type="button" class="ar-turnover-btn" '
+             +        'data-turnover-acc="' + turnoverAcc + '"'
+             +        turnoverDetailAttr
+             +        ' onclick="event.stopPropagation(); window._AR_openTurnover(this); return false;" '
+             +        'title="نمایش گردش حساب">📊</button>'
+             +    '</div>'
+             +  '</td>';
+
+        rowsHtml += '<td class="ar-num' + (a.debit ? '' : ' zero') + '" data-orig-index="2">' + (hide ? '—' : moneyHtml(a.debit)) + '</td>';
+        rowsHtml += '<td class="ar-num' + (a.credit ? '' : ' zero') + '" data-orig-index="3">' + (hide ? '—' : moneyHtml(a.credit)) + '</td>';
+        rowsHtml += '<td class="ar-num md' + (md ? '' : ' zero') + '" data-orig-index="4">' + (hide ? '—' : moneyHtml(md)) + '</td>';
+        rowsHtml += '<td class="ar-num mc' + (mc ? '' : ' zero') + '" data-orig-index="5">' + (hide ? '—' : moneyHtml(mc)) + '</td>';
+        rowsHtml += '</tr>';
+    });
+
+    if (list.length === 0) {
+        rowsHtml += '<tr><td colspan="6" class="ar-empty">'
+             +  (filterBal || Object.values(_arFilters).some(Boolean) || _AR.detailFilter ? 'هیچ موردی با این فیلترها یافت نشد.' : 'داده‌ای در این سطح نیست.')
+             +  '</td></tr>';
+    }
+
+    var footHtml = '<tr>';
+    footHtml += '<td data-orig-index="0"></td>';
+    footHtml += '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>';
+    footHtml += '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(tD)) + '</td>';
+    footHtml += '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(tC)) + '</td>';
+    footHtml += '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(tMD)) + '</td>';
+    footHtml += '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(tMC)) + '</td>';
+    footHtml += '</tr>';
+
+    // اگر فقط می‌خواهیم ردیف‌ها را آپدیت کنیم (هنگام تایپ در فیلتر)
+    if (onlyRows) {
+        var tbody = document.getElementById('ra-tbody');
+        var tfoot = document.getElementById('ra-tfoot');
+        if (tbody) tbody.innerHTML = rowsHtml;
+        if (tfoot) tfoot.innerHTML = footHtml;
+        
+        // رویداد کلیک ردیف‌ها را دوباره متصل می‌کنیم
+        box.querySelectorAll('.ar-row').forEach(function (tr) {
+            tr.addEventListener('click', function (e) {
+                if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
+                if (e.target.classList && e.target.classList.contains('ar-turnover-btn')) return;
+
+                var id = tr.getAttribute('data-id') || tr.getAttribute('data-detail-id');
+                var isDetail = tr.hasAttribute('data-detail-id');
+                
+                _AR.selectedId = id;
+                if (isDetail) {
+                    _AR.detailFilter = id;
+                    _AR.detailFilterType = tr.getAttribute('data-link');
+                    _AR.activeLevel = 3;
+                    _AR.path = [];
+                } else {
+                    _AR.detailFilter = null;
+                    _AR.detailFilterType = null;
+                    _AR.path[_AR.activeLevel - 1] = id;
+                    _AR.path = _AR.path.slice(0, _AR.activeLevel);
+                    _AR.activeLevel++;
+                }
+                renderAccountReview();
+            });
+        });
+        
+        return; // خروج از تابع بدون بازسازی کل جدول
+    }
+
     var html = '<div class="ar-wrap">';
 
     html += '<div class="ar-tb">';
@@ -463,7 +563,6 @@ function renderAccountReview() {
     html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
     html += '</div>';
 
-    // نشانگر فیلتر تفصیلی
     if (_AR.detailFilter && _AR.detailFilterType) {
         var detName = getDetailLabel(_AR.detailFilterType, _AR.detailFilter);
         html += '<div class="ar-filter-badge">';
@@ -506,72 +605,10 @@ function renderAccountReview() {
     html += '<th data-orig-index="3"><input type="text" class="ar-filter-input" data-col="credit" value="' + esc(_arFilters.credit) + '" placeholder="..."></th>';
     html += '<th data-orig-index="4"><input type="text" class="ar-filter-input" data-col="md" value="' + esc(_arFilters.md) + '" placeholder="..."></th>';
     html += '<th data-orig-index="5"><input type="text" class="ar-filter-input" data-col="mc" value="' + esc(_arFilters.mc) + '" placeholder="..."></th>';
-    html += '</tr></thead><tbody>';
-
-    list.forEach(function (a) {
-        var net = a.debit - a.credit;
-        var md = net > 0 ? net : 0;
-        var mc = net < 0 ? -net : 0;
-        
-        tD += a.debit; tC += a.credit; tMD += md; tMC += mc;
-
-        var rowCls = 'ar-row' + (a.id === _AR.selectedId && _AR.activeLevel === 4 ? ' selected' : '');
-        var badgeCls = 'b' + Math.min(_AR.activeLevel, 4);
-        var lvlName = _AR_LEVELS[_AR.activeLevel];
-
-        var turnoverAcc = a.isDetail ? '' : a.id; 
-        var turnoverDetailAttr = a.isDetail ? ' data-turnover-detail="' + a.id + '" data-turnover-link="' + a.linkType + '"' : '';
-        
-        if (a.isDetail && _AR.path.length >= 3) { /* منطق اضافی در صورت نیاز */ }
-
-        html += '<tr class="' + rowCls + '" '
-             +  'data-id="' + (a.isDetail ? '' : a.id) + '" '
-             +  (a.isDetail ? 'data-detail-id="' + a.id + '" data-link="' + a.linkType + '"' : '')
-             +  '>';
-
-        html += '<td class="ar-code" data-orig-index="0">'
-             +  '<span>' + esc(a.code || '—') + '</span>'
-             +  '</td>';
-
-        var nameExtra = '';
-        if (a.isDetail && a.linkType) {
-            nameExtra = ' <span class="ar-link-badge">' + linkTypeName(a.linkType) + '</span>';
-        } else if (!a.isDetail) {
-            nameExtra = ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>';
-        }
-
-        html += '<td class="ar-name" data-orig-index="1">'
-             +    '<div class="ar-name-wrap">'
-             +      '<span class="ar-name-text">' + esc(a.name || '') + nameExtra + '</span>'
-             +      '<button type="button" class="ar-turnover-btn" '
-             +        'data-turnover-acc="' + turnoverAcc + '"'
-             +        turnoverDetailAttr
-             +        ' onclick="event.stopPropagation(); window._AR_openTurnover(this); return false;" '
-             +        'title="نمایش گردش حساب">📊</button>'
-             +    '</div>'
-             +  '</td>';
-
-        html += '<td class="ar-num' + (a.debit ? '' : ' zero') + '" data-orig-index="2">' + (hide ? '—' : moneyHtml(a.debit)) + '</td>';
-        html += '<td class="ar-num' + (a.credit ? '' : ' zero') + '" data-orig-index="3">' + (hide ? '—' : moneyHtml(a.credit)) + '</td>';
-        html += '<td class="ar-num md' + (md ? '' : ' zero') + '" data-orig-index="4">' + (hide ? '—' : moneyHtml(md)) + '</td>';
-        html += '<td class="ar-num mc' + (mc ? '' : ' zero') + '" data-orig-index="5">' + (hide ? '—' : moneyHtml(mc)) + '</td>';
-        html += '</tr>';
-    });
-
-    if (list.length === 0) {
-        html += '<tr><td colspan="6" class="ar-empty">'
-             +  (filterBal || Object.values(_arFilters).some(Boolean) || _AR.detailFilter ? 'هیچ موردی با این فیلترها یافت نشد.' : 'داده‌ای در این سطح نیست.')
-             +  '</td></tr>';
-    }
-
-    html += '</tbody><tfoot><tr>';
-    html += '<td data-orig-index="0"></td>';
-    html += '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>';
-    html += '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(tD)) + '</td>';
-    html += '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(tC)) + '</td>';
-    html += '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(tMD)) + '</td>';
-    html += '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(tMC)) + '</td>';
-    html += '</tr></tfoot>';
+    html += '</tr></thead>';
+    
+    html += '<tbody id="ra-tbody">' + rowsHtml + '</tbody>';
+    html += '<tfoot id="ra-tfoot">' + footHtml + '</tfoot>';
     html += '</table></div>';
     html += '</div></div></div>';
 
@@ -594,22 +631,15 @@ function renderAccountReview() {
         });
     });
 
-    /* فیلترها */
+    /* فیلترها — فقط ردیف‌ها را به‌روزرسانی می‌کند تا کیبورد نپرد */
     box.querySelectorAll('.ar-filter-input').forEach(function (inp) {
         inp.addEventListener('input', function () {
             var col = this.getAttribute('data-col');
             _arFilters[col] = this.value;
-            var activeInput = this.getAttribute('data-col');
-            renderAccountReview();
-            var newInp = document.querySelector('.ar-filter-input[data-col="' + activeInput + '"]');
-            if (newInp) {
-                newInp.focus();
-                newInp.setSelectionRange(newInp.value.length, newInp.value.length);
-            }
+            renderAccountReview(true); // true = فقط جدول آپدیت شود
         });
     });
 
-    // لغو فیلتر تفصیلی
     var clearBtn = document.getElementById('ar-clear-detail-filter');
     if (clearBtn) {
         clearBtn.addEventListener('click', function() {
@@ -644,7 +674,7 @@ function bindAccountReviewEvents(accounts, box) {
             var lvl = Number(this.getAttribute('data-lvl'));
             if (lvl === _AR.activeLevel) return;
             
-            _AR.detailFilter = null; // با کلیک روی سطوح، فیلتر تفصیلی پاک می‌شود
+            _AR.detailFilter = null;
             _AR.detailFilterType = null;
 
             if (lvl < _AR.activeLevel) {
@@ -686,7 +716,6 @@ function bindAccountReviewEvents(accounts, box) {
         });
     });
 
-    // کلیک روی ردیف‌ها برای رفتن به سطح بعدی
     box.querySelectorAll('.ar-row').forEach(function (tr) {
         tr.addEventListener('click', function (e) {
             if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
@@ -697,13 +726,11 @@ function bindAccountReviewEvents(accounts, box) {
             
             _AR.selectedId = id;
             if (isDetail) {
-                // اگر روی تفصیلی کلیک شد، به سطح معین برگرد و فیلترش کن
                 _AR.detailFilter = id;
                 _AR.detailFilterType = tr.getAttribute('data-link');
                 _AR.activeLevel = 3;
-                _AR.path = []; // مسیر را پاک می‌کنیم تا محدود به گروه خاصی نباشد
+                _AR.path = [];
             } else {
-                // ناوبری عادی به سطح بعدی
                 _AR.detailFilter = null;
                 _AR.detailFilterType = null;
                 _AR.path[_AR.activeLevel - 1] = id;
@@ -989,4 +1016,4 @@ window.getDescendantIds               = getDescendantIds;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Detail click filters parents');
+console.log('✅ [modules/reports/account.js] loaded — Input focus issue fixed');
