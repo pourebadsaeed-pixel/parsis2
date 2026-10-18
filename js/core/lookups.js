@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (باز کردن پنجره جدید کاملاً تمیز)
+   بخش چاپ (باز کردن پنجره جدید کاملاً تمیز + رفع مشکل تاریخ)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -142,18 +142,36 @@ function printHtmlReport(selector, title) {
         return;
     }
 
-    // ۱. استخراج تاریخ‌ها
+    // 🌟 رفع مشکل تاریخ: خواندن مستقیم مقادیر فیلدها با آی‌دی برای اطمینان ۱۰۰٪
     var dateRange = '';
-    var dateInputs = activePage.querySelectorAll('.date-picker');
-    var dates = [];
-    dateInputs.forEach(function(inp) {
-        if (inp.value) {
-            var label = inp.closest('.field') ? inp.closest('.field').querySelector('label') : null;
-            var labelText = label ? label.textContent.trim() : '';
-            dates.push((labelText ? labelText + ': ' : '') + toFa(inp.value));
-        }
-    });
-    if (dates.length > 0) dateRange = dates.join(' | ');
+    var fromEl = document.getElementById('rt-from') || 
+                 document.getElementById('ra-from') || 
+                 document.getElementById('cf-from') || 
+                 document.getElementById('cfd-from');
+                 
+    var toEl = document.getElementById('rt-to') || 
+               document.getElementById('ra-to') || 
+               document.getElementById('cf-to') || 
+               document.getElementById('cfd-to');
+
+    var fVal = fromEl && fromEl.value ? fromEl.value : '';
+    var tVal = toEl && toEl.value ? toEl.value : '';
+
+    if (fVal || tVal) {
+        dateRange = 'از تاریخ: ' + toFa(fVal) + ' | تا تاریخ: ' + toFa(tVal);
+    } else {
+        // روش پشتیبان برای سایر گزارش‌ها
+        var dateInputs = activePage.querySelectorAll('.date-picker');
+        var dates = [];
+        dateInputs.forEach(function(inp) {
+            if (inp.value) {
+                var label = inp.closest('.field') ? inp.closest('.field').querySelector('label') : null;
+                var labelText = label ? label.textContent.trim() : '';
+                dates.push((labelText ? labelText + ': ' : '') + toFa(inp.value));
+            }
+        });
+        if (dates.length > 0) dateRange = dates.join(' | ');
+    }
 
     // ۲. استخراج جدول‌ها و پاکسازی آن‌ها از فیلترها
     var tablesHtml = '';
@@ -205,7 +223,7 @@ function printHtmlReport(selector, title) {
         return;
     }
 
-    // ۳. ساخت یک سند کاملاً جدید و مستقل (بدون هیچ استایل مزاحمی از برنامه)
+    // ۳. ساخت یک سند کاملاً جدید و مستقل
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
@@ -463,4 +481,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Clean New Window Print Engine');
+console.log('✅ [core/lookups.js] loaded — Clean Print Window + Date Fix');
