@@ -262,9 +262,9 @@ function runCashFlowReport() {
    بخش ۵ — استایل‌های اختصاصی گزارش گردش وجه نقد
    ============================================================ */
 (function injectCfdStyle() {
-    if (document.getElementById('cfd-style-v4')) return;
+    if (document.getElementById('cfd-style-v5')) return;
     var s = document.createElement('style');
-    s.id = 'cfd-style-v4';
+    s.id = 'cfd-style-v5';
     s.textContent = `
         .cfd-multi-wrap { position:relative; margin: 0 14px 14px 14px; z-index:50; }
         .cfd-multi-btn { width:100%; padding:10px 14px; background:var(--card-solid); border:1.5px solid var(--border); border-radius:12px; text-align:right; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-family:inherit; font-weight:700; color:var(--text); box-shadow:var(--shadow-sm); }
@@ -506,7 +506,7 @@ function renderCfdMultiSelect() {
     });
     
     document.getElementById('cfd-ms-all').onclick = function(e) {
-        if (e) e.stopPropagation();
+        if (e) { e.stopPropagation(); e.preventDefault(); }
         _cfdSelectedDescs = _cfdAllDescs.slice();
         document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) { cb.checked = true; });
         document.getElementById('cfd-ms-btn-text').textContent = '🏷 فیلتر بابت‌ها (' + toFa(_cfdSelectedDescs.length) + ' از ' + toFa(_cfdAllDescs.length) + ')';
@@ -514,7 +514,7 @@ function renderCfdMultiSelect() {
     };
     
     document.getElementById('cfd-ms-none').onclick = function(e) {
-        if (e) e.stopPropagation();
+        if (e) { e.stopPropagation(); e.preventDefault(); }
         _cfdSelectedDescs = [];
         document.querySelectorAll('.cfd-ms-cb').forEach(function(cb) { cb.checked = false; });
         document.getElementById('cfd-ms-btn-text').textContent = '🏷 فیلتر بابت‌ها (' + toFa(_cfdSelectedDescs.length) + ' از ' + toFa(_cfdAllDescs.length) + ')';
@@ -626,6 +626,8 @@ function renderCfdTables() {
     if (viewMode === 'details' || viewMode === 'full') {
         if (viewMode === 'full') {
             html += '<div class="cfd-section-title" style="margin-top:22px">📖 جزئیات اسناد</div>';
+        } else {
+            html += '<div class="cfd-section-title">📖 جزئیات اسناد</div>';
         }
 
         keys.forEach(function (k2, j) {
@@ -670,8 +672,12 @@ function renderCfdTables() {
             html += '</tbody></table></div></div></div>';
         });
         
-        if (keys.length === 0 && viewMode === 'details') {
-            html += '<div class="card"><p class="muted" style="text-align:center;padding:16px">هیچ بابت موردنظری انتخاب نشده است.</p></div>';
+        if (keys.length === 0) {
+            html += '<div class="cfd-group" style="margin-top:14px">'
+                 +   '<div class="cfd-head">'
+                 +     '<div class="cfd-title">هیچ بابت موردنظری انتخاب نشده است.</div>'
+                 +   '</div>'
+                 + '</div>';
         }
     }
 
@@ -831,4 +837,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — None button and empty table fixed');
+console.log('✅ [modules/reports/cashflow.js] loaded — Details view empty state and stopPropagation fixed');
