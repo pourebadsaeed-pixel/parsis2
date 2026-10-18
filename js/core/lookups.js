@@ -146,7 +146,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش ۵ — چاپ حرفه‌ای (استفاده از موتور چاپ مرورگر برای کیفیت عالی)
+   بخش ۵ — چاپ حرفه‌ای (قالب استاندارد، زیبا و دقیق)
    ============================================================ */
 async function printHtmlReport(selector, title) {
     var el = document.querySelector(selector);
@@ -157,31 +157,47 @@ async function printHtmlReport(selector, title) {
 
     showToast('⏳ در حال آماده‌سازی پیش‌نمایش چاپ...');
 
-    // ۱. استخراج داده‌های جدول
-    var tablesHtml = '';
-    
-    if (selector === '#cfd-result') {
-        var mainTable = el.querySelector('#cfd-table');
-        if (mainTable) tablesHtml += mainTable.outerHTML;
+    // ۱. کپی کردن محتوای گزارش برای دستکاری بدون تغییر در صفحه اصلی
+    var clone = el.cloneNode(true);
 
-        el.querySelectorAll('.cfd-group').forEach(function(g) {
+    // ۲. حذف فیلترها، جستجوها و دکمه‌های اضافی
+    var removeSelectors = [
+        '.list-header', '.column-filter-row', '.ar-filter-row', '.cfd-filter-row',
+        '.row-actions', '.share-btn', '.widget-share-btn', '.cfd-multi-wrap',
+        '.cfd-section-title', '.filters-toggle-btn', '.col-resizer', '.eye-toggle-btn',
+        '.col-toggle-btn', '.export-btn', '.card-collapse-btn', '.ar-turnover-btn',
+        '.ar-filter-badge', '.ar-side', '.ar-tb', '.cfd-head'
+    ];
+    removeSelectors.forEach(function(sel) {
+        clone.querySelectorAll(sel).forEach(function(n) { n.remove(); });
+    });
+
+    // در گزارش مرور حساب‌ها، فقط خود جدول را می‌خواهیم
+    if (selector === '#ra-result') {
+        var arBody = clone.querySelector('.ar-body');
+        if (arBody) clone.innerHTML = arBody.innerHTML;
+    }
+
+    // ۳. استخراج جدول‌ها
+    var tablesHtml = '';
+    if (selector === '#cfd-result') {
+        var mainTable = clone.querySelector('#cfd-table');
+        if (mainTable) tablesHtml += mainTable.outerHTML;
+        clone.querySelectorAll('.cfd-group').forEach(function(g) {
             var titleEl = g.querySelector('.cfd-title');
             var titleText = titleEl ? titleEl.textContent.trim() : '';
             var tbl = g.querySelector('table');
             if (tbl) {
-                tablesHtml += '<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:14px; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
+                tablesHtml += '<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-family:\'B Titr\', Tahoma; font-size:12pt; color:#1e40af; border-right:3px solid #1e40af; padding-right:8px;">' + esc(titleText) + '</div>';
                 tablesHtml += tbl.outerHTML;
             }
         });
-    } else if (selector === '#ra-result') {
-        var raTable = el.querySelector('#ra-acc-table');
-        if (raTable) tablesHtml = raTable.outerHTML;
     } else {
-        var tbls = el.querySelectorAll('table');
+        var tbls = clone.querySelectorAll('table');
         tbls.forEach(function(t) { tablesHtml += t.outerHTML; });
     }
 
-    // ۲. استخراج بازه تاریخی
+    // ۴. استخراج بازه تاریخی
     var dateRange = '';
     var activePage = document.querySelector('.page.active');
     if (activePage) {
@@ -197,34 +213,17 @@ async function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // ۳. ایجاد یک محیط مخفی تمیز برای سنجش ابعاد
-    var tempWrapper = document.createElement('div');
-    tempWrapper.style.position = 'absolute';
-    tempWrapper.style.left = '-9999px';
-    tempWrapper.style.top = '0';
-    tempWrapper.innerHTML = `
-        <div id="pdf-export-root" style="width: 750px; direction: rtl; font-family: Tahoma, sans-serif;">
-            ${tablesHtml}
-        </div>
-        <style>
-            #pdf-export-root table { width: 100%; border-collapse: collapse; table-layout: auto; }
-            #pdf-export-root th, #pdf-export-root td { border: 1px solid #64748b; padding: 6px; white-space: nowrap; }
-        </style>
-    `;
-    document.body.appendChild(tempWrapper);
-
-    // سنجش عرض واقعی جدول برای تشخیص افقی یا عمودی بودن
-    var actualTableWidth = 0;
-    var testTables = tempWrapper.querySelectorAll('table');
-    testTables.forEach(function(t) {
-        if (t.scrollWidth > actualTableWidth) actualTableWidth = t.scrollWidth;
+    // ۵. تشخیص خودکار حالت افقی (Landscape) بر اساس تعداد ستون‌ها
+    var tempDiv = document.createElement('div');
+    tempDiv.innerHTML = tablesHtml;
+    var maxCols = 0;
+    tempDiv.querySelectorAll('table').forEach(function(t) {
+        var cols = t.querySelectorAll('thead tr:first-child th').length;
+        if (cols > maxCols) maxCols = cols;
     });
-    
-    // اگر عرض جدول بیشتر از 800 پیکسل بود، باید افقی چاپ شود
-    var isLandscape = actualTableWidth > 800;
-    document.body.removeChild(tempWrapper);
+    var isLandscape = maxCols > 6;
 
-    // ۴. ساخت قالب HTML نهایی و بسیار تمیز برای موتور چاپ مرورگر
+    // ۶. ساخت قالب HTML نهایی با استایل‌های درخواستی
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -232,72 +231,97 @@ async function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(title)}</title>
             <style>
-                /* تنظیم خودکار جهت کاغذ A4 */
-                @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 10mm; }
+                /* تنظیمات صفحه و شماره‌گذاری */
+                @page { 
+                    size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
+                    margin: 15mm 10mm; 
+                    @bottom-center {
+                        content: "صفحه " counter(page) " از " counter(pages);
+                        font-family: 'B Nazanin', Tahoma, sans-serif;
+                        font-size: 10pt;
+                        color: #64748b;
+                    }
+                }
                 
                 body { 
                     font-family: 'B Nazanin', Tahoma, sans-serif; 
+                    font-size: 12pt; /* فونت بی نازنین 12 */
                     direction: rtl; 
-                    background: #fff; 
-                    color: #000; 
+                    color: #0f172a; 
                     margin: 0; 
-                    padding: 0; 
+                    padding: 0;
                 }
+                
+                /* هدر گزارش */
                 .header {
                     text-align: center; 
                     margin-bottom: 20px; 
                     border-bottom: 2px solid #1e40af; 
                     padding-bottom: 10px;
                 }
-                h1 { 
+                .header h1 { 
                     font-family: 'B Titr', Tahoma, sans-serif; 
-                    font-size: 16pt; 
+                    font-size: 12pt; /* عنوان بی تیتر 12 */
                     margin: 0 0 5px 0; 
                     color: #1e40af; 
                 }
-                .date-range { 
+                .header .date-range { 
                     font-size: 11pt; 
-                    color: #333; 
+                    color: #475569; 
+                    font-weight: bold;
+                }
+                
+                /* استایل جدول */
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-bottom: 20px; 
+                    font-size: 12pt; /* فونت جدول 12 */
+                    page-break-inside: auto;
+                }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+                
+                /* سلول‌ها: متن وسط‌چین */
+                th, td { 
+                    border: 1px solid #94a3b8; 
+                    padding: 6px 8px; 
+                    text-align: center; 
+                    vertical-align: middle;
+                }
+                
+                /* هدر جدول رنگ‌آمیزی شده */
+                th { 
+                    background-color: #e2e8f0; 
+                    color: #1e40af; 
                     font-weight: bold; 
                 }
                 
-                /* استایل عالی برای جداول */
-                table { 
-                    width: 100% !important; 
-                    border-collapse: collapse !important; 
-                    margin-bottom: 15px !important; 
-                    font-size: 10pt !important; 
-                }
-                th, td { 
-                    border: 1px solid #64748b !important; 
-                    padding: 8px 6px !important; 
-                    text-align: center !important; 
-                    vertical-align: middle !important;
-                }
-                th { 
-                    background-color: #f1f5f9 !important; 
-                    font-weight: bold !important; 
-                }
-                /* ستون اول (شرح) راست‌چین */
-                td:first-child { 
-                    text-align: right !important; 
-                    font-weight: bold !important;
+                /* ردیف‌های یک‌درمیان */
+                tr:nth-child(even) { 
+                    background-color: #f8fafc; 
                 }
                 
-                /* اعداد انگلیسی و چپ‌چین در سلول‌ها */
-                .num, .ltr { 
-                    direction: ltr !important; 
-                    font-family: Arial, Tahoma, sans-serif !important; 
-                    white-space: nowrap !important; 
+                /* مبالغ: راست‌چین و با جهت چپ‌به‌راست برای نمایش صحیح سه‌رقمی */
+                td.num, td.ltr { 
+                    direction: ltr; 
+                    text-align: right; 
+                    font-family: Arial, Tahoma, sans-serif; 
+                    font-size: 11pt; 
+                    padding-right: 12px;
                 }
                 
-                /* رنگ‌بندی */
-                .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold !important; }
-                .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold !important; }
+                /* رنگ‌آمیزی مقادیر منفی و مثبت */
+                .dr, .neg-money, td[style*="color:#c0392b"], td[style*="color:var(--danger)"] { 
+                    color: #dc2626 !important; 
+                    font-weight: bold; 
+                }
+                .cr, td[style*="color:#1e9e6a"], td[style*="color:var(--accent)"] { 
+                    color: #059669 !important; 
+                    font-weight: bold; 
+                }
                 
-                /* جلوگیری از نصفه شدن ردیف‌ها */
-                tr { page-break-inside: avoid !important; }
-                .empty-row, .ar-empty { display: none !important; }
+                /* حذف دکمه‌های عملیات در صورت باقی ماندن */
+                .row-actions { display: none !important; }
             </style>
         </head>
         <body>
@@ -312,7 +336,7 @@ async function printHtmlReport(selector, title) {
         </html>
     `;
 
-    // ۵. ارسال به iFrame برای باز کردن پنجره چاپ
+    // ۷. ارسال به iFrame برای باز کردن پنجره چاپ مرورگر
     var iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0';
@@ -329,7 +353,6 @@ async function printHtmlReport(selector, title) {
     setTimeout(function() {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
-        // پاکسازی
         setTimeout(function() { document.body.removeChild(iframe); }, 1000);
         showToast('🖨️ پنجره چاپ باز شد. لطفاً "Save as PDF" را انتخاب کنید.');
     }, 500);
@@ -462,4 +485,4 @@ window.printHtmlReport              = printHtmlReport;
 window.exportToCsv                  = exportToCsv;
 window.exportReportTable            = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Native Print Engine');
+console.log('✅ [core/lookups.js] loaded — Beautiful Standard Print Engine');
