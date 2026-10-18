@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (با پیمایش آزاد، فیلتر و مرتب‌سازی)
+   پارسیس — گزارش مرور حساب‌ها (رفع کامل مشکل پرش کیبورد و ستون‌ها)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -344,9 +344,21 @@ function getDescendantIds(accountId) {
 }
 
 /* ============================================================
-   بخش ۵ — رندر گزارش (با قابلیت فیلتر و مرتب‌سازی)
+   بخش ۵ — رندر گزارش (با اصلاح کامل پرش کیبورد و ستون‌ها)
    ============================================================ */
 function renderAccountReview(onlyRows) {
+    // ذخیره فوکوس و مکان‌نما (Cursor) قبل از هر تغییری
+    var activeEl = document.activeElement;
+    var activeCol = null;
+    var selStart = 0, selEnd = 0;
+    if (activeEl && activeEl.classList && activeEl.classList.contains('ar-filter-input')) {
+        activeCol = activeEl.getAttribute('data-col');
+        try {
+            selStart = activeEl.selectionStart;
+            selEnd = activeEl.selectionEnd;
+        } catch (e) {}
+    }
+
     var box = document.getElementById('ra-result');
     if (!box) return;
 
@@ -526,7 +538,38 @@ function renderAccountReview(onlyRows) {
         if (tbody) tbody.innerHTML = rowsHtml;
         if (tfoot) tfoot.innerHTML = footHtml;
         
-        // رویداد کلیک ردیف‌ها را دوباره متصل می‌کنیم
+        // ۱. اعمال مخفی‌سازی ستون‌ها روی ردیف‌های جدید
+        if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
+        
+        // ۲. اعمال ترتیب ستون‌ها فقط روی بدنه و فوتر (بدون دست زدن به هدر و باکس جستجو)
+        var table = document.getElementById('ra-acc-table');
+        if (table && typeof columnOrders !== 'undefined' && columnOrders['ra-acc-table']) {
+            var savedOrder = columnOrders['ra-acc-table'];
+            var bodyRows = table.querySelectorAll('tbody tr, tfoot tr');
+            for (var r = 0; r < bodyRows.length; r++) {
+                var row = bodyRows[r];
+                var cells = Array.from(row.children);
+                if (cells.length <= 1) continue;
+                var map = {};
+                cells.forEach(function(c) { 
+                    if(c.hasAttribute('data-orig-index')) map[c.getAttribute('data-orig-index')] = c; 
+                });
+                savedOrder.forEach(function(origIdx) {
+                    if (map[origIdx]) row.appendChild(map[origIdx]);
+                });
+            }
+        }
+        
+        // ۳. بازگرداندن فوکوس و مکان‌نما
+        if (activeCol) {
+            var newInp = document.querySelector('.ar-filter-input[data-col="' + activeCol + '"]');
+            if (newInp) {
+                newInp.focus();
+                try { newInp.setSelectionRange(selStart, selEnd); } catch (e) {}
+            }
+        }
+
+        // ۴. اتصال مجدد رویداد کلیک به ردیف‌های جدید
         box.querySelectorAll('.ar-row').forEach(function (tr) {
             tr.addEventListener('click', function (e) {
                 if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
@@ -552,7 +595,7 @@ function renderAccountReview(onlyRows) {
             });
         });
         
-        return; // خروج از تابع بدون بازسازی کل جدول
+        return; // خروج، بدون دست زدن به بقیه جدول
     }
 
     var html = '<div class="ar-wrap">';
@@ -631,12 +674,12 @@ function renderAccountReview(onlyRows) {
         });
     });
 
-    /* فیلترها — فقط ردیف‌ها را به‌روزرسانی می‌کند تا کیبورد نپرد */
+    /* فیلترها — درخواست آپدیت فقط ردیف‌ها */
     box.querySelectorAll('.ar-filter-input').forEach(function (inp) {
         inp.addEventListener('input', function () {
             var col = this.getAttribute('data-col');
             _arFilters[col] = this.value;
-            renderAccountReview(true); // true = فقط جدول آپدیت شود
+            renderAccountReview(true); 
         });
     });
 
@@ -661,6 +704,7 @@ function renderAccountReview(onlyRows) {
         if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ra-acc-table'));
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
+        if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
     }, 50);
 }
 
@@ -1016,4 +1060,4 @@ window.getDescendantIds               = getDescendantIds;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Input focus issue fixed');
+console.log('✅ [modules/reports/account.js] loaded — Keyboard jump and column visibility fixed');
