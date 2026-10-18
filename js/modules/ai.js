@@ -295,6 +295,26 @@ var AI_TOOLS = [
                 required: ['title']
             }
         }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_calendar_event',
+            description: 'ایجاد یک رویداد یا قرار جدید در تقویم برنامه. اگر کاربر تصویری از تقویم، برنامه روزانه یا قرار ملاقات ارسال کرد و خواست آن را ثبت کند، از این ابزار استفاده کن.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    title: { type: 'string', description: 'عنوان رویداد (مثلاً: جلسه با مشتری)' },
+                    date: { type: 'string', description: 'تاریخ شمسی به فرمت YYYY/MM/DD' },
+                    time: { type: 'string', description: 'ساعت شروع به فرمت HH:MM (مثلاً 14:30)' },
+                    endTime: { type: 'string', description: 'ساعت پایان به فرمت HH:MM (اختیاری)' },
+                    desc: { type: 'string', description: 'توضیحات رویداد' },
+                    location: { type: 'string', description: 'مکان رویداد' },
+                    cat: { type: 'string', description: 'دسته بندی (personal برای شخصی، work برای کاری، meeting برای جلسه، birthday برای تولد، travel برای سفر)' }
+                },
+                required: ['title', 'date']
+            }
+        }
     }
 ];
 
@@ -1374,6 +1394,10 @@ function aiBuildSystemPrompt() {
         + '═══════════════════════════════════════\n'
         + 'برای تعریف شخص/شرکت/بانک/صندوق/پروژه/دوره/حساب/تسهیلات/یادداشت از ابزارهای create_* استفاده کن.\n\n'
         + '═══════════════════════════════════════\n'
+        + '📅 **ثبت رویداد در تقویم**\n'
+        + '═══════════════════════════════════════\n'
+        + 'وقتی کاربر عکسی از یک برنامه، بلیط، یا قرار ملاقات فرستاد و گفت «به تقویم اضافه کن»، تاریخ و ساعت را از تصویر استخراج کن و از ابزار `create_calendar_event` استفاده کن.\n\n'
+        + '═══════════════════════════════════════\n'
         + '📊 **تحلیل و گزارش‌گیری متنی**\n'
         + '═══════════════════════════════════════\n'
         + 'برای سوالاتی مثل «وضعیت نقدینگی چطوره؟»:\n'
@@ -1682,6 +1706,39 @@ function aiFindDetailId(linkType, nameHint) {
 /* ============================================================
    بخش ۱۶ — Tool Handlers
    ============================================================ */
+function aiHandleCreateCalendarEvent(args) {
+    if (!args.title || !args.date) return { error: 'عنوان و تاریخ برای رویداد اجباری است.' };
+    
+    var list = DB.load('calendarUserEvents', []);
+    
+    var newEvent = {
+        id: 'u_' + uid(),
+        cat: args.cat || 'personal',
+        startDate: args.date,
+        startTime: args.time || '09:00',
+        endDate: args.date,
+        endTime: args.endTime || args.time || '10:00',
+        date: args.date,
+        time: args.time || '09:00',
+        title: args.title,
+        desc: args.desc || '',
+        location: args.location || '',
+        persons: [],
+        reminder: 0,
+        recurrence: { freq: 'none' },
+        createdAt: Date.now()
+    };
+    
+    list.push(newEvent);
+    DB.save('calendarUserEvents', list);
+    
+    if (typeof invalidateCalEventCache === 'function') invalidateCalEventCache();
+    if (typeof calRender === 'function') calRender();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+    
+    return { action: '✅ رویداد «' + args.title + '» در تاریخ ' + args.date + ' با موفقیت به تقویم اضافه شد.' };
+}
+
 function aiHandleToolCall(call) {
     if (!call || !call.function) return { error: 'ساختار ابزار نامعتبر' };
     var name = call.function.name;
@@ -1704,6 +1761,7 @@ function aiHandleToolCall(call) {
         case 'create_account':            return aiHandleCreateAccount(args);
         case 'create_facility':           return aiHandleCreateFacility(args);
         case 'create_note':               return aiHandleCreateNote(args);
+        case 'create_calendar_event':     return aiHandleCreateCalendarEvent(args);
         default:                          return { error: 'ابزار ناشناخته: ' + name };
     }
 }
@@ -3162,6 +3220,7 @@ window.aiHandleCreateFiscalPeriod = aiHandleCreateFiscalPeriod;
 window.aiHandleCreateAccount     = aiHandleCreateAccount;
 window.aiHandleCreateFacility    = aiHandleCreateFacility;
 window.aiHandleCreateNote        = aiHandleCreateNote;
+window.aiHandleCreateCalendarEvent = aiHandleCreateCalendarEvent;
 window.aiLoadDraftIntoForm       = aiLoadDraftIntoForm;
 window.updateAiModelSelectUI     = updateAiModelSelectUI;
 window.aiRender                  = aiRender;
@@ -3183,4 +3242,4 @@ window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
 
-console.log('✅ [modules/ai.js] loaded — 3 parts complete');
+console.log('✅ [modules/ai.js] loaded — 3 parts complete + Calendar Tool');
