@@ -16,11 +16,22 @@
         'ai.failedModels', 'ai.creditLastUpdate'
     ];
     var cleaned = 0;
+    /* پاک‌سازی localStorage قدیمی */
     keysToCheck.forEach(function (k) {
         try {
             var raw = localStorage.getItem('parsis.' + k);
             if (raw === 'undefined' || raw === 'null' || raw === '') {
                 localStorage.removeItem('parsis.' + k);
+                cleaned++;
+            }
+        } catch (e) {}
+    });
+    /* پاک‌سازی کش IndexedDB */
+    keysToCheck.forEach(function (k) {
+        try {
+            var v = DB.load(k, undefined);
+            if (v === null || v === undefined || v === '') {
+                DB.remove(k);
                 cleaned++;
             }
         } catch (e) {}
