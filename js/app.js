@@ -466,12 +466,12 @@ function init() {
         if (ldc) ldc.disabled = true;
     }
 
-    if (!localStorage.getItem(LS_PREFIX + 'voucherTemplates')) {
+    if (!DB.load('voucherTemplates', null)) {
         if (typeof getDefaultTemplates === 'function') {
             DB.save('voucherTemplates', getDefaultTemplates());
         }
     }
-    if (!localStorage.getItem(LS_PREFIX + 'standardDescriptions')) {
+    if (!DB.load('standardDescriptions', null)) {
         if (typeof getDefaultStdDescriptions === 'function') {
             DB.save('standardDescriptions', getDefaultStdDescriptions());
         }
