@@ -1,19 +1,21 @@
 /* ============================================================
-   پارسیس — پشتیبان‌گیری، بازیابی، ریست
+   پارسیس — پشتیبان‌گیری، بازیابی، ریست (IndexedDB)
    مسیر: js/modules/backup.js
-   وابستگی: core/* + ui/toast.js
+   وابستگی: core/db.js + core/utils.js + ui/toast.js
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۱ — دانلود پشتیبان (شامل تصاویر IndexedDB)
+   بخش ۱ — دانلود پشتیبان
    ============================================================ */
 function downloadBackup() {
     var data = {};
-    for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k.indexOf(LS_PREFIX) === 0) data[k] = localStorage.getItem(k);
-    }
+    var keys = DB.keys();
+    keys.forEach(function (k) {
+        if (k === '__migrated') return;
+        var v = DB.load(k, undefined);
+        if (v !== undefined) data[k] = v;
+    });
 
     function blobToDataURL(blob) {
         return new Promise(function (resolve) {
@@ -115,11 +117,18 @@ function restoreBackup(file) {
                 return;
             }
 
-            var validKeys = Object.keys(data).filter(function (k) {
-                return k.indexOf(LS_PREFIX) === 0;
+            /* پشتیبانی از فرمت قدیمی (کلیدهای parsis.xxx) */
+            var validKeys = [];
+            Object.keys(data).forEach(function (k) {
+                if (k.indexOf(LS_PREFIX) === 0) {
+                    validKeys.push(k.substring(LS_PREFIX.length));
+                } else {
+                    validKeys.push(k);
+                }
             });
+
             if (validKeys.length === 0) {
-                alert('❌ فایل پشتیبان شامل هیچ کلید پارسیس نیست.');
+                alert('❌ فایل پشتیبان شامل داده‌ای نیست.');
                 return;
             }
 
@@ -131,17 +140,26 @@ function restoreBackup(file) {
             msg += '\n⚠️ همه داده‌های فعلی پاک و جایگزین می‌شوند.\nادامه؟';
             if (!confirm(msg)) return;
 
-            var toRemove = [];
-            for (var i = 0; i < localStorage.length; i++) {
-                var kk = localStorage.key(i);
-                if (kk && kk.indexOf(LS_PREFIX) === 0) toRemove.push(kk);
-            }
-            toRemove.forEach(function (k) { localStorage.removeItem(k); });
+            /* حذف داده‌های فعلی */
+            DB.keys().forEach(function (k) {
+                if (k !== '__migrated') DB.remove(k);
+            });
 
+            /* نوشتن داده‌های جدید */
             var writeErrors = 0;
-            validKeys.forEach(function (k) {
-                try { localStorage.setItem(k, data[k]); }
-                catch (err) { writeErrors++; }
+            Object.keys(data).forEach(function (origKey) {
+                try {
+                    var shortKey = (origKey.indexOf(LS_PREFIX) === 0)
+                        ? origKey.substring(LS_PREFIX.length)
+                        : origKey;
+                    var val = data[origKey];
+                    if (typeof val === 'string') {
+                        try { val = JSON.parse(val); } catch (ex) {}
+                    }
+                    DB.save(shortKey, val);
+                } catch (err) {
+                    writeErrors++;
+                }
             });
 
             function dataURLToBlob(dataUrl) {
@@ -189,17 +207,24 @@ function restoreBackup(file) {
                 req.onerror = function () { callback(); };
             }
 
-            restoreImages(function () {
-                var finalMsg = '✅ بازیابی موفق!\n\n';
-                finalMsg += '• ' + toFa(validKeys.length) + ' کلید بازیابی شد';
-                if (images.length > 0) {
-                    finalMsg += '\n• ' + toFa(images.length) + ' تصویر بازیابی شد';
-                }
-                if (writeErrors > 0) {
-                    finalMsg += '\n⚠️ ' + toFa(writeErrors) + ' کلید نوشته نشد';
-                }
-                alert(finalMsg);
-                location.reload();
+            /* 🌟 مهم: نوشتن داده‌ها در IndexedDB قبل از reload */
+            var flushPromise = (typeof DB.flush === 'function')
+                ? DB.flush()
+                : new Promise(function (r) { setTimeout(r, 500); });
+
+            flushPromise.then(function () {
+                restoreImages(function () {
+                    var finalMsg = '✅ بازیابی موفق!\n\n';
+                    finalMsg += '• ' + toFa(validKeys.length) + ' کلید بازیابی شد';
+                    if (images.length > 0) {
+                        finalMsg += '\n• ' + toFa(images.length) + ' تصویر بازیابی شد';
+                    }
+                    if (writeErrors > 0) {
+                        finalMsg += '\n⚠️ ' + toFa(writeErrors) + ' کلید نوشته نشد';
+                    }
+                    alert(finalMsg);
+                    location.reload();
+                });
             });
         } catch (err) {
             alert('❌ خطا در خواندن فایل:\n' + (err.message || err));
@@ -221,13 +246,10 @@ function resetAllData() {
     }
     if (!confirm('⚠️ همه داده‌ها (شامل تصاویر یادداشت‌ها) پاک شود؟')) return;
 
-    var ks = [];
-    for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && k.indexOf(LS_PREFIX) === 0) ks.push(k);
-    }
-    ks.forEach(function (k) { localStorage.removeItem(k); });
+    /* ۱) پاک کردن کش + IndexedDB اصلی */
+    DB.clearAll();
 
+    /* ۲) پاک کردن IndexedDB تصاویر یادداشت‌ها */
     try {
         var req = indexedDB.open('parsisNoteImages', 1);
         req.onupgradeneeded = function (e) {
@@ -241,25 +263,35 @@ function resetAllData() {
             if (db.objectStoreNames.contains('handles')) {
                 var tx = db.transaction('handles', 'readwrite');
                 tx.objectStore('handles').clear();
-                tx.oncomplete = function () { alert('✅ همه داده‌ها پاک شد.'); location.reload(); };
-                tx.onerror = function () { alert('✅'); location.reload(); };
+                tx.oncomplete = afterReset;
+                tx.onerror = afterReset;
             } else {
-                alert('✅');
-                location.reload();
+                afterReset();
             }
         };
-        req.onerror = function () { alert('✅'); location.reload(); };
+        req.onerror = afterReset;
     } catch (e) {
-        alert('✅');
+        afterReset();
+    }
+
+    function afterReset() {
+        /* ۳) پاک کردن leftover localStorage */
+        try {
+            var toRemove = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && k.indexOf(LS_PREFIX) === 0) toRemove.push(k);
+            }
+            toRemove.forEach(function (k) { localStorage.removeItem(k); });
+        } catch (e) {}
+
+        alert('✅ همه داده‌ها پاک شد.');
         location.reload();
     }
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.downloadBackup = downloadBackup;
 window.restoreBackup  = restoreBackup;
 window.resetAllData   = resetAllData;
 
-console.log('✅ [modules/backup.js] loaded');
+console.log('✅ [modules/backup.js] loaded — IndexedDB ready');
