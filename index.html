@@ -1522,68 +1522,74 @@
      SCRIPTS
      ============================================================ -->
 
-<!-- Core -->
+<!-- Core (db.js باید اول و به‌صورت عادی لود شود) -->
 <script src="./js/core/db.js"></script>
-<script src="./js/core/constants.js"></script>
-<script src="./js/core/utils.js"></script>
-<script src="./js/core/state.js"></script>
-<script src="./js/core/router.js"></script>
-<script src="./js/core/calendar-popup.js"></script>
-<script src="./js/core/hide.js"></script>
-<script src="./js/core/lookups.js"></script>
 
-<!-- UI -->
-<script src="./js/ui/toast.js"></script>
-<script src="./js/ui/nav.js"></script>
-<script src="./js/ui/theme.js"></script>
-<script src="./js/ui/table.js"></script>
-<script src="./js/ui/form.js"></script>
-<script src="./js/ui/time-picker.js"></script>
-<script src="./js/ui/share.js"></script>
-<script src="./js/ui/observers.js"></script>
-
-<!-- Modules - Accounts -->
-<script src="./js/modules/accounts/fiscal.js"></script>
-<script src="./js/modules/accounts/chart.js"></script>
-<script src="./js/modules/persons.js"></script>
-<script src="./js/modules/accounts/companies.js"></script>
-<script src="./js/modules/accounts/banks.js"></script>
-<script src="./js/modules/accounts/cashboxes.js"></script>
-<script src="./js/modules/accounts/projects.js"></script>
-<script src="./js/modules/accounts/templates.js"></script>
-
-<!-- Modules - Vouchers -->
-<script src="./js/modules/vouchers/form.js"></script>
-<script src="./js/modules/vouchers/list.js"></script>
-<script src="./js/modules/vouchers/estimates.js"></script>
-<script src="./js/modules/vouchers/sources.js"></script>
-<script src="./js/modules/vouchers/facilities.js"></script>
-
-<!-- Modules - Reports -->
-<script src="./js/modules/reports/cashflow.js"></script>
-<script src="./js/modules/reports/account.js"></script>
-<script src="./js/modules/reports/trial.js"></script>
-<script src="./js/modules/reports/facility.js"></script>
-<script src="./js/modules/reports/rates.js"></script>
-
-<!-- Modules - Dashboard & Widgets & Calendar -->
-<script src="./js/modules/dashboard.js"></script>
-<script src="./js/modules/widgets.js"></script>
-<script src="./js/modules/calendar.js"></script>
-
-<!-- Modules - Notes, SMS, AI, Scan, Welcome -->
-<script src="./js/modules/notes.js"></script>
-<script src="./js/modules/sms.js"></script>
-<script src="./js/modules/ai.js"></script>
-<script src="./js/modules/scan.js"></script>
-<script src="./js/modules/welcome.js"></script>
-<!-- Modules - Backup -->
-<script src="./js/modules/backup.js"></script>
-
-<!-- Fixes -->
-<script src="./js/modules/fix-sidebar.js"></script>
-
-<!-- App Bootstrap -->
-<script src="./js/app.js"></script>
+<!-- Lazy loader: بقیه اسکریپت‌ها بعد از آماده شدن DB.ready() بارگذاری می‌شوند -->
+<script>
+(async function loadApp() {
+    try {
+        await DB.ready();
+        var modules = [
+            './js/core/constants.js',
+            './js/core/utils.js',
+            './js/core/state.js',
+            './js/core/router.js',
+            './js/core/calendar-popup.js',
+            './js/core/hide.js',
+            './js/core/lookups.js',
+            './js/ui/toast.js',
+            './js/ui/nav.js',
+            './js/ui/theme.js',
+            './js/ui/table.js',
+            './js/ui/form.js',
+            './js/ui/time-picker.js',
+            './js/ui/share.js',
+            './js/ui/observers.js',
+            './js/modules/accounts/fiscal.js',
+            './js/modules/accounts/chart.js',
+            './js/modules/persons.js',
+            './js/modules/accounts/companies.js',
+            './js/modules/accounts/banks.js',
+            './js/modules/accounts/cashboxes.js',
+            './js/modules/accounts/projects.js',
+            './js/modules/accounts/templates.js',
+            './js/modules/vouchers/form.js',
+            './js/modules/vouchers/list.js',
+            './js/modules/vouchers/estimates.js',
+            './js/modules/vouchers/sources.js',
+            './js/modules/vouchers/facilities.js',
+            './js/modules/reports/cashflow.js',
+            './js/modules/reports/account.js',
+            './js/modules/reports/trial.js',
+            './js/modules/reports/facility.js',
+            './js/modules/reports/rates.js',
+            './js/modules/dashboard.js',
+            './js/modules/widgets.js',
+            './js/modules/calendar.js',
+            './js/modules/notes.js',
+            './js/modules/sms.js',
+            './js/modules/ai.js',
+            './js/modules/scan.js',
+            './js/modules/welcome.js',
+            './js/modules/backup.js',
+            './js/modules/fix-sidebar.js',
+            './js/app.js'
+        ];
+        for (var i = 0; i < modules.length; i++) {
+            await new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = modules[i];
+                s.onload = resolve;
+                s.onerror = function () { reject(new Error('Failed: ' + modules[i])); };
+                document.body.appendChild(s);
+            });
+        }
+    } catch (e) {
+        console.error('[bootstrap]', e);
+        alert('خطا در بارگذاری برنامه. لطفاً صفحه را رفرش کنید.');
+    }
+})();
+</script>
 </body>
 </html>
