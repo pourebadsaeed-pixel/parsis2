@@ -4,6 +4,11 @@
    ============================================================ */
 'use strict';
 
+// نرمال‌سازی نام کاربری برای جلوگیری از خطای حروف عربی و فارسی (ي و ی)
+function normalizeFaLogin(s) {
+    return String(s || '').replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک').trim().toLowerCase();
+}
+
 function checkAuth() {
     var currentUser = DB.load('auth.currentUser', null);
     if (!currentUser) {
@@ -24,15 +29,21 @@ function login() {
     var errEl = document.getElementById('login-error');
 
     var users = DB.load('users', []);
-    var found = users.find(function(u) { return u.username === user && u.password === pass; });
+    var found = users.find(function(u) { 
+        return normalizeFaLogin(u.username) === normalizeFaLogin(user) && u.password === pass; 
+    });
 
     if (found) {
         DB.save('auth.currentUser', found);
         errEl.style.display = 'none';
+        
+        // نمایش اپلیکیشن
         checkAuth();
+        
         if (typeof initUsersPage === 'function' && document.getElementById('page-users')) {
             initUsersPage();
         }
+        if (typeof showToast === 'function') showToast('✅ خوش آمدید ' + found.username);
     } else {
         errEl.textContent = 'نام کاربری یا کلمه عبور اشتباه است.';
         errEl.style.display = 'block';
@@ -51,6 +62,11 @@ function bindAuthUI() {
     var passInput = document.getElementById('login-password');
     if (passInput) passInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') login();
+    });
+    
+    var userInput = document.getElementById('login-username');
+    if (userInput) userInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') document.getElementById('login-password').focus();
     });
 
     var logoutBtn = document.getElementById('logout-btn');
