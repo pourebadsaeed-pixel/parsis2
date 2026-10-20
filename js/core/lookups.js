@@ -133,14 +133,12 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (کاملاً اصلاح شده برای مودال‌ها و صفحات)
+   بخش چاپ (کاملاً اصلاح شده برای تب‌های فعال)
    ============================================================ */
 function printHtmlReport(selector, title) {
-    // ✅ پیدا کردن المان هدف فقط در صفحه فعال یا مودال
     var activePage = document.querySelector('.page.active');
     var targetEl = activePage ? activePage.querySelector(selector) : null;
     
-    // اگر در صفحه فعال نبود (مثلا در مودال بود)
     if (!targetEl) targetEl = document.querySelector(selector);
     
     if (!targetEl) {
@@ -148,7 +146,6 @@ function printHtmlReport(selector, title) {
         return;
     }
 
-    // استخراج تاریخ‌ها
     var dateRange = '';
     var fromEl = document.getElementById('rt-from') || 
                  document.getElementById('ra-from') || 
@@ -181,7 +178,6 @@ function printHtmlReport(selector, title) {
     var tablesHtml = '';
     var isLandscape = false;
 
-    // پیدا کردن تمام جدول‌های داخل المان هدف
     var sourceTables = targetEl.tagName === 'TABLE' ? [targetEl] : targetEl.querySelectorAll('table');
 
     if (sourceTables.length === 0) {
@@ -192,7 +188,6 @@ function printHtmlReport(selector, title) {
 
             var clone = tbl.cloneNode(true);
 
-            // پاکسازی فیلترها و دکمه‌های اضافی
             clone.querySelectorAll('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row').forEach(el => el.remove());
             
             var ths = clone.querySelectorAll('thead th');
@@ -393,4 +388,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Clean Print Window + Modal Support');
+console.log('✅ [core/lookups.js] loaded — Clean Print Window + Active Tab Support');
