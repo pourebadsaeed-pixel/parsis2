@@ -132,6 +132,12 @@ function applyPageHelpers() {
     if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
+    
+    // ✅ اضافه کردن بایند مجدد دکمه‌ها برای تب‌های کپی‌شده
+    if (typeof bindReportButtons === 'function') bindReportButtons();
+    if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
+    if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
+    if (typeof bindCashFlowReportButtons === 'function') bindCashFlowReportButtons();
 
     setTimeout(function () {
         var allTables = document.querySelectorAll('table[data-table-id]');
@@ -161,7 +167,7 @@ function updateTopbarPeriod() {
 function rerenderCurrentPage() {
     var active = document.querySelector('.page.active');
     if (!active) return;
-    var id = active.id.replace('page-', '').split('-').slice(0, 2).join('-'); // Handle clones like page-report-account-...
+    var id = active.id.replace('page-', '').split('-').slice(0, 2).join('-');
     if (active.id.indexOf('page-report-account') === 0) id = 'report-account';
     if (active.id.indexOf('page-report-cashflow') === 0) id = 'report-cashflow';
     if (active.id.indexOf('page-report-cashflow-desc') === 0) id = 'report-cashflow-desc';
