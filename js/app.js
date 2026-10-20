@@ -237,9 +237,69 @@ function bindVoucherTemplatesForms() {
     if (typeof bindTemplatesForm === 'function') bindTemplatesForm();
 }
 
-/* ============================================================
-   ✅ راه‌حل قطعی: مدیریت سراسری رویدادهای گزارش‌ها (Event Delegation)
-   ============================================================ */
+function bindModalClosers() {
+    var closeVp = document.getElementById('close-vpreview');
+    if (closeVp && typeof closeVoucherPreview === 'function') {
+        closeVp.addEventListener('click', closeVoucherPreview);
+    }
+    var vpClose = document.getElementById('vpreview-close-btn');
+    if (vpClose && typeof closeVoucherPreview === 'function') {
+        vpClose.addEventListener('click', closeVoucherPreview);
+    }
+    var vpOv = document.getElementById('vpreview-overlay');
+    if (vpOv && typeof closeVoucherPreview === 'function') {
+        vpOv.addEventListener('click', closeVoucherPreview);
+    }
+    var vpPrint = document.getElementById('vpreview-print');
+    if (vpPrint && typeof printVoucherPreview === 'function') {
+        vpPrint.addEventListener('click', printVoucherPreview);
+    }
+
+    var closeTo = document.getElementById('close-turnover');
+    if (closeTo && typeof closeTurnover === 'function') closeTo.addEventListener('click', closeTurnover);
+    var toClose = document.getElementById('turnover-close-btn');
+    if (toClose && typeof closeTurnover === 'function') toClose.addEventListener('click', closeTurnover);
+    var toOv = document.getElementById('turnover-overlay');
+    if (toOv && typeof closeTurnover === 'function') toOv.addEventListener('click', closeTurnover);
+    var toPrint = document.getElementById('turnover-print');
+    if (toPrint && typeof printHtmlReport === 'function') {
+        toPrint.addEventListener('click', function () {
+            printHtmlReport('#turnover-body', 'گردش حساب');
+        });
+    }
+
+    var closeIv = document.getElementById('close-imgview');
+    if (closeIv) closeIv.addEventListener('click', function () {
+        document.getElementById('imgview-modal').classList.remove('show');
+        document.getElementById('imgview-overlay').classList.remove('show');
+    });
+    var ivOv = document.getElementById('imgview-overlay');
+    if (ivOv) ivOv.addEventListener('click', function () {
+        document.getElementById('imgview-modal').classList.remove('show');
+        document.getElementById('imgview-overlay').classList.remove('show');
+    });
+
+    var closeNv = document.getElementById('close-noteview');
+    if (closeNv && typeof closeNoteView === 'function') closeNv.addEventListener('click', closeNoteView);
+    var nvOv = document.getElementById('noteview-overlay');
+    if (nvOv && typeof closeNoteView === 'function') nvOv.addEventListener('click', closeNoteView);
+
+    var closeScan = document.getElementById('voucher-scan-close');
+    if (closeScan) closeScan.addEventListener('click', function () {
+        var m = document.getElementById('voucher-scan-modal');
+        var o = document.getElementById('voucher-scan-overlay');
+        if (m) m.remove();
+        if (o) o.remove();
+    });
+    var scanOv = document.getElementById('voucher-scan-overlay');
+    if (scanOv) scanOv.addEventListener('click', function () {
+        var m = document.getElementById('voucher-scan-modal');
+        var o = document.getElementById('voucher-scan-overlay');
+        if (m) m.remove();
+        if (o) o.remove();
+    });
+}
+
 function initGlobalReportDelegation() {
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('button');
@@ -248,7 +308,6 @@ function initGlobalReportDelegation() {
         var id = btn.id;
         if (!id) return;
 
-        // ---- چاپ ----
         var printTitles = {
             'cf-print':  ['#cf-result',  'پیش‌بینی روزانه نقدینگی'],
             'cfd-print': ['#cfd-result', 'گردش وجه نقد'],
@@ -264,7 +323,6 @@ function initGlobalReportDelegation() {
             return;
         }
 
-        // ---- اکسل ----
         var exportNames = {
             'cf-export': 'cash-flow', 'cfd-export': 'cash-flow-by-desc',
             'ra-export': 'account-report', 'rt-export': 'trial-balance',
@@ -277,7 +335,6 @@ function initGlobalReportDelegation() {
             return;
         }
 
-        // ---- اجرا ----
         var runMap = {
             'cf-run': 'runCashFlowReport', 'cfd-run': 'runCashFlowByDescReport',
             'ra-run': 'renderAccountReview', 'rt-run': 'runTrialBalance',
@@ -289,7 +346,6 @@ function initGlobalReportDelegation() {
             return;
         }
 
-        // ---- امروز تا یک ماه ----
         if (id === 'cf-today' || id === 'cfd-today') {
             var prefix = id.replace('-today', '');
             var t = todayJalaliStr();
@@ -417,33 +473,33 @@ function init() {
 
     if (typeof updateUnitChips === 'function') updateUnitChips();
 
-    // فعال‌سازی مدیریت سراسری دکمه‌ها
     initGlobalReportDelegation();
 
+    // اجرای ایمن توابع بایندینگ (در صورت وجود)
     var binds = [
-        ['bindSidebarNavApp',  bindSidebarNavApp],
-        ['bindSettingsButtons', bindSettingsButtons],
+        ['bindSidebarNavApp',  typeof bindSidebarNavApp !== 'undefined' ? bindSidebarNavApp : null],
+        ['bindSettingsButtons', typeof bindSettingsButtons !== 'undefined' ? bindSettingsButtons : null],
         ['bindThemeFontButtons', function () {
             if (typeof bindThemeFontButtons === 'function') bindThemeFontButtons();
         }],
-        ['bindWidgetToggles',  bindWidgetToggles],
-        ['bindCurrencyHide',   bindCurrencyHide],
-        ['bindBankCashTypes',  bindBankCashTypes],
-        ['bindSmsButtons',     bindSmsButtons],
-        ['bindBaseDataForms',  bindBaseDataForms],
-        ['bindCashForms',      bindCashForms],
-        ['bindVoucherTemplatesForms', bindVoucherTemplatesForms],
-        ['bindModalClosers',   bindModalClosers],
+        ['bindWidgetToggles',  typeof bindWidgetToggles !== 'undefined' ? bindWidgetToggles : null],
+        ['bindCurrencyHide',   typeof bindCurrencyHide !== 'undefined' ? bindCurrencyHide : null],
+        ['bindBankCashTypes',  typeof bindBankCashTypes !== 'undefined' ? bindBankCashTypes : null],
+        ['bindSmsButtons',     typeof bindSmsButtons !== 'undefined' ? bindSmsButtons : null],
+        ['bindBaseDataForms',  typeof bindBaseDataForms !== 'undefined' ? bindBaseDataForms : null],
+        ['bindCashForms',      typeof bindCashForms !== 'undefined' ? bindCashForms : null],
+        ['bindVoucherTemplatesForms', typeof bindVoucherTemplatesForms !== 'undefined' ? bindVoucherTemplatesForms : null],
+        ['bindModalClosers',   typeof bindModalClosers !== 'undefined' ? bindModalClosers : null],
         ['bindNotesForm',      function () {
             if (typeof bindNotesForm === 'function') bindNotesForm();
         }],
-        ['bindFilterInputs',   bindFilterInputs],
-        ['bindExportButtons',  bindExportButtons]
+        ['bindFilterInputs',   typeof bindFilterInputs !== 'undefined' ? bindFilterInputs : null],
+        ['bindExportButtons',  typeof bindExportButtons !== 'undefined' ? bindExportButtons : null]
     ];
 
     binds.forEach(function (pair) {
         try {
-            pair[1]();
+            if (pair[1]) pair[1]();
         } catch (e) {
             console.warn('[' + pair[0] + ']', e);
         }
