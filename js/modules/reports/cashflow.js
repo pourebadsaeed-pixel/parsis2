@@ -4,18 +4,12 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   وضعیت (State) برای فیلترها و مرتب‌سازی گزارش گردش وجه نقد
-   ============================================================ */
 var _cfdBuckets = {};
 var _cfdAllDescs = [];
 var _cfdSelectedDescs = null;
 var _cfdSearchText = '';
 var _cfdSort = { col: 'name', dir: 'asc' };
 
-/* ============================================================
-   بخش ۱ — نمایش مبالغ HTML-محور
-   ============================================================ */
 function moneyHtml(n, key) {
     if (key && typeof getHideState === 'function' && getHideState(key)) return '—';
     n = Number(n) || 0;
@@ -42,9 +36,6 @@ function moneyText(n) {
     return v < 0 ? '(' + str + ')' : str;
 }
 
-/* ============================================================
-   بخش ۲ — محاسبه مانده بانک
-   ============================================================ */
 function computeBankBalanceLatest() {
     var vouchers = DB.load('vouchers', []);
     var banks = DB.load('bankAccounts', []);
@@ -66,9 +57,6 @@ function computeBankBalanceAtDate() {
     return computeBankBalanceLatest();
 }
 
-/* ============================================================
-   بخش ۳ — شروع سال مالی فعال
-   ============================================================ */
 function getActiveFiscalYearStart() {
     var periods = DB.load('fiscalPeriods', []);
     var p = periods.find(function (x) { return x.id === state.activePeriodId; });
@@ -78,13 +66,17 @@ function getActiveFiscalYearStart() {
     return parts[0] + '/01/01';
 }
 
-/* ============================================================
-   بخش ۴ — گزارش پیش‌بینی روزانه نقدینگی
-   ============================================================ */
 function runCashFlowReport() {
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
     }
+
+    // ✅ تعیین تاریخ‌های پیش‌فرض
+    var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
+    var cfFromEl = document.getElementById('cf-from');
+    var cfToEl = document.getElementById('cf-to');
+    if (cfFromEl && !cfFromEl.value) cfFromEl.value = activePeriod ? activePeriod.from : '';
+    if (cfToEl && !cfToEl.value) cfToEl.value = activePeriod ? activePeriod.to : '';
 
     var fromDate = normalizeDigits((document.getElementById('cf-from').value || '').trim());
     var toDate = normalizeDigits((document.getElementById('cf-to').value || '').trim());
@@ -258,9 +250,6 @@ function runCashFlowReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
-/* ============================================================
-   بخش ۵ — استایل‌های اختصاصی گزارش گردش وجه نقد
-   ============================================================ */
 (function injectCfdStyle() {
     if (document.getElementById('cfd-style-v6')) return;
     var s = document.createElement('style');
@@ -292,9 +281,6 @@ function runCashFlowReport() {
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   بخش ۶ — اعمال فیلتر روی جدول اصلی (با نرمال‌سازی اعداد)
-   ============================================================ */
 function applyCfdFilters() {
     var table = document.getElementById('cfd-table');
     if (!table) return;
@@ -324,7 +310,6 @@ function applyCfdFilters() {
     });
 }
 
-// جلوگیری از تداخل سیستم فیلتر خودکار با جدول ما
 if (!window._cfdApplyPatched) {
     window._cfdApplyPatched = true;
     var _origApply = window.applyColumnFiltersToTable;
@@ -337,9 +322,6 @@ if (!window._cfdApplyPatched) {
     };
 }
 
-/* ============================================================
-   بخش ۷ — گزارش گردش وجه نقد
-   ============================================================ */
 function runCashFlowByDescReport() {
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
@@ -412,7 +394,6 @@ function runCashFlowByDescReport() {
     _cfdBuckets = buckets;
     _cfdAllDescs = Object.keys(buckets).sort();
 
-    // اصلاح باگ: اگر کاربر همه را لغو انتخاب کرده بود، دوباره آنها را تیک نزن
     if (_cfdSelectedDescs === null) {
         _cfdSelectedDescs = _cfdAllDescs.slice();
     } else {
@@ -433,9 +414,6 @@ function runCashFlowByDescReport() {
     renderCfdTables();
 }
 
-/* ============================================================
-   بخش ۸ — رندر کمبوباکس چندانتخابی
-   ============================================================ */
 function renderCfdMultiSelect() {
     var container = document.getElementById('cfd-ms-container');
     if (!container) return;
@@ -521,9 +499,6 @@ function renderCfdMultiSelect() {
     };
 }
 
-/* ============================================================
-   بخش ۹ — رندر جدول‌ها (با فضای خالی یکسان)
-   ============================================================ */
 function renderCfdTables() {
     var container = document.getElementById('cfd-tables-container');
     if (!container) return;
@@ -544,7 +519,6 @@ function renderCfdTables() {
     var viewMode = document.getElementById('cfd-view').value;
     var hide = getHideState('cfd');
     
-    // 🔴 اصلاح اصلی: اگر هیچ آیتمی انتخاب نشده بود، در هر سه حالت فقط یک کارت تمیز نشان بده
     if (keys.length === 0) {
         container.innerHTML = '<div class="card" style="margin-top:10px"><p class="muted" style="text-align:center;padding:20px">هیچ بابت موردنظری انتخاب نشده است. (از منوی بالا بابت‌ها را انتخاب کنید)</p></div>';
         document.getElementById('cfd-count').textContent = '۰ دسته';
@@ -687,11 +661,7 @@ function renderCfdTables() {
     bindCfdTableEvents();
 }
 
-/* ============================================================
-   بخش ۱۰ — اتصال رویدادهای جدول (مرتب‌سازی، جستجو، کلیک)
-   ============================================================ */
 function bindCfdTableEvents() {
-    // کلیک روی ردیف‌ها برای ویرایش
     document.querySelectorAll('#cfd-result .cfd-row').forEach(function (row) {
         row.addEventListener('click', function (e) {
             if (e.target.closest('button')) return;
@@ -708,7 +678,6 @@ function bindCfdTableEvents() {
         });
     });
 
-    // مرتب‌سازی
     document.querySelectorAll('#cfd-table .cfd-sort-th').forEach(function(th) {
         th.addEventListener('click', function(e) {
             if (e.target.tagName === 'INPUT') return;
@@ -723,12 +692,10 @@ function bindCfdTableEvents() {
         });
     });
 
-    // فیلتر داخل جدول
     document.querySelectorAll('#cfd-table .cfd-f-input').forEach(function(inp) {
         inp.addEventListener('input', applyCfdFilters);
     });
 
-    // ریسپانسیو و ستون‌ها
     setTimeout(function () {
         var t = document.getElementById('cfd-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
@@ -742,9 +709,6 @@ function bindCfdTableEvents() {
     }, 50);
 }
 
-/* ============================================================
-   بخش ۱۱ — خلاصه گردش وجه نقد برای داشبورد
-   ============================================================ */
 function buildCashFlowDescSummaryForDash() {
     var d = new Date();
     var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
@@ -778,9 +742,6 @@ function buildCashFlowDescSummaryForDash() {
     }).slice(0, 8);
 }
 
-/* ============================================================
-   بخش ۱۲ — اتصال دکمه‌های گردش وجه نقد
-   ============================================================ */
 function bindCashFlowReportButtons() {
     var runCf = document.getElementById('cf-run');
     if (runCf) runCf.addEventListener('click', runCashFlowReport);
@@ -815,9 +776,6 @@ function bindCashFlowReportButtons() {
     }, 500);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.moneyHtml                       = moneyHtml;
 window.moneyText                       = moneyText;
 window.fmtFor                          = function (n, key) {
