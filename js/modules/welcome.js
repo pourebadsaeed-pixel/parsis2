@@ -10,7 +10,7 @@
     window._welcomeLoaded = true;
 
     /* ============================================================
-       بخش ۱ — حذف نسخه قدیمی (اگر هست)
+       بخش ۱ — حذف نسخه قدیمی
        ============================================================ */
     var old = document.getElementById('welcome-overlay');
     if (old) old.parentNode.removeChild(old);
@@ -20,6 +20,8 @@
        بخش ۲ — مخفی کردن body تا آماده شدن overlay
        ============================================================ */
     function hijackBody() {
+        // اگر لاگین نیستیم، صفحه خوش‌آمدگویی نباید ظاهر شود
+        if (!sessionStorage.getItem('parsis.session')) return;
         if (document.body) document.body.style.visibility = 'hidden';
     }
     hijackBody();
@@ -29,6 +31,8 @@
        ============================================================ */
     function buildOverlay() {
         if (document.getElementById('welcome-overlay')) return;
+        // اگر لاگین نیستیم، overlay ساخته نشود
+        if (!sessionStorage.getItem('parsis.session')) return;
 
         var el = document.createElement('div');
         el.id = 'welcome-overlay';
@@ -66,6 +70,7 @@
        بخش ۴ — نمایش تاریخ
        ============================================================ */
     function renderDate() {
+        if (!sessionStorage.getItem('parsis.session')) return;
         var d = new Date();
         var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
         var jEl = document.getElementById('welcome-date-jalali');
@@ -113,6 +118,7 @@
        بخش ۶ — رسم نمودار دونات
        ============================================================ */
     function renderChart() {
+        if (!sessionStorage.getItem('parsis.session')) return;
         var stats = computePeriodStats();
         var box = document.getElementById('welcome-chart');
         var legend = document.getElementById('welcome-legend');
@@ -223,12 +229,13 @@
        بخش ۸ — Init
        ============================================================ */
     function init() {
+        if (!sessionStorage.getItem('parsis.session')) return;
+
         injectStyle();
         buildOverlay();
         renderDate();
         setTimeout(renderChart, 200);
 
-        /* Safety: اگر کاربر ۵ ثانیه کلیک نکرد، خودکار باز شود */
         var safety = setTimeout(function () {
             if (document.body.style.visibility === 'hidden') {
                 document.body.style.visibility = 'visible';
