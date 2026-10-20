@@ -153,79 +153,59 @@ function bindSmsButtons() {
     }
 
     var sar = document.getElementById('sms-auto-read');
-    if (sar && !sar.dataset.bound) {
-        sar.dataset.bound = '1';
-        sar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
-    }
+    if (sar) sar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
 
     var ssar = document.getElementById('set-sms-auto-read');
-    if (ssar && !ssar.dataset.bound) {
-        ssar.dataset.bound = '1';
-        ssar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
-    }
+    if (ssar) ssar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
 
     var readClip = document.getElementById('sms-read-clip');
-    if (readClip && !readClip.dataset.bound) {
-        readClip.dataset.bound = '1';
-        readClip.addEventListener('click', function () {
-            if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false);
-            else showToast('⚠️ سیستم پیامک لود نشده.');
-        });
-    }
+    if (readClip) readClip.addEventListener('click', function () {
+        if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false);
+        else showToast('⚠️ سیستم پیامک لود نشده.');
+    });
 
     var parseSms = document.getElementById('parse-sms');
-    if (parseSms && !parseSms.dataset.bound) {
-        parseSms.dataset.bound = '1';
-        parseSms.addEventListener('click', function () {
-            var text = document.getElementById('sms-text').value;
-            if (!text.trim()) {
-                alert('متن را وارد کن.');
-                return;
-            }
-            if (typeof addSmsToInbox !== 'function') {
-                alert('سیستم پیامک لود نشده.');
-                return;
-            }
-            var res = addSmsToInbox(text, 'paste');
-            if (res.ok) {
-                showToast('✅ اضافه شد');
-                document.getElementById('sms-text').value = '';
-                if (typeof renderSmsInbox === 'function') renderSmsInbox();
-                if (typeof updateSmsBadge === 'function') updateSmsBadge();
-            } else {
-                alert(res.reason === 'duplicate' ? 'قبلاً ثبت شده.' : 'قابل تشخیص نبود.');
-            }
-        });
-    }
-
-    var clearSms = document.getElementById('clear-sms');
-    if (clearSms && !clearSms.dataset.bound) {
-        clearSms.dataset.bound = '1';
-        clearSms.addEventListener('click', function () {
+    if (parseSms) parseSms.addEventListener('click', function () {
+        var text = document.getElementById('sms-text').value;
+        if (!text.trim()) {
+            alert('متن را وارد کن.');
+            return;
+        }
+        if (typeof addSmsToInbox !== 'function') {
+            alert('سیستم پیامک لود نشده.');
+            return;
+        }
+        var res = addSmsToInbox(text, 'paste');
+        if (res.ok) {
+            showToast('✅ اضافه شد');
             document.getElementById('sms-text').value = '';
-            document.getElementById('sms-result').innerHTML = '';
-        });
-    }
-
-    var smsClearConv = document.getElementById('sms-clear-converted');
-    if (smsClearConv && !smsClearConv.dataset.bound) {
-        smsClearConv.dataset.bound = '1';
-        smsClearConv.addEventListener('click', function () {
-            if (!confirm('حذف تبدیل‌شده‌ها؟')) return;
-            if (typeof getSmsInbox !== 'function') return;
-            var l = getSmsInbox().filter(function (s) { return s.status === 'new'; });
-            if (typeof saveSmsInbox === 'function') saveSmsInbox(l);
             if (typeof renderSmsInbox === 'function') renderSmsInbox();
             if (typeof updateSmsBadge === 'function') updateSmsBadge();
-        });
-    }
+        } else {
+            alert(res.reason === 'duplicate' ? 'قبلاً ثبت شده.' : 'قابل تشخیص نبود.');
+        }
+    });
+
+    var clearSms = document.getElementById('clear-sms');
+    if (clearSms) clearSms.addEventListener('click', function () {
+        document.getElementById('sms-text').value = '';
+        document.getElementById('sms-result').innerHTML = '';
+    });
+
+    var smsClearConv = document.getElementById('sms-clear-converted');
+    if (smsClearConv) smsClearConv.addEventListener('click', function () {
+        if (!confirm('حذف تبدیل‌شده‌ها؟')) return;
+        if (typeof getSmsInbox !== 'function') return;
+        var l = getSmsInbox().filter(function (s) { return s.status === 'new'; });
+        if (typeof saveSmsInbox === 'function') saveSmsInbox(l);
+        if (typeof renderSmsInbox === 'function') renderSmsInbox();
+        if (typeof updateSmsBadge === 'function') updateSmsBadge();
+    });
 }
 
 function bindWidgetToggles() {
     var wT = document.querySelectorAll('[data-widget-toggle]');
     for (var wt = 0; wt < wT.length; wt++) {
-        if (wT[wt].dataset.bound) continue;
-        wT[wt].dataset.bound = '1';
         wT[wt].addEventListener('change', function () {
             var k = this.getAttribute('data-widget-toggle');
             state.widgets[k] = this.checked;
@@ -257,129 +237,70 @@ function bindVoucherTemplatesForms() {
     if (typeof bindTemplatesForm === 'function') bindTemplatesForm();
 }
 
-function bindReportButtons() {
-    var printButtons = {
-        'cf-print':  ['#cf-result',  'پیش‌بینی روزانه نقدینگی'],
-        'cfd-print': ['#cfd-result', 'گردش وجه نقد'],
-        'ra-print':  ['#ra-result',  'مرور حساب‌ها'],
-        'rt-print':  ['#rt-result',  'تراز آزمایشی'],
-        'ri-print':  ['#ri-result',  'تراکنش‌های تکمیل نشده'],
-        'rf-print':  ['#rf-result',  'خلاصه تسهیلات'],
-        'rff-print': ['#rff-result', 'گزارش جامع تسهیلات'],
-        'rc-print':  ['#rc-result',  'گزارش مقایسه‌ای دوره‌ها']
-    };
-    Object.keys(printButtons).forEach(function (id) {
-        var btn = document.getElementById(id);
-        if (!btn || btn.dataset.bound) return;
-        btn.dataset.bound = '1';
-        var args = printButtons[id];
-        btn.addEventListener('click', function () {
-            if (typeof printHtmlReport === 'function') printHtmlReport(args[0], args[1]);
-        });
-    });
+/* ============================================================
+   ✅ راه‌حل قطعی: مدیریت سراسری رویدادهای گزارش‌ها (Event Delegation)
+   ============================================================ */
+function initGlobalReportDelegation() {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
 
-    var exportButtons = {
-        'cf-export':  ['#cf-result',  'cash-flow'],
-        'cfd-export': ['#cfd-result', 'cash-flow-by-desc'],
-        'ra-export':  ['#ra-result',  'account-report'],
-        'rt-export':  ['#rt-result',  'trial-balance'],
-        'ri-export':  ['#ri-result',  'incomplete-transactions'],
-        'rf-export':  ['#rf-result',  'facility-summary'],
-        'rff-export': ['#rff-result', 'facility-full-report'],
-        'rc-export':  ['#rc-result',  'comparison-report']
-    };
-    Object.keys(exportButtons).forEach(function (id) {
-        var btn = document.getElementById(id);
-        if (!btn || btn.dataset.bound) return;
-        btn.dataset.bound = '1';
-        var args = exportButtons[id];
-        btn.addEventListener('click', function () {
-            if (typeof exportReportTable === 'function') exportReportTable(args[0], args[1]);
-        });
-    });
+        var id = btn.id;
+        if (!id) return;
 
-    var rtRun = document.getElementById('rt-run');
-    if (rtRun && !rtRun.dataset.bound && typeof runTrialBalance === 'function') {
-        rtRun.dataset.bound = '1';
-        rtRun.addEventListener('click', runTrialBalance);
-    }
-    var riRun = document.getElementById('ri-run');
-    if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') {
-        riRun.dataset.bound = '1';
-        riRun.addEventListener('click', runIncompleteReport);
-    }
-    var rcRun = document.getElementById('rc-run');
-    if (rcRun && !rcRun.dataset.bound && typeof runComparisonReport === 'function') {
-        rcRun.dataset.bound = '1';
-        rcRun.addEventListener('click', runComparisonReport);
-    }
-    var raRun = document.getElementById('ra-run');
-    if (raRun && !raRun.dataset.bound && typeof runAccountReport === 'function') {
-        raRun.dataset.bound = '1';
-        raRun.addEventListener('click', runAccountReport);
-    }
-}
+        // ---- چاپ ----
+        var printTitles = {
+            'cf-print':  ['#cf-result',  'پیش‌بینی روزانه نقدینگی'],
+            'cfd-print': ['#cfd-result', 'گردش وجه نقد'],
+            'ra-print':  ['#ra-result',  'مرور حساب‌ها'],
+            'rt-print':  ['#rt-result',  'تراز آزمایشی'],
+            'ri-print':  ['#ri-result',  'تراکنش‌های تکمیل نشده'],
+            'rf-print':  ['#rf-result',  'خلاصه تسهیلات'],
+            'rff-print': ['#rff-result', 'گزارش جامع تسهیلات'],
+            'rc-print':  ['#rc-result',  'گزارش مقایسه‌ای']
+        };
+        if (printTitles[id] && typeof printHtmlReport === 'function') {
+            printHtmlReport(printTitles[id][0], printTitles[id][1]);
+            return;
+        }
 
-function bindModalClosers() {
-    var closeVp = document.getElementById('close-vpreview');
-    if (closeVp && typeof closeVoucherPreview === 'function') {
-        closeVp.addEventListener('click', closeVoucherPreview);
-    }
-    var vpClose = document.getElementById('vpreview-close-btn');
-    if (vpClose && typeof closeVoucherPreview === 'function') {
-        vpClose.addEventListener('click', closeVoucherPreview);
-    }
-    var vpOv = document.getElementById('vpreview-overlay');
-    if (vpOv && typeof closeVoucherPreview === 'function') {
-        vpOv.addEventListener('click', closeVoucherPreview);
-    }
-    var vpPrint = document.getElementById('vpreview-print');
-    if (vpPrint && typeof printVoucherPreview === 'function') {
-        vpPrint.addEventListener('click', printVoucherPreview);
-    }
+        // ---- اکسل ----
+        var exportNames = {
+            'cf-export': 'cash-flow', 'cfd-export': 'cash-flow-by-desc',
+            'ra-export': 'account-report', 'rt-export': 'trial-balance',
+            'ri-export': 'incomplete-transactions', 'rf-export': 'facility-summary',
+            'rff-export': 'facility-full-report', 'rc-export': 'comparison-report'
+        };
+        if (exportNames[id] && typeof exportReportTable === 'function') {
+            var targetId = '#' + id.replace('-export', '-result');
+            exportReportTable(targetId, exportNames[id]);
+            return;
+        }
 
-    var closeTo = document.getElementById('close-turnover');
-    if (closeTo && typeof closeTurnover === 'function') closeTo.addEventListener('click', closeTurnover);
-    var toClose = document.getElementById('turnover-close-btn');
-    if (toClose && typeof closeTurnover === 'function') toClose.addEventListener('click', closeTurnover);
-    var toOv = document.getElementById('turnover-overlay');
-    if (toOv && typeof closeTurnover === 'function') toOv.addEventListener('click', closeTurnover);
-    var toPrint = document.getElementById('turnover-print');
-    if (toPrint && typeof printHtmlReport === 'function') {
-        toPrint.addEventListener('click', function () {
-            printHtmlReport('#turnover-body', 'گردش حساب');
-        });
-    }
+        // ---- اجرا ----
+        var runMap = {
+            'cf-run': 'runCashFlowReport', 'cfd-run': 'runCashFlowByDescReport',
+            'ra-run': 'renderAccountReview', 'rt-run': 'runTrialBalance',
+            'ri-run': 'runIncompleteReport', 'rf-run': 'runFacilityReport',
+            'rff-run': 'runFacilityFullReport', 'rc-run': 'runComparisonReport'
+        };
+        if (runMap[id] && typeof window[runMap[id]] === 'function') {
+            window[runMap[id]]();
+            return;
+        }
 
-    var closeIv = document.getElementById('close-imgview');
-    if (closeIv) closeIv.addEventListener('click', function () {
-        document.getElementById('imgview-modal').classList.remove('show');
-        document.getElementById('imgview-overlay').classList.remove('show');
-    });
-    var ivOv = document.getElementById('imgview-overlay');
-    if (ivOv) ivOv.addEventListener('click', function () {
-        document.getElementById('imgview-modal').classList.remove('show');
-        document.getElementById('imgview-overlay').classList.remove('show');
-    });
-
-    var closeNv = document.getElementById('close-noteview');
-    if (closeNv && typeof closeNoteView === 'function') closeNv.addEventListener('click', closeNoteView);
-    var nvOv = document.getElementById('noteview-overlay');
-    if (nvOv && typeof closeNoteView === 'function') nvOv.addEventListener('click', closeNoteView);
-
-    var closeScan = document.getElementById('voucher-scan-close');
-    if (closeScan) closeScan.addEventListener('click', function () {
-        var m = document.getElementById('voucher-scan-modal');
-        var o = document.getElementById('voucher-scan-overlay');
-        if (m) m.remove();
-        if (o) o.remove();
-    });
-    var scanOv = document.getElementById('voucher-scan-overlay');
-    if (scanOv) scanOv.addEventListener('click', function () {
-        var m = document.getElementById('voucher-scan-modal');
-        var o = document.getElementById('voucher-scan-overlay');
-        if (m) m.remove();
-        if (o) o.remove();
+        // ---- امروز تا یک ماه ----
+        if (id === 'cf-today' || id === 'cfd-today') {
+            var prefix = id.replace('-today', '');
+            var t = todayJalaliStr();
+            var fromEl = document.getElementById(prefix + '-from');
+            var toEl = document.getElementById(prefix + '-to');
+            if (fromEl) fromEl.value = t;
+            if (toEl) toEl.value = addJalaliDays(t, 30);
+            if (prefix === 'cf' && typeof runCashFlowReport === 'function') runCashFlowReport();
+            if (prefix === 'cfd' && typeof runCashFlowByDescReport === 'function') runCashFlowByDescReport();
+            return;
+        }
     });
 }
 
@@ -406,8 +327,7 @@ function bindFilterInputs() {
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
-        if (!el || el.dataset.bound) return;
-        el.dataset.bound = '1';
+        if (!el) return;
         var fn = filterMap[id];
         el.addEventListener('input', function () {
             if (typeof window[fn] === 'function') window[fn]();
@@ -415,8 +335,7 @@ function bindFilterInputs() {
     });
 
     var facCat = document.getElementById('fac-cat-filter');
-    if (facCat && !facCat.dataset.bound && typeof renderFacilitiesList === 'function') {
-        facCat.dataset.bound = '1';
+    if (facCat && typeof renderFacilitiesList === 'function') {
         facCat.addEventListener('change', renderFacilitiesList);
     }
 }
@@ -424,8 +343,6 @@ function bindFilterInputs() {
 function bindExportButtons() {
     var eB = document.querySelectorAll('.export-btn[data-export]');
     for (var e = 0; e < eB.length; e++) {
-        if (eB[e].dataset.bound) continue;
-        eB[e].dataset.bound = '1';
         eB[e].addEventListener('click', function () {
             if (typeof exportToCsv === 'function') {
                 exportToCsv(this.getAttribute('data-export'), this.getAttribute('data-export'));
@@ -500,6 +417,9 @@ function init() {
 
     if (typeof updateUnitChips === 'function') updateUnitChips();
 
+    // فعال‌سازی مدیریت سراسری دکمه‌ها
+    initGlobalReportDelegation();
+
     var binds = [
         ['bindSidebarNavApp',  bindSidebarNavApp],
         ['bindSettingsButtons', bindSettingsButtons],
@@ -513,7 +433,6 @@ function init() {
         ['bindBaseDataForms',  bindBaseDataForms],
         ['bindCashForms',      bindCashForms],
         ['bindVoucherTemplatesForms', bindVoucherTemplatesForms],
-        ['bindReportButtons',  bindReportButtons],
         ['bindModalClosers',   bindModalClosers],
         ['bindNotesForm',      function () {
             if (typeof bindNotesForm === 'function') bindNotesForm();
@@ -618,7 +537,6 @@ window.bindWidgetToggles        = bindWidgetToggles;
 window.bindBaseDataForms        = bindBaseDataForms;
 window.bindCashForms            = bindCashForms;
 window.bindVoucherTemplatesForms = bindVoucherTemplatesForms;
-window.bindReportButtons        = bindReportButtons;
 window.bindModalClosers         = bindModalClosers;
 window.bindFilterInputs         = bindFilterInputs;
 window.bindExportButtons        = bindExportButtons;
