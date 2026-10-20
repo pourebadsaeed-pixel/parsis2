@@ -4,9 +4,6 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — پچ کردن document.getElementById برای پشتیبانی از کپی صفحات
-   ============================================================ */
 (function patchGetElementById() {
     if (window._getByIdPatched) return;
     window._getByIdPatched = true;
@@ -21,9 +18,6 @@
     };
 })();
 
-/* ============================================================
-   بخش ۲ — CSS سیستم تب‌ها
-   ============================================================ */
 (function injectFormTabsCss() {
     if (document.getElementById('form-tabs-style')) return;
     var s = document.createElement('style');
@@ -58,9 +52,6 @@
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   بخش ۳ — State سیستم تب‌ها
-   ============================================================ */
 var TAB_STATE = {
     tabs: [{ id: 'home', page: 'home', domId: 'page-home', title: 'صفحه اصلی', icon: '🏠' }],
     active: 'home',
@@ -89,9 +80,6 @@ function getPageMeta(pageId) {
     return { title: title, icon: icon };
 }
 
-/* ============================================================
-   بخش ۴ — مدیریت Context (ذخیره و بازیابی متغیرهای سراسری)
-   ============================================================ */
 function getGlobalContext() {
     var ctx = {};
     try {
@@ -135,9 +123,6 @@ function applyGlobalContext(ctx) {
     } catch(e) { console.warn('Context apply error', e); }
 }
 
-/* ============================================================
-   بخش ۵ — توابع بررسی تغییرات ذخیره‌نشده
-   ============================================================ */
 function hasUnsavedData(pageId) {
     if (pageId === 'voucher-new') {
         if (window._voucherFormSavedAndClean) return false;
@@ -168,9 +153,6 @@ function clearFormData(pageId) {
     }
 }
 
-/* ============================================================
-   بخش ۶ — نوار تب‌ها
-   ============================================================ */
 function ensureTabBar() {
     var bar = document.getElementById('form-tabs-bar');
     if (bar) return bar;
@@ -287,26 +269,19 @@ function renderTabs() {
     }, 30);
 }
 
-/* ============================================================
-   بخش ۷ — جابه‌جایی بین تب‌ها
-   ============================================================ */
 function switchToTab(tabId) {
     var tab = TAB_STATE.tabs.find(function(t) { return t.id === tabId; });
     if (!tab) return;
 
-    // ذخیره وضعیت تب فعلی
     var currentTab = TAB_STATE.tabs.find(function(t) { return t.id === TAB_STATE.active; });
     if (currentTab && currentTab.id !== 'home') {
         currentTab.context = getGlobalContext();
     }
 
-    // مخفی کردن همه صفحات
     document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
 
-    // بازیابی وضعیت تب جدید
     applyGlobalContext(tab.context);
 
-    // نمایش صفحه مربوطه
     var targetPage = document.getElementById(tab.domId);
     if (targetPage) {
         targetPage.classList.add('active');
@@ -324,9 +299,6 @@ function switchToTab(tabId) {
     }
 }
 
-/* ============================================================
-   بخش ۸ — بستن تب‌ها
-   ============================================================ */
 function closeTab(tabId) {
     if (tabId === 'home') return;
 
@@ -386,9 +358,6 @@ function closeAllTabs() {
     showToast('🧹 همه فرم‌ها بسته شد');
 }
 
-/* ============================================================
-   بخش ۹ — دکمه بستن همه فرم‌ها در سایدبار
-   ============================================================ */
 function injectCloseAllButton() {
     if (document.getElementById('close-all-forms-btn')) return true;
     var searchBox = document.querySelector('.sidebar-search');
@@ -419,9 +388,6 @@ function injectCloseAllButton() {
     return true;
 }
 
-/* ============================================================
-   بخش ۱۰ — پچ goToPage برای ساخت کپی‌های مستقل
-   ============================================================ */
 function installGoToPageOverride() {
     if (typeof window.goToPage !== 'function') return false;
     if (window._origGoToPage) return true;
@@ -445,7 +411,6 @@ function installGoToPageOverride() {
             return;
         }
 
-        // محدودیت تعداد تب‌ها
         while (TAB_STATE.tabs.length >= TAB_STATE.max) {
             var toRemoveIdx = -1;
             for (var i = 1; i < TAB_STATE.tabs.length; i++) {
@@ -463,7 +428,6 @@ function installGoToPageOverride() {
         var origPage = document.getElementById('page-' + name);
         if (!origPage) return;
 
-        // علامت‌گذاری به عنوان الگو
         if (!origPage.classList.contains('page-template')) {
             origPage.classList.add('page-template');
             origPage.classList.remove('active');
@@ -475,12 +439,31 @@ function installGoToPageOverride() {
         clone.classList.remove('active');
         clone.classList.remove('page-template');
         
+        // ✅ پاکسازی دیتا اتریبیوت‌ها برای فعال شدن مجدد رویدادها در کپی
+        clone.querySelectorAll('[data-picker]').forEach(function(el) { delete el.dataset.picker; });
+        clone.querySelectorAll('[data-money]').forEach(function(el) { delete el.dataset.money; });
+        clone.querySelectorAll('[data-sortable]').forEach(function(el) { delete el.dataset.sortAttached; });
+        clone.querySelectorAll('[data-table-id]').forEach(function(el) { el.removeAttribute('data-table-id'); el.removeAttribute('data-resizable'); });
+        clone.querySelectorAll('[data-collapsible]').forEach(function(el) { delete el.dataset.collapsible; });
+        clone.querySelectorAll('.filter-collapse-header').forEach(function(el) { el.remove(); });
+        clone.querySelectorAll('.filter-collapse-body').forEach(function(el) { 
+            while(el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+            el.remove();
+        });
+        
+        // پاک کردن محتویات گزارش‌ها برای رندر مجدد
+        clone.querySelectorAll('#ra-clean-panel').forEach(function(el) { el.remove(); });
+        clone.querySelectorAll('#ra-result').forEach(function(el) { el.innerHTML = ''; });
+        clone.querySelectorAll('#rt-result').forEach(function(el) { el.innerHTML = ''; });
+        clone.querySelectorAll('#rc-result').forEach(function(el) { el.innerHTML = ''; });
+        clone.querySelectorAll('#cf-result').forEach(function(el) { el.innerHTML = ''; });
+        clone.querySelectorAll('#cfd-result').forEach(function(el) { el.innerHTML = ''; });
+
         origPage.parentNode.appendChild(clone);
 
         var meta = getPageMeta(name);
         var newTabId = 'tab_' + Date.now();
         
-        // اگر فرم سند جدید است، وضعیت را ریست کن
         if (name === 'voucher-new') {
             voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
             currentVoucherStatus = 'draft';
@@ -501,9 +484,6 @@ function installGoToPageOverride() {
     return true;
 }
 
-/* ============================================================
-   بخش ۱۱ — autoAttachReportHelpers
-   ============================================================ */
 function autoAttachReportHelpers() {
     setTimeout(function () {
         if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
@@ -527,9 +507,6 @@ function autoAttachReportHelpers() {
     }, 60);
 }
 
-/* ============================================================
-   بخش ۱۲ — راه‌اندازی
-   ============================================================ */
 function initFormTabs() {
     var tries = 0;
     var interval = setInterval(function () {
