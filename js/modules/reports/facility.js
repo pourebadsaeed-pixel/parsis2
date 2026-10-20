@@ -1,16 +1,10 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات (خلاصه + جامع)
    مسیر: js/modules/reports/facility.js
-   وابستگی: core/* + ui/* + reports/cashflow.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — خلاصه تسهیلات
-   ✅ افزودن تاشو شدن پنل فیلتر
-   ============================================================ */
 function runFacilityReport() {
-    /* ✅ تاشو کردن پنل فیلتر */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-facility', 'filter-rf', 'فیلترهای خلاصه تسهیلات', '🔍');
     }
@@ -95,11 +89,11 @@ function runFacilityReport() {
 
     setupRfSorting();
 
-    /* ✅ فعال‌سازی ریسایز ستون‌ها */
     setTimeout(function () {
         var t = document.getElementById('rf-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rf-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
@@ -108,6 +102,8 @@ function runFacilityReport() {
 function setupRfSorting() {
     var ths = document.querySelectorAll('#rf-result th[data-sort]');
     for (var i = 0; i < ths.length; i++) {
+        if (ths[i].dataset.bound) continue;
+        ths[i].dataset.bound = '1';
         ths[i].addEventListener('click', function () {
             var col = this.getAttribute('data-sort');
             if (sortState.rf.col === col) {
@@ -121,13 +117,11 @@ function setupRfSorting() {
     }
 }
 
-/* ============================================================
-   بخش ۲ — گزارش جامع تسهیلات
-   ✅ افزودن تاشو شدن پنل فیلتر
-   ============================================================ */
 function setupRffSorting() {
     var ths = document.querySelectorAll('#rff-result th[data-sort]');
     for (var i = 0; i < ths.length; i++) {
+        if (ths[i].dataset.bound) continue;
+        ths[i].dataset.bound = '1';
         ths[i].addEventListener('click', function () {
             var col = this.getAttribute('data-sort');
             if (sortState.rff.col === col) {
@@ -240,7 +234,6 @@ function computeFacilityRows() {
 }
 
 function runFacilityFullReport() {
-    /* ✅ تاشو کردن پنل فیلتر */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-facility-full', 'filter-rff', 'فیلترهای گزارش جامع تسهیلات', '🔍');
     }
@@ -276,9 +269,6 @@ function runFacilityFullReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
-/* ============================================================
-   بخش ۳ — خلاصه جدولی
-   ============================================================ */
 function renderFacilityFullSummary(rows) {
     var hide = getHideState('rff');
     var html = '<div class="table-wrap"><table class="report-table" id="rff-table"><thead><tr>'
@@ -381,6 +371,8 @@ function renderFacilityFullSummary(rows) {
 
     var btns = document.querySelectorAll('#rff-result [data-action]');
     for (var bi = 0; bi < btns.length; bi++) {
+        if (btns[bi].dataset.bound) continue;
+        btns[bi].dataset.bound = '1';
         btns[bi].addEventListener('click', function () {
             var fid = this.getAttribute('data-fid');
             var act = this.getAttribute('data-action');
@@ -391,17 +383,14 @@ function renderFacilityFullSummary(rows) {
         });
     }
 
-    /* ✅ فعال‌سازی ریسایز */
     setTimeout(function () {
         var t = document.getElementById('rff-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rff-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     }, 30);
 }
 
-/* ============================================================
-   بخش ۴ — جزئیات کارتی
-   ============================================================ */
 function renderFacilityFullDetail(rows) {
     var sorted = rows.slice().sort(function (a, b) {
         if (a.insCount !== b.insCount) return a.insCount - b.insCount;
@@ -497,44 +486,73 @@ function renderFacilityFullDetail(rows) {
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 }
 
-/* ============================================================
-   بخش ۵ — اتصال دکمه‌ها
-   ============================================================ */
 function bindFacilityReportButtons() {
     var rfRun = document.getElementById('rf-run');
-    if (rfRun) rfRun.addEventListener('click', runFacilityReport);
+    if (rfRun && !rfRun.dataset.bound && typeof runFacilityReport === 'function') {
+        rfRun.dataset.bound = '1';
+        rfRun.addEventListener('click', runFacilityReport);
+    }
 
     var rffRun = document.getElementById('rff-run');
-    if (rffRun) rffRun.addEventListener('click', runFacilityFullReport);
+    if (rffRun && !rffRun.dataset.bound && typeof runFacilityFullReport === 'function') {
+        rffRun.dataset.bound = '1';
+        rffRun.addEventListener('click', runFacilityFullReport);
+    }
 
     var rfCat = document.getElementById('rf-category');
-    if (rfCat) rfCat.addEventListener('change', runFacilityReport);
+    if (rfCat && !rfCat.dataset.bound) {
+        rfCat.dataset.bound = '1';
+        rfCat.addEventListener('change', runFacilityReport);
+    }
 
     var rfStatus = document.getElementById('rf-status');
-    if (rfStatus) rfStatus.addEventListener('change', runFacilityReport);
+    if (rfStatus && !rfStatus.dataset.bound) {
+        rfStatus.dataset.bound = '1';
+        rfStatus.addEventListener('change', runFacilityReport);
+    }
 
     var rffCat = document.getElementById('rff-category');
-    if (rffCat) rffCat.addEventListener('change', runFacilityFullReport);
+    if (rffCat && !rffCat.dataset.bound) {
+        rffCat.dataset.bound = '1';
+        rffCat.addEventListener('change', runFacilityFullReport);
+    }
 
     var rffStatus = document.getElementById('rff-status');
-    if (rffStatus) rffStatus.addEventListener('change', runFacilityFullReport);
+    if (rffStatus && !rffStatus.dataset.bound) {
+        rffStatus.dataset.bound = '1';
+        rffStatus.addEventListener('change', runFacilityFullReport);
+    }
 
     var rffInstStatus = document.getElementById('rff-inst-status');
-    if (rffInstStatus) rffInstStatus.addEventListener('change', runFacilityFullReport);
+    if (rffInstStatus && !rffInstStatus.dataset.bound) {
+        rffInstStatus.dataset.bound = '1';
+        rffInstStatus.addEventListener('change', runFacilityFullReport);
+    }
 
     var rffBank = document.getElementById('rff-bank');
-    if (rffBank) rffBank.addEventListener('change', runFacilityFullReport);
+    if (rffBank && !rffBank.dataset.bound) {
+        rffBank.dataset.bound = '1';
+        rffBank.addEventListener('change', runFacilityFullReport);
+    }
 
     var rffSearch = document.getElementById('rff-search');
-    if (rffSearch) rffSearch.addEventListener('input', runFacilityFullReport);
+    if (rffSearch && !rffSearch.dataset.bound) {
+        rffSearch.dataset.bound = '1';
+        rffSearch.addEventListener('input', runFacilityFullReport);
+    }
 
     ['rff-from', 'rff-to'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.addEventListener('input', runFacilityFullReport);
+        if (el && !el.dataset.bound) {
+            el.dataset.bound = '1';
+            el.addEventListener('input', runFacilityFullReport);
+        }
     });
 
     var rffTabs = document.querySelectorAll('[data-rff-view]');
     for (var ti = 0; ti < rffTabs.length; ti++) {
+        if (rffTabs[ti].dataset.bound) continue;
+        rffTabs[ti].dataset.bound = '1';
         rffTabs[ti].addEventListener('click', function () {
             var v = this.getAttribute('data-rff-view');
             state.rffView = v;
@@ -547,7 +565,6 @@ function bindFacilityReportButtons() {
         rffTabs[ti].classList.toggle('active', rffTabs[ti].getAttribute('data-rff-view') === state.rffView);
     }
 
-    /* ✅ تاشو کردن پنل‌های فیلتر در بار اول */
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
             makeFilterPanelCollapsible('report-facility', 'filter-rf', 'فیلترهای خلاصه تسهیلات', '🔍');
@@ -556,9 +573,6 @@ function bindFacilityReportButtons() {
     }, 500);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.runFacilityReport            = runFacilityReport;
 window.setupRfSorting               = setupRfSorting;
 window.setupRffSorting              = setupRffSorting;
