@@ -94,9 +94,13 @@ var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
 })();
 
 function rebuildAccountFilterPanel() {
-    var page = document.getElementById('page-report-account');
+    // ✅ اصلاح: پیدا کردن تب فعال، حتی اگر کپی شده باشد
+    var page = document.querySelector('.page.active');
+    if (!page || page.id.indexOf('page-report-account') === -1) {
+        page = document.getElementById('page-report-account');
+    }
     if (!page) return;
-    if (document.getElementById('ra-clean-panel')) return;
+    if (page.querySelector('#ra-clean-panel')) return;
 
     var firstCard = page.querySelector('.card');
     if (!firstCard) return;
@@ -895,7 +899,6 @@ function openAccountTurnover(accountId, detailInfo) {
     if (rows.length === 0) {
         body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
     } else {
-        // ✅ اضافه کردن هدر برای دکمه چاپ و نمایش/عدم نمایش ستون‌ها
         var html = '<div class="list-header" data-col-table="turnover-table" data-hide-key="turnover" style="margin-bottom:12px">'
                  + '<span class="count-badge">' + toFa(rows.length) + '</span>'
                  + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
@@ -1013,25 +1016,13 @@ function closeTurnover() {
 
 (function initAccountReviewFinal() {
     function apply() {
-        rebuildAccountFilterPanel();
-
+        // ✅ حذف observer چون router خودش رندر می‌کند
         window.runAccountReport = function () {
             _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
             _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
             renderAccountReview();
         };
         window._renderAccountReportTree = renderAccountReview;
-
-        var page = document.getElementById('page-report-account');
-        if (page) {
-            var observer = new MutationObserver(function () {
-                if (page.classList.contains('active')) {
-                    var box = document.getElementById('ra-result');
-                    if (box && !box.querySelector('.ar-wrap')) renderAccountReview();
-                }
-            });
-            observer.observe(page, { attributes: true, attributeFilter: ['class'] });
-        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () { setTimeout(apply, 2500); });
@@ -1054,4 +1045,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — All Fixed + Turnover Columns');
+console.log('✅ [modules/reports/account.js] loaded — All Fixed');
