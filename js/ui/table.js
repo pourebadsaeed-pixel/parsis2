@@ -531,7 +531,6 @@ function showColMenu(tableId, btn) {
     menu.innerHTML = html;
     menu.classList.remove('hidden');
     
-    // ✅ اصلاح: بالاتر از همه لایه‌ها و مودال‌ها قرار می‌گیرد
     menu.style.zIndex = '99999'; 
     menu.style.position = 'fixed';
     
@@ -788,49 +787,70 @@ function buildHeaderButtons() {
             var tableId = h.getAttribute('data-col-table');
             var hideKey = h.getAttribute('data-hide-key');
 
-            if (hideKey && !h.querySelector('.eye-toggle-btn')) {
-                var eye = document.createElement('button');
-                eye.type = 'button';
-                eye.className = 'eye-toggle-btn';
-                eye.setAttribute('data-hide-key', hideKey);
-                eye.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    if (typeof toggleHideState === 'function') toggleHideState(hideKey);
-                    if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
-                });
-                h.appendChild(eye);
+            // Eye button
+            if (hideKey) {
+                var eye = h.querySelector('.eye-toggle-btn');
+                if (!eye) {
+                    eye = document.createElement('button');
+                    eye.type = 'button';
+                    eye.className = 'eye-toggle-btn';
+                    eye.setAttribute('data-hide-key', hideKey);
+                    h.appendChild(eye);
+                }
+                if (!eye.dataset.bound) {
+                    eye.dataset.bound = '1';
+                    eye.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        if (typeof toggleHideState === 'function') toggleHideState(hideKey);
+                        if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
+                    });
+                }
             }
 
-            if (tableId && !h.querySelector('.col-reset-btn')) {
-                var rBtn = document.createElement('button');
-                rBtn.type = 'button';
-                rBtn.className = 'col-reset-btn';
-                rBtn.innerHTML = '↻';
-                rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض';
-                rBtn.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    resetColumnWidths(tableId);
-                });
-                h.appendChild(rBtn);
+            // Reset Width button
+            if (tableId) {
+                var rBtn = h.querySelector('.col-reset-btn');
+                if (!rBtn) {
+                    rBtn = document.createElement('button');
+                    rBtn.type = 'button';
+                    rBtn.className = 'col-reset-btn';
+                    rBtn.innerHTML = '↻';
+                    rBtn.title = 'بازنشانی عرض ستون‌ها به حالت پیش‌فرض';
+                    h.appendChild(rBtn);
+                }
+                if (!rBtn.dataset.bound) {
+                    rBtn.dataset.bound = '1';
+                    rBtn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        resetColumnWidths(tableId);
+                    });
+                }
             }
 
-            if (tableId && !h.querySelector('.col-toggle-btn') && tableId !== 'ra-acc-table') {
-                var btn = document.createElement('button');
-                btn.className = 'col-toggle-btn';
-                btn.type = 'button';
-                btn.innerHTML = '⚙';
-                btn.title = 'نمایش، ترتیب و پنهان کردن ستون‌ها';
-                btn.addEventListener('click', function (ev) { ev.stopPropagation(); showColMenu(tableId, btn); });
-                h.appendChild(btn);
+            // Column Settings button
+            if (tableId && tableId !== 'ra-acc-table') {
+                var btn = h.querySelector('.col-toggle-btn');
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.className = 'col-toggle-btn';
+                    btn.type = 'button';
+                    btn.innerHTML = '⚙';
+                    btn.title = 'نمایش، ترتیب و پنهان کردن ستون‌ها';
+                    h.appendChild(btn);
+                }
+                if (!btn.dataset.bound) {
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', function (ev) { 
+                        ev.stopPropagation(); 
+                        showColMenu(tableId, btn); 
+                    });
+                }
             }
         })(headers[i]);
     }
     if (typeof updateEyeButtons === 'function') updateEyeButtons();
 }
 
-/* ============================================================
-   Exports
-   ============================================================ */
 window.colWidths = colWidths;
 window.saveColWidths = saveColWidths;
 window.applyColWidths = applyColWidths;
