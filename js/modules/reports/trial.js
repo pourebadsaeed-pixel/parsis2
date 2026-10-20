@@ -5,9 +5,6 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   State مرتب‌سازی برای تراز و مقایسه‌ای
-   ============================================================ */
 if (typeof window._rtSort === 'undefined') {
     window._rtSort = { col: 'name', dir: 'asc' };
 }
@@ -15,9 +12,6 @@ if (typeof window._rcSort === 'undefined') {
     window._rcSort = { col: 'name', dir: 'asc' };
 }
 
-/* ============================================================
-   تابع مقایسه‌ی مقادیر برای مرتب‌سازی
-   ============================================================ */
 function _reportSortCompare(a, b, col, dir) {
     var va = a[col];
     var vb = b[col];
@@ -55,15 +49,17 @@ function _updateSortIndicators(container, state) {
     });
 }
 
-/* ============================================================
-   بخش ۱ — تراز آزمایشی
-   ✅ افزودن تاشو شدن پنل فیلتر
-   ============================================================ */
 function runTrialBalance() {
-    /* ✅ تاشو کردن پنل فیلتر */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
     }
+
+    // ✅ تعیین تاریخ‌های پیش‌فرض
+    var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
+    var rtFromEl = document.getElementById('rt-from');
+    var rtToEl = document.getElementById('rt-to');
+    if (rtFromEl && !rtFromEl.value) rtFromEl.value = activePeriod ? activePeriod.from : '';
+    if (rtToEl && !rtToEl.value) rtToEl.value = activePeriod ? activePeriod.to : '';
 
     var opts = {
         from:     (document.getElementById('rt-from') || {}).value || '',
@@ -89,23 +85,24 @@ function runTrialBalance() {
         var b = rolled[node.id] || { debit: 0, credit: 0 };
         var net = b.debit - b.credit;
 
-if (opts.level === 4 && level === 3) {
-    var sD = 0, sC = 0;
-    Object.keys(result.detailBalances).forEach(function (key) {
-        var d = result.detailBalances[key];
-        if (d.parent !== node.id) return;
-        sD += d.debit;
-        sC += d.credit;
-        var dn = d.debit - d.credit;
-        rows.push({
-            name: getDetailLabel(d.linkType, d.id) + ' (' + node.name + ')',
-            level: 4,
-            debit: d.debit,
-            credit: d.credit,
-            md: dn > 0 ? dn : 0,
-            mc: dn < 0 ? -dn : 0
-        });
-    });
+        if (opts.level === 4 && level === 3) {
+            var sD = 0, sC = 0;
+            Object.keys(result.detailBalances).forEach(function (key) {
+                var d = result.detailBalances[key];
+                // ✅ اصلاح باگ: تغییر d.parent به d.parents
+                if (d.parents.indexOf(node.id) === -1) return;
+                sD += d.debit;
+                sC += d.credit;
+                var dn = d.debit - d.credit;
+                rows.push({
+                    name: getDetailLabel(d.linkType, d.id) + ' (' + node.name + ')',
+                    level: 4,
+                    debit: d.debit,
+                    credit: d.credit,
+                    md: dn > 0 ? dn : 0,
+                    mc: dn < 0 ? -dn : 0
+                });
+            });
 
             var dd = b.debit - sD;
             var dc = b.credit - sC;
@@ -225,9 +222,6 @@ if (opts.level === 4 && level === 3) {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
-/* ============================================================
-   بخش ۲ — تراکنش‌های تکمیل نشده
-   ============================================================ */
 function runIncompleteReport() {
     var statusF = (document.getElementById('ri-status') || {}).value || '';
     var periodF = (document.getElementById('ri-period') || {}).value || '';
@@ -329,57 +323,11 @@ function runIncompleteReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
-/* ============================================================
-   بخش ۳ — گزارش مقایسه‌ای
-   ============================================================ */
 function initCompareFilterCollapse() {
-    /* ✅ حالا از تابع عمومی makeFilterPanelCollapsible استفاده می‌کنیم */
     if (typeof makeFilterPanelCollapsible === 'function') {
         makeFilterPanelCollapsible('report-compare', 'filter-rc', 'فیلترهای گزارش مقایسه‌ای', '🔍');
         return;
     }
-
-    /* Fallback: کد قبلی در صورت نبود تابع عمومی */
-    var page = document.getElementById('page-report-compare');
-    if (!page) return;
-    var card = page.querySelector('.card');
-    if (!card) return;
-    if (card.dataset.collapseInit === '1') return;
-    card.dataset.collapseInit = '1';
-
-    var header = document.createElement('div');
-    header.className = 'rcc-collapse-header';
-    header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;'
-        + 'background:linear-gradient(180deg,#e8f0fb,#f4f8fd);cursor:pointer;user-select:none;'
-        + 'border-radius:14px 14px 0 0;margin:-18px -18px 14px -18px;border-bottom:1px solid var(--border)';
-    header.innerHTML = '<span style="font-size:1rem">🔍</span>'
-                    + '<span style="flex:1;font-weight:900;color:#1e40af;font-size:.9rem">فیلترهای گزارش مقایسه‌ای</span>'
-                    + '<span class="rcc-arrow" style="font-size:.75rem;color:#1e40af;transition:transform .25s">▼</span>';
-    card.insertBefore(header, card.firstChild);
-
-    var body = document.createElement('div');
-    body.className = 'rcc-collapse-body';
-    var children = Array.from(card.childNodes);
-    children.forEach(function (node) {
-        if (node === header) return;
-        if (node.classList && node.classList.contains('rcc-collapse-body')) return;
-        body.appendChild(node);
-    });
-    card.appendChild(body);
-
-    var collapsed = state.cardCollapsed['report-compare-filter'] === true;
-    if (collapsed) {
-        body.style.display = 'none';
-        header.querySelector('.rcc-arrow').style.transform = 'rotate(-90deg)';
-    }
-
-    header.addEventListener('click', function () {
-        var nowCollapsed = body.style.display === 'none' ? false : true;
-        body.style.display = nowCollapsed ? 'none' : '';
-        header.querySelector('.rcc-arrow').style.transform = nowCollapsed ? 'rotate(-90deg)' : '';
-        state.cardCollapsed['report-compare-filter'] = nowCollapsed;
-        DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
-    });
 }
 
 function runComparisonReport() {
@@ -544,9 +492,6 @@ function runComparisonReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
-/* ============================================================
-   بخش ۴ — اتصال دکمه‌ها
-   ============================================================ */
 function bindTrialReportButtons() {
     var rtRun = document.getElementById('rt-run');
     if (rtRun) rtRun.addEventListener('click', runTrialBalance);
@@ -572,7 +517,6 @@ function bindTrialReportButtons() {
         if (window._renderAccountReportTree) window._renderAccountReportTree();
     });
 
-    /* ✅ تاشو کردن پنل‌های فیلتر در بار اول */
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
             makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
@@ -581,9 +525,6 @@ function bindTrialReportButtons() {
     }, 500);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.runTrialBalance          = runTrialBalance;
 window.runIncompleteReport      = runIncompleteReport;
 window.runComparisonReport      = runComparisonReport;
