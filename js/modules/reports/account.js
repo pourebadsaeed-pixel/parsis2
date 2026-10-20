@@ -94,7 +94,6 @@ var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
 })();
 
 function rebuildAccountFilterPanel() {
-    // ✅ اصلاح: پیدا کردن تب فعال، حتی اگر کپی شده باشد
     var page = document.querySelector('.page.active');
     if (!page || page.id.indexOf('page-report-account') === -1) {
         page = document.getElementById('page-report-account');
@@ -899,9 +898,11 @@ function openAccountTurnover(accountId, detailInfo) {
     if (rows.length === 0) {
         body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
     } else {
+        // ✅ دکمه تنظیمات ستون‌ها مستقیماً در HTML قرار داده شد
         var html = '<div class="list-header" data-col-table="turnover-table" data-hide-key="turnover" style="margin-bottom:12px">'
                  + '<span class="count-badge">' + toFa(rows.length) + '</span>'
                  + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
+                 + '<button class="col-toggle-btn" onclick="event.stopPropagation(); showColMenu(\'turnover-table\', this)" title="نمایش/مخفی کردن ستون‌ها" style="margin-right:auto">⚙</button>'
                  + '<button class="share-btn" onclick="printHtmlReport(\'#turnover-body\', \'گردش حساب\')" title="چاپ">🖨</button>'
                  + '</div>'
                  + '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
@@ -990,7 +991,6 @@ function openAccountTurnover(accountId, detailInfo) {
             if (t && typeof makeTableResizable === 'function') {
                 makeTableResizable(t);
             }
-            if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
             if (typeof applyColVisibility === 'function') applyColVisibility('turnover-table');
             if (typeof buildShareButtons === 'function') buildShareButtons();
         }, 100);
@@ -1016,7 +1016,6 @@ function closeTurnover() {
 
 (function initAccountReviewFinal() {
     function apply() {
-        // ✅ حذف observer چون router خودش رندر می‌کند
         window.runAccountReport = function () {
             _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
             _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
