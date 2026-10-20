@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — تقویم شمسی، ماشین‌حساب، انتخاب‌گرها
    مسیر: js/core/calendar-popup.js
-   وابستگی: constants.js, utils.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — تقویم شمسی پاپ‌آپ
-   ============================================================ */
 var calTarget = null;
 var calCursorY = 0;
 var calCursorM = 0;
@@ -150,9 +146,6 @@ function initCalendarListeners() {
     if (overlay) overlay.addEventListener('click', closeCalendar);
 }
 
-/* ============================================================
-   بخش ۲ — ماشین حساب
-   ============================================================ */
 var calcTarget = null;
 var calcExpr = '0';
 
@@ -221,10 +214,8 @@ function initCalculator() {
     var box = document.getElementById('calc-buttons');
     if (!box) return;
     
-    // ✅ اجبار چیدمان به چپ به راست (LTR)
     box.style.direction = 'ltr';
 
-    // ✅ چیدمان استاندارد ماشین‌حساب (از چپ به راست)
     var keys = [
         'C', '←', '/', '*',
         '7', '8', '9', '-',
@@ -285,11 +276,25 @@ function attachDatePickers() {
     var els = document.querySelectorAll('.date-picker');
     for (var i = 0; i < els.length; i++) {
         var el = els[i];
-        if (el.dataset.picker === '1') continue;
+        
+        // ✅ اگر قبلاً در date-wrap قرار گرفته (مثلاً صفحه کپی شده)
+        if (el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('date-wrap')) {
+            var existingBtn = el.parentNode.querySelector('.cal-btn');
+            if (existingBtn && !existingBtn.dataset.pickerBound) {
+                existingBtn.dataset.pickerBound = '1';
+                (function (inp, b) {
+                    b.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openCalendar(inp);
+                    });
+                })(el, existingBtn);
+            }
+            continue;
+        }
+        
+        // اگر wrapper ندارد، بساز
         el.dataset.picker = '1';
-
-        if (el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('date-wrap')) continue;
-
         try {
             var wrap = document.createElement('div');
             wrap.className = 'date-wrap';
@@ -301,6 +306,7 @@ function attachDatePickers() {
             btn.className = 'cal-btn';
             btn.innerHTML = '📅';
             btn.title = 'باز کردن تقویم';
+            btn.dataset.pickerBound = '1';
             (function (inp) {
                 btn.addEventListener('click', function (e) {
                     e.preventDefault();
@@ -341,9 +347,6 @@ function attachMoneyInput(el, setter) {
     });
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.openCalendar          = openCalendar;
 window.renderCalendar        = renderCalendar;
 window.pickDay               = pickDay;
