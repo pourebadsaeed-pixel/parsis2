@@ -1,7 +1,6 @@
 /* ============================================================
-   پارسیس — صفحه خوش‌آمدگویی
+   پارسیس — صفحه خوش‌آمدگویی (نسخه ایمن و ضد باگ)
    مسیر: js/modules/welcome.js
-   وابستگی: core/* + ui/* + reports/cashflow.js
    ============================================================ */
 'use strict';
 
@@ -9,35 +8,21 @@
     if (window._welcomeLoaded) return;
     window._welcomeLoaded = true;
 
-    /* ============================================================
-       بخش ۱ — حذف نسخه قدیمی
-       ============================================================ */
+    // حذف نسخه قدیمی اگر وجود داشت
     var old = document.getElementById('welcome-overlay');
     if (old) old.parentNode.removeChild(old);
-    try { sessionStorage.removeItem('parsis.welcomeShown'); } catch (e) {}
 
-    /* ============================================================
-       بخش ۲ — مخفی کردن body تا آماده شدن overlay
-       ============================================================ */
-    function hijackBody() {
-        // اگر لاگین نیستیم، صفحه خوش‌آمدگویی نباید ظاهر شود
-        if (!sessionStorage.getItem('parsis.session')) return;
-        if (document.body) document.body.style.visibility = 'hidden';
+    function hasSession() {
+        try { return !!sessionStorage.getItem('parsis.session'); } catch(e) { return false; }
     }
-    hijackBody();
 
-    /* ============================================================
-       بخش ۳ — ساخت overlay
-       ============================================================ */
     function buildOverlay() {
+        if (!hasSession()) return;
         if (document.getElementById('welcome-overlay')) return;
-        // اگر لاگین نیستیم، overlay ساخته نشود
-        if (!sessionStorage.getItem('parsis.session')) return;
 
         var el = document.createElement('div');
         el.id = 'welcome-overlay';
         el.className = 'welcome-overlay';
-        el.style.visibility = 'visible';
         el.innerHTML = ''
             + '<div class="welcome-top">'
             +   '<div class="welcome-date" id="welcome-date-jalali">—</div>'
@@ -60,34 +45,29 @@
         el.addEventListener('click', function () {
             el.classList.add('welcome-out');
             setTimeout(function () {
-                document.body.style.visibility = 'visible';
-                el.style.display = 'none';
+                if (el.parentNode) el.parentNode.removeChild(el);
             }, 500);
         });
     }
 
-    /* ============================================================
-       بخش ۴ — نمایش تاریخ
-       ============================================================ */
     function renderDate() {
-        if (!sessionStorage.getItem('parsis.session')) return;
-        var d = new Date();
-        var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-        var jEl = document.getElementById('welcome-date-jalali');
-        var gEl = document.getElementById('welcome-date-greg');
+        if (!hasSession()) return;
+        try {
+            var d = new Date();
+            var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+            var jEl = document.getElementById('welcome-date-jalali');
+            var gEl = document.getElementById('welcome-date-greg');
 
-        if (jEl) {
-            jEl.textContent = WEEKDAYS_FA[d.getDay()] + '، '
-                + toFa(j[2]) + ' ' + JALALI_MONTHS[j[1] - 1] + ' ' + toFa(j[0]);
-        }
-        if (gEl) {
-            gEl.textContent = d.getDate() + ' ' + GREG_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
-        }
+            if (jEl) {
+                jEl.textContent = WEEKDAYS_FA[d.getDay()] + '، '
+                    + toFa(j[2]) + ' ' + JALALI_MONTHS[j[1] - 1] + ' ' + toFa(j[0]);
+            }
+            if (gEl) {
+                gEl.textContent = d.getDate() + ' ' + GREG_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+            }
+        } catch(e) {}
     }
 
-    /* ============================================================
-       بخش ۵ — محاسبه آمار دوره فعال
-       ============================================================ */
     function computePeriodStats() {
         var accounts = DB.load('accounts', []);
         var vouchers = DB.load('vouchers', []).filter(function (v) {
@@ -114,11 +94,8 @@
         return { income: income, expense: expense };
     }
 
-    /* ============================================================
-       بخش ۶ — رسم نمودار دونات
-       ============================================================ */
     function renderChart() {
-        if (!sessionStorage.getItem('parsis.session')) return;
+        if (!hasSession()) return;
         var stats = computePeriodStats();
         var box = document.getElementById('welcome-chart');
         var legend = document.getElementById('welcome-legend');
@@ -166,9 +143,6 @@
             + '</div>';
     }
 
-    /* ============================================================
-       بخش ۷ — تزریق CSS
-       ============================================================ */
     function injectStyle() {
         if (document.getElementById('welcome-style')) return;
         var s = document.createElement('style');
@@ -225,38 +199,24 @@
         document.head.appendChild(s);
     }
 
-    /* ============================================================
-       بخش ۸ — Init
-       ============================================================ */
     function init() {
-        if (!sessionStorage.getItem('parsis.session')) return;
+        // اگر کاربر لاگین نیست، هیچ کاری نکن (فقط صفحه لاگین دیده شود)
+        if (!hasSession()) return;
 
-        injectStyle();
-        buildOverlay();
-        renderDate();
-        setTimeout(renderChart, 200);
-
-        var safety = setTimeout(function () {
-            if (document.body.style.visibility === 'hidden') {
-                document.body.style.visibility = 'visible';
-                var w = document.getElementById('welcome-overlay');
-                if (w) {
-                    w.classList.add('welcome-out');
-                    setTimeout(function () { w.style.display = 'none'; }, 500);
-                }
-            }
-        }, 5000);
-
-        var w = document.getElementById('welcome-overlay');
-        if (w) w.addEventListener('click', function () {
-            clearTimeout(safety);
-        }, { once: true });
+        try {
+            injectStyle();
+            buildOverlay();
+            renderDate();
+            setTimeout(renderChart, 200);
+        } catch (e) {
+            console.error('[welcome] init error:', e);
+        }
     }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        init();
+        setTimeout(init, 100);
     }
 
     console.log('✅ [modules/welcome.js] loaded');
