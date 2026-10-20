@@ -1,7 +1,6 @@
 /* ============================================================
    پارسیس — تراز آزمایشی + تراکنش‌های ناقص + گزارش مقایسه‌ای
    مسیر: js/modules/reports/trial.js
-   وابستگی: core/* + ui/* + reports/account.js + reports/cashflow.js
    ============================================================ */
 'use strict';
 
@@ -54,7 +53,6 @@ function runTrialBalance() {
         makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
     }
 
-    // ✅ تعیین تاریخ‌های پیش‌فرض
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var rtFromEl = document.getElementById('rt-from');
     var rtToEl = document.getElementById('rt-to');
@@ -89,7 +87,6 @@ function runTrialBalance() {
             var sD = 0, sC = 0;
             Object.keys(result.detailBalances).forEach(function (key) {
                 var d = result.detailBalances[key];
-                // ✅ اصلاح باگ: تغییر d.parent به d.parents
                 if (d.parents.indexOf(node.id) === -1) return;
                 sD += d.debit;
                 sC += d.credit;
@@ -195,6 +192,8 @@ function runTrialBalance() {
     box.innerHTML = html;
 
     box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        if (th.dataset.bound) return;
+        th.dataset.bound = '1';
         th.addEventListener('click', function (e) {
             if (e.target.classList && e.target.classList.contains('col-resizer')) return;
             var col = this.getAttribute('data-sort-col');
@@ -217,6 +216,7 @@ function runTrialBalance() {
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rt-table');
         if (typeof applyColWidths === 'function') applyColWidths('rt-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
@@ -304,6 +304,8 @@ function runIncompleteReport() {
     if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
     box.querySelectorAll('[data-action]').forEach(function (btn) {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
         btn.addEventListener('click', function () {
             var vid = this.getAttribute('data-vid');
             var act = this.getAttribute('data-action');
@@ -468,6 +470,8 @@ function runComparisonReport() {
     if (u) u.textContent = 'واحد: ' + currencyLabel();
 
     box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        if (th.dataset.bound) return;
+        th.dataset.bound = '1';
         th.addEventListener('click', function (e) {
             if (e.target.classList && e.target.classList.contains('col-resizer')) return;
             var col = this.getAttribute('data-sort-col');
@@ -487,6 +491,7 @@ function runComparisonReport() {
         var t = document.getElementById('rc-table');
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rc-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
@@ -494,28 +499,43 @@ function runComparisonReport() {
 
 function bindTrialReportButtons() {
     var rtRun = document.getElementById('rt-run');
-    if (rtRun) rtRun.addEventListener('click', runTrialBalance);
+    if (rtRun && !rtRun.dataset.bound && typeof runTrialBalance === 'function') {
+        rtRun.dataset.bound = '1';
+        rtRun.addEventListener('click', runTrialBalance);
+    }
 
     var riRun = document.getElementById('ri-run');
-    if (riRun) riRun.addEventListener('click', runIncompleteReport);
+    if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') {
+        riRun.dataset.bound = '1';
+        riRun.addEventListener('click', runIncompleteReport);
+    }
 
     var rcRun = document.getElementById('rc-run');
-    if (rcRun) rcRun.addEventListener('click', runComparisonReport);
+    if (rcRun && !rcRun.dataset.bound && typeof runComparisonReport === 'function') {
+        rcRun.dataset.bound = '1';
+        rcRun.addEventListener('click', runComparisonReport);
+    }
 
     var raExpand = document.getElementById('ra-expand');
-    if (raExpand) raExpand.addEventListener('click', function () {
-        state.reportExpandedNodes = {};
-        if (window._renderAccountReportTree) window._renderAccountReportTree();
-    });
+    if (raExpand && !raExpand.dataset.bound) {
+        raExpand.dataset.bound = '1';
+        raExpand.addEventListener('click', function () {
+            state.reportExpandedNodes = {};
+            if (window._renderAccountReportTree) window._renderAccountReportTree();
+        });
+    }
 
     var raCollapse = document.getElementById('ra-collapse');
-    if (raCollapse) raCollapse.addEventListener('click', function () {
-        var accounts = DB.load('accounts', []);
-        var nodes = {};
-        accounts.forEach(function (a) { nodes[a.id] = false; });
-        state.reportExpandedNodes = nodes;
-        if (window._renderAccountReportTree) window._renderAccountReportTree();
-    });
+    if (raCollapse && !raCollapse.dataset.bound) {
+        raCollapse.dataset.bound = '1';
+        raCollapse.addEventListener('click', function () {
+            var accounts = DB.load('accounts', []);
+            var nodes = {};
+            accounts.forEach(function (a) { nodes[a.id] = false; });
+            state.reportExpandedNodes = nodes;
+            if (window._renderAccountReportTree) window._renderAccountReportTree();
+        });
+    }
 
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
