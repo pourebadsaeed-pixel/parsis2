@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — ناوبری (سایدبار، تب‌ها، صفحات پرکاربرد، swipe)
    مسیر: js/ui/nav.js
-   وابستگی: core/* + toast.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — سایدبار: باز/بسته کردن
-   ============================================================ */
 function openSidebar() {
     var sb = document.getElementById('sidebar');
     var ov = document.getElementById('overlay');
@@ -29,9 +25,6 @@ function closeSettings() {
     if (o) o.classList.remove('show');
 }
 
-/* ============================================================
-   بخش ۲ — ثبت/نمایش صفحات پرکاربرد
-   ============================================================ */
 function trackFormUsage(pageName) {
     if (!pageName || pageName === 'home') return;
     state.formUsage[pageName] = (state.formUsage[pageName] || 0) + 1;
@@ -73,7 +66,6 @@ function renderFrequentNav() {
         'report-incomplete':      { label: '🔍 تراکنش‌های تکمیل نشده' },
         'report-facility':        { label: '🏦 خلاصه تسهیلات' },
         'report-facility-full':   { label: '📊 گزارش جامع تسهیلات' },
-        'report-rates':           { label: '📈 نرخ ارز و طلا' },
         'report-compare':         { label: '📊 گزارش مقایسه‌ای' },
         'facilities':             { label: '🏦 تسهیلات' },
         'chart-define':           { label: '✏️ تعریف حساب‌ها' },
@@ -82,13 +74,7 @@ function renderFrequentNav() {
         'fiscal':                 { label: '📅 دوره مالی' },
         'estimate-daily':         { label: '📝 برآورد هزینه‌ها' },
         'cashflow-sources':       { label: '📌 منابع دریافتنی' },
-        'daily-close':            { label: '📅 قیمت پایانی روز' },
-        'language':               { label: '🌐 زبان' },
-        'account-types':          { label: '📑 لیست نوع حساب' },
-        'bank-types':             { label: '🏦 انواع حساب بانکی' },
-        'cash-types':             { label: '💰 انواع صندوق' },
-        'currency':               { label: '💱 ارز و واحد پول' },
-        'jalali-calendar':        { label: '📅 مدیریت تقویم' }
+        'users':                  { label: '👤 معرفی کاربران' }
     };
 
     container.innerHTML = '';
@@ -111,14 +97,11 @@ function renderFrequentNav() {
         var b = document.createElement('button');
         b.setAttribute('data-page', e.page);
         b.innerHTML = '<span>' + m.label + '</span>';
-        b.addEventListener('click', function () { goToPage(e.page); });
+        b.addEventListener('click', function () { goToPage(e.page, true); }); // ✅ Force New
         container.appendChild(b);
     });
 }
 
-/* ============================================================
-   بخش ۳ — Tab
-   ============================================================ */
 function setupTabs() {
     var btns = document.querySelectorAll('.tab-btn');
     for (var i = 0; i < btns.length; i++) {
@@ -141,9 +124,6 @@ function setupTabs() {
     }
 }
 
-/* ============================================================
-   بخش ۴ — جستجو در سایدبار
-   ============================================================ */
 function initSidebarSearch() {
     var inp = document.getElementById('sidebar-search-input');
     if (!inp) return;
@@ -165,9 +145,6 @@ function initSidebarSearch() {
     });
 }
 
-/* ============================================================
-   بخش ۵ — swipe صفحه اصلی
-   ============================================================ */
 function initHomeSwipe() {
     var grid = document.getElementById('home-grid');
     if (!grid) return;
@@ -203,9 +180,6 @@ function initHomeSwipe() {
     }, { passive: true });
 }
 
-/* ============================================================
-   بخش ۶ — تب‌های صفحه اصلی
-   ============================================================ */
 function setHomePage(p) {
     if (p < 1 || p > MAX_HOME_PAGES) return;
     state.homePage = p;
@@ -213,9 +187,6 @@ function setHomePage(p) {
     if (typeof applyWidgetVisibility === 'function') applyWidgetVisibility();
 }
 
-/* ============================================================
-   ✅ جدید: بررسی این که آیا صفحه‌ای حداقل یک ویجت فعال دارد
-   ============================================================ */
 function isHomePageEmpty(pageNum) {
     var widgets = state.widgets || {};
     var pages = state.widgetPages || {};
@@ -227,9 +198,6 @@ function isHomePageEmpty(pageNum) {
     return true;
 }
 
-/* ============================================================
-   ✅ جدید: تعداد صفحات قابل نمایش = بزرگ‌ترین صفحه‌ی دارای ویجت
-   ============================================================ */
 function getMaxActiveHomePage() {
     var maxP = 0;
     for (var p = 1; p <= MAX_HOME_PAGES; p++) {
@@ -243,12 +211,10 @@ function renderHomePageTabs() {
     var maxActive = getMaxActiveHomePage();
     for (var i = 0; i < tabs.length; i++) {
         var pg = Number(tabs[i].getAttribute('data-home-page'));
-        /* ✅ اگر صفحه‌ی مورد نظر خالی است، تب آن مخفی شود */
         var hasWidgets = !isHomePageEmpty(pg);
         tabs[i].style.display = hasWidgets ? '' : 'none';
         tabs[i].classList.toggle('active', pg === state.homePage);
     }
-    /* ✅ اگر کاربر در صفحه‌ای بدون ویجت قرار گرفت، به آخرین صفحه‌ی فعال ببر */
     if (state.homePage > maxActive) {
         state.homePage = Math.max(1, maxActive);
         saveState(LS_KEYS.HOME_PAGE);
@@ -260,7 +226,6 @@ function renderHomePageDots() {
     if (!box) return;
     box.innerHTML = '';
     for (var p = 1; p <= MAX_HOME_PAGES; p++) {
-        /* ✅ فقط صفحه‌های دارای ویجت */
         if (isHomePageEmpty(p)) continue;
         var d = document.createElement('div');
         d.className = 'home-page-dot' + (p === state.homePage ? ' active' : '');
@@ -271,9 +236,6 @@ function renderHomePageDots() {
     }
 }
 
-/* ============================================================
-   بخش ۷ — اتصال رویدادهای سایدبار
-   ============================================================ */
 function bindSidebarNav() {
     var menuBtn = document.getElementById('menu-btn');
     if (menuBtn) menuBtn.addEventListener('click', openSidebar);
@@ -296,7 +258,12 @@ function bindSidebarNav() {
 
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('.nav-group-items button[data-page]');
-        if (btn) goToPage(btn.getAttribute('data-page'));
+        if (btn) {
+            // ✅ همیشه تب جدید باز کند مگر برای صفحه اصلی
+            var pageName = btn.getAttribute('data-page');
+            if (pageName === 'home') goToPage('home');
+            else goToPage(pageName, true); 
+        }
     });
 
     var sideExpand = document.getElementById('side-expand');
@@ -320,7 +287,6 @@ function bindSidebarNav() {
         });
     }
 
-    /* ✅ اتصال دکمه‌های باز/بستن همه تنظیمات */
     var setExpand = document.getElementById('settings-expand-all');
     if (setExpand) setExpand.addEventListener('click', function () {
         document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
@@ -336,9 +302,6 @@ function bindSidebarNav() {
     });
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.openSidebar        = openSidebar;
 window.closeSidebar       = closeSidebar;
 window.closeSettings      = closeSettings;
