@@ -277,7 +277,7 @@ function attachDatePickers() {
     for (var i = 0; i < els.length; i++) {
         var el = els[i];
         
-        // ✅ اگر قبلاً در date-wrap قرار گرفته (مثلاً صفحه کپی شده)
+        // اگر قبلاً در date-wrap قرار گرفته (صفحه کپی شده)
         if (el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('date-wrap')) {
             var existingBtn = el.parentNode.querySelector('.cal-btn');
             if (existingBtn && !existingBtn.dataset.pickerBound) {
@@ -321,9 +321,6 @@ function attachDatePickers() {
     }
 }
 
-/* ============================================================
-   بخش ۴ — Money input binding
-   ============================================================ */
 function attachMoneyInput(el, setter) {
     if (!el || el.dataset.money) return;
     el.dataset.money = '1';
