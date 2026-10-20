@@ -1,26 +1,34 @@
 /* ============================================================
-   پارسیس — احراز هویت (لاگین)
+   پارسیس — احراز هویت (لاگین با Session)
    مسیر: js/modules/auth.js
    ============================================================ */
 'use strict';
 
-// نرمال‌سازی نام کاربری برای جلوگیری از خطای حروف عربی و فارسی (ي و ی)
 function normalizeFaLogin(s) {
     return String(s || '').replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک').trim().toLowerCase();
 }
 
 function checkAuth() {
-    var currentUser = DB.load('auth.currentUser', null);
-    if (!currentUser) {
-        document.getElementById('login-overlay').style.display = 'flex';
-        document.getElementById('app').style.display = 'none';
+    // ✅ استفاده از sessionStorage برای اینکه با بستن مرورگر پاک شود
+    var sessionStr = sessionStorage.getItem('parsis.session');
+    var loginOverlay = document.getElementById('login-overlay');
+    var appDiv = document.getElementById('app');
+
+    if (!sessionStr) {
+        if (loginOverlay) loginOverlay.style.display = 'flex';
+        if (appDiv) appDiv.style.display = 'none';
         return false;
-    } else {
-        document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        state.currentUser = currentUser;
-        return true;
     }
+
+    try {
+        state.currentUser = JSON.parse(sessionStr);
+    } catch (e) {
+        state.currentUser = { username: sessionStr };
+    }
+
+    if (loginOverlay) loginOverlay.style.display = 'none';
+    if (appDiv) appDiv.style.display = 'block';
+    return true;
 }
 
 function login() {
@@ -34,11 +42,11 @@ function login() {
     });
 
     if (found) {
-        DB.save('auth.currentUser', found);
+        // ✅ ذخیره در sessionStorage (با بستن مرورگر پاک می‌شود)
+        sessionStorage.setItem('parsis.session', JSON.stringify(found));
         errEl.style.display = 'none';
         
-        // نمایش اپلیکیشن
-        checkAuth();
+        checkAuth(); // نمایش برنامه
         
         if (typeof initUsersPage === 'function' && document.getElementById('page-users')) {
             initUsersPage();
@@ -51,7 +59,7 @@ function login() {
 }
 
 function logout() {
-    DB.remove('auth.currentUser');
+    sessionStorage.removeItem('parsis.session');
     location.reload();
 }
 
