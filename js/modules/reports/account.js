@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها
+   پارسیس — گزارش مرور حساب‌ها (با پیمایش آزاد، فیلتر و مرتب‌سازی)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -17,8 +17,6 @@ var _arSort = { col: 'code', dir: 'asc' };
 var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
 
 (function injectARStyle() {
-    // استایل‌های گزارش مرور حساب‌ها بدون تغییر
-    // (کدهای CSS قبلی در اینجا کپی می‌شود)
     if (document.getElementById('ar-final-style')) return;
     var s = document.createElement('style');
     s.id = 'ar-final-style';
@@ -103,7 +101,6 @@ function rebuildAccountFilterPanel() {
     var firstCard = page.querySelector('.card');
     if (!firstCard) return;
 
-    // ✅ تعیین تاریخ‌های پیش‌فرض از دوره فعال
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var defFrom = activePeriod ? activePeriod.from : '';
     var defTo = activePeriod ? activePeriod.to : '';
@@ -184,7 +181,6 @@ function rebuildAccountFilterPanel() {
         _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
         renderAccountReview();
     });
-    // ✅ اصلاح چاپ: استفاده از تابع چاپ مستقیم
     document.getElementById('ra-print').addEventListener('click', function () {
         if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
     });
@@ -824,7 +820,6 @@ function openAccountTurnover(accountId, detailInfo) {
     var ids = [];
     var title = '';
 
-    // ✅ اصلاح منطق فیلتر: اگر حساب leaf باشد، فقط همان حساب
     var targetAcc = accounts.find(function(a) { return a.id === accountId; });
     if (targetAcc && !accounts.some(function(a) { return a.parent === targetAcc.id; })) {
         ids = [accountId];
@@ -855,7 +850,7 @@ function openAccountTurnover(accountId, detailInfo) {
     var toD = (document.getElementById('ra-to') || {}).value || '';
     var vtype = (document.getElementById('ra-vtype') || {}).value || '';
     var periodId = (document.getElementById('ra-period') || {}).value || '';
-    var hide = getHideState('ra');
+    var hide = getHideState('turnover');
 
     var vouchers = DB.load('vouchers', []);
     if (!Array.isArray(vouchers)) vouchers = [];
@@ -900,7 +895,13 @@ function openAccountTurnover(accountId, detailInfo) {
     if (rows.length === 0) {
         body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
     } else {
-        var html = '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
+        // ✅ اضافه کردن هدر برای دکمه چاپ و نمایش/عدم نمایش ستون‌ها
+        var html = '<div class="list-header" data-col-table="turnover-table" data-hide-key="turnover" style="margin-bottom:12px">'
+                 + '<span class="count-badge">' + toFa(rows.length) + '</span>'
+                 + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
+                 + '<button class="share-btn" onclick="printHtmlReport(\'#turnover-body\', \'گردش حساب\')" title="چاپ">🖨</button>'
+                 + '</div>'
+                 + '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
                  +  '<th style="width:50px">#</th>'
                  +  '<th style="width:100px">تاریخ</th>'
                  +  '<th style="width:80px">شماره</th>'
@@ -986,6 +987,9 @@ function openAccountTurnover(accountId, detailInfo) {
             if (t && typeof makeTableResizable === 'function') {
                 makeTableResizable(t);
             }
+            if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+            if (typeof applyColVisibility === 'function') applyColVisibility('turnover-table');
+            if (typeof buildShareButtons === 'function') buildShareButtons();
         }, 100);
     }
 
@@ -1050,4 +1054,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — All Fixed');
+console.log('✅ [modules/reports/account.js] loaded — All Fixed + Turnover Columns');
