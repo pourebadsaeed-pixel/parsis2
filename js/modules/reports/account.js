@@ -1,12 +1,9 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (با پیمایش آزاد، فیلتر و مرتب‌سازی)
+   پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — state
-   ============================================================ */
 var _AR = {
     activeLevel: 1,
     path: [],
@@ -19,108 +16,85 @@ var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
 var _arSort = { col: 'code', dir: 'asc' };
 var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
 
-/* ============================================================
-   بخش ۲ — CSS
-   ============================================================ */
 (function injectARStyle() {
+    // استایل‌های گزارش مرور حساب‌ها بدون تغییر
+    // (کدهای CSS قبلی در اینجا کپی می‌شود)
     if (document.getElementById('ar-final-style')) return;
     var s = document.createElement('style');
     s.id = 'ar-final-style';
-    s.textContent = ''
-    + '.ar-wrap { background:var(--card-solid); border-radius:14px; border:1px solid var(--border); overflow:hidden; direction:rtl }'
-    + '.ar-tb { display:flex; align-items:center; gap:10px; padding:10px 14px; '
-    +   'background:linear-gradient(180deg,#e8f0fb,#f4f8fd); border-bottom:1px solid var(--border) }'
-    + '.ar-tb-title { flex:1; text-align:center; font-weight:900; color:#1e40af; font-size:.88rem }'
-    + '.ar-tb-bc { font-size:.8rem; color:#64748b }'
-    + '.ar-tb-bc a { color:#1e40af; text-decoration:none; cursor:pointer; border-bottom:1px dashed #93c5fd; padding:0 2px }'
-    + '.ar-tb-bc a:hover { background:#dbeafe }'
-    + '.ar-tb-bc .sep { color:#cbd5e1; margin:0 4px }'
-    + '.ar-col-toggle { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,0.85); '
-    +   'color:#1e40af; border:1px solid #c7dbf0; cursor:pointer; font-size:1.05rem; font-weight:800; '
-    +   'display:inline-flex; align-items:center; justify-content:center; padding:0; '
-    +   'transition:all .2s; flex-shrink:0; font-family:inherit; line-height:1 }'
-    + '.ar-col-toggle:hover { background:#1e40af; color:#fff; transform:scale(1.08); '
-    +   'box-shadow:0 3px 12px rgba(30,64,175,.35) }'
-    + '.ar-main { display:flex; min-height:460px }'
-    + '.ar-side { width:170px; flex-shrink:0; border-left:1px solid var(--border); background:#f7fafd; display:flex; flex-direction:column }'
-    + '.ar-side-head { padding:11px 14px; font-weight:900; color:#1e40af; font-size:.8rem; '
-    +   'background:linear-gradient(180deg,#dbe7f6,#c8dcef); border-bottom:1px solid var(--border); text-align:center }'
-    + '.ar-levels { padding:10px; display:flex; flex-direction:column; gap:6px; overflow-y:auto }'
-    + '.ar-lvl { position:relative; padding:12px 14px; border-radius:12px; text-align:center; '
-    +   'font-size:.86rem; font-weight:800; color:#334155; background:#fff; '
-    +   'border:1.5px solid #e0ecf8; cursor:pointer; user-select:none; transition:all .2s }'
-    + '.ar-lvl:hover { border-color:#3b82f6; color:#1e40af; background:linear-gradient(135deg,#eff6ff,#dbeafe) }'
-    + '.ar-lvl.active { background:linear-gradient(135deg,#1e40af,#1e3a8a); color:#fff; '
-    +   'border-color:#1e40af; box-shadow:0 4px 14px rgba(30,64,175,.35); transform:scale(1.05) }'
-    + '.ar-body { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--card-solid) }'
-    + '.ar-tw { overflow:auto; max-height:64vh; background:var(--card-solid); flex:1 }'
-    + '.ar-tbl { width:100%; border-collapse:collapse; font-size:.85rem }'
-    + '.ar-tbl thead th { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; '
-    +   'padding:11px 12px; text-align:center; font-weight:900; font-size:.8rem; '
-    +   'border:1px solid #b9cfe5; white-space:nowrap; position:sticky; top:0; z-index:3 }'
-    + '.ar-tbl thead th.ar-th-name { text-align:right; padding-right:16px }'
-    + '.ar-tbl thead th.ar-th-sort { cursor:pointer; user-select:none; }'
-    + '.ar-tbl thead th.ar-th-sort:hover { background:#c8dcef; }'
-    + '.ar-tbl tbody td { padding:9px 12px; border:1px solid #dbe6f1; white-space:nowrap }'
-    + '.ar-tbl tbody tr { cursor:pointer; transition:background .15s }'
-    + '.ar-tbl tbody tr:hover { background:#f0f6ff !important }'
-    + '.ar-tbl tbody tr.selected { background:#ffe9b3 !important; box-shadow:inset 0 0 0 2px #e8a33d }'
-    + '.ar-tbl .ar-code { font-family:monospace; direction:ltr; font-weight:800; color:#1e40af; text-align:center }'
-    + '.ar-tbl .ar-name-wrap { display:flex; align-items:center; gap:8px; justify-content:flex-start; flex-direction:row; min-width:0 }'
-    + '.ar-tbl .ar-name-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; text-align:right }'
-    + '.ar-tbl .ar-name { text-align:right; font-weight:700; padding-right:16px !important }'
-    + '.ar-tbl .ar-num { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:800 }'
-    + '.ar-tbl .ar-num.zero { color:#cbd5e1; font-weight:500 }'
-    + '.ar-tbl .ar-num.md { color:#059669 }'
-    + '.ar-tbl .ar-num.mc { color:#dc2626 }'
-    + '.ar-tbl .ar-badge { display:inline-block; font-size:.62rem; padding:1px 8px; '
-    +   'border-radius:8px; margin-right:8px; font-weight:800; vertical-align:middle }'
-    + '.ar-badge.b1 { background:#c7d2fe; color:#3730a3 }'
-    + '.ar-badge.b2 { background:#bbf7d0; color:#065f46 }'
-    + '.ar-badge.b3 { background:#fde68a; color:#92400e }'
-    + '.ar-badge.b4 { background:#e2e8f0; color:#475569 }'
-    + '.ar-tbl tfoot td { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; '
-    +   'padding:12px; font-weight:900; text-align:center; border:1px solid #b9cfe5; '
-    +   'position:sticky; bottom:0; z-index:3 }'
-    + '.ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }'
-    + '.ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; '
-    +   'width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; '
-    +   'border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; '
-    +   'transition:all .15s; flex-shrink:0; font-family:inherit; line-height:1 }'
-    + '.ar-turnover-btn:hover { background:#1e40af; color:#fff; transform:scale(1.15); '
-    +   'box-shadow:0 2px 8px rgba(30,64,175,.4) }'
-    + '.ar-filter-row th { background:var(--card-alt) !important; padding:4px 6px !important; border-bottom:2px solid var(--border) !important; }'
-    + '.ar-filter-input { width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.75rem; outline:none; box-sizing:border-box; }'
-    + '.ar-filter-input:focus { border-color:var(--primary); }'
-    + '.ar-filter-badge { background:#fef3c7; color:#92400e; padding:6px 12px; border-radius:8px; font-size:0.8rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin: 0 14px 10px 14px; border: 1px solid #f59e0b; }'
-    + '.ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:0.75rem; font-weight:bold; }'
-    + '@media (max-width:720px) {'
-    +   '.ar-main { flex-direction:column }'
-    +   '.ar-side { width:100%; border-left:none; border-bottom:1px solid var(--border) }'
-    +   '.ar-levels { flex-direction:row; flex-wrap:wrap; padding:8px; gap:6px }'
-    +   '.ar-lvl { flex:1; min-width:80px; padding:9px 8px; font-size:.78rem }'
-    + '}'
-    + '#ra-clean-panel { margin-bottom:12px; background:var(--card-solid); border:1px solid var(--border); border-radius:14px; overflow:hidden }'
-    + '#ra-clean-head { display:flex; align-items:center; gap:10px; padding:12px 16px; '
-    +   'background:linear-gradient(180deg,#e8f0fb,#f4f8fd); cursor:pointer; user-select:none }'
-    + '#ra-clean-head .rch-icon { font-size:1rem }'
-    + '#ra-clean-head .rch-title { flex:1; font-weight:900; color:#1e40af; font-size:.9rem }'
-    + '#ra-clean-head .rch-arrow { font-size:.75rem; color:#1e40af; transition:transform .25s }'
-    + '#ra-clean-head.open .rch-arrow { transform:rotate(180deg) }'
-    + '#ra-clean-body { padding:14px 16px; border-top:1px solid var(--border) }'
-    + '#ra-clean-body.hidden { display:none }'
-    + '.ar-turnover-actions { display:flex; gap:4px; justify-content:center }'
-    + '.ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }'
-    + '.ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; '
-    +   'font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }'
-    + 'body.vpreview-elevated #vpreview-modal { z-index:700 !important; }'
-    + 'body.vpreview-elevated #vpreview-overlay { z-index:690 !important; }';
+    s.textContent = `
+        .ar-wrap { background:var(--card-solid); border-radius:14px; border:1px solid var(--border); overflow:hidden; direction:rtl }
+        .ar-tb { display:flex; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(180deg,#e8f0fb,#f4f8fd); border-bottom:1px solid var(--border) }
+        .ar-tb-title { flex:1; text-align:center; font-weight:900; color:#1e40af; font-size:.88rem }
+        .ar-tb-bc { font-size:.8rem; color:#64748b }
+        .ar-tb-bc a { color:#1e40af; text-decoration:none; cursor:pointer; border-bottom:1px dashed #93c5fd; padding:0 2px }
+        .ar-tb-bc a:hover { background:#dbeafe }
+        .ar-tb-bc .sep { color:#cbd5e1; margin:0 4px }
+        .ar-col-toggle { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,0.85); color:#1e40af; border:1px solid #c7dbf0; cursor:pointer; font-size:1.05rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0; transition:all .2s; flex-shrink:0; font-family:inherit; line-height:1 }
+        .ar-col-toggle:hover { background:#1e40af; color:#fff; transform:scale(1.08); box-shadow:0 3px 12px rgba(30,64,175,.35) }
+        .ar-main { display:flex; min-height:460px }
+        .ar-side { width:170px; flex-shrink:0; border-left:1px solid var(--border); background:#f7fafd; display:flex; flex-direction:column }
+        .ar-side-head { padding:11px 14px; font-weight:900; color:#1e40af; font-size:.8rem; background:linear-gradient(180deg,#dbe7f6,#c8dcef); border-bottom:1px solid var(--border); text-align:center }
+        .ar-levels { padding:10px; display:flex; flex-direction:column; gap:6px; overflow-y:auto }
+        .ar-lvl { position:relative; padding:12px 14px; border-radius:12px; text-align:center; font-size:.86rem; font-weight:800; color:#334155; background:#fff; border:1.5px solid #e0ecf8; cursor:pointer; user-select:none; transition:all .2s }
+        .ar-lvl:hover { border-color:#3b82f6; color:#1e40af; background:linear-gradient(135deg,#eff6ff,#dbeafe) }
+        .ar-lvl.active { background:linear-gradient(135deg,#1e40af,#1e3a8a); color:#fff; border-color:#1e40af; box-shadow:0 4px 14px rgba(30,64,175,.35); transform:scale(1.05) }
+        .ar-body { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--card-solid) }
+        .ar-tw { overflow:auto; max-height:64vh; background:var(--card-solid); flex:1 }
+        .ar-tbl { width:100%; border-collapse:collapse; font-size:.85rem }
+        .ar-tbl thead th { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; padding:11px 12px; text-align:center; font-weight:900; font-size:.8rem; border:1px solid #b9cfe5; white-space:nowrap; position:sticky; top:0; z-index:3 }
+        .ar-tbl thead th.ar-th-name { text-align:right; padding-right:16px }
+        .ar-tbl thead th.ar-th-sort { cursor:pointer; user-select:none; }
+        .ar-tbl thead th.ar-th-sort:hover { background:#c8dcef; }
+        .ar-tbl tbody td { padding:9px 12px; border:1px solid #dbe6f1; white-space:nowrap }
+        .ar-tbl tbody tr { cursor:pointer; transition:background .15s }
+        .ar-tbl tbody tr:hover { background:#f0f6ff !important }
+        .ar-tbl tbody tr.selected { background:#ffe9b3 !important; box-shadow:inset 0 0 0 2px #e8a33d }
+        .ar-tbl .ar-code { font-family:monospace; direction:ltr; font-weight:800; color:#1e40af; text-align:center }
+        .ar-tbl .ar-name-wrap { display:flex; align-items:center; gap:8px; justify-content:flex-start; flex-direction:row; min-width:0 }
+        .ar-tbl .ar-name-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; text-align:right }
+        .ar-tbl .ar-name { text-align:right; font-weight:700; padding-right:16px !important }
+        .ar-tbl .ar-num { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:800 }
+        .ar-tbl .ar-num.zero { color:#cbd5e1; font-weight:500 }
+        .ar-tbl .ar-num.md { color:#059669 }
+        .ar-tbl .ar-num.mc { color:#dc2626 }
+        .ar-tbl .ar-badge { display:inline-block; font-size:.62rem; padding:1px 8px; border-radius:8px; margin-right:8px; font-weight:800; vertical-align:middle }
+        .ar-badge.b1 { background:#c7d2fe; color:#3730a3 }
+        .ar-badge.b2 { background:#bbf7d0; color:#065f46 }
+        .ar-badge.b3 { background:#fde68a; color:#92400e }
+        .ar-badge.b4 { background:#e2e8f0; color:#475569 }
+        .ar-tbl tfoot td { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; padding:12px; font-weight:900; text-align:center; border:1px solid #b9cfe5; position:sticky; bottom:0; z-index:3 }
+        .ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }
+        .ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; transition:all .15s; flex-shrink:0; font-family:inherit; line-height:1 }
+        .ar-turnover-btn:hover { background:#1e40af; color:#fff; transform:scale(1.15); box-shadow:0 2px 8px rgba(30,64,175,.4) }
+        .ar-filter-row th { background:var(--card-alt) !important; padding:4px 6px !important; border-bottom:2px solid var(--border) !important; }
+        .ar-filter-input { width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.75rem; outline:none; box-sizing:border-box; }
+        .ar-filter-input:focus { border-color:var(--primary); }
+        .ar-filter-badge { background:#fef3c7; color:#92400e; padding:6px 12px; border-radius:8px; font-size:0.8rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin: 0 14px 10px 14px; border: 1px solid #f59e0b; }
+        .ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:0.75rem; font-weight:bold; }
+        @media (max-width:720px) {
+            .ar-main { flex-direction:column }
+            .ar-side { width:100%; border-left:none; border-bottom:1px solid var(--border) }
+            .ar-levels { flex-direction:row; flex-wrap:wrap; padding:8px; gap:6px }
+            .ar-lvl { flex:1; min-width:80px; padding:9px 8px; font-size:.78rem }
+        }
+        #ra-clean-panel { margin-bottom:12px; background:var(--card-solid); border:1px solid var(--border); border-radius:14px; overflow:hidden }
+        #ra-clean-head { display:flex; align-items:center; gap:10px; padding:12px 16px; background:linear-gradient(180deg,#e8f0fb,#f4f8fd); cursor:pointer; user-select:none }
+        #ra-clean-head .rch-icon { font-size:1rem }
+        #ra-clean-head .rch-title { flex:1; font-weight:900; color:#1e40af; font-size:.9rem }
+        #ra-clean-head .rch-arrow { font-size:.75rem; color:#1e40af; transition:transform .25s }
+        #ra-clean-head.open .rch-arrow { transform:rotate(180deg) }
+        #ra-clean-body { padding:14px 16px; border-top:1px solid var(--border) }
+        #ra-clean-body.hidden { display:none }
+        .ar-turnover-actions { display:flex; gap:4px; justify-content:center }
+        .ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }
+        .ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }
+        body.vpreview-elevated #vpreview-modal { z-index:700 !important; }
+        body.vpreview-elevated #vpreview-overlay { z-index:690 !important; }
+    `;
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   بخش ۳ — بازسازی پنل فیلتر
-   ============================================================ */
 function rebuildAccountFilterPanel() {
     var page = document.getElementById('page-report-account');
     if (!page) return;
@@ -129,9 +103,14 @@ function rebuildAccountFilterPanel() {
     var firstCard = page.querySelector('.card');
     if (!firstCard) return;
 
+    // ✅ تعیین تاریخ‌های پیش‌فرض از دوره فعال
+    var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
+    var defFrom = activePeriod ? activePeriod.from : '';
+    var defTo = activePeriod ? activePeriod.to : '';
+
     var oldV = {
-        from:   (document.getElementById('ra-from') || {}).value || '',
-        to:     (document.getElementById('ra-to') || {}).value || '',
+        from:   (document.getElementById('ra-from') || {}).value || defFrom,
+        to:     (document.getElementById('ra-to') || {}).value || defTo,
         vtype:  (document.getElementById('ra-vtype') || {}).value || '',
         cat:    (document.getElementById('ra-cat') || {}).value || '',
         nature: (document.getElementById('ra-nature') || {}).value || '',
@@ -205,6 +184,7 @@ function rebuildAccountFilterPanel() {
         _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
         renderAccountReview();
     });
+    // ✅ اصلاح چاپ: استفاده از تابع چاپ مستقیم
     document.getElementById('ra-print').addEventListener('click', function () {
         if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
     });
@@ -218,9 +198,6 @@ function rebuildAccountFilterPanel() {
     if (typeof attachDatePickers === 'function') attachDatePickers();
 }
 
-/* ============================================================
-   بخش ۴ — توابع محاسبه و کمکی
-   ============================================================ */
 function _arBreadcrumb(path, all) {
     if (!path || path.length === 0) return '<a data-goto-lvl="1">گروه</a>';
     var html = '<a data-goto-lvl="1">گروه</a>';
@@ -383,9 +360,6 @@ function refreshReportPeriodSelects() {
     });
 }
 
-/* ============================================================
-   بخش ۵ — فیلتر کردن ردیف‌های موجود (بدون بازسازی HTML)
-   ============================================================ */
 function applyDOMFilters() {
     var table = document.getElementById('ra-acc-table');
     if (!table) return;
@@ -426,7 +400,6 @@ function applyDOMFilters() {
         }
     });
     
-    // آپدیت جمع کل در فوتر
     tfoot.innerHTML = '<tr>' +
         '<td data-orig-index="0"></td>' +
         '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>' +
@@ -452,9 +425,6 @@ function applyDOMFilters() {
     }
 }
 
-/* ============================================================
-   بخش ۶ — رندر کامل گزارش
-   ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
     if (!box) return;
@@ -722,9 +692,6 @@ function renderAccountReview() {
     }, 50);
 }
 
-/* ============================================================
-   بخش ۷ — اتصالات داخلی گزارش
-   ============================================================ */
 function bindAccountReviewEvents(accounts, box) {
     function clearFilters() {
         _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
@@ -810,9 +777,6 @@ function bindAccountReviewEvents(accounts, box) {
     });
 }
 
-/* ============================================================
-   بخش ۸ — باز کردن گردش حساب
-   ============================================================ */
 window._AR_openTurnover = function (btn) {
     try {
         if (!btn) return;
@@ -860,12 +824,19 @@ function openAccountTurnover(accountId, detailInfo) {
     var ids = [];
     var title = '';
 
+    // ✅ اصلاح منطق فیلتر: اگر حساب leaf باشد، فقط همان حساب
+    var targetAcc = accounts.find(function(a) { return a.id === accountId; });
+    if (targetAcc && !accounts.some(function(a) { return a.parent === targetAcc.id; })) {
+        ids = [accountId];
+    } else {
+        ids = getDescendantIds(accountId);
+    }
+
     if (detailInfo) {
         title = '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
         if (accountId) {
             var acc = accounts.find(function(a) { return a.id === accountId; });
             if (acc) {
-                ids = getDescendantIds(accountId);
                 title = '📊 گردش: ' + acc.name + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
             }
         }
@@ -873,10 +844,9 @@ function openAccountTurnover(accountId, detailInfo) {
             ids = accounts.map(function(a) { return a.id; });
         }
     } else if (accountId) {
-        var acc = accounts.find(function(a) { return a.id === accountId; });
-        if (!acc) return;
-        ids = getDescendantIds(accountId);
-        title = '📊 گردش: ' + acc.name;
+        var acc2 = accounts.find(function(a) { return a.id === accountId; });
+        if (!acc2) return;
+        title = '📊 گردش: ' + acc2.name;
     } else {
         return;
     }
@@ -1037,9 +1007,6 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-/* ============================================================
-   بخش ۹ — پچ goToPage
-   ============================================================ */
 (function initAccountReviewFinal() {
     function apply() {
         rebuildAccountFilterPanel();
@@ -1069,9 +1036,6 @@ function closeTurnover() {
     }
 })();
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window._AR                            = _AR;
 window._AR_LEVELS                     = _AR_LEVELS;
 window.rebuildAccountFilterPanel      = rebuildAccountFilterPanel;
@@ -1086,4 +1050,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — All missing functions restored');
+console.log('✅ [modules/reports/account.js] loaded — All Fixed');
