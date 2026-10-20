@@ -4,9 +4,6 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — Settings
-   ============================================================ */
 function bindSettingsButtons() {
     var settingsBtn = document.getElementById('settings-btn');
     if (settingsBtn) {
@@ -52,13 +49,11 @@ function bindSettingsButtons() {
 
     var logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', function () {
-        if (confirm('رفرش شود؟')) location.reload();
+        if (typeof window.logout === 'function') window.logout();
+        else if (confirm('رفرش شود؟')) location.reload();
     });
 }
 
-/* ============================================================
-   بخش ۲ — Currency & Hide
-   ============================================================ */
 function bindCurrencyHide() {
     var setLang = document.getElementById('set-language');
     if (setLang) {
@@ -120,9 +115,6 @@ function bindCurrencyHide() {
     }
 }
 
-/* ============================================================
-   بخش ۳ — bank/cash types
-   ============================================================ */
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
     if (addBankBtn) addBankBtn.addEventListener('click', function () {
@@ -149,9 +141,6 @@ function bindBankCashTypes() {
     });
 }
 
-/* ============================================================
-   بخش ۴ — SMS
-   ============================================================ */
 function bindSmsButtons() {
     function onSmsAutoRead(val) {
         state.smsAutoRead = val;
@@ -214,9 +203,6 @@ function bindSmsButtons() {
     });
 }
 
-/* ============================================================
-   بخش ۵ — Widget toggles (legacy)
-   ============================================================ */
 function bindWidgetToggles() {
     var wT = document.querySelectorAll('[data-widget-toggle]');
     for (var wt = 0; wt < wT.length; wt++) {
@@ -229,9 +215,6 @@ function bindWidgetToggles() {
     }
 }
 
-/* ============================================================
-   بخش ۶ — Base forms
-   ============================================================ */
 function bindBaseDataForms() {
     if (typeof bindFiscalForm === 'function') bindFiscalForm();
     if (typeof bindPersonsForm === 'function') bindPersonsForm();
@@ -254,10 +237,6 @@ function bindVoucherTemplatesForms() {
     if (typeof bindTemplatesForm === 'function') bindTemplatesForm();
 }
 
-/* ============================================================
-   بخش ۷ — Report buttons
-   ⚠️ گزارش نرخ ارز و طلا (rr-*) و قیمت پایانی روز (dc-*) حذف شدند
-   ============================================================ */
 function bindReportButtons() {
     if (typeof bindCashFlowReportButtons === 'function') bindCashFlowReportButtons();
 
@@ -321,9 +300,6 @@ function bindReportButtons() {
     }
 }
 
-/* ============================================================
-   بخش ۸ — Modal closers
-   ============================================================ */
 function bindModalClosers() {
     var closeVp = document.getElementById('close-vpreview');
     if (closeVp && typeof closeVoucherPreview === 'function') {
@@ -387,9 +363,6 @@ function bindModalClosers() {
     });
 }
 
-/* ============================================================
-   بخش ۹ — Sidebar
-   ============================================================ */
 function bindSidebarNavApp() {
     if (typeof initSidebarSearch === 'function') initSidebarSearch();
     if (typeof window.bindSidebarNav === 'function' && !window._sbNavBound) {
@@ -398,9 +371,6 @@ function bindSidebarNavApp() {
     }
 }
 
-/* ============================================================
-   بخش ۱۰ — Filter inputs
-   ============================================================ */
 function bindFilterInputs() {
     var filterMap = {
         'fiscal-filter':    'renderFiscalList',
@@ -411,7 +381,8 @@ function bindFilterInputs() {
         'proj-filter':      'renderProjectsList',
         'fac-filter':       'renderFacilitiesList',
         'cfs-filter':       'renderCfsList',
-        'est-filter':       'renderEstimateList'
+        'est-filter':       'renderEstimateList',
+        'users-filter':     'renderUsersList'
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
@@ -428,9 +399,6 @@ function bindFilterInputs() {
     }
 }
 
-/* ============================================================
-   بخش ۱۱ — Export
-   ============================================================ */
 function bindExportButtons() {
     var eB = document.querySelectorAll('.export-btn[data-export]');
     for (var e = 0; e < eB.length; e++) {
@@ -442,10 +410,15 @@ function bindExportButtons() {
     }
 }
 
-/* ============================================================
-   بخش ۱۲ — init
-   ============================================================ */
 function init() {
+    if (typeof bindAuthUI === 'function') bindAuthUI();
+    if (typeof initUsers === 'function') initUsers();
+
+    // ✅ بررسی لاگین بودن کاربر
+    if (typeof checkAuth === 'function' && !checkAuth()) {
+        return; 
+    }
+
     if (typeof applyTheme === 'function') applyTheme(state.theme);
     if (typeof applyFont === 'function') applyFont(state.font);
 
@@ -536,6 +509,10 @@ function init() {
         }
     });
 
+    if (typeof initUsersPage === 'function' && document.getElementById('page-users')) {
+        initUsersPage();
+    }
+
     if (typeof updateDateDisplay === 'function') updateDateDisplay();
     if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
@@ -598,18 +575,12 @@ if (document.readyState === 'loading') {
     init();
 }
 
-/* ============================================================
-   Service Worker
-   ============================================================ */
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(function (e) {
         console.log('SW register failed:', e);
     });
 }
 
-/* ============================================================
-   Global error handler
-   ============================================================ */
 window.addEventListener('error', function (e) {
     console.error('[Global Error]', e.error || e.message);
 });
@@ -618,9 +589,6 @@ window.addEventListener('unhandledrejection', function (e) {
     console.warn('[Unhandled Rejection]', e.reason);
 });
 
-/* ============================================================
-   Exports
-   ============================================================ */
 window.bindSettingsButtons      = bindSettingsButtons;
 window.bindCurrencyHide         = bindCurrencyHide;
 window.bindBankCashTypes        = bindBankCashTypes;
