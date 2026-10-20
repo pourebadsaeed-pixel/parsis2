@@ -414,10 +414,8 @@ function init() {
     if (typeof bindAuthUI === 'function') bindAuthUI();
     if (typeof initUsers === 'function') initUsers();
 
-    // ✅ بررسی لاگین بودن کاربر
-    if (typeof checkAuth === 'function' && !checkAuth()) {
-        return; 
-    }
+    // ✅ بدون return کردن، برنامه در پس‌زمینه کامل لود می‌شود
+    checkAuth(); 
 
     if (typeof applyTheme === 'function') applyTheme(state.theme);
     if (typeof applyFont === 'function') applyFont(state.font);
