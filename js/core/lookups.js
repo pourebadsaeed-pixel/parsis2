@@ -133,16 +133,18 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (باز کردن پنجره جدید کاملاً تمیز + رفع مشکل تاریخ)
+   بخش چاپ (کاملاً اصلاح شده برای مودال‌ها و صفحات)
    ============================================================ */
 function printHtmlReport(selector, title) {
-    var activePage = document.querySelector('.page.active');
-    if (!activePage) {
-        alert('صفحه‌ای یافت نشد.');
+    var targetEl = document.querySelector(selector);
+    if (!targetEl) {
+        alert('محتوایی برای چاپ یافت نشد.');
         return;
     }
 
-    // 🌟 رفع مشکل تاریخ: خواندن مستقیم مقادیر فیلدها با آی‌دی برای اطمینان ۱۰۰٪
+    var activePage = document.querySelector('.page.active');
+    
+    // استخراج تاریخ‌ها (اگر وجود داشته باشد)
     var dateRange = '';
     var fromEl = document.getElementById('rt-from') || 
                  document.getElementById('ra-from') || 
@@ -159,8 +161,7 @@ function printHtmlReport(selector, title) {
 
     if (fVal || tVal) {
         dateRange = 'از تاریخ: ' + toFa(fVal) + ' | تا تاریخ: ' + toFa(tVal);
-    } else {
-        // روش پشتیبان برای سایر گزارش‌ها
+    } else if (activePage) {
         var dateInputs = activePage.querySelectorAll('.date-picker');
         var dates = [];
         dateInputs.forEach(function(inp) {
@@ -173,57 +174,55 @@ function printHtmlReport(selector, title) {
         if (dates.length > 0) dateRange = dates.join(' | ');
     }
 
-    // ۲. استخراج جدول‌ها و پاکسازی آن‌ها از فیلترها
     var tablesHtml = '';
-    var sourceTables = activePage.querySelectorAll('table');
     var isLandscape = false;
 
-    sourceTables.forEach(function(tbl) {
-        if (tbl.offsetWidth === 0) return; 
+    // پیدا کردن تمام جدول‌های داخل المان هدف
+    var tables = targetEl.tagName === 'TABLE' ? [targetEl] : targetEl.querySelectorAll('table');
 
-        var clone = tbl.cloneNode(true);
+    if (tables.length === 0) {
+        // اگر جدولی نبود، خود المان را چاپ کن (مثلاً برای حالت‌های خاص)
+        tablesHtml = targetEl.innerHTML;
+    } else {
+        tables.forEach(function(tbl) {
+            if (tbl.offsetWidth === 0 && !tbl.closest('.modal')) return; 
 
-        // حذف ردیف فیلترها و ستون عملیات
-        clone.querySelectorAll('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row').forEach(el => el.remove());
-        
-        var ths = clone.querySelectorAll('thead th');
-        var actionColIndex = -1;
-        ths.forEach(function(th, i) { 
-            if (th.textContent.includes('عملیات')) actionColIndex = i; 
-        });
-        if (actionColIndex > -1) {
-            clone.querySelectorAll('tr').forEach(function(tr) {
-                var cells = tr.children;
-                if (cells.length > actionColIndex) cells[actionColIndex].remove();
+            var clone = tbl.cloneNode(true);
+
+            // پاکسازی فیلترها و دکمه‌های اضافی
+            clone.querySelectorAll('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row').forEach(el => el.remove());
+            
+            var ths = clone.querySelectorAll('thead th');
+            var actionColIndex = -1;
+            ths.forEach(function(th, i) { 
+                if (th.textContent.includes('عملیات')) actionColIndex = i; 
             });
-        }
-        clone.querySelectorAll('.row-actions, .col-resizer, .eye-toggle-btn, .col-toggle-btn, button').forEach(el => el.remove());
+            if (actionColIndex > -1) {
+                clone.querySelectorAll('tr').forEach(function(tr) {
+                    var cells = tr.children;
+                    if (cells.length > actionColIndex) cells[actionColIndex].remove();
+                });
+            }
+            clone.querySelectorAll('.row-actions, .col-resizer, .eye-toggle-btn, .col-toggle-btn, button, .ar-turnover-btn').forEach(el => el.remove());
 
-        // تشخیص افقی بودن
-        var thCount = clone.querySelectorAll('thead tr:first-child th').length;
-        if (thCount > 6) isLandscape = true;
+            var thCount = clone.querySelectorAll('thead tr:first-child th').length;
+            if (thCount > 6) isLandscape = true;
 
-        // عنوان گروه (برای گزارش‌های جزئیات)
-        var groupTitle = '';
-        var parentGroup = tbl.closest('.cfd-group');
-        if (parentGroup) {
-            var titleEl = parentGroup.querySelector('.cfd-title');
-            if (titleEl) groupTitle = titleEl.textContent.trim();
-        }
+            var groupTitle = '';
+            var parentGroup = tbl.closest('.cfd-group');
+            if (parentGroup) {
+                var titleEl = parentGroup.querySelector('.cfd-title');
+                if (titleEl) groupTitle = titleEl.textContent.trim();
+            }
 
-        if (groupTitle) {
-            tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(groupTitle)}</div>`;
-        }
-        
-        tablesHtml += clone.outerHTML;
-    });
-
-    if (!tablesHtml) {
-        alert('جدولی برای چاپ یافت نشد.');
-        return;
+            if (groupTitle) {
+                tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(groupTitle)}</div>`;
+            }
+            
+            tablesHtml += clone.outerHTML;
+        });
     }
 
-    // ۳. ساخت یک سند کاملاً جدید و مستقل
     var now = new Date();
     var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
     var dateStr = todayJalaliStr().replace(/\//g, '-');
@@ -237,105 +236,19 @@ function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(fileName)}</title>
             <style>
-                /* تنظیمات کاغذ A4 */
-                @page { 
-                    size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; 
-                    margin: 12mm 10mm 15mm 10mm; 
-                    @bottom-center {
-                        content: "صفحه " counter(page) " از " counter(pages);
-                        font-family: Tahoma, sans-serif;
-                        font-size: 10pt;
-                        color: #64748b;
-                    }
-                }
-                
-                /* استایل پایه */
-                body { 
-                    font-family: 'B Nazanin', Tahoma, sans-serif; 
-                    font-size: 11pt;
-                    direction: rtl; 
-                    color: #000; 
-                    margin: 0; 
-                    padding: 0;
-                }
-                
-                /* هدر گزارش */
-                .header {
-                    text-align: center; 
-                    margin-bottom: 20px; 
-                    border-bottom: 2px solid #1e40af; 
-                    padding-bottom: 10px;
-                }
-                .header h1 { 
-                    font-family: 'B Titr', Tahoma, sans-serif; 
-                    font-size: 14pt; 
-                    margin: 0 0 5px 0; 
-                    color: #1e40af; 
-                }
-                .header .date-range { 
-                    font-size: 11pt; 
-                    color: #475569; 
-                    font-weight: bold;
-                }
-                
-                /* تنظیمات جدول */
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-bottom: 15px; 
-                }
-                
-                /* 🌟 تنظیمات طلایی برای جلوگیری از نصفه شدن ردیف و پر شدن صفحه */
-                tr { 
-                    page-break-inside: avoid !important; 
-                }
-                
-                thead { 
-                    display: table-header-group; /* تکرار هدر در همه صفحات */
-                }
-                tfoot {
-                    display: table-row-group; /* نمایش جمع کل در انتهای جدول */
-                }
-                
-                th, td { 
-                    border: 1px solid #64748b; 
-                    padding: 4px 8px; 
-                    text-align: center; 
-                    vertical-align: middle;
-                    word-wrap: break-word;
-                }
-                
-                /* 🌟 استایل هدر (خاکستری و بولد) */
-                th { 
-                    background-color: #e2e8f0 !important; 
-                    font-weight: bold !important; 
-                    font-family: 'B Titr', Tahoma, sans-serif;
-                    color: #1e40af; 
-                    font-size: 11pt;
-                }
-                
-                /* 🌟 استایل جمع کل (خاکستری و بولد) */
-                tfoot td {
-                    background-color: #e2e8f0 !important;
-                    font-weight: bold !important;
-                    font-family: 'B Titr', Tahoma, sans-serif;
-                    color: #1e40af;
-                }
-                
-                td:first-child {
-                    text-align: right;
-                    font-weight: bold;
-                }
-                
-                /* اعداد */
-                .num, .ltr { 
-                    direction: ltr; 
-                    font-family: Arial, Tahoma, sans-serif; 
-                    font-size: 10pt;
-                    white-space: nowrap;
-                }
-                
-                /* رنگ‌بندی مبالغ */
+                @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 12mm; }
+                body { font-family: 'B Nazanin', Tahoma, sans-serif; font-size: 11pt; direction: rtl; color: #000; margin: 0; padding: 0; }
+                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
+                .header h1 { font-family: 'B Titr', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af; }
+                .header .date-range { font-size: 11pt; color: #475569; font-weight: bold; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                tr { page-break-inside: avoid !important; }
+                thead { display: table-header-group; }
+                th, td { border: 1px solid #64748b; padding: 4px 8px; text-align: center; vertical-align: middle; word-wrap: break-word; }
+                th { background-color: #e2e8f0 !important; font-weight: bold !important; font-family: 'B Titr', Tahoma, sans-serif; color: #1e40af; font-size: 11pt; }
+                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; font-family: 'B Titr', Tahoma, sans-serif; color: #1e40af; }
+                td:first-child { text-align: right; font-weight: bold; }
+                .num, .ltr { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-size: 10pt; white-space: nowrap; }
                 .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold; }
                 .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold; }
             </style>
@@ -352,7 +265,6 @@ function printHtmlReport(selector, title) {
         </html>
     `;
 
-    // ۴. باز کردن یک پنجره کاملاً جدید و مستقل
     var printWindow = window.open('', '_blank');
     if (!printWindow) {
         alert('لطفاً پاپ‌آپ (Popup) را در مرورگر خود مجاز کنید.');
@@ -365,23 +277,15 @@ function printHtmlReport(selector, title) {
 
     showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
 
-    // ۵. صبر برای لود فونت‌ها و سپس باز کردن پنجره چاپ
     printWindow.onload = function() {
         setTimeout(function() {
             printWindow.focus();
             printWindow.print();
-            
-            // بستن پنجره پس از چاپ
-            printWindow.onafterprint = function() {
-                printWindow.close();
-            };
+            printWindow.onafterprint = function() { printWindow.close(); };
         }, 500);
     };
 }
 
-/* ============================================================
-   بخش CSV Export
-   ============================================================ */
 function exportToCsv(key, filename) {
     var data = DB.load(key, []);
     if (!Array.isArray(data)) data = [];
@@ -481,4 +385,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Clean Print Window + Date Fix');
+console.log('✅ [core/lookups.js] loaded — Clean Print Window + Modal Support');
