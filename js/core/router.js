@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
-   وابستگی: db.js, constants.js, utils.js, state.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — goToPage
-   ============================================================ */
 function goToPage(name) {
     if (!name) return;
 
@@ -29,9 +25,6 @@ function goToPage(name) {
     applyPageHelpers();
 }
 
-/* ============================================================
-   بخش ۲ — Dispatcher
-   ============================================================ */
 function runPageRenderer(name) {
     var dispatch = {
         'chart-define':         function () { if (typeof renderChartTree === 'function') renderChartTree('chart-tree', true); },
@@ -82,7 +75,7 @@ function runPageRenderer(name) {
                 var toEl = document.getElementById('cf-to');
                 if (toEl) toEl.value = addJalaliDays(t, 30);
             }
-            if (typeof runCashFlowReport === 'function') runCashFlowReport();
+            if (typeof runCashFlowReport === 'function') setTimeout(runCashFlowReport, 50);
         },
         'report-cashflow-desc': function () {
             var fromEl2 = document.getElementById('cfd-from');
@@ -93,27 +86,34 @@ function runPageRenderer(name) {
                 var toEl2 = document.getElementById('cfd-to');
                 if (toEl2) toEl2.value = addJalaliDays(t2, 30);
             }
-            if (typeof runCashFlowByDescReport === 'function') runCashFlowByDescReport();
+            if (typeof runCashFlowByDescReport === 'function') setTimeout(runCashFlowByDescReport, 50);
         },
         'report-account':       function () {
             if (typeof refreshReportPeriodSelects === 'function') refreshReportPeriodSelects();
             if (typeof updateUnitChips === 'function') updateUnitChips();
+            if (typeof rebuildAccountFilterPanel === 'function') rebuildAccountFilterPanel();
+            if (typeof renderAccountReview === 'function') setTimeout(renderAccountReview, 50);
         },
         'report-trial':         function () {
             if (typeof refreshReportPeriodSelects === 'function') refreshReportPeriodSelects();
             if (typeof updateUnitChips === 'function') updateUnitChips();
+            if (typeof runTrialBalance === 'function') setTimeout(runTrialBalance, 50);
         },
         'report-incomplete':    function () {
             if (typeof refreshReportPeriodSelects === 'function') refreshReportPeriodSelects();
             if (typeof updateUnitChips === 'function') updateUnitChips();
-            if (typeof runIncompleteReport === 'function') runIncompleteReport();
+            if (typeof runIncompleteReport === 'function') setTimeout(runIncompleteReport, 50);
         },
-        'report-facility':      function () { if (typeof runFacilityReport === 'function') runFacilityReport(); },
+        'report-facility':      function () { 
+            if (typeof runFacilityReport === 'function') setTimeout(runFacilityReport, 50); 
+        },
         'report-facility-full': function () {
             if (typeof refreshRffBankSelect === 'function') refreshRffBankSelect();
-            if (typeof runFacilityFullReport === 'function') runFacilityFullReport();
+            if (typeof runFacilityFullReport === 'function') setTimeout(runFacilityFullReport, 50);
         },
-        'report-compare':       function () { if (typeof runComparisonReport === 'function') runComparisonReport(); },
+        'report-compare':       function () { 
+            if (typeof runComparisonReport === 'function') setTimeout(runComparisonReport, 50); 
+        },
 
         'home':                 function () { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); },
         'jalali-calendar':      function () { if (typeof calRender === 'function') setTimeout(calRender, 80); }
@@ -122,9 +122,6 @@ function runPageRenderer(name) {
     if (dispatch[name]) dispatch[name]();
 }
 
-/* ============================================================
-   بخش ۳ — کمک‌ابزارهای عمومی
-   ============================================================ */
 function applyPageHelpers() {
     if (typeof attachDatePickers === 'function') attachDatePickers();
     updateTopbarPeriod();
@@ -144,9 +141,6 @@ function applyPageHelpers() {
     }, 100);
 }
 
-/* ============================================================
-   بخش ۴ — شروع سال مالی فعال
-   ============================================================ */
 function getActiveFiscalYearStart() {
     var periods = DB.load('fiscalPeriods', []);
     var p = periods.find(function (x) { return x.id === state.activePeriodId; });
@@ -156,9 +150,6 @@ function getActiveFiscalYearStart() {
     return parts[0] + '/01/01';
 }
 
-/* ============================================================
-   بخش ۵ — topbar period
-   ============================================================ */
 function updateTopbarPeriod() {
     var el = document.getElementById('topbar-period');
     if (!el) return;
@@ -167,13 +158,20 @@ function updateTopbarPeriod() {
     el.textContent = p ? p.title : 'دوره: —';
 }
 
-/* ============================================================
-   بخش ۶ — rerender
-   ============================================================ */
 function rerenderCurrentPage() {
     var active = document.querySelector('.page.active');
     if (!active) return;
-    var id = active.id.replace('page-', '');
+    var id = active.id.replace('page-', '').split('-').slice(0, 2).join('-'); // Handle clones like page-report-account-...
+    if (active.id.indexOf('page-report-account') === 0) id = 'report-account';
+    if (active.id.indexOf('page-report-cashflow') === 0) id = 'report-cashflow';
+    if (active.id.indexOf('page-report-cashflow-desc') === 0) id = 'report-cashflow-desc';
+    if (active.id.indexOf('page-report-trial') === 0) id = 'report-trial';
+    if (active.id.indexOf('page-report-incomplete') === 0) id = 'report-incomplete';
+    if (active.id.indexOf('page-report-facility') === 0) id = 'report-facility';
+    if (active.id.indexOf('page-report-facility-full') === 0) id = 'report-facility-full';
+    if (active.id.indexOf('page-report-compare') === 0) id = 'report-compare';
+    if (active.id.indexOf('page-voucher-list') === 0) id = 'voucher-list';
+    
     var map = {
         'persons':              'renderPersonsList',
         'companies':            'renderCompaniesList',
@@ -187,7 +185,7 @@ function rerenderCurrentPage() {
         'facilities':           'renderFacilitiesList',
         'report-cashflow':      'runCashFlowReport',
         'report-cashflow-desc': 'runCashFlowByDescReport',
-        'report-account':       'runAccountReport',
+        'report-account':       'renderAccountReview',
         'report-trial':         'runTrialBalance',
         'report-incomplete':    'runIncompleteReport',
         'report-facility':      'runFacilityReport',
