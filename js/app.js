@@ -414,7 +414,7 @@ function init() {
     if (typeof bindAuthUI === 'function') bindAuthUI();
     if (typeof initUsers === 'function') initUsers();
 
-    // ✅ بدون return کردن، برنامه در پس‌زمینه کامل لود می‌شود
+    // ✅ بررسی لاگین. اگر لاگین نبود، فقط ظاهر برنامه مخفی می‌شود، اما برنامه در پس‌زمینه لود می‌شود
     checkAuth(); 
 
     if (typeof applyTheme === 'function') applyTheme(state.theme);
