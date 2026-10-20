@@ -1,12 +1,11 @@
 /* ============================================================
-   پارسیس — فرم‌ها: سیستم تب، autoAttachReportHelpers
+   پارسیس — فرم‌ها: سیستم تب پیشرفته (چند نمونه، Drag & Drop)
    مسیر: js/ui/form.js
-   وابستگی: core/* + ui/toast.js + ui/nav.js
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۱ — CSS سیستم تب‌ها (به‌صورت خودکار تزریق می‌شود)
+   بخش ۱ — CSS سیستم تب‌ها
    ============================================================ */
 (function injectFormTabsCss() {
     if (document.getElementById('form-tabs-style')) return;
@@ -28,6 +27,7 @@
     + 'color:var(--primary-dark);transform:translateY(-1px)}'
     + '.form-tab.active{background:var(--gradient-accent);color:#fff;'
     + 'border-color:transparent;box-shadow:0 2px 8px rgba(99,102,241,.25)}'
+    + '.form-tab.dragging { opacity: 0.5; transform: scale(0.95); }'
     + '.form-tab .ft-icon{font-size:.9rem;line-height:1}'
     + '.form-tab .ft-title{overflow:hidden;text-overflow:ellipsis;max-width:130px}'
     + '.form-tab .ft-close{background:rgba(0,0,0,.08);color:inherit;border:none;'
@@ -42,16 +42,16 @@
 })();
 
 /* ============================================================
-   بخش ۲ — State سیستم تب‌ها
+   بخش ۲ — State سیستم تب‌ها (با پشتیبانی از چند نمونه)
    ============================================================ */
 var TAB_STATE = {
-    tabs: [{ id: 'home', title: 'صفحه اصلی', icon: '🏠' }],
+    tabs: [{ id: 'home', page: 'home', title: 'صفحه اصلی', icon: '🏠' }],
     active: 'home',
-    max: 12
+    max: 15
 };
 
 /* ============================================================
-   بخش ۳ — گرفتن متادیتای هر صفحه (آیکن + عنوان)
+   بخش ۳ — گرفتن متادیتای هر صفحه
    ============================================================ */
 function getPageMeta(pageId) {
     if (typeof PAGE_TITLES_FA !== 'undefined' && PAGE_TITLES_FA[pageId]) {
@@ -76,10 +76,11 @@ function getPageMeta(pageId) {
 }
 
 /* ============================================================
-   بخش ۴ — بررسی داده‌ی ذخیره‌نشده در فرم سند
+   بخش ۴ — بررسی داده‌ی ذخیره‌نشده
    ============================================================ */
 function hasUnsavedData(pageId) {
     if (pageId === 'voucher-new') {
+        if (window._voucherFormSavedAndClean) return false; // ✅ اصلاح: اگر ذخیره شده، دیرتی نیست
         try {
             var desc = document.getElementById('v-desc');
             if (desc && desc.value && desc.value.trim()) return true;
@@ -108,7 +109,7 @@ function clearFormData(pageId) {
 }
 
 /* ============================================================
-   بخش ۵ — ساخت/بازسازی نوار تب‌ها
+   بخش ۵ — ساخت/بازسازی نوار تب‌ها (با Drag & Drop)
    ============================================================ */
 function ensureTabBar() {
     var bar = document.getElementById('form-tabs-bar');
@@ -135,7 +136,6 @@ function renderTabs() {
     var bar = ensureTabBar();
     if (!bar) return;
 
-    /* اگر فقط تب صفحه اصلی است، نوار را مخفی کن */
     if (TAB_STATE.tabs.length <= 1) {
         bar.style.display = 'none';
         return;
@@ -146,8 +146,10 @@ function renderTabs() {
     TAB_STATE.tabs.forEach(function (t) {
         var tab = document.createElement('div');
         tab.className = 'form-tab' + (t.id === TAB_STATE.active ? ' active' : '');
-        tab.dataset.page = t.id;
+        tab.dataset.id = t.id;
+        tab.dataset.page = t.page;
         tab.title = t.title;
+        tab.draggable = true;
 
         var icon = document.createElement('span');
         icon.className = 'ft-icon';
@@ -155,7 +157,7 @@ function renderTabs() {
 
         var title = document.createElement('span');
         title.className = 'ft-title';
-        title.textContent = t.title || t.id;
+        title.textContent = t.title || t.page;
 
         tab.appendChild(icon);
         tab.appendChild(title);
@@ -178,10 +180,47 @@ function renderTabs() {
             switchToTab(t.id);
         });
 
+        // ✅ دابل کلیک برای بستن بقیه تب‌ها
+        tab.addEventListener('dblclick', function (e) {
+            e.stopPropagation();
+            if (t.id === 'home') return;
+            var targetId = t.id;
+            TAB_STATE.tabs = TAB_STATE.tabs.filter(function(x) {
+                return x.id === 'home' || x.id === targetId;
+            });
+            switchToTab(targetId);
+            renderTabs();
+        });
+
+        // ✅ Drag & Drop
+        tab.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('text/plain', t.id);
+            this.classList.add('dragging');
+        });
+        tab.addEventListener('dragend', function () {
+            this.classList.remove('dragging');
+        });
+        tab.addEventListener('dragover', function (e) {
+            e.preventDefault();
+        });
+        tab.addEventListener('drop', function (e) {
+            e.preventDefault();
+            var draggedId = e.dataTransfer.getData('text/plain');
+            var targetId = t.id;
+            if (draggedId === targetId) return;
+            
+            var draggedIdx = TAB_STATE.tabs.findIndex(function(x) { return x.id === draggedId; });
+            var targetIdx = TAB_STATE.tabs.findIndex(function(x) { return x.id === targetId; });
+            if (draggedIdx === -1 || targetIdx === -1) return;
+
+            var dragged = TAB_STATE.tabs.splice(draggedIdx, 1)[0];
+            TAB_STATE.tabs.splice(targetIdx, 0, dragged);
+            renderTabs();
+        });
+
         bar.appendChild(tab);
     });
 
-    /* اسکرول به تب فعال */
     setTimeout(function () {
         var activeEl = bar.querySelector('.form-tab.active');
         if (activeEl && activeEl.scrollIntoView) {
@@ -190,28 +229,31 @@ function renderTabs() {
     }, 30);
 }
 
-function switchToTab(pageId) {
-    var orig = window._origGoToPage;
-    if (typeof orig === 'function') orig(pageId);
-    TAB_STATE.active = pageId;
+function switchToTab(tabId) {
+    var tab = TAB_STATE.tabs.find(function(t) { return t.id === tabId; });
+    if (!tab) return;
+
+    TAB_STATE.active = tabId;
     renderTabs();
+
+    if (typeof window._origGoToPage === 'function') {
+        window._origGoToPage(tab.page);
+    }
 }
 
-function closeTab(pageId) {
-    if (pageId === 'home') return;
+function closeTab(tabId) {
+    if (tabId === 'home') return;
 
-    var idx = -1;
-    for (var i = 0; i < TAB_STATE.tabs.length; i++) {
-        if (TAB_STATE.tabs[i].id === pageId) { idx = i; break; }
-    }
+    var idx = TAB_STATE.tabs.findIndex(function(t) { return t.id === tabId; });
     if (idx === -1) return;
+    var tab = TAB_STATE.tabs[idx];
 
-    if (hasUnsavedData(pageId)) {
+    if (hasUnsavedData(tab.page)) {
         if (!confirm('این فرم داده‌های ذخیره‌نشده دارد.\n\nOK = بستن و از دست دادن داده‌ها\nCancel = انصراف')) return;
-        clearFormData(pageId);
+        clearFormData(tab.page);
     }
 
-    var wasActive = TAB_STATE.active === pageId;
+    var wasActive = TAB_STATE.active === tabId;
     TAB_STATE.tabs.splice(idx, 1);
 
     if (wasActive) {
@@ -234,20 +276,20 @@ function closeAllTabs() {
     }
 
     var anyDirty = false;
-    nonHome.forEach(function (t) { if (hasUnsavedData(t.id)) anyDirty = true; });
+    nonHome.forEach(function (t) { if (hasUnsavedData(t.page)) anyDirty = true; });
     if (anyDirty) {
         if (!confirm('بعضی فرم‌ها داده‌های ذخیره‌نشده دارند.\n\nOK = بستن همه\nCancel = انصراف')) return;
     }
-    nonHome.forEach(function (t) { clearFormData(t.id); });
+    nonHome.forEach(function (t) { clearFormData(t.page); });
 
-    TAB_STATE.tabs = [{ id: 'home', title: 'صفحه اصلی', icon: '🏠' }];
+    TAB_STATE.tabs = [{ id: 'home', page: 'home', title: 'صفحه اصلی', icon: '🏠' }];
     TAB_STATE.active = 'home';
     switchToTab('home');
     showToast('🧹 همه فرم‌ها بسته شد');
 }
 
 /* ============================================================
-   بخش ۶ — دکمه «بستن همه فرم‌ها» در سایدبار
+   بخش ۶ — دکمه «بستن همه فرم‌ها»
    ============================================================ */
 function injectCloseAllButton() {
     if (document.getElementById('close-all-forms-btn')) return true;
@@ -287,7 +329,7 @@ function injectCloseAllButton() {
 }
 
 /* ============================================================
-   بخش ۷ — پچ goToPage برای ثبت تب جدید
+   بخش ۷ — پچ goToPage برای پشتیبانی از چند نمونه
    ============================================================ */
 function installGoToPageOverride() {
     if (typeof window.goToPage !== 'function') return false;
@@ -296,33 +338,34 @@ function installGoToPageOverride() {
     var orig = window.goToPage;
     window._origGoToPage = orig;
 
-    window.goToPage = function (name) {
+    window.goToPage = function (name, forceNew) {
         if (!name) return;
 
-        /* آیا این تب قبلاً باز شده؟ */
-        var exists = false;
-        for (var i = 0; i < TAB_STATE.tabs.length; i++) {
-            if (TAB_STATE.tabs[i].id === name) { exists = true; break; }
+        var existingTab = TAB_STATE.tabs.find(function(t) { return t.page === name; });
+
+        if (!forceNew && existingTab) {
+            switchToTab(existingTab.id);
+            return;
         }
 
-        if (!exists) {
-            /* اگر از حداکثر بیشتر شد، قدیمی‌ترین غیر‌فعال را حذف کن */
-            while (TAB_STATE.tabs.length >= TAB_STATE.max) {
-                var toRemove = -1;
-                for (var j = 1; j < TAB_STATE.tabs.length; j++) {
-                    if (TAB_STATE.tabs[j].id !== name && TAB_STATE.tabs[j].id !== TAB_STATE.active) {
-                        toRemove = j;
-                        break;
-                    }
+        // ایجاد تب جدید
+        while (TAB_STATE.tabs.length >= TAB_STATE.max) {
+            var toRemoveIdx = -1;
+            for (var i = 1; i < TAB_STATE.tabs.length; i++) {
+                if (TAB_STATE.tabs[i].id !== TAB_STATE.active) {
+                    toRemoveIdx = i;
+                    break;
                 }
-                if (toRemove === -1) break;
-                TAB_STATE.tabs.splice(toRemove, 1);
             }
-            var meta = getPageMeta(name);
-            TAB_STATE.tabs.push({ id: name, title: meta.title, icon: meta.icon });
+            if (toRemoveIdx === -1) break;
+            TAB_STATE.tabs.splice(toRemoveIdx, 1);
         }
 
-        TAB_STATE.active = name;
+        var meta = getPageMeta(name);
+        var newTabId = 'tab_' + Date.now();
+        TAB_STATE.tabs.push({ id: newTabId, page: name, title: meta.title, icon: meta.icon });
+        TAB_STATE.active = newTabId;
+        
         renderTabs();
         return orig.apply(this, arguments);
     };
@@ -378,9 +421,6 @@ if (document.readyState === 'loading') {
     setTimeout(initFormTabs, 500);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.TAB_STATE             = TAB_STATE;
 window.getPageMeta           = getPageMeta;
 window.hasUnsavedData        = hasUnsavedData;
@@ -391,4 +431,4 @@ window.closeTab              = closeTab;
 window.closeAllTabs          = closeAllTabs;
 window.autoAttachReportHelpers = autoAttachReportHelpers;
 
-console.log('✅ [ui/form.js] loaded');
+console.log('✅ [ui/form.js] loaded — Advanced Tabs (Multiple, Drag&Drop, DblClick)');
