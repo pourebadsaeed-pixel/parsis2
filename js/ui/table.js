@@ -530,8 +530,13 @@ function showColMenu(tableId, btn) {
          +  '</div>';
     menu.innerHTML = html;
     menu.classList.remove('hidden');
+    
+    // ✅ اصلاح: بالاتر از همه لایه‌ها و مودال‌ها قرار می‌گیرد
+    menu.style.zIndex = '99999'; 
+    menu.style.position = 'fixed';
+    
     var rect = btn.getBoundingClientRect();
-    menu.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+    menu.style.top = (rect.bottom + 6) + 'px';
     menu.style.left = Math.max(8, rect.left - 280 + rect.width) + 'px';
 
     menu.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
