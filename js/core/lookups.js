@@ -136,15 +136,19 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
    بخش چاپ (کاملاً اصلاح شده برای مودال‌ها و صفحات)
    ============================================================ */
 function printHtmlReport(selector, title) {
-    var targetEl = document.querySelector(selector);
+    // ✅ پیدا کردن المان هدف فقط در صفحه فعال یا مودال
+    var activePage = document.querySelector('.page.active');
+    var targetEl = activePage ? activePage.querySelector(selector) : null;
+    
+    // اگر در صفحه فعال نبود (مثلا در مودال بود)
+    if (!targetEl) targetEl = document.querySelector(selector);
+    
     if (!targetEl) {
         alert('محتوایی برای چاپ یافت نشد.');
         return;
     }
 
-    var activePage = document.querySelector('.page.active');
-    
-    // استخراج تاریخ‌ها (اگر وجود داشته باشد)
+    // استخراج تاریخ‌ها
     var dateRange = '';
     var fromEl = document.getElementById('rt-from') || 
                  document.getElementById('ra-from') || 
@@ -178,13 +182,12 @@ function printHtmlReport(selector, title) {
     var isLandscape = false;
 
     // پیدا کردن تمام جدول‌های داخل المان هدف
-    var tables = targetEl.tagName === 'TABLE' ? [targetEl] : targetEl.querySelectorAll('table');
+    var sourceTables = targetEl.tagName === 'TABLE' ? [targetEl] : targetEl.querySelectorAll('table');
 
-    if (tables.length === 0) {
-        // اگر جدولی نبود، خود المان را چاپ کن (مثلاً برای حالت‌های خاص)
+    if (sourceTables.length === 0) {
         tablesHtml = targetEl.innerHTML;
     } else {
-        tables.forEach(function(tbl) {
+        sourceTables.forEach(function(tbl) {
             if (tbl.offsetWidth === 0 && !tbl.closest('.modal')) return; 
 
             var clone = tbl.cloneNode(true);
@@ -318,11 +321,16 @@ function exportToCsv(key, filename) {
 }
 
 function exportReportTable(selector, filename) {
-    var el = document.querySelector(selector);
+    var activePage = document.querySelector('.page.active');
+    var el = activePage ? activePage.querySelector(selector) : null;
+    if (!el) el = document.querySelector(selector);
+    
     if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
+    
     var table = el.querySelector('table');
     var detailList = el.querySelector('.rff-detail-list');
     var rows = [];
+    
     if (detailList) {
         rows.push(['گزارش جامع تسهیلات — جزئیات']); rows.push([]);
         var cards = detailList.querySelectorAll('.rff-fac-card');
