@@ -12,7 +12,6 @@ function ensureFixedLayout(table) {
     table.classList.add('w-col-resized');
     table.style.setProperty('table-layout', 'fixed', 'important');
     
-    /* ✅ اجبار به مخفی کردن متن سرریز شده در تمام سلول‌ها */
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.setProperty('overflow', 'hidden', 'important');
@@ -74,7 +73,6 @@ function applyColWidths(tableId) {
     
     if (hasWidth) {
         ensureFixedLayout(table);
-        /* ✅ قفل کردن عرض جدول به مجموع ستون‌ها برای جلوگیری از کشیدگی */
         table.style.setProperty('width', totalW + 'px', 'important');
         table.style.setProperty('min-width', totalW + 'px', 'important');
     } else {
@@ -84,7 +82,7 @@ function applyColWidths(tableId) {
 
 function updateTableMinWidth(table) { if (table) table.style.minWidth = ''; }
 
-var COL_MIN_W = 10; /* حداقل عرض ۱۰ پیکسل */
+var COL_MIN_W = 10;
 var COL_MAX_W = 5000;
 
 function makeTableResizable(table) {
@@ -124,10 +122,8 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
                 
-                /* ✅ تبدیل جدول به Fixed */
                 ensureFixedLayout(table);
                 
-                /* ✅ قفل کردن عرض ستون‌ها و محاسبه عرض دقیق جدول */
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
                 var totalW = 0;
@@ -142,7 +138,6 @@ function makeTableResizable(table) {
                     }
                 }
                 
-                /* ✅ اجبار عرض جدول به اندازه دقیق جمع ستون‌ها (راز حل مشکل) */
                 table.style.setProperty('width', totalW + 'px', 'important');
                 table.style.setProperty('min-width', totalW + 'px', 'important');
             }
@@ -150,7 +145,7 @@ function makeTableResizable(table) {
             function move(e) {
                 if (!isDragging) return;
                 var x = e.touches ? e.touches[0].clientX : e.clientX;
-                var diff = startX - x; /* RTL: کشیدن به راست → diff منفی → عرض کم می‌شود */
+                var diff = startX - x;
                 
                 var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
                 
@@ -158,7 +153,6 @@ function makeTableResizable(table) {
                 th.style.setProperty('min-width', w + 'px', 'important');
                 th.style.setProperty('max-width', w + 'px', 'important');
                 
-                /* ✅ آپدیت عرض جدول همزمان با تغییر ستون */
                 var currentTotalW = 0;
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
@@ -270,7 +264,7 @@ function resetAllColumnWidths() {
 var MANAGED_TABLE_IDS = [
     'fiscal-table', 'persons-table', 'comp-table', 'ba-table', 'cb-table', 'proj-table',
     'voucher-table-list', 'rt-table', 'ri-table', 'rf-table', 'rff-table', 'cfs-table',
-    'cf-table', 'cfd-table', 'rc-table', 'ra-acc-table'
+    'cf-table', 'cfd-table', 'rc-table', 'ra-acc-table', 'turnover-table'
 ];
 
 function makeAllTablesResizable() {
@@ -815,7 +809,6 @@ function buildHeaderButtons() {
                 h.appendChild(rBtn);
             }
 
-            /* ✅ حذف دکمه قرمز (⚙) برای جدول مرور حساب‌ها */
             if (tableId && !h.querySelector('.col-toggle-btn') && tableId !== 'ra-acc-table') {
                 var btn = document.createElement('button');
                 btn.className = 'col-toggle-btn';
@@ -869,4 +862,4 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 
-console.log('✅ [ui/table.js] loaded — complete (fixed header buttons)');
+console.log('✅ [ui/table.js] loaded — complete (fixed header buttons + turnover support)');
