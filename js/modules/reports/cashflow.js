@@ -71,7 +71,6 @@ function runCashFlowReport() {
         makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
     }
 
-    // ✅ تعیین تاریخ‌های پیش‌فرض
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var cfFromEl = document.getElementById('cf-from');
     var cfToEl = document.getElementById('cf-to');
@@ -663,6 +662,8 @@ function renderCfdTables() {
 
 function bindCfdTableEvents() {
     document.querySelectorAll('#cfd-result .cfd-row').forEach(function (row) {
+        if (row.dataset.bound) return;
+        row.dataset.bound = '1';
         row.addEventListener('click', function (e) {
             if (e.target.closest('button')) return;
             var vid = this.getAttribute('data-vid');
@@ -671,6 +672,8 @@ function bindCfdTableEvents() {
     });
 
     document.querySelectorAll('#cfd-result .row-btn.edit').forEach(function (btn) {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
             var vid = this.getAttribute('data-vid');
@@ -679,6 +682,8 @@ function bindCfdTableEvents() {
     });
 
     document.querySelectorAll('#cfd-table .cfd-sort-th').forEach(function(th) {
+        if (th.dataset.bound) return;
+        th.dataset.bound = '1';
         th.addEventListener('click', function(e) {
             if (e.target.tagName === 'INPUT') return;
             var col = this.getAttribute('data-sort');
@@ -693,6 +698,8 @@ function bindCfdTableEvents() {
     });
 
     document.querySelectorAll('#cfd-table .cfd-f-input').forEach(function(inp) {
+        if (inp.dataset.bound) return;
+        inp.dataset.bound = '1';
         inp.addEventListener('input', applyCfdFilters);
     });
 
@@ -706,6 +713,7 @@ function bindCfdTableEvents() {
 
         if (typeof applyColVisibility === 'function') applyColVisibility('cfd-table');
         if (typeof applyColWidths === 'function') applyColWidths('cfd-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     }, 50);
 }
 
@@ -744,29 +752,44 @@ function buildCashFlowDescSummaryForDash() {
 
 function bindCashFlowReportButtons() {
     var runCf = document.getElementById('cf-run');
-    if (runCf) runCf.addEventListener('click', runCashFlowReport);
+    if (runCf && !runCf.dataset.bound) {
+        runCf.dataset.bound = '1';
+        runCf.addEventListener('click', runCashFlowReport);
+    }
 
     var todayCf = document.getElementById('cf-today');
-    if (todayCf) todayCf.addEventListener('click', function () {
-        var t = todayJalaliStr();
-        document.getElementById('cf-from').value = t;
-        document.getElementById('cf-to').value = addJalaliDays(t, 30);
-        runCashFlowReport();
-    });
+    if (todayCf && !todayCf.dataset.bound) {
+        todayCf.dataset.bound = '1';
+        todayCf.addEventListener('click', function () {
+            var t = todayJalaliStr();
+            document.getElementById('cf-from').value = t;
+            document.getElementById('cf-to').value = addJalaliDays(t, 30);
+            runCashFlowReport();
+        });
+    }
 
     var runCfd = document.getElementById('cfd-run');
-    if (runCfd) runCfd.addEventListener('click', runCashFlowByDescReport);
+    if (runCfd && !runCfd.dataset.bound) {
+        runCfd.dataset.bound = '1';
+        runCfd.addEventListener('click', runCashFlowByDescReport);
+    }
 
     var todayCfd = document.getElementById('cfd-today');
-    if (todayCfd) todayCfd.addEventListener('click', function () {
-        var t = todayJalaliStr();
-        document.getElementById('cfd-from').value = t;
-        document.getElementById('cfd-to').value = addJalaliDays(t, 30);
-        runCashFlowByDescReport();
-    });
+    if (todayCfd && !todayCfd.dataset.bound) {
+        todayCfd.dataset.bound = '1';
+        todayCfd.addEventListener('click', function () {
+            var t = todayJalaliStr();
+            document.getElementById('cfd-from').value = t;
+            document.getElementById('cfd-to').value = addJalaliDays(t, 30);
+            runCashFlowByDescReport();
+        });
+    }
 
     var onlyBal = document.getElementById('cfd-only-balance');
-    if (onlyBal) onlyBal.addEventListener('change', runCashFlowByDescReport);
+    if (onlyBal && !onlyBal.dataset.bound) {
+        onlyBal.dataset.bound = '1';
+        onlyBal.addEventListener('change', runCashFlowByDescReport);
+    }
 
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
