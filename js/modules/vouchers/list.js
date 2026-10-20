@@ -1,19 +1,12 @@
 /* ============================================================
    پارسیس — فهرست اسناد (بخش ۱: رندر + صفحه‌بندی + پیش‌نمایش)
    مسیر: js/modules/vouchers/list.js
-   وابستگی: core/* + ui/* + vouchers/form.js
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — تنظیمات صفحه‌بندی
-   ============================================================ */
 var VOUCHER_PAGE_SIZE = 50;
 window._vlistPg = window._vlistPg || { page: 1 };
 
-/* ============================================================
-   بخش ۲ — باکس صفحه‌بندی
-   ============================================================ */
 function ensureVoucherPaginationBox() {
     var box = document.getElementById('vlist-pagination');
     if (box) return box;
@@ -81,9 +74,6 @@ function renderVoucherPager(total, curPage) {
     mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین صفحه');
 }
 
-/* ============================================================
-   بخش ۳ — رندر فهرست اسناد
-   ============================================================ */
 function renderVoucherList() {
     var tb = document.getElementById('voucher-list-body');
     if (!tb) return;
@@ -99,7 +89,6 @@ function renderVoucherList() {
         return;
     }
 
-    /* فیلترها */
     var periodFilter = (document.getElementById('vl-period-filter') || {}).value || '';
     var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
     var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
@@ -124,7 +113,6 @@ function renderVoucherList() {
         });
     }
 
-    /* مرتب‌سازی */
     var st = (typeof sortState !== 'undefined' && sortState.vouchers)
         ? sortState.vouchers
         : { col: 'number', dir: 'desc' };
@@ -151,7 +139,6 @@ function renderVoucherList() {
         return st.dir === 'asc' ? c : -c;
     });
 
-    /* صفحه‌بندی */
     var total = vouchers.length;
     var totalPages = Math.max(1, Math.ceil(total / VOUCHER_PAGE_SIZE));
     if (window._vlistPg.page > totalPages) window._vlistPg.page = totalPages;
@@ -159,7 +146,6 @@ function renderVoucherList() {
     var startIdx = (window._vlistPg.page - 1) * VOUCHER_PAGE_SIZE;
     var pageVouchers = vouchers.slice(startIdx, startIdx + VOUCHER_PAGE_SIZE);
 
-    /* رسم ردیف‌ها */
     tb.innerHTML = '';
     var hide = getHideState('voucher-list');
     var shown = 0;
@@ -220,7 +206,6 @@ function renderVoucherList() {
 
     renderVoucherPager(total, window._vlistPg.page);
 
-    /* اتصال ردیف‌ها */
     var btns = tb.querySelectorAll('.row-btn');
     for (var b = 0; b < btns.length; b++) {
         btns[b].addEventListener('click', handleVoucherRowAction);
@@ -233,9 +218,6 @@ function renderVoucherList() {
     if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
 }
 
-/* ============================================================
-   بخش ۴ — مدیریت کلیک ردیف‌ها
-   ============================================================ */
 function handleVoucherRowAction() {
     var id = this.getAttribute('data-id');
     var action = this.getAttribute('data-action');
@@ -282,9 +264,6 @@ function handleVoucherRowAction() {
     }
 }
 
-/* ============================================================
-   بخش ۵ — مرتب‌سازی از روی هدر جدول
-   ============================================================ */
 function setupSorting() {
     var ths = document.querySelectorAll('#voucher-table-list th[data-sort]');
     for (var i = 0; i < ths.length; i++) {
@@ -301,9 +280,6 @@ function setupSorting() {
     }
 }
 
-/* ============================================================
-   بخش ۶ — پیش‌نمایش سند
-   ============================================================ */
 function openVoucherPreview(v) {
     var body = document.getElementById('vpreview-body');
     if (!body) return;
@@ -388,27 +364,13 @@ function closeVoucherPreview() {
 
 function printVoucherPreview() {
     var v = window._currentPreviewVoucher;
-    if (!v) return;
-    var body = document.getElementById('vpreview-body');
-    var win = window.open('', '_blank');
-    if (!win) return;
-
-    var ff = getPrintFontFamily();
-    win.document.write('<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>سند ' + esc(v.number) + '</title><style>');
-    win.document.write('body { font-family:' + ff + '; direction:rtl; color:#222; font-size:12px; } '
-                     + 'h1 { text-align:center; font-size:15px; } '
-                     + 'table { width:100%; border-collapse:collapse; font-size:10px; } '
-                     + 'th, td { border:1px solid #999; padding:5px 7px; } '
-                     + 'th { background:#e6f0fa; } '
-                     + '.dr { color:#c0392b; } .cr { color:#1e9e6a; }');
-    win.document.write('</style></head><body><h1>سند شماره ' + toFa(esc(v.number)) + '</h1>' + body.innerHTML + '</body></html>');
-    win.document.close();
-    setTimeout(function () { win.focus(); win.print(); }, 400);
+    if (!v) { showToast('سندی برای چاپ یافت نشد.'); return; }
+    // ✅ استفاده از تابع چاپ اصلاح‌شده
+    if (typeof printHtmlReport === 'function') {
+        printHtmlReport('#vpreview-body', 'سند حسابداری شماره ' + v.number);
+    }
 }
 
-/* ============================================================
-   بخش ۷ — باز کردن سند از هر جای برنامه
-   ============================================================ */
 function openVoucherForEditById(vid) {
     var v = findVoucherById(vid);
     if (!v) { showToast('سند یافت نشد.'); return; }
@@ -435,9 +397,6 @@ function editVoucherFromAnywhere(vid) {
     openVoucherForEditById(vid);
 }
 
-/* ============================================================
-   بخش ۸ — اتصال فیلترها و رویدادها
-   ============================================================ */
 function bindVoucherListFilters() {
     var vpf = document.getElementById('vl-period-filter');
     if (vpf) vpf.addEventListener('change', function () {
@@ -458,9 +417,6 @@ function bindVoucherListFilters() {
     });
 }
 
-/* ============================================================
-   بخش ۹ — پچ goToPage
-   ============================================================ */
 (function patchGoToPageForVoucherList() {
     function install() {
         if (typeof window.goToPage !== 'function') {
@@ -471,7 +427,7 @@ function bindVoucherListFilters() {
         window._gtpVListPatched = true;
 
         var orig = window.goToPage;
-        window.goToPage = function (name) {
+        window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
             if (name === 'voucher-list') {
                 setTimeout(function () {
@@ -488,9 +444,6 @@ function bindVoucherListFilters() {
     }
 })();
 
-/* ============================================================
-   بخش ۱۰ — شبکه اطمینان
-   ============================================================ */
 (function ensureVoucherListRendering() {
     setInterval(function () {
         var page = document.getElementById('page-voucher-list');
@@ -508,9 +461,6 @@ function bindVoucherListFilters() {
     }, 3000);
 })();
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.renderVoucherList          = renderVoucherList;
 window.handleVoucherRowAction     = handleVoucherRowAction;
 window.setupSorting               = setupSorting;
@@ -522,4 +472,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — complete');
+console.log('✅ [modules/vouchers/list.js] loaded — Print Fixed');
