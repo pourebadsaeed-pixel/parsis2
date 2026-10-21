@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — فرم سند (بخش ۱: state + helpers + status bar)
    مسیر: js/modules/vouchers/form.js
-   وابستگی: core/* + ui/* + accounts/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — state سند
-   ============================================================ */
 var voucherLines = [];
 var currentVoucherStatus = 'draft';
 
@@ -340,7 +336,7 @@ function getVoucherIssues(v) {
 }
 
 /* ============================================================
-   بخش ۸ — رندر اقلام سند (با کامپوننت جستجوپذیر)
+   بخش ۸ — رندر اقلام سند
    ============================================================ */
 function renderVoucherLines() {
     var box = document.getElementById('voucher-lines');
@@ -356,7 +352,6 @@ function renderVoucherLines() {
     var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
     
-    // آماده‌سازی لیست حساب‌ها برای کامپوننت
     var accItems = leaves.map(function(a) {
         return { value: a.id, text: getAccountLabel(a.id, accounts) };
     });
@@ -369,24 +364,20 @@ function renderVoucherLines() {
         wrap.className = 'voucher-line' + (line.locked ? ' locked' : '');
         wrap.setAttribute('data-line-id', line.id);
 
-        /* شماره ردیف */
         var numSpan = document.createElement('span');
         numSpan.className = 'ln-num' + (line.locked ? ' locked-tag' : '');
         numSpan.textContent = '#' + toFa(idx + 1) + (line.locked ? ' 🔒' : '');
         wrap.appendChild(numSpan);
 
-        /* --- ردیف ۱: انتخاب معین (جستجوپذیر) --- */
         var accSelect = createSearchableSelect(accItems, line.account, '— انتخاب معین —', function(val) {
             line.account = val;
             line.details = {};
-            renderVoucherLines(); // رندر مجدد برای نمایش/مخفی کردن تفصیلی
+            renderVoucherLines();
         }, line.locked);
         
-        // ایجاد فاصله از شماره ردیف
         accSelect.style.marginTop = '14px';
         wrap.appendChild(accSelect);
 
-        /* --- ردیف ۲: انتخاب تفصیلی (جستجوپذیر) --- */
         var acc = accounts.find(function (a) { return a.id === line.account; });
         if (acc && acc.links && acc.links.length > 0) {
             var combined = [];
@@ -417,7 +408,6 @@ function renderVoucherLines() {
             wrap.appendChild(detSelect);
         }
 
-        /* --- ردیف ۳: مبالغ + شماره/تاریخ پیگیری --- */
         var r3 = document.createElement('div');
         r3.className = 'ln-row r4';
         r3.style.marginTop = '10px';
@@ -535,7 +525,6 @@ function renderVoucherLines() {
         r3.appendChild(iTD);
         wrap.appendChild(r3);
 
-        /* --- ردیف ۴: شرح + دکمه‌ها --- */
         var r4 = document.createElement('div');
         r4.className = 'desc-row';
         r4.style.marginTop = '8px';
@@ -581,7 +570,6 @@ function renderVoucherLines() {
         r4.appendChild(btnAddDesc);
         wrap.appendChild(r4);
 
-        /* --- ردیف ۵: دکمه‌های عملیات --- */
         var aW = document.createElement('div');
         aW.className = 'ln-actions';
 
@@ -686,9 +674,6 @@ function renderVoucherLines() {
     if (typeof attachDatePickers === 'function') attachDatePickers();
 }
 
-/* ============================================================
-   بخش ۹ — کپی و جابجایی ردیف
-   ============================================================ */
 function copyVoucherLine(idx) {
     var src = voucherLines[idx];
     if (!src) return;
@@ -710,9 +695,6 @@ function moveLine(idx, dir) {
     renderVoucherLines();
 }
 
-/* ============================================================
-   بخش ۱۰ — جمع‌های سند
-   ============================================================ */
 function updateVoucherTotals() {
     var td = 0, tc = 0;
     for (var i = 0; i < voucherLines.length; i++) {
@@ -739,12 +721,13 @@ function updateVoucherTotals() {
 }
 
 /* ============================================================
-   بخش ۱۱ — فرم سند جدید
+   بخش ۱۱ — فرم سند جدید (با ساعت)
    ============================================================ */
 function newVoucherForm() {
     document.getElementById('v-id').value = '';
     document.getElementById('v-number').value = getNextVoucherNumberForPeriod(state.activePeriodId || '');
     document.getElementById('v-date').value = todayJalaliStr();
+    document.getElementById('v-time').value = '08:00';
     document.getElementById('v-type').value = 'general';
     document.getElementById('v-desc').value = '';
 
@@ -757,12 +740,13 @@ function newVoucherForm() {
 }
 
 /* ============================================================
-   بخش ۱۲ — بارگذاری سند برای ویرایش
+   بخش ۱۲ — بارگذاری سند برای ویرایش (با ساعت)
    ============================================================ */
 function loadVoucherForEdit(v) {
     document.getElementById('v-id').value = v.id;
     document.getElementById('v-number').value = v.number;
     document.getElementById('v-date').value = v.date;
+    document.getElementById('v-time').value = v.time || '08:00';
     document.getElementById('v-type').value = v.type || 'general';
     document.getElementById('v-desc').value = v.desc || '';
 
@@ -776,7 +760,7 @@ function loadVoucherForEdit(v) {
 }
 
 /* ============================================================
-   بخش ۱۳ — ذخیره سند (پیش‌نویس یا تأیید)
+   بخش ۱۳ — ذخیره سند (با ساعت)
    ============================================================ */
 function persistVoucher(approve) {
     if (currentVoucherStatus === 'approved' && !approve) {
@@ -786,6 +770,7 @@ function persistVoucher(approve) {
 
     var num = normalizeDigits(document.getElementById('v-number').value.trim());
     var d = normalizeDigits(document.getElementById('v-date').value.trim());
+    var t = document.getElementById('v-time').value.trim() || '08:00';
     var ty = document.getElementById('v-type').value;
     var ds = document.getElementById('v-desc').value.trim();
     var pid = state.activePeriodId || '';
@@ -822,6 +807,7 @@ function persistVoucher(approve) {
         id: id || uid(),
         number: num,
         date: d,
+        time: t,
         type: ty,
         periodId: pid,
         desc: ds,
@@ -859,6 +845,7 @@ function persistVoucher(approve) {
         document.getElementById('v-id').value = vch.id;
         document.getElementById('v-number').value = vch.number;
         document.getElementById('v-date').value = vch.date;
+        document.getElementById('v-time').value = vch.time;
         document.getElementById('v-desc').value = vch.desc;
         currentVoucherStatus = 'draft';
         setVoucherStatusBar('draft', vch.id);
@@ -974,50 +961,87 @@ function saveVoucherAsTemplate() {
 }
 
 /* ============================================================
-   بخش ۱۷ — اتصال دکمه‌های فرم سند
+   بخش ۱۷ — اتصال دکمه‌های فرم سند (با ساعت)
    ============================================================ */
 function bindVoucherForm() {
     var addBtn = document.getElementById('add-line');
-    if (addBtn) addBtn.addEventListener('click', function () {
-        voucherLines.push({
-            id: uid(), account: '', details: {}, debit: 0, credit: 0, description: ''
+    if (addBtn && !addBtn.dataset.bound) {
+        addBtn.dataset.bound = '1';
+        addBtn.addEventListener('click', function () {
+            voucherLines.push({
+                id: uid(), account: '', details: {}, debit: 0, credit: 0, description: ''
+            });
+            renderVoucherLines();
         });
-        renderVoucherLines();
-    });
+    }
 
     var saveBtn = document.getElementById('save-voucher');
-    if (saveBtn) saveBtn.addEventListener('click', function () { persistVoucher(false); });
+    if (saveBtn && !saveBtn.dataset.bound) {
+        saveBtn.dataset.bound = '1';
+        saveBtn.addEventListener('click', function () { persistVoucher(false); });
+    }
 
     var saveApproveBtn = document.getElementById('save-voucher-approve');
-    if (saveApproveBtn) saveApproveBtn.addEventListener('click', function () { persistVoucher(true); });
+    if (saveApproveBtn && !saveApproveBtn.dataset.bound) {
+        saveApproveBtn.dataset.bound = '1';
+        saveApproveBtn.addEventListener('click', function () { persistVoucher(true); });
+    }
 
     var newBtn = document.getElementById('new-voucher');
-    if (newBtn) newBtn.addEventListener('click', newVoucherForm);
+    if (newBtn && !newBtn.dataset.bound) {
+        newBtn.dataset.bound = '1';
+        newBtn.addEventListener('click', newVoucherForm);
+    }
 
     var vDescClearBtn = document.getElementById('v-desc-clear');
-    if (vDescClearBtn) vDescClearBtn.addEventListener('click', function () {
-        document.getElementById('v-desc').value = '';
-        document.getElementById('v-desc').focus();
-        showToast('🧹 شرح سند خالی شد.');
-    });
+    if (vDescClearBtn && !vDescClearBtn.dataset.bound) {
+        vDescClearBtn.dataset.bound = '1';
+        vDescClearBtn.addEventListener('click', function () {
+            document.getElementById('v-desc').value = '';
+            document.getElementById('v-desc').focus();
+            showToast('🧹 شرح سند خالی شد.');
+        });
+    }
 
     var applyTplBtn = document.getElementById('apply-template');
-    if (applyTplBtn) applyTplBtn.addEventListener('click', function () {
-        var id = document.getElementById('v-template').value;
-        if (!id) {
-            alert('الگو انتخاب کن.');
-            return;
-        }
-        applyTemplate(id);
-    });
+    if (applyTplBtn && !applyTplBtn.dataset.bound) {
+        applyTplBtn.dataset.bound = '1';
+        applyTplBtn.addEventListener('click', function () {
+            var id = document.getElementById('v-template').value;
+            if (!id) {
+                alert('الگو انتخاب کن.');
+                return;
+            }
+            applyTemplate(id);
+        });
+    }
 
     var saveAsTplBtn = document.getElementById('save-as-template');
-    if (saveAsTplBtn) saveAsTplBtn.addEventListener('click', saveVoucherAsTemplate);
+    if (saveAsTplBtn && !saveAsTplBtn.dataset.bound) {
+        saveAsTplBtn.dataset.bound = '1';
+        saveAsTplBtn.addEventListener('click', saveVoucherAsTemplate);
+    }
 
     var gotoTplBtn = document.getElementById('goto-templates');
-    if (gotoTplBtn) gotoTplBtn.addEventListener('click', function () {
-        goToPage('templates');
-    });
+    if (gotoTplBtn && !gotoTplBtn.dataset.bound) {
+        gotoTplBtn.dataset.bound = '1';
+        gotoTplBtn.addEventListener('click', function () {
+            goToPage('templates');
+        });
+    }
+
+    var timeBtn = document.getElementById('v-time-clock');
+    if (timeBtn && !timeBtn.dataset.bound) {
+        timeBtn.dataset.bound = '1';
+        timeBtn.addEventListener('click', function() {
+            if (typeof openTimePicker === 'function') {
+                var currentVal = document.getElementById('v-time').value || '08:00';
+                openTimePicker(function(t) {
+                    document.getElementById('v-time').value = t;
+                }, currentVal);
+            }
+        });
+    }
 }
 
 /* ============================================================
@@ -1054,4 +1078,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — Searchable Dropdown added');
+console.log('✅ [modules/vouchers/form.js] loaded — Searchable Dropdown + Time Picker added');
