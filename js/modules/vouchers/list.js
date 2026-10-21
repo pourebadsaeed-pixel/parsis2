@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (بخش ۱: رندر + صفحه‌بندی + پیش‌نمایش)
+   پارسیس — فهرست اسناد (بخش ۱: رندر + صفحه‌بندی + پیش‌نمایش + کپی)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -174,13 +174,14 @@ function renderVoucherList() {
         if (status === 'approved') tr.classList.add('approved-row');
 
         var aH = '<div class="row-actions">'
-               + '<button class="row-btn open" data-id="' + v.id + '" data-action="preview">👁</button>';
+               + '<button class="row-btn open" data-id="' + v.id + '" data-action="preview" title="مشاهده">👁</button>'
+               + '<button class="row-btn copy" data-id="' + v.id + '" data-action="copy" title="کپی سند">📋</button>';
         if (status === 'draft') {
-            aH += '<button class="row-btn edit" data-id="' + v.id + '" data-action="edit">✎</button>';
-            aH += '<button class="row-btn approve" data-id="' + v.id + '" data-action="approve">✓</button>';
-            aH += '<button class="row-btn del" data-id="' + v.id + '" data-action="delete">×</button>';
+            aH += '<button class="row-btn edit" data-id="' + v.id + '" data-action="edit" title="ویرایش">✎</button>';
+            aH += '<button class="row-btn approve" data-id="' + v.id + '" data-action="approve" title="تأیید">✓</button>';
+            aH += '<button class="row-btn del" data-id="' + v.id + '" data-action="delete" title="حذف">×</button>';
         } else {
-            aH += '<button class="row-btn unapprove" data-id="' + v.id + '" data-action="unapprove">↩</button>';
+            aH += '<button class="row-btn unapprove" data-id="' + v.id + '" data-action="unapprove" title="برگشت از تأیید">↩</button>';
         }
         aH += '</div>';
 
@@ -226,6 +227,23 @@ function handleVoucherRowAction() {
 
     if (action === 'preview') { openVoucherPreview(v); return; }
     if (action === 'edit')    { loadVoucherForEdit(v); return; }
+
+    if (action === 'copy') {
+        var newV = JSON.parse(JSON.stringify(v));
+        newV.id = uid();
+        newV.number = getNextVoucherNumberForPeriod(state.activePeriodId || '');
+        newV.date = todayJalaliStr();
+        newV.time = v.time || '08:00';
+        newV.status = 'draft';
+        
+        var list = DB.load('vouchers', []);
+        list.push(newV);
+        DB.save('vouchers', list);
+        
+        showToast('📋 سند کپی شد (پیش‌نویس)');
+        renderVoucherList();
+        return;
+    }
 
     if (action === 'approve') {
         var issues = getVoucherIssues(v);
@@ -294,6 +312,7 @@ function openVoucherPreview(v) {
     var html = '<div class="vp-header"><div class="vp-grid">';
     html += '<div><span class="lbl">شماره:</span> <b>' + toFa(esc(v.number)) + '</b></div>';
     html += '<div><span class="lbl">تاریخ:</span> <b dir="ltr">' + toFa(esc(v.date)) + '</b></div>';
+    html += '<div><span class="lbl">ساعت:</span> <b dir="ltr">' + toFa(esc(v.time || '08:00')) + '</b></div>';
     html += '<div><span class="lbl">نوع:</span> ' + voucherTypeName(v.type) + '</div>';
     html += '<div><span class="lbl">دوره:</span> ' + esc(period ? period.title : '—') + '</div>';
     html += '<div class="full"><span class="lbl">شرح:</span> <b>' + esc(v.desc || '') + '</b></div>';
@@ -364,11 +383,22 @@ function closeVoucherPreview() {
 
 function printVoucherPreview() {
     var v = window._currentPreviewVoucher;
-    if (!v) { showToast('سندی برای چاپ یافت نشد.'); return; }
-    // ✅ استفاده از تابع چاپ اصلاح‌شده
-    if (typeof printHtmlReport === 'function') {
-        printHtmlReport('#vpreview-body', 'سند حسابداری شماره ' + v.number);
-    }
+    if (!v) return;
+    var body = document.getElementById('vpreview-body');
+    var win = window.open('', '_blank');
+    if (!win) return;
+
+    var ff = getPrintFontFamily();
+    win.document.write('<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>سند ' + esc(v.number) + '</title><style>');
+    win.document.write('body { font-family:' + ff + '; direction:rtl; color:#222; font-size:12px; } '
+                     + 'h1 { text-align:center; font-size:15px; } '
+                     + 'table { width:100%; border-collapse:collapse; font-size:10px; } '
+                     + 'th, td { border:1px solid #999; padding:5px 7px; } '
+                     + 'th { background:#e6f0fa; } '
+                     + '.dr { color:#c0392b; } .cr { color:#1e9e6a; }');
+    win.document.write('</style></head><body><h1>سند شماره ' + toFa(esc(v.number)) + '</h1>' + body.innerHTML + '</body></html>');
+    win.document.close();
+    setTimeout(function () { win.focus(); win.print(); }, 400);
 }
 
 function openVoucherForEditById(vid) {
@@ -399,22 +429,31 @@ function editVoucherFromAnywhere(vid) {
 
 function bindVoucherListFilters() {
     var vpf = document.getElementById('vl-period-filter');
-    if (vpf) vpf.addEventListener('change', function () {
-        window._vlistPg.page = 1;
-        renderVoucherList();
-    });
+    if (vpf && !vpf.dataset.bound) {
+        vpf.dataset.bound = '1';
+        vpf.addEventListener('change', function () {
+            window._vlistPg.page = 1;
+            renderVoucherList();
+        });
+    }
 
     var vsrch = document.getElementById('vlist-search');
-    if (vsrch) vsrch.addEventListener('input', function () {
-        window._vlistPg.page = 1;
-        renderVoucherList();
-    });
+    if (vsrch && !vsrch.dataset.bound) {
+        vsrch.dataset.bound = '1';
+        vsrch.addEventListener('input', function () {
+            window._vlistPg.page = 1;
+            renderVoucherList();
+        });
+    }
 
     var vstatus = document.getElementById('vlist-status-filter');
-    if (vstatus) vstatus.addEventListener('change', function () {
-        window._vlistPg.page = 1;
-        renderVoucherList();
-    });
+    if (vstatus && !vstatus.dataset.bound) {
+        vstatus.dataset.bound = '1';
+        vstatus.addEventListener('change', function () {
+            window._vlistPg.page = 1;
+            renderVoucherList();
+        });
+    }
 }
 
 (function patchGoToPageForVoucherList() {
@@ -472,4 +511,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — Print Fixed');
+console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher Added');
