@@ -223,24 +223,36 @@ function handleVoucherRowAction() {
     var id = this.getAttribute('data-id');
     var action = this.getAttribute('data-action');
     var v = findVoucherById(id);
-    if (!v) return;
+    if (!v) { showToast('سند یافت نشد.'); return; }
 
     if (action === 'preview') { openVoucherPreview(v); return; }
     if (action === 'edit')    { loadVoucherForEdit(v); return; }
 
+    // ✅ کپی سند با ردیف‌های کامل
     if (action === 'copy') {
-        var newV = JSON.parse(JSON.stringify(v));
-        newV.id = uid();
-        newV.number = getNextVoucherNumberForPeriod(state.activePeriodId || '');
-        newV.date = todayJalaliStr();
-        newV.time = v.time || '08:00';
-        newV.status = 'draft';
-        
+        var srcLines = v.lines || [];
+        if (srcLines.length === 0) {
+            showToast('⚠️ این سند ردیفی ندارد که کپی شود.');
+            return;
+        }
+
+        var newV = {
+            id: uid(),
+            number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
+            date: todayJalaliStr(),
+            time: v.time || '08:00',
+            type: v.type || 'general',
+            periodId: state.activePeriodId || '',
+            desc: v.desc || '',
+            lines: JSON.parse(JSON.stringify(srcLines)),
+            status: 'draft'
+        };
+
         var list = DB.load('vouchers', []);
         list.push(newV);
         DB.save('vouchers', list);
-        
-        showToast('📋 سند کپی شد (پیش‌نویس)');
+
+        showToast('📋 سند با ' + toFa(srcLines.length) + ' ردیف کپی شد (پیش‌نویس)');
         renderVoucherList();
         return;
     }
@@ -511,4 +523,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher Added');
+console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher FIXED (with lines)');
