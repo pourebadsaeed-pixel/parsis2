@@ -228,13 +228,28 @@ function handleVoucherRowAction() {
     if (action === 'preview') { openVoucherPreview(v); return; }
     if (action === 'edit')    { loadVoucherForEdit(v); return; }
 
-    // ✅ کپی سند با ردیف‌های کامل
+    // ✅ کپی سند با ردیف‌های کامل (deep clone امن)
     if (action === 'copy') {
         var srcLines = v.lines || [];
         if (srcLines.length === 0) {
             showToast('⚠️ این سند ردیفی ندارد که کپی شود.');
             return;
         }
+
+        // کپی امن با تمام فیلدها
+        var clonedLines = srcLines.map(function(l) {
+            return {
+                id: uid(),
+                account: l.account || '',
+                details: JSON.parse(JSON.stringify(l.details || {})),
+                debit: Number(l.debit) || 0,
+                credit: Number(l.credit) || 0,
+                description: l.description || '',
+                trackingNumber: l.trackingNumber || '',
+                trackingDate: l.trackingDate || '',
+                locked: !!l.locked
+            };
+        });
 
         var newV = {
             id: uid(),
@@ -244,7 +259,7 @@ function handleVoucherRowAction() {
             type: v.type || 'general',
             periodId: state.activePeriodId || '',
             desc: v.desc || '',
-            lines: JSON.parse(JSON.stringify(srcLines)),
+            lines: clonedLines,
             status: 'draft'
         };
 
@@ -252,7 +267,7 @@ function handleVoucherRowAction() {
         list.push(newV);
         DB.save('vouchers', list);
 
-        showToast('📋 سند با ' + toFa(srcLines.length) + ' ردیف کپی شد (پیش‌نویس)');
+        showToast('📋 سند با ' + toFa(clonedLines.length) + ' ردیف کپی شد (پیش‌نویس)');
         renderVoucherList();
         return;
     }
@@ -523,4 +538,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher FIXED (with lines)');
+console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher FIXED (deep clone)');
