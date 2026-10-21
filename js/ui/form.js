@@ -323,7 +323,6 @@ function switchToTab(tabId) {
         if (typeof runPageRenderer === 'function') runPageRenderer(tab.page);
         if (typeof applyPageHelpers === 'function') applyPageHelpers();
         
-        // اتصال خودکار دکمه‌های فرم در صفحه جدید (فقط یک بار برای هر کلون)
         setTimeout(function() {
             try {
                 if (targetPage && targetPage.dataset.rebound !== '1') {
@@ -483,6 +482,7 @@ function installGoToPageOverride() {
         
         // پاک کردن نشانه‌های اتصال قبلی از روی کلون برای اتصال مجدد دکمه‌ها
         clone.querySelectorAll('[data-bound]').forEach(function(el) { delete el.dataset.bound; });
+        clone.querySelectorAll('[data-bound-collapse]').forEach(function(el) { delete el.dataset.boundCollapse; });
         clone.querySelectorAll('[data-picker]').forEach(function(el) { delete el.dataset.picker; });
         clone.querySelectorAll('[data-picker-bound]').forEach(function(el) { delete el.dataset.pickerBound; });
         
