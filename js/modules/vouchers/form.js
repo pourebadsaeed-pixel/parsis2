@@ -343,10 +343,8 @@ function renderVoucherLines() {
     if (!box) return;
     box.innerHTML = '';
 
-    if (voucherLines.length === 0) {
-        voucherLines.push({
-            id: uid(), account: '', details: {}, debit: 0, credit: 0, description: ''
-        });
+    if (!Array.isArray(voucherLines) || voucherLines.length === 0) {
+        voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
     }
 
     var leaves = getLeafAccountsSortedByCode();
@@ -721,7 +719,7 @@ function updateVoucherTotals() {
 }
 
 /* ============================================================
-   بخش ۱۱ — فرم سند جدید (با ساعت)
+   بخش ۱۱ — فرم سند جدید
    ============================================================ */
 function newVoucherForm() {
     document.getElementById('v-id').value = '';
@@ -740,27 +738,63 @@ function newVoucherForm() {
 }
 
 /* ============================================================
-   بخش ۱۲ — بارگذاری سند برای ویرایش (با ساعت)
+   بخش ۱۲ — بارگذاری سند برای ویرایش (اصلاح‌شده)
    ============================================================ */
 function loadVoucherForEdit(v) {
-    document.getElementById('v-id').value = v.id;
-    document.getElementById('v-number').value = v.number;
-    document.getElementById('v-date').value = v.date;
-    document.getElementById('v-time').value = v.time || '08:00';
-    document.getElementById('v-type').value = v.type || 'general';
-    document.getElementById('v-desc').value = v.desc || '';
+    if (!v) {
+        showToast('سند یافت نشد.');
+        return;
+    }
 
+    // ۱) تنظیم داده‌های سراسری (قبل از رفتن به صفحه)
     currentVoucherStatus = v.status || 'draft';
-    voucherLines = JSON.parse(JSON.stringify(v.lines));
-    renderVoucherLines();
-
+    voucherLines = JSON.parse(JSON.stringify(v.lines || []));
     window._voucherFormSavedAndClean = true;
-    setVoucherStatusBar(v.status === 'approved' ? 'approved' : 'draft', v.id);
+
+    // ۲) پاک کردن Context تب‌های سند قبلی تا داده جدید را overwrite نکنند
+    if (typeof TAB_STATE !== 'undefined' && Array.isArray(TAB_STATE.tabs)) {
+        TAB_STATE.tabs.forEach(function(t) {
+            if (t.page === 'voucher-new') {
+                t.context = null;
+            }
+        });
+    }
+
+    // ۳) رفتن به صفحه سند
     goToPage('voucher-new');
+
+    // ۴) تنظیم مقادیر روی صفحه فعال (کپی جدید)
+    var activePage = document.querySelector('.page.active');
+    if (activePage) {
+        var setVal = function(id, val) {
+            var e = activePage.querySelector('#' + id);
+            if (e) e.value = val;
+        };
+        setVal('v-id', v.id);
+        setVal('v-number', v.number);
+        setVal('v-date', v.date);
+        setVal('v-time', v.time || '08:00');
+        setVal('v-type', v.type || 'general');
+        setVal('v-desc', v.desc || '');
+
+        // ۵) اتصال رویدادهای دکمه‌های این کپی
+        if (activePage.dataset.rebound !== '1') {
+            activePage.dataset.rebound = '1';
+            if (typeof bindVoucherForm === 'function') bindVoucherForm();
+        }
+    }
+
+    // ۶) رندر ردیف‌ها
+    if (typeof renderVoucherLines === 'function') renderVoucherLines();
+
+    // ۷) نوار وضعیت
+    if (typeof setVoucherStatusBar === 'function') {
+        setVoucherStatusBar(v.status === 'approved' ? 'approved' : 'draft', v.id);
+    }
 }
 
 /* ============================================================
-   بخش ۱۳ — ذخیره سند (با ساعت)
+   بخش ۱۳ — ذخیره سند
    ============================================================ */
 function persistVoucher(approve) {
     if (currentVoucherStatus === 'approved' && !approve) {
@@ -961,7 +995,7 @@ function saveVoucherAsTemplate() {
 }
 
 /* ============================================================
-   بخش ۱۷ — اتصال دکمه‌های فرم سند (با ساعت)
+   بخش ۱۷ — اتصال دکمه‌های فرم سند
    ============================================================ */
 function bindVoucherForm() {
     var addBtn = document.getElementById('add-line');
@@ -1078,4 +1112,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — Searchable Dropdown + Time Picker added');
+console.log('✅ [modules/vouchers/form.js] loaded — loadVoucherForEdit FIXED (context-aware)');
