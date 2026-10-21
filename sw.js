@@ -1,5 +1,5 @@
-/* پارسیس — Service Worker */
-var CACHE_NAME = 'parsis-v3';
+/* پارسیس — Service Worker (نسخه بهبودیافته برای بروزرسانی خودکار) */
+var CACHE_NAME = 'parsis-v4-2025'; // ← تاریخ یا نسخه را هر بار که فایل جدید دادیم، تغییر می‌دهم
 
 var ASSETS = [
   './index.html',
@@ -53,18 +53,30 @@ var ASSETS = [
   './js/modules/welcome.js',
   './js/modules/backup.js',
   './js/modules/fix-sidebar.js',
+  './js/modules/users.js',
+  './js/modules/auth.js',
   './js/app.js'
 ];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(ASSETS).catch(function (e) {
-        console.warn('Cache addAll failed:', e);
-      });
+      // ✅ fetch با cache:'reload' = نادیده گرفتن HTTP cache و دریافت تازه از سرور
+      return Promise.all(
+        ASSETS.map(function (url) {
+          return fetch(url, { cache: 'reload' })
+            .then(function (res) {
+              if (res && res.ok) return cache.put(url, res);
+            })
+            .catch(function (e) {
+              console.warn('[SW] fetch failed for:', url, e);
+            });
+        })
+      );
+    }).then(function () {
+      return self.skipWaiting(); // فعال‌سازی فوری SW جدید
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
@@ -72,9 +84,14 @@ self.addEventListener('activate', function (event) {
     caches.keys().then(function (names) {
       return Promise.all(
         names.filter(function (n) { return n !== CACHE_NAME; })
-             .map(function (n) { return caches.delete(n); })
+             .map(function (n) {
+               console.log('[SW] deleting old cache:', n);
+               return caches.delete(n);
+             })
       );
-    }).then(function () { return self.clients.claim(); })
+    }).then(function () {
+      return self.clients.claim(); // کنترل فوری همه تب‌های باز
+    })
   );
 });
 
@@ -89,6 +106,7 @@ self.addEventListener('fetch', function (event) {
             || url.pathname === '/'
             || url.pathname.endsWith('/');
 
+  // HTML: همیشه از شبکه بگیر، کش فقط fallback
   if (isHTML) {
     event.respondWith(
       fetch(event.request).then(function (response) {
@@ -108,10 +126,10 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
+  // سایر فایل‌ها: Cache First (برای سرعت)، اما با بررسی دوره‌ای در پس‌زمینه
   event.respondWith(
     caches.match(event.request).then(function (cached) {
-      if (cached) return cached;
-      return fetch(event.request).then(function (response) {
+      var fetchPromise = fetch(event.request).then(function (response) {
         if (response && response.status === 200 && response.type === 'basic') {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
@@ -120,8 +138,9 @@ self.addEventListener('fetch', function (event) {
         }
         return response;
       }).catch(function () {
-        return caches.match('./index.html');
+        return cached;
       });
+      return cached || fetchPromise;
     })
   );
 });
@@ -129,3 +148,5 @@ self.addEventListener('fetch', function (event) {
 self.addEventListener('message', function (event) {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
+
+console.log('✅ [SW] Registered with CACHE_NAME =', CACHE_NAME);
