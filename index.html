@@ -762,8 +762,15 @@
     <div class="card" id="voucher-head-card">
         <input type="hidden" id="v-id">
         <div class="voucher-head-row">
-            <div class="field"><label>شماره (خودکار)</label><input type="text" id="v-number" dir="ltr" readonly></div>
+            <div class="field" style="max-width:100px"><label>شماره</label><input type="text" id="v-number" dir="ltr" readonly></div>
             <div class="field"><label>تاریخ</label><input type="text" id="v-date" class="date-picker" dir="ltr"></div>
+            <div class="field" style="max-width:120px">
+                <label>ساعت</label>
+                <div style="display:flex; gap:4px;">
+                    <input type="text" id="v-time" dir="ltr" placeholder="08:00" style="text-align:center; font-family:monospace">
+                    <button type="button" id="v-time-clock" style="width:36px; height:40px; border:none; border-radius:10px; background:var(--primary-soft); color:var(--primary-dark); cursor:pointer; font-size:1.05rem; display:flex; align-items:center; justify-content:center;">🕐</button>
+                </div>
+            </div>
             <div class="field v-type-field"><label>نوع سند</label>
                 <select id="v-type">
                     <option value="general">عمومی</option>
