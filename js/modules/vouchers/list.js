@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (بخش ۱: رندر + صفحه‌بندی + پیش‌نمایش + کپی)
+   پارسیس — فهرست اسناد
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -10,12 +10,9 @@ window._vlistPg = window._vlistPg || { page: 1 };
 function ensureVoucherPaginationBox() {
     var box = document.getElementById('vlist-pagination');
     if (box) return box;
-
     box = document.createElement('div');
     box.id = 'vlist-pagination';
-    box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;'
-                      + 'margin-top:14px;padding:6px 0;flex-wrap:wrap;direction:rtl';
-
+    box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;margin-top:14px;padding:6px 0;flex-wrap:wrap;direction:rtl';
     var tableWrap = document.querySelector('#page-voucher-list .table-wrap');
     if (tableWrap && tableWrap.parentNode) {
         tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
@@ -29,49 +26,27 @@ function ensureVoucherPaginationBox() {
 function renderVoucherPager(total, curPage) {
     var box = ensureVoucherPaginationBox();
     if (!box) return;
-
     box.innerHTML = '';
     var totalPages = Math.max(1, Math.ceil(total / VOUCHER_PAGE_SIZE));
-
-    if (totalPages <= 1) {
-        box.style.display = 'none';
-        return;
-    }
+    if (totalPages <= 1) { box.style.display = 'none'; return; }
     box.style.display = 'flex';
 
     function mkBtn(label, page, disabled, title) {
         var b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.title = title || '';
-        b.disabled = !!disabled;
-        b.style.cssText = 'min-width:42px;height:38px;padding:0 12px;border-radius:10px;'
-                        + 'border:1.5px solid var(--border);background:var(--card-solid);'
-                        + 'color:var(--primary-dark);font-weight:800;font-family:inherit;'
-                        + 'font-size:1rem;cursor:pointer;display:inline-flex;'
-                        + 'align-items:center;justify-content:center';
-        if (disabled) {
-            b.style.opacity = '0.35';
-            b.style.cursor = 'not-allowed';
-        } else {
-            b.addEventListener('click', function () {
-                window._vlistPg.page = page;
-                renderVoucherList();
-            });
-        }
+        b.type = 'button'; b.textContent = label; b.title = title || ''; b.disabled = !!disabled;
+        b.style.cssText = 'min-width:42px;height:38px;padding:0 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-solid);color:var(--primary-dark);font-weight:800;font-family:inherit;font-size:1rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center';
+        if (disabled) { b.style.opacity = '0.35'; b.style.cursor = 'not-allowed'; }
+        else { b.addEventListener('click', function () { window._vlistPg.page = page; renderVoucherList(); }); }
         box.appendChild(b);
     }
-
-    mkBtn('⏭', 1, curPage === 1, 'اولین صفحه');
-    mkBtn('▶', curPage - 1, curPage === 1, 'صفحه قبل');
-
+    mkBtn('⏭', 1, curPage === 1, 'اولین');
+    mkBtn('▶', curPage - 1, curPage === 1, 'قبل');
     var info = document.createElement('span');
     info.textContent = 'صفحه ' + toFa(curPage) + ' از ' + toFa(totalPages);
     info.style.cssText = 'padding:0 14px;font-weight:800;color:var(--primary-dark);font-size:0.85rem';
     box.appendChild(info);
-
-    mkBtn('◀', curPage + 1, curPage === totalPages, 'صفحه بعد');
-    mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین صفحه');
+    mkBtn('◀', curPage + 1, curPage === totalPages, 'بعد');
+    mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین');
 }
 
 function renderVoucherList() {
@@ -81,7 +56,7 @@ function renderVoucherList() {
     var allVouchers = DB.load('vouchers', []);
 
     if (!Array.isArray(allVouchers) || allVouchers.length === 0) {
-        tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است. برای ثبت، از «✏️ صدور سند» استفاده کنید.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است.</td></tr>';
         var cEl = document.getElementById('vlist-count');
         if (cEl) cEl.textContent = '۰';
         var box = document.getElementById('vlist-pagination');
@@ -104,37 +79,19 @@ function renderVoucherList() {
     if (searchVal) {
         vouchers = vouchers.filter(function (v) {
             var pN = pMap[v.periodId] || '';
-            var txt = String(v.number || '') + ' '
-                    + String(v.date || '') + ' '
-                    + String(v.desc || '') + ' '
-                    + voucherTypeName(v.type) + ' '
-                    + pN;
+            var txt = String(v.number || '') + ' ' + String(v.date || '') + ' ' + String(v.desc || '') + ' ' + voucherTypeName(v.type) + ' ' + pN;
             return txt.toLowerCase().indexOf(searchVal) !== -1;
         });
     }
 
-    var st = (typeof sortState !== 'undefined' && sortState.vouchers)
-        ? sortState.vouchers
-        : { col: 'number', dir: 'desc' };
-
+    var st = (typeof sortState !== 'undefined' && sortState.vouchers) ? sortState.vouchers : { col: 'number', dir: 'desc' };
     vouchers.sort(function (a, b) {
         var va, vb;
-        if (st.col === 'periodName') {
-            va = pMap[a.periodId] || '';
-            vb = pMap[b.periodId] || '';
-        } else if (st.col === 'status') {
-            va = a.status === 'approved' ? 'ت' : 'پ';
-            vb = b.status === 'approved' ? 'ت' : 'پ';
-        } else if (st.col === 'type') {
-            va = voucherTypeName(a.type);
-            vb = voucherTypeName(b.type);
-        } else if (st.col === 'amount') {
-            va = getVoucherAmount(a);
-            vb = getVoucherAmount(b);
-        } else {
-            va = a[st.col] || '';
-            vb = b[st.col] || '';
-        }
+        if (st.col === 'periodName') { va = pMap[a.periodId] || ''; vb = pMap[b.periodId] || ''; }
+        else if (st.col === 'status') { va = a.status === 'approved' ? 'ت' : 'پ'; vb = b.status === 'approved' ? 'ت' : 'پ'; }
+        else if (st.col === 'type') { va = voucherTypeName(a.type); vb = voucherTypeName(b.type); }
+        else if (st.col === 'amount') { va = getVoucherAmount(a); vb = getVoucherAmount(b); }
+        else { va = a[st.col] || ''; vb = b[st.col] || ''; }
         var c = compareVals(va, vb);
         return st.dir === 'asc' ? c : -c;
     });
@@ -157,13 +114,9 @@ function renderVoucherList() {
         try { issues = getVoucherIssues(v) || []; } catch (e) { issues = []; }
 
         var badge;
-        if (status === 'approved') {
-            badge = '<span class="badge badge-approved">✓ تأیید</span>';
-        } else if (issues.length > 0) {
-            badge = '<span class="badge badge-draft" title="ناقص">پیش‌نویس ⚠️</span>';
-        } else {
-            badge = '<span class="badge badge-draft">پیش‌نویس</span>';
-        }
+        if (status === 'approved') badge = '<span class="badge badge-approved">✓ تأیید</span>';
+        else if (issues.length > 0) badge = '<span class="badge badge-draft" title="ناقص">پیش‌نویس ⚠️</span>';
+        else badge = '<span class="badge badge-draft">پیش‌نویس</span>';
 
         var tB = '<span class="badge badge-type">' + voucherTypeName(v.type) + '</span>';
         var pN = pMap[v.periodId] || '—';
@@ -208,9 +161,7 @@ function renderVoucherList() {
     renderVoucherPager(total, window._vlistPg.page);
 
     var btns = tb.querySelectorAll('.row-btn');
-    for (var b = 0; b < btns.length; b++) {
-        btns[b].addEventListener('click', handleVoucherRowAction);
-    }
+    for (var b = 0; b < btns.length; b++) btns[b].addEventListener('click', handleVoucherRowAction);
 
     if (typeof applyColVisibility === 'function') applyColVisibility('voucher-table-list');
     if (typeof applyColWidths === 'function') applyColWidths('voucher-table-list');
@@ -228,28 +179,41 @@ function handleVoucherRowAction() {
     if (action === 'preview') { openVoucherPreview(v); return; }
     if (action === 'edit')    { loadVoucherForEdit(v); return; }
 
-    // ✅ کپی سند با ردیف‌های کامل (deep clone امن)
+    // ✅ کپی با کپی عمیق و بازسازی کامل ردیف‌ها
     if (action === 'copy') {
-        var srcLines = v.lines || [];
+        var srcLines = Array.isArray(v.lines) ? v.lines : [];
+        console.log('[COPY] Source voucher:', v.id, '| Lines:', srcLines.length);
+        console.log('[COPY] Source lines:', JSON.stringify(srcLines).substring(0, 300));
+
         if (srcLines.length === 0) {
             showToast('⚠️ این سند ردیفی ندارد که کپی شود.');
             return;
         }
 
-        // کپی امن با تمام فیلدها
-        var clonedLines = srcLines.map(function(l) {
-            return {
+        // بازسازی کامل هر ردیف (نه فقط clone)
+        var clonedLines = [];
+        for (var li = 0; li < srcLines.length; li++) {
+            var L = srcLines[li];
+            if (!L || typeof L !== 'object') continue;
+            clonedLines.push({
                 id: uid(),
-                account: l.account || '',
-                details: JSON.parse(JSON.stringify(l.details || {})),
-                debit: Number(l.debit) || 0,
-                credit: Number(l.credit) || 0,
-                description: l.description || '',
-                trackingNumber: l.trackingNumber || '',
-                trackingDate: l.trackingDate || '',
-                locked: !!l.locked
-            };
-        });
+                account: L.account || '',
+                details: JSON.parse(JSON.stringify(L.details || {})),
+                debit: Number(L.debit) || 0,
+                credit: Number(L.credit) || 0,
+                description: L.description || '',
+                trackingNumber: L.trackingNumber || '',
+                trackingDate: L.trackingDate || '',
+                locked: !!L.locked
+            });
+        }
+
+        console.log('[COPY] Cloned lines count:', clonedLines.length);
+
+        if (clonedLines.length === 0) {
+            showToast('⚠️ خطا: ردیف‌ها قابل کپی نبودند.');
+            return;
+        }
 
         var newV = {
             id: uid(),
@@ -267,6 +231,10 @@ function handleVoucherRowAction() {
         list.push(newV);
         DB.save('vouchers', list);
 
+        // تأیید ذخیره
+        var verify = DB.load('vouchers', []).find(function(x) { return x.id === newV.id; });
+        console.log('[COPY] Verify saved:', verify ? 'YES' : 'NO', '| Lines in DB:', verify ? (verify.lines || []).length : 0);
+
         showToast('📋 سند با ' + toFa(clonedLines.length) + ' ردیف کپی شد (پیش‌نویس)');
         renderVoucherList();
         return;
@@ -274,10 +242,7 @@ function handleVoucherRowAction() {
 
     if (action === 'approve') {
         var issues = getVoucherIssues(v);
-        if (issues.length > 0) {
-            alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• '));
-            return;
-        }
+        if (issues.length > 0) { alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• ')); return; }
         var list = DB.load('vouchers', []);
         for (var x = 0; x < list.length; x++) {
             if (list[x].id === id) list[x].status = 'approved';
@@ -328,13 +293,10 @@ function setupSorting() {
 function openVoucherPreview(v) {
     var body = document.getElementById('vpreview-body');
     if (!body) return;
-
     var accounts = DB.load('accounts', []);
     var periods = DB.load('fiscalPeriods', []);
     var period = periods.find(function (p) { return p.id === v.periodId; });
-    var status = v.status === 'approved'
-        ? '<span class="badge badge-approved">✓ تأیید</span>'
-        : '<span class="badge badge-draft">پیش‌نویس</span>';
+    var status = v.status === 'approved' ? '<span class="badge badge-approved">✓ تأیید</span>' : '<span class="badge badge-draft">پیش‌نویس</span>';
 
     var html = '<div class="vp-header"><div class="vp-grid">';
     html += '<div><span class="lbl">شماره:</span> <b>' + toFa(esc(v.number)) + '</b></div>';
@@ -346,57 +308,35 @@ function openVoucherPreview(v) {
     html += '<div><span class="lbl">وضعیت:</span> ' + status + '</div>';
     html += '</div></div>';
 
-    html += '<div class="table-wrap"><table class="report-table">'
-         +  '<thead><tr><th>#</th><th>معین</th><th>تفصیلی</th><th>شرح</th>'
-         +  '<th>بدهکار</th><th>بستانکار</th></tr></thead><tbody>';
+    html += '<div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>معین</th><th>تفصیلی</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr></thead><tbody>';
 
     var td = 0, tc = 0;
     var lines = v.lines || [];
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         var accLabel = line.account ? getAccountLabel(line.account, accounts) : '—';
-
         var dt = '';
         if (line.details) {
             Object.keys(line.details).forEach(function (lt) {
                 var did = line.details[lt];
-                if (did) {
-                    if (dt) dt += ' ، ';
-                    dt += linkTypeName(lt) + ': ' + getDetailLabel(lt, did);
-                }
+                if (did) { if (dt) dt += ' ، '; dt += linkTypeName(lt) + ': ' + getDetailLabel(lt, did); }
             });
         }
-
         var d = Number(line.debit) || 0;
         var c = Number(line.credit) || 0;
-        td += d;
-        tc += c;
-
-        html += '<tr><td>' + toFa(i + 1) + '</td>'
-            + '<td>' + esc(accLabel) + '</td>'
-            + '<td>' + (dt ? esc(dt) : '—') + '</td>'
-            + '<td>' + esc(line.description || '') + '</td>'
-            + '<td class="num dr">' + (d ? formatMoney(d) : '—') + '</td>'
-            + '<td class="num cr">' + (c ? formatMoney(c) : '—') + '</td></tr>';
+        td += d; tc += c;
+        html += '<tr><td>' + toFa(i + 1) + '</td><td>' + esc(accLabel) + '</td><td>' + (dt ? esc(dt) : '—') + '</td><td>' + esc(line.description || '') + '</td><td class="num dr">' + (d ? formatMoney(d) : '—') + '</td><td class="num cr">' + (c ? formatMoney(c) : '—') + '</td></tr>';
     }
+    html += '</tbody><tfoot><tr><td colspan="4" style="text-align:left">جمع</td><td class="num dr">' + formatMoney(td) + '</td><td class="num cr">' + formatMoney(tc) + '</td></tr></tfoot></table></div>';
 
-    html += '</tbody><tfoot><tr><td colspan="4" style="text-align:left">جمع</td>'
-         +  '<td class="num dr">' + formatMoney(td) + '</td>'
-         +  '<td class="num cr">' + formatMoney(tc) + '</td></tr></tfoot></table></div>';
-
-    if (td === tc && td > 0) {
-        html += '<div class="vp-balance-ok">✓ متوازن</div>';
-    } else {
-        html += '<div class="vp-balance-err">⚠️ اختلاف: ' + formatMoney(Math.abs(td - tc)) + '</div>';
-    }
+    if (td === tc && td > 0) html += '<div class="vp-balance-ok">✓ متوازن</div>';
+    else html += '<div class="vp-balance-err">⚠️ اختلاف: ' + formatMoney(Math.abs(td - tc)) + '</div>';
 
     body.innerHTML = html;
-
     var m = document.getElementById('vpreview-modal');
     var o = document.getElementById('vpreview-overlay');
     if (m) m.classList.add('show');
     if (o) o.classList.add('show');
-
     window._currentPreviewVoucher = v;
 }
 
@@ -414,15 +354,9 @@ function printVoucherPreview() {
     var body = document.getElementById('vpreview-body');
     var win = window.open('', '_blank');
     if (!win) return;
-
-    var ff = getPrintFontFamily();
+    var ff = typeof getPrintFontFamily === 'function' ? getPrintFontFamily() : 'Tahoma';
     win.document.write('<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>سند ' + esc(v.number) + '</title><style>');
-    win.document.write('body { font-family:' + ff + '; direction:rtl; color:#222; font-size:12px; } '
-                     + 'h1 { text-align:center; font-size:15px; } '
-                     + 'table { width:100%; border-collapse:collapse; font-size:10px; } '
-                     + 'th, td { border:1px solid #999; padding:5px 7px; } '
-                     + 'th { background:#e6f0fa; } '
-                     + '.dr { color:#c0392b; } .cr { color:#1e9e6a; }');
+    win.document.write('body{font-family:' + ff + ';direction:rtl;color:#222;font-size:12px;}h1{text-align:center;font-size:15px;}table{width:100%;border-collapse:collapse;font-size:10px;}th,td{border:1px solid #999;padding:5px 7px;}th{background:#e6f0fa;}.dr{color:#c0392b;}.cr{color:#1e9e6a;}');
     win.document.write('</style></head><body><h1>سند شماره ' + toFa(esc(v.number)) + '</h1>' + body.innerHTML + '</body></html>');
     win.document.close();
     setTimeout(function () { win.focus(); win.print(); }, 400);
@@ -431,7 +365,6 @@ function printVoucherPreview() {
 function openVoucherForEditById(vid) {
     var v = findVoucherById(vid);
     if (!v) { showToast('سند یافت نشد.'); return; }
-
     if (v.status === 'approved') {
         var ans = confirm('این سند تأیید شده است.\n\nOK = برگشت از تأیید + ویرایش\nCancel = فقط مشاهده');
         if (ans) {
@@ -463,7 +396,6 @@ function bindVoucherListFilters() {
             renderVoucherList();
         });
     }
-
     var vsrch = document.getElementById('vlist-search');
     if (vsrch && !vsrch.dataset.bound) {
         vsrch.dataset.bound = '1';
@@ -472,7 +404,6 @@ function bindVoucherListFilters() {
             renderVoucherList();
         });
     }
-
     var vstatus = document.getElementById('vlist-status-filter');
     if (vstatus && !vstatus.dataset.bound) {
         vstatus.dataset.bound = '1';
@@ -485,13 +416,9 @@ function bindVoucherListFilters() {
 
 (function patchGoToPageForVoucherList() {
     function install() {
-        if (typeof window.goToPage !== 'function') {
-            setTimeout(install, 500);
-            return;
-        }
+        if (typeof window.goToPage !== 'function') { setTimeout(install, 500); return; }
         if (window._gtpVListPatched) return;
         window._gtpVListPatched = true;
-
         var orig = window.goToPage;
         window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
@@ -516,14 +443,10 @@ function bindVoucherListFilters() {
         if (!page || !page.classList.contains('active')) return;
         var tb = document.getElementById('voucher-list-body');
         if (!tb) return;
-
         var rows = tb.querySelectorAll('tr').length;
         var isEmpty = rows === 0 || (rows === 1 && tb.querySelector('.empty-row'));
         var dbCount = DB.load('vouchers', []).length;
-
-        if (isEmpty && dbCount > 0) {
-            renderVoucherList();
-        }
+        if (isEmpty && dbCount > 0) renderVoucherList();
     }, 3000);
 })();
 
@@ -538,4 +461,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — Copy Voucher FIXED (deep clone)');
+console.log('✅ [modules/vouchers/list.js] loaded — Copy with deep reconstruction + logging');
