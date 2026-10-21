@@ -966,7 +966,7 @@ body.resizing-cols .report-table th { user-select:none !important; }
   align-items:center;
   justify-content:center;
   transition: all var(--transition);
-  z-index: 10; /* ✅ اضافه شده برای کلیک‌پذیری */
+  z-index: 10;
 }
 .ln-amount-wrap .calc-btn:hover { background:var(--primary); color:#fff; }
 .voucher-line .ln-actions {
@@ -1041,7 +1041,7 @@ body.resizing-cols .report-table th { user-select:none !important; }
 
 .voucher-head-row {
   display:grid;
-  grid-template-columns:130px 150px 1fr;
+  grid-template-columns: 90px 1fr 120px 1fr;
   gap:10px;
   align-items:end;
 }
