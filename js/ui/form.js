@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فرم‌ها: سیستم تب پیشرفته (ایزوله‌سازی کامل + Drag & Drop)
+   پارسیس — فرم‌ها: سیستم تب پیشرفته (با اتصال خودکار دکمه‌ها)
    مسیر: js/ui/form.js
    ============================================================ */
 'use strict';
@@ -56,6 +56,32 @@ var TAB_STATE = {
     tabs: [{ id: 'home', page: 'home', domId: 'page-home', title: 'صفحه اصلی', icon: '🏠' }],
     active: 'home',
     max: 15
+};
+
+/* ============================================================
+   نقشه اتصال دکمه‌های هر صفحه
+   ============================================================ */
+var PAGE_BINDERS = {
+    'persons':          'bindPersonsForm',
+    'companies':        'bindCompaniesForm',
+    'bank-accounts':    'bindBanksForm',
+    'cash-boxes':       'bindCashBoxesForm',
+    'projects':         'bindProjectsForm',
+    'fiscal':           'bindFiscalForm',
+    'chart-define':     'bindChartForm',
+    'bank-types':       'bindBankCashTypes',
+    'cash-types':       'bindBankCashTypes',
+    'currency':         'bindCurrencyHide',
+    'language':         'bindCurrencyHide',
+    'estimate-daily':   'bindEstimatesForm',
+    'cashflow-sources': 'bindSourcesForm',
+    'facilities':       'bindFacilitiesForm',
+    'voucher-new':      'bindVoucherForm',
+    'voucher-list':     'bindVoucherListFilters',
+    'templates':        'bindTemplatesForm',
+    'notes':            'bindNotesForm',
+    'users':            'bindUsersForm',
+    'sms':              'bindSmsButtons'
 };
 
 function getPageMeta(pageId) {
@@ -296,6 +322,22 @@ function switchToTab(tabId) {
     if (tab.page !== 'home') {
         if (typeof runPageRenderer === 'function') runPageRenderer(tab.page);
         if (typeof applyPageHelpers === 'function') applyPageHelpers();
+        
+        // اتصال خودکار دکمه‌های فرم در صفحه جدید (فقط یک بار برای هر کلون)
+        setTimeout(function() {
+            try {
+                if (targetPage && targetPage.dataset.rebound !== '1') {
+                    targetPage.dataset.rebound = '1';
+                    
+                    var fnName = PAGE_BINDERS[tab.page];
+                    if (fnName && typeof window[fnName] === 'function') {
+                        window[fnName]();
+                    }
+                    if (typeof bindFilterInputs === 'function') bindFilterInputs();
+                    if (typeof bindExportButtons === 'function') bindExportButtons();
+                }
+            } catch(e) { console.warn('[switchToTab bind]', e); }
+        }, 30);
     }
 }
 
@@ -439,17 +481,10 @@ function installGoToPageOverride() {
         clone.classList.remove('active');
         clone.classList.remove('page-template');
         
-        // ✅ پاکسازی دیتا اتریبیوت‌ها برای فعال شدن مجدد رویدادها در کپی
+        // پاک کردن نشانه‌های اتصال قبلی از روی کلون برای اتصال مجدد دکمه‌ها
+        clone.querySelectorAll('[data-bound]').forEach(function(el) { delete el.dataset.bound; });
         clone.querySelectorAll('[data-picker]').forEach(function(el) { delete el.dataset.picker; });
-        clone.querySelectorAll('[data-money]').forEach(function(el) { delete el.dataset.money; });
-        clone.querySelectorAll('[data-sortable]').forEach(function(el) { delete el.dataset.sortAttached; });
-        clone.querySelectorAll('[data-table-id]').forEach(function(el) { el.removeAttribute('data-table-id'); el.removeAttribute('data-resizable'); });
-        clone.querySelectorAll('[data-collapsible]').forEach(function(el) { delete el.dataset.collapsible; });
-        clone.querySelectorAll('.filter-collapse-header').forEach(function(el) { el.remove(); });
-        clone.querySelectorAll('.filter-collapse-body').forEach(function(el) { 
-            while(el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
-            el.remove();
-        });
+        clone.querySelectorAll('[data-picker-bound]').forEach(function(el) { delete el.dataset.pickerBound; });
         
         // پاک کردن محتویات گزارش‌ها برای رندر مجدد
         clone.querySelectorAll('#ra-clean-panel').forEach(function(el) { el.remove(); });
@@ -537,4 +572,4 @@ window.closeTab              = closeTab;
 window.closeAllTabs          = closeAllTabs;
 window.autoAttachReportHelpers = autoAttachReportHelpers;
 
-console.log('✅ [ui/form.js] loaded — Advanced Tabs (Isolated Contexts)');
+console.log('✅ [ui/form.js] loaded — Advanced Tabs (Isolated Contexts + Auto Rebind)');
