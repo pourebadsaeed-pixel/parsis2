@@ -56,7 +56,8 @@ function bindSettingsButtons() {
 
 function bindCurrencyHide() {
     var setLang = document.getElementById('set-language');
-    if (setLang) {
+    if (setLang && !setLang.dataset.bound) {
+        setLang.dataset.bound = '1';
         setLang.value = state.language;
         setLang.addEventListener('change', function () {
             state.language = this.value;
@@ -65,7 +66,8 @@ function bindCurrencyHide() {
     }
 
     var setCur = document.getElementById('set-currency');
-    if (setCur) {
+    if (setCur && !setCur.dataset.bound) {
+        setCur.dataset.bound = '1';
         setCur.value = state.currency;
         setCur.addEventListener('change', function () {
             state.currency = this.value;
@@ -88,10 +90,14 @@ function bindCurrencyHide() {
     }
 
     var s1 = document.getElementById('set-currency-display');
-    if (s1) s1.addEventListener('change', function () { onCurrencyDisplay(this.value); });
+    if (s1 && !s1.dataset.bound) {
+        s1.dataset.bound = '1';
+        s1.addEventListener('change', function () { onCurrencyDisplay(this.value); });
+    }
 
     var s2 = document.getElementById('set-currency-display2');
-    if (s2) {
+    if (s2 && !s2.dataset.bound) {
+        s2.dataset.bound = '1';
         s2.value = state.currencyDisplay;
         s2.addEventListener('change', function () { onCurrencyDisplay(this.value); });
     }
@@ -109,7 +115,8 @@ function bindCurrencyHide() {
     }
 
     var hideCb = document.getElementById('set-hide-numbers');
-    if (hideCb) {
+    if (hideCb && !hideCb.dataset.bound) {
+        hideCb.dataset.bound = '1';
         hideCb.checked = state.hideNumbers;
         hideCb.addEventListener('change', function () { onHideNumbers(this.checked); });
     }
@@ -117,28 +124,34 @@ function bindCurrencyHide() {
 
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
-    if (addBankBtn) addBankBtn.addEventListener('click', function () {
-        var inp = document.getElementById('new-bank-type');
-        var v = inp.value.trim();
-        if (!v) return;
-        if (state.bankTypes.indexOf(v) !== -1) return;
-        state.bankTypes.push(v);
-        saveState(LS_KEYS.BANK_TYPES);
-        inp.value = '';
-        renderChips('bank-types-list', state.bankTypes, 'bankTypes');
-    });
+    if (addBankBtn && !addBankBtn.dataset.bound) {
+        addBankBtn.dataset.bound = '1';
+        addBankBtn.addEventListener('click', function () {
+            var inp = document.getElementById('new-bank-type');
+            var v = inp.value.trim();
+            if (!v) return;
+            if (state.bankTypes.indexOf(v) !== -1) return;
+            state.bankTypes.push(v);
+            saveState(LS_KEYS.BANK_TYPES);
+            inp.value = '';
+            renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+        });
+    }
 
     var addCashBtn = document.getElementById('add-cash-type');
-    if (addCashBtn) addCashBtn.addEventListener('click', function () {
-        var inp = document.getElementById('new-cash-type');
-        var v = inp.value.trim();
-        if (!v) return;
-        if (state.cashTypes.indexOf(v) !== -1) return;
-        state.cashTypes.push(v);
-        saveState(LS_KEYS.CASH_TYPES);
-        inp.value = '';
-        renderChips('cash-types-list', state.cashTypes, 'cashTypes');
-    });
+    if (addCashBtn && !addCashBtn.dataset.bound) {
+        addCashBtn.dataset.bound = '1';
+        addCashBtn.addEventListener('click', function () {
+            var inp = document.getElementById('new-cash-type');
+            var v = inp.value.trim();
+            if (!v) return;
+            if (state.cashTypes.indexOf(v) !== -1) return;
+            state.cashTypes.push(v);
+            saveState(LS_KEYS.CASH_TYPES);
+            inp.value = '';
+            renderChips('cash-types-list', state.cashTypes, 'cashTypes');
+        });
+    }
 }
 
 function bindSmsButtons() {
@@ -153,59 +166,79 @@ function bindSmsButtons() {
     }
 
     var sar = document.getElementById('sms-auto-read');
-    if (sar) sar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
+    if (sar && !sar.dataset.bound) {
+        sar.dataset.bound = '1';
+        sar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
+    }
 
     var ssar = document.getElementById('set-sms-auto-read');
-    if (ssar) ssar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
+    if (ssar && !ssar.dataset.bound) {
+        ssar.dataset.bound = '1';
+        ssar.addEventListener('change', function () { onSmsAutoRead(this.checked); });
+    }
 
     var readClip = document.getElementById('sms-read-clip');
-    if (readClip) readClip.addEventListener('click', function () {
-        if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false);
-        else showToast('⚠️ سیستم پیامک لود نشده.');
-    });
+    if (readClip && !readClip.dataset.bound) {
+        readClip.dataset.bound = '1';
+        readClip.addEventListener('click', function () {
+            if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false);
+            else showToast('⚠️ سیستم پیامک لود نشده.');
+        });
+    }
 
     var parseSms = document.getElementById('parse-sms');
-    if (parseSms) parseSms.addEventListener('click', function () {
-        var text = document.getElementById('sms-text').value;
-        if (!text.trim()) {
-            alert('متن را وارد کن.');
-            return;
-        }
-        if (typeof addSmsToInbox !== 'function') {
-            alert('سیستم پیامک لود نشده.');
-            return;
-        }
-        var res = addSmsToInbox(text, 'paste');
-        if (res.ok) {
-            showToast('✅ اضافه شد');
-            document.getElementById('sms-text').value = '';
-            if (typeof renderSmsInbox === 'function') renderSmsInbox();
-            if (typeof updateSmsBadge === 'function') updateSmsBadge();
-        } else {
-            alert(res.reason === 'duplicate' ? 'قبلاً ثبت شده.' : 'قابل تشخیص نبود.');
-        }
-    });
+    if (parseSms && !parseSms.dataset.bound) {
+        parseSms.dataset.bound = '1';
+        parseSms.addEventListener('click', function () {
+            var text = document.getElementById('sms-text').value;
+            if (!text.trim()) {
+                alert('متن را وارد کن.');
+                return;
+            }
+            if (typeof addSmsToInbox !== 'function') {
+                alert('سیستم پیامک لود نشده.');
+                return;
+            }
+            var res = addSmsToInbox(text, 'paste');
+            if (res.ok) {
+                showToast('✅ اضافه شد');
+                document.getElementById('sms-text').value = '';
+                if (typeof renderSmsInbox === 'function') renderSmsInbox();
+                if (typeof updateSmsBadge === 'function') updateSmsBadge();
+            } else {
+                alert(res.reason === 'duplicate' ? 'قبلاً ثبت شده.' : 'قابل تشخیص نبود.');
+            }
+        });
+    }
 
     var clearSms = document.getElementById('clear-sms');
-    if (clearSms) clearSms.addEventListener('click', function () {
-        document.getElementById('sms-text').value = '';
-        document.getElementById('sms-result').innerHTML = '';
-    });
+    if (clearSms && !clearSms.dataset.bound) {
+        clearSms.dataset.bound = '1';
+        clearSms.addEventListener('click', function () {
+            document.getElementById('sms-text').value = '';
+            document.getElementById('sms-result').innerHTML = '';
+        });
+    }
 
     var smsClearConv = document.getElementById('sms-clear-converted');
-    if (smsClearConv) smsClearConv.addEventListener('click', function () {
-        if (!confirm('حذف تبدیل‌شده‌ها؟')) return;
-        if (typeof getSmsInbox !== 'function') return;
-        var l = getSmsInbox().filter(function (s) { return s.status === 'new'; });
-        if (typeof saveSmsInbox === 'function') saveSmsInbox(l);
-        if (typeof renderSmsInbox === 'function') renderSmsInbox();
-        if (typeof updateSmsBadge === 'function') updateSmsBadge();
-    });
+    if (smsClearConv && !smsClearConv.dataset.bound) {
+        smsClearConv.dataset.bound = '1';
+        smsClearConv.addEventListener('click', function () {
+            if (!confirm('حذف تبدیل‌شده‌ها؟')) return;
+            if (typeof getSmsInbox !== 'function') return;
+            var l = getSmsInbox().filter(function (s) { return s.status === 'new'; });
+            if (typeof saveSmsInbox === 'function') saveSmsInbox(l);
+            if (typeof renderSmsInbox === 'function') renderSmsInbox();
+            if (typeof updateSmsBadge === 'function') updateSmsBadge();
+        });
+    }
 }
 
 function bindWidgetToggles() {
     var wT = document.querySelectorAll('[data-widget-toggle]');
     for (var wt = 0; wt < wT.length; wt++) {
+        if (wT[wt].dataset.bound) continue;
+        wT[wt].dataset.bound = '1';
         wT[wt].addEventListener('change', function () {
             var k = this.getAttribute('data-widget-toggle');
             state.widgets[k] = this.checked;
@@ -383,7 +416,8 @@ function bindFilterInputs() {
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
-        if (!el) return;
+        if (!el || el.dataset.bound) return;
+        el.dataset.bound = '1';
         var fn = filterMap[id];
         el.addEventListener('input', function () {
             if (typeof window[fn] === 'function') window[fn]();
@@ -391,7 +425,8 @@ function bindFilterInputs() {
     });
 
     var facCat = document.getElementById('fac-cat-filter');
-    if (facCat && typeof renderFacilitiesList === 'function') {
+    if (facCat && !facCat.dataset.bound && typeof renderFacilitiesList === 'function') {
+        facCat.dataset.bound = '1';
         facCat.addEventListener('change', renderFacilitiesList);
     }
 }
@@ -399,6 +434,8 @@ function bindFilterInputs() {
 function bindExportButtons() {
     var eB = document.querySelectorAll('.export-btn[data-export]');
     for (var e = 0; e < eB.length; e++) {
+        if (eB[e].dataset.bound) continue;
+        eB[e].dataset.bound = '1';
         eB[e].addEventListener('click', function () {
             if (typeof exportToCsv === 'function') {
                 exportToCsv(this.getAttribute('data-export'), this.getAttribute('data-export'));
@@ -475,7 +512,6 @@ function init() {
 
     initGlobalReportDelegation();
 
-    // اجرای ایمن توابع بایندینگ (در صورت وجود)
     var binds = [
         ['bindSidebarNavApp',  typeof bindSidebarNavApp !== 'undefined' ? bindSidebarNavApp : null],
         ['bindSettingsButtons', typeof bindSettingsButtons !== 'undefined' ? bindSettingsButtons : null],
