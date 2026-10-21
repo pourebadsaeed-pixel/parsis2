@@ -275,11 +275,41 @@ function makeAllTablesResizable() {
 }
 
 /* ============================================================
-   تاشو کردن پنل فیلتر
+   ✅ تاشو کردن پنل فیلتر (اصلاح شده برای تب‌های کپی‌شده)
    ============================================================ */
 function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
-    var page = document.getElementById('page-' + pageId);
+    // پیدا کردن صفحه فعال (حتی اگر کپی شده باشد)
+    var page = document.querySelector('.page.active');
+    if (!page || page.id.indexOf('page-' + pageId) !== 0) {
+        page = document.getElementById('page-' + pageId);
+    }
     if (!page) return;
+
+    var existingHeader = page.querySelector('.filter-collapse-header');
+    var existingBody = page.querySelector('.filter-collapse-body');
+
+    if (existingHeader && existingBody) {
+        // اگر قبلاً ساخته شده اما رویداد کلیک ندارد (مثلاً در تب کپی شده)
+        if (existingHeader.dataset.boundCollapse === '1') return;
+        existingHeader.dataset.boundCollapse = '1';
+        
+        existingHeader.addEventListener('click', function () {
+            var isHidden = existingBody.style.display === 'none';
+            existingBody.style.display = isHidden ? '' : 'none';
+            var arrow = existingHeader.querySelector('.filter-collapse-arrow');
+            if (arrow) arrow.style.transform = isHidden ? '' : 'rotate(-90deg)';
+            state.cardCollapsed[storageKey] = !isHidden;
+            DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
+        });
+        
+        // اعمال وضعیت اولیه
+        var isCollapsed = state.cardCollapsed[storageKey] === true;
+        existingBody.style.display = isCollapsed ? 'none' : '';
+        var arrow = existingHeader.querySelector('.filter-collapse-arrow');
+        if (arrow) arrow.style.transform = isCollapsed ? 'rotate(-90deg)' : '';
+        
+        return;
+    }
 
     if (page.dataset.filterCollapseInit === '1') return;
     page.dataset.filterCollapseInit = '1';
@@ -292,6 +322,7 @@ function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
 
     var header = document.createElement('div');
     header.className = 'filter-collapse-header';
+    header.dataset.boundCollapse = '1';
     header.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;'
         + 'background:linear-gradient(180deg,#e8f0fb,#f4f8fd);cursor:pointer;user-select:none;'
         + 'border-radius:14px 14px 0 0;margin:-18px -18px 14px -18px;'
@@ -787,7 +818,6 @@ function buildHeaderButtons() {
             var tableId = h.getAttribute('data-col-table');
             var hideKey = h.getAttribute('data-hide-key');
 
-            // Eye button
             if (hideKey) {
                 var eye = h.querySelector('.eye-toggle-btn');
                 if (!eye) {
@@ -807,7 +837,6 @@ function buildHeaderButtons() {
                 }
             }
 
-            // Reset Width button
             if (tableId) {
                 var rBtn = h.querySelector('.col-reset-btn');
                 if (!rBtn) {
@@ -827,7 +856,6 @@ function buildHeaderButtons() {
                 }
             }
 
-            // Column Settings button
             if (tableId && tableId !== 'ra-acc-table') {
                 var btn = h.querySelector('.col-toggle-btn');
                 if (!btn) {
