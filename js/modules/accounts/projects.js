@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — پروژه‌ها
+   پارسیس — پروژه‌ها (اصلاح دکمه ویرایش و فیلتر قیفی)
    مسیر: js/modules/accounts/projects.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — رندر فهرست پروژه‌ها
-   ============================================================ */
 function renderProjectsList() {
     var list = DB.load('projects', []);
     var filterEl = document.getElementById('proj-filter');
@@ -48,7 +44,9 @@ function renderProjectsList() {
     attachRowActions(tb, 'projects', renderProjectsList, function (p) {
         document.getElementById('pj-id').value = p.id;
         document.getElementById('pj-name').value = p.name || '';
-        var addTab = document.querySelector('[data-tab="proj-add"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var addTab = activePage ? activePage.querySelector('[data-tab="proj-add"]') : null;
         if (addTab) addTab.click();
     });
 
@@ -56,11 +54,9 @@ function renderProjectsList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('proj-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('proj-table', renderProjectsList);
     if (typeof applySortIndicator === 'function') applySortIndicator('proj-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('proj-table'));
 }
 
-/* ============================================================
-   بخش ۲ — پاک کردن فرم
-   ============================================================ */
 function clearProjectForm() {
     var idEl = document.getElementById('pj-id');
     var nameEl = document.getElementById('pj-name');
@@ -68,9 +64,6 @@ function clearProjectForm() {
     if (nameEl) nameEl.value = '';
 }
 
-/* ============================================================
-   بخش ۳ — اتصال دکمه‌ها
-   ============================================================ */
 function bindProjectsForm() {
     var saveBtn = document.getElementById('save-project');
     if (saveBtn) saveBtn.addEventListener('click', function () {
@@ -91,7 +84,9 @@ function bindProjectsForm() {
         showToast('✅ پروژه ذخیره شد.');
         clearProjectForm();
         renderProjectsList();
-        var listTab = document.querySelector('[data-tab="proj-list"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="proj-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -102,9 +97,6 @@ function bindProjectsForm() {
     if (filterEl) filterEl.addEventListener('input', renderProjectsList);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.renderProjectsList = renderProjectsList;
 window.clearProjectForm   = clearProjectForm;
 window.bindProjectsForm   = bindProjectsForm;
