@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — حساب‌های بانکی
+   پارسیس — حساب‌های بانکی (اصلاح دکمه ویرایش و فیلتر قیفی)
    مسیر: js/modules/accounts/banks.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — پر کردن سلکت نوع
-   ============================================================ */
 function refreshBankTypeSelect() {
     var sel = document.getElementById('ba-type');
     if (!sel) return;
@@ -20,9 +16,6 @@ function refreshBankTypeSelect() {
     }
 }
 
-/* ============================================================
-   بخش ۲ — رندر فهرست حساب‌ها
-   ============================================================ */
 function renderBankAccountsList() {
     var list = DB.load('bankAccounts', []);
     var filterEl = document.getElementById('ba-filter');
@@ -80,7 +73,9 @@ function renderBankAccountsList() {
         document.getElementById('ba-card').value = b.card || '';
         document.getElementById('ba-order').value = (b.order != null ? b.order : '');
         document.getElementById('ba-min-balance').value = b.minBalance ? formatRaw(b.minBalance) : '';
-        var addTab = document.querySelector('[data-tab="ba-add"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var addTab = activePage ? activePage.querySelector('[data-tab="ba-add"]') : null;
         if (addTab) addTab.click();
     });
 
@@ -88,11 +83,9 @@ function renderBankAccountsList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ba-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('ba-table', renderBankAccountsList);
     if (typeof applySortIndicator === 'function') applySortIndicator('ba-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('ba-table'));
 }
 
-/* ============================================================
-   بخش ۳ — پاک کردن فرم
-   ============================================================ */
 function clearBAForm() {
     var ids = ['ba-id', 'ba-bank', 'ba-branch-code', 'ba-branch-name',
                'ba-account', 'ba-iban', 'ba-card', 'ba-order', 'ba-min-balance'];
@@ -104,9 +97,6 @@ function clearBAForm() {
     if (typeEl) typeEl.value = '';
 }
 
-/* ============================================================
-   بخش ۴ — اتصال دکمه‌ها
-   ============================================================ */
 function bindBanksForm() {
     var saveBtn = document.getElementById('save-ba');
     if (saveBtn) saveBtn.addEventListener('click', function () {
@@ -144,7 +134,9 @@ function bindBanksForm() {
         clearBAForm();
         renderBankAccountsList();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        var listTab = document.querySelector('[data-tab="ba-list"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="ba-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -157,9 +149,6 @@ function bindBanksForm() {
     attachMoneyInput(document.getElementById('ba-min-balance'));
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.refreshBankTypeSelect  = refreshBankTypeSelect;
 window.renderBankAccountsList = renderBankAccountsList;
 window.clearBAForm            = clearBAForm;
