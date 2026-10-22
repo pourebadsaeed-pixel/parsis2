@@ -1,15 +1,11 @@
 /* ============================================================
-   پارسیس — برآورد هزینه‌های روزانه
+   پارسیس — برآورد هزینه‌های روزانه (نسخه کامل و اصلاح‌شده)
    مسیر: js/modules/vouchers/estimates.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
 var estimateItems = [];
 
-/* ============================================================
-   بخش ۱ — پر کردن سلکت دوره
-   ============================================================ */
 function refreshEstPeriodSelect() {
     var sel = document.getElementById('est-period');
     if (!sel) return;
@@ -25,9 +21,6 @@ function refreshEstPeriodSelect() {
     sel.value = v || state.activePeriodId || '';
 }
 
-/* ============================================================
-   بخش ۲ — رندر آیتم‌ها
-   ============================================================ */
 function renderEstimateItems() {
     var box = document.getElementById('est-items');
     if (!box) return;
@@ -92,9 +85,6 @@ function renderEstimateItems() {
     }
 }
 
-/* ============================================================
-   بخش ۳ — تولید خودکار برآورد
-   ============================================================ */
 function autoGenerateEstimate() {
     var fromD = normalizeDigits(document.getElementById('est-from').value.trim());
     var toD = normalizeDigits(document.getElementById('est-to').value.trim());
@@ -157,9 +147,6 @@ function autoGenerateEstimate() {
     showToast('✅ ' + toFa(items.length) + ' آیتم تولید شد.');
 }
 
-/* ============================================================
-   بخش ۴ — رندر فهرست برآوردها
-   ============================================================ */
 function renderEstimateList() {
     var list = DB.load('dailyEstimates', []);
     var filterEl = document.getElementById('est-filter');
@@ -214,7 +201,6 @@ function renderEstimateList() {
     var countEl = document.getElementById('est-count');
     if (countEl) countEl.textContent = toFa(shown);
 
-    /* اتصال دکمه‌ها */
     var btns = box.querySelectorAll('[data-action]');
     for (var i = 0; i < btns.length; i++) {
         btns[i].addEventListener('click', function () {
@@ -233,7 +219,9 @@ function renderEstimateList() {
                 document.getElementById('est-desc').value = est.desc || '';
                 estimateItems = JSON.parse(JSON.stringify(est.items || []));
                 renderEstimateItems();
-                var addTab = document.querySelector('[data-tab="est-add"]');
+                
+                var activePage = document.querySelector('.page.active');
+                var addTab = activePage ? activePage.querySelector('[data-tab="est-add"]') : null;
                 if (addTab) addTab.click();
             } else if (action === 'delete') {
                 if (!confirm('حذف شود؟')) return;
@@ -245,9 +233,6 @@ function renderEstimateList() {
     }
 }
 
-/* ============================================================
-   بخش ۵ — پاک کردن فرم
-   ============================================================ */
 function clearEstForm() {
     var ids = ['est-id', 'est-title', 'est-period', 'est-from', 'est-to', 'est-total', 'est-desc'];
     ids.forEach(function (x) {
@@ -258,9 +243,6 @@ function clearEstForm() {
     renderEstimateItems();
 }
 
-/* ============================================================
-   بخش ۶ — ذخیره برآورد
-   ============================================================ */
 function saveEstimate() {
     var id = document.getElementById('est-id').value;
     var title = document.getElementById('est-title').value.trim();
@@ -275,37 +257,23 @@ function saveEstimate() {
     if (!total) { alert('مبلغ تخمینی اجباری است.'); return; }
 
     var o = {
-        id: id || uid(),
-        title: title,
-        periodId: periodId,
-        from: from,
-        to: to,
-        total: total,
-        desc: desc,
-        items: estimateItems.map(function (it) {
-            return { id: it.id, date: it.date, amount: Number(it.amount) || 0 };
-        })
+        id: id || uid(), title: title, periodId: periodId, from: from, to: to, total: total, desc: desc,
+        items: estimateItems.map(function (it) { return { id: it.id, date: it.date, amount: Number(it.amount) || 0 }; })
     };
 
     var l = DB.load('dailyEstimates', []);
-    if (id) {
-        for (var i = 0; i < l.length; i++) {
-            if (l[i].id === id) l[i] = o;
-        }
-    } else {
-        l.push(o);
-    }
+    if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } } 
+    else { l.push(o); }
     DB.save('dailyEstimates', l);
     showToast('✅ ذخیره شد');
     clearEstForm();
     renderEstimateList();
-    var listTab = document.querySelector('[data-tab="est-list"]');
+    
+    var activePage = document.querySelector('.page.active');
+    var listTab = activePage ? activePage.querySelector('[data-tab="est-list"]') : null;
     if (listTab) listTab.click();
 }
 
-/* ============================================================
-   بخش ۷ — اتصال دکمه‌ها
-   ============================================================ */
 function bindEstimatesForm() {
     var addItemBtn = document.getElementById('est-add-item');
     if (addItemBtn) addItemBtn.addEventListener('click', function () {
@@ -328,9 +296,6 @@ function bindEstimatesForm() {
     attachMoneyInput(document.getElementById('est-total'));
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.estimateItems         = estimateItems;
 window.refreshEstPeriodSelect = refreshEstPeriodSelect;
 window.renderEstimateItems   = renderEstimateItems;
@@ -340,4 +305,4 @@ window.clearEstForm          = clearEstForm;
 window.saveEstimate          = saveEstimate;
 window.bindEstimatesForm     = bindEstimatesForm;
 
-console.log('✅ [modules/vouchers/estimates.js] loaded');
+console.log('✅ [modules/vouchers/estimates.js] loaded — Complete');
