@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — ناوبری (نسخه کامل)
+   پارسیس — ناوبری (نسخه کامل با قابلیت باز کردن چندین تب همزمان)
    مسیر: js/ui/nav.js
    ============================================================ */
 'use strict';
@@ -50,7 +50,8 @@ function renderFrequentNav() {
         var m = meta[e.page] || '📄 ' + e.page;
         var b = document.createElement('button');
         b.innerHTML = '<span>' + m + '</span>';
-        b.onclick = function () { if (typeof goToPage === 'function') goToPage(e.page); };
+        // ✅ قابلیت باز کردن تب جدید با true
+        b.onclick = function () { if (typeof goToPage === 'function') goToPage(e.page, true); };
         container.appendChild(b);
     });
 }
@@ -163,7 +164,17 @@ function bindSidebarNav() {
         if (title) { title.parentElement.classList.toggle('collapsed'); return; }
         
         var btn = e.target.closest('.nav-group-items button[data-page]');
-        if (btn) { if (typeof goToPage === 'function') goToPage(btn.getAttribute('data-page')); closeSidebar(); return; }
+        if (btn) { 
+            var pageName = btn.getAttribute('data-page');
+            if (pageName === 'home') {
+                if (typeof goToPage === 'function') goToPage('home');
+            } else {
+                // ✅ قابلیت باز کردن تب جدید با true
+                if (typeof goToPage === 'function') goToPage(pageName, true); 
+            }
+            closeSidebar(); 
+            return; 
+        }
         
         var hTab = e.target.closest('.home-page-tab');
         if (hTab) { setHomePage(Number(hTab.getAttribute('data-home-page'))); return; }
