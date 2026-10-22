@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (نسخه ضد باگ)
+   پارسیس — فهرست اسناد (نسخه نهایی با چاپ استاندارد سند)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -14,8 +14,12 @@ function ensureVoucherPaginationBox() {
     box.id = 'vlist-pagination';
     box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;margin-top:14px;padding:6px 0;flex-wrap:wrap;direction:rtl';
     var tableWrap = document.querySelector('#page-voucher-list .table-wrap');
-    if (tableWrap && tableWrap.parentNode) tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
-    else { var page = document.getElementById('page-voucher-list'); if (page) page.appendChild(box); }
+    if (tableWrap && tableWrap.parentNode) {
+        tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
+    } else {
+        var page = document.getElementById('page-voucher-list');
+        if (page) page.appendChild(box);
+    }
     return box;
 }
 
@@ -261,6 +265,86 @@ function openVoucherPreview(v) {
     if (m) m.classList.add('show'); if (o) o.classList.add('show'); window._currentPreviewVoucher = v;
 }
 
+// ✅ تابع چاپ اختصاصی برای سند حسابداری (با چیدمان جدید)
+function printVoucherPreview() {
+    var v = window._currentPreviewVoucher;
+    if (!v) return;
+    var accounts = DB.load('accounts', []);
+    var statusText = v.status === 'approved' ? 'تأیید شده' : 'پیش‌نویس';
+    
+    var linesHtml = '';
+    var td = 0, tc = 0;
+    (v.lines || []).forEach(function (line, idx) {
+        var accLabel = line.account ? getAccountLabel(line.account, accounts) : '—';
+        var dt = '';
+        if (line.details) {
+            Object.keys(line.details).forEach(function (lt) {
+                var did = line.details[lt];
+                if (did) { if (dt) dt += ' ، '; dt += linkTypeName(lt) + ': ' + getDetailLabel(lt, did); }
+            });
+        }
+        var d = Number(line.debit) || 0;
+        var c = Number(line.credit) || 0;
+        td += d; tc += c;
+        linesHtml += '<tr><td>' + toFa(idx + 1) + '</td><td>' + esc(accLabel) + '</td><td>' + (dt ? esc(dt) : '—') + '</td><td>' + esc(line.description || '') + '</td><td class="num dr">' + (d ? formatMoney(d) : '—') + '</td><td class="num cr">' + (c ? formatMoney(c) : '—') + '</td></tr>';
+    });
+
+    var htmlContent = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="fa">
+        <head>
+            <meta charset="UTF-8">
+            <title>سند حسابداری</title>
+            <style>
+                @page { size: A4; margin: 15mm; @bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 10pt; } }
+                body { font-family: Tahoma, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 11pt; }
+                .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
+                .header .right-side, .header .left-side { display: flex; flex-direction: column; gap: 5px; font-size: 11pt; }
+                .header .right-side { text-align: right; }
+                .header .left-side { text-align: left; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                tr { page-break-inside: avoid !important; }
+                thead { display: table-header-group; }
+                th, td { border: 1px solid #64748b; padding: 6px 10px; text-align: center; vertical-align: middle; }
+                th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
+                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
+                .num { direction: ltr; font-family: Arial; }
+                .dr { color: #dc2626; font-weight: bold; }
+                .cr { color: #059669; font-weight: bold; }
+                h1 { text-align: center; font-size: 16pt; color: #1e40af; margin-bottom: 20px; }
+            </style>
+        </head>
+        <body>
+            <h1>سند حسابداری</h1>
+            <div class="header">
+                <div class="right-side">
+                    <div><b>شماره:</b> ${toFa(esc(v.number))}</div>
+                    <div><b>تاریخ:</b> ${toFa(esc(v.date))}</div>
+                    <div><b>ساعت:</b> ${toFa(esc(v.time || '08:00'))}</div>
+                </div>
+                <div class="left-side">
+                    <div><b>نوع:</b> ${voucherTypeName(v.type)}</div>
+                    <div><b>شرح:</b> ${esc(v.desc || '')}</div>
+                    <div><b>وضعیت:</b> ${statusText}</div>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>#</th><th>معین</th><th>تفصیلی</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr></thead>
+                <tbody>${linesHtml}</tbody>
+                <tfoot><tr><td colspan="4" style="text-align:left">جمع</td><td class="num dr">${formatMoney(td)}</td><td class="num cr">${formatMoney(tc)}</td></tr></tfoot>
+            </table>
+        </body>
+        </html>
+    `;
+    
+    var win = window.open('', '_blank');
+    if (!win) { alert('لطفاً پاپ‌آپ را مجاز کنید.'); return; }
+    win.document.open();
+    win.document.write(htmlContent);
+    win.document.close();
+    setTimeout(function() { win.focus(); win.print(); win.onafterprint = function() { win.close(); }; }, 500);
+}
+
 function closeVoucherPreview() {
     var m = document.getElementById('vpreview-modal'); var o = document.getElementById('vpreview-overlay');
     if (m) m.classList.remove('show'); if (o) o.classList.remove('show'); window._currentPreviewVoucher = null;
@@ -317,5 +401,6 @@ window.handleVoucherRowAction = handleVoucherRowAction;
 window.setupSorting = setupSorting;
 window.openVoucherPreview = openVoucherPreview;
 window.closeVoucherPreview = closeVoucherPreview;
+window.printVoucherPreview = printVoucherPreview;
 window.openVoucherForEditById = openVoucherForEditById;
 window.bindVoucherListFilters = bindVoucherListFilters;
