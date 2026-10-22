@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فرم سند (نسخه کامل)
+   پارسیس — فرم سند (نسخه نهایی، ضد تکرار و با ساعت جاری)
    مسیر: js/modules/vouchers/form.js
    ============================================================ */
 'use strict';
@@ -251,15 +251,31 @@ function renderVoucherLines() {
 
         var acc = accounts.find(function (a) { return a.id === line.account; });
         if (acc && acc.links && acc.links.length > 0) {
+            // ✅ اصلاح باگ تکرار: حذف لینک‌های تکراری
+            var uniqueLinks = [];
+            acc.links.forEach(function(lt) {
+                if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt);
+            });
+
             var combined = [];
-            acc.links.forEach(function (lt) {
+            var seenTexts = {}; // ✅ برای جلوگیری از نمایش نام‌های تکراری
+
+            uniqueLinks.forEach(function (lt) {
                 getLinkedItems(lt).forEach(function (it) {
+                    var val = lt + '::' + it.id;
                     var lbl = getLinkedItemLabel(lt, it);
-                    combined.push({ value: lt + '::' + it.id, text: linkTypeName(lt) + ': ' + lbl });
+                    var txt = linkTypeName(lt) + ': ' + lbl;
+                    
+                    // ✅ فقط اگر این متن قبلاً اضافه نشده باشد، اضافه کن
+                    if (!seenTexts[txt]) {
+                        seenTexts[txt] = true;
+                        combined.push({ value: val, text: txt });
+                    }
                 });
             });
+
             var currentDetVal = null;
-            acc.links.forEach(function (lt) { if (line.details[lt]) currentDetVal = lt + '::' + line.details[lt]; });
+            uniqueLinks.forEach(function (lt) { if (line.details[lt]) currentDetVal = lt + '::' + line.details[lt]; });
 
             var detSelect = createSearchableSelect(combined, currentDetVal, '— انتخاب تفصیلی —', function(val) {
                 line.details = {};
@@ -636,4 +652,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — Default time = current time');
+console.log('✅ [modules/vouchers/form.js] loaded — Duplicate detail fixed');
