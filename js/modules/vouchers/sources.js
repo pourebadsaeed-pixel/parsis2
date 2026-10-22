@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — منابع دریافتنی (Cash Flow Sources)
+   پارسیس — منابع دریافتنی (نسخه کامل و اصلاح‌شده)
    مسیر: js/modules/vouchers/sources.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — پر کردن سلکت معین
-   ============================================================ */
 function refreshCfsMoeinSelect() {
     var sel = document.getElementById('cfs-moein');
     if (!sel) return;
@@ -24,9 +20,6 @@ function refreshCfsMoeinSelect() {
     sel.value = v;
 }
 
-/* ============================================================
-   بخش ۲ — واکنش به تغییر معین (نمایش تفصیلی)
-   ============================================================ */
 function onCfsMoeinChange() {
     var moeinId = document.getElementById('cfs-moein').value;
     var wrap = document.getElementById('cfs-details-wrap');
@@ -57,9 +50,6 @@ function onCfsMoeinChange() {
     wrap.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۳ — رندر فهرست منابع
-   ============================================================ */
 function renderCfsList() {
     var list = DB.load('cashFlowSources', []);
     var filterEl = document.getElementById('cfs-filter');
@@ -117,7 +107,6 @@ function renderCfsList() {
     var countEl = document.getElementById('cfs-count');
     if (countEl) countEl.textContent = toFa(shown);
 
-    /* اتصال رویدادها */
     var btns = tb.querySelectorAll('.row-btn');
     for (var b = 0; b < btns.length; b++) {
         btns[b].addEventListener('click', function () {
@@ -138,7 +127,9 @@ function renderCfsList() {
                 document.getElementById('cfs-date').value = s.expectedDate || '';
                 document.getElementById('cfs-amount').value = s.amount ? formatRaw(s.amount) : '';
                 document.getElementById('cfs-notes').value = s.notes || '';
-                var addTab = document.querySelector('[data-tab="cfs-add"]');
+                
+                var activePage = document.querySelector('.page.active');
+                var addTab = activePage ? activePage.querySelector('[data-tab="cfs-add"]') : null;
                 if (addTab) addTab.click();
                 return;
             }
@@ -175,11 +166,9 @@ function renderCfsList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('cfs-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('cfs-table', renderCfsList);
     if (typeof applySortIndicator === 'function') applySortIndicator('cfs-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('cfs-table'));
 }
 
-/* ============================================================
-   بخش ۴ — پاک کردن فرم
-   ============================================================ */
 function clearCfsForm() {
     var ids = ['cfs-id', 'cfs-moein', 'cfs-date', 'cfs-amount', 'cfs-notes'];
     ids.forEach(function (x) {
@@ -191,9 +180,6 @@ function clearCfsForm() {
     DB.save('cfs.tmp.details', {});
 }
 
-/* ============================================================
-   بخش ۵ — ذخیره منبع
-   ============================================================ */
 function saveCfsSource() {
     var id = document.getElementById('cfs-id').value;
     var moeinId = document.getElementById('cfs-moein').value;
@@ -249,13 +235,12 @@ function saveCfsSource() {
     showToast('✅ ذخیره شد');
     clearCfsForm();
     renderCfsList();
-    var listTab = document.querySelector('[data-tab="cfs-list"]');
+    
+    var activePage = document.querySelector('.page.active');
+    var listTab = activePage ? activePage.querySelector('[data-tab="cfs-list"]') : null;
     if (listTab) listTab.click();
 }
 
-/* ============================================================
-   بخش ۶ — برچسب منبع (برای گزارش‌ها)
-   ============================================================ */
 function getSourceLabel(s) {
     var accounts = DB.load('accounts', []);
     var moeinLabel = getAccountLabel(s.moeinId, accounts);
@@ -264,9 +249,6 @@ function getSourceLabel(s) {
     return moeinLabel + (detailLabel ? ' — ' + detailLabel : '');
 }
 
-/* ============================================================
-   بخش ۷ — اتصال دکمه‌ها
-   ============================================================ */
 function bindSourcesForm() {
     var moeinSel = document.getElementById('cfs-moein');
     if (moeinSel) moeinSel.addEventListener('change', onCfsMoeinChange);
@@ -283,9 +265,6 @@ function bindSourcesForm() {
     attachMoneyInput(document.getElementById('cfs-amount'));
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.refreshCfsMoeinSelect = refreshCfsMoeinSelect;
 window.onCfsMoeinChange      = onCfsMoeinChange;
 window.renderCfsList         = renderCfsList;
@@ -294,4 +273,4 @@ window.saveCfsSource         = saveCfsSource;
 window.getSourceLabel        = getSourceLabel;
 window.bindSourcesForm       = bindSourcesForm;
 
-console.log('✅ [modules/vouchers/sources.js] loaded');
+console.log('✅ [modules/vouchers/sources.js] loaded — Complete');
