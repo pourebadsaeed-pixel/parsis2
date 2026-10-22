@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — احراز هویت (نسخه بدون لگ با کلیک مستقیم)
+   پارسیس — احراز هویت (نسخه نهایی، بدون لگ با رفرش هوشمند)
    مسیر: js/modules/auth.js
    ============================================================ */
 'use strict';
@@ -17,40 +17,11 @@ function normalizeFaLogin(s) {
     return String(s || '').replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک').trim().toLowerCase();
 }
 
-function forceBodyVisible() {
-    if (document.body) {
-        document.body.style.visibility = 'visible';
-        document.body.style.display = '';
-    }
-}
-
-function showLoginScreen() {
-    var overlay = document.getElementById('login-overlay');
-    var app = document.getElementById('app');
-    if (overlay) overlay.style.display = 'flex';
-    if (app) app.style.display = 'none';
-    forceBodyVisible();
-}
-
-function showApp() {
-    var overlay = document.getElementById('login-overlay');
-    var app = document.getElementById('app');
-    if (overlay) overlay.style.display = 'none';
-    if (app) app.style.display = 'block';
-    forceBodyVisible();
-    var welcome = document.getElementById('welcome-overlay');
-    if (welcome) {
-        welcome.style.display = 'none';
-        if (welcome.parentNode) welcome.parentNode.removeChild(welcome);
-    }
-}
-
 function checkAuth() {
     var sessionStr = null;
     try { sessionStr = sessionStorage.getItem('parsis.session'); } catch(e) {}
-    if (!sessionStr) { showLoginScreen(); return false; }
+    if (!sessionStr) return false;
     try { state.currentUser = JSON.parse(sessionStr); } catch(e) { state.currentUser = { username: sessionStr }; }
-    showApp();
     return true;
 }
 
@@ -84,31 +55,25 @@ function login() {
             return;
         }
 
+        // ✅ ذخیره سشن
         try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch(e) {}
         try { sessionStorage.setItem('parsis.justLoggedIn', '1'); } catch(e) {}
-        setTimeout(function() { try { sessionStorage.removeItem('parsis.justLoggedIn'); } catch(e) {} }, 3000);
-
-        state.currentUser = found;
-        if (errEl) errEl.style.display = 'none';
-
-        showApp();
-
-        // ✅ حالا که لاگین شدیم، برنامه سنگین را استارت می‌زنیم
-        if (typeof window.startApp === 'function') {
-            window.startApp();
+        
+        // ✅ نمایش پیام موفقیت
+        var btn = document.getElementById('login-btn');
+        if (btn) {
+            btn.innerHTML = '✅ ورود موفق، لطفاً صبر کنید...';
+            btn.style.background = 'linear-gradient(135deg,#10b981,#059669)';
         }
-
+        
+        // ✅ رفرش هوشمند (حل قطعی مشکل لگ)
         setTimeout(function() {
-            var renderFns = ['updateDateDisplay', 'updateTopbarPeriod', 'updateHomeWidgets', 'applyPageHelpers', 'renderFrequentNav', 'updateEyeButtons'];
-            renderFns.forEach(function(fn) {
-                if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
-            });
-        }, 30);
+            location.reload();
+        }, 300);
 
-        if (typeof showToast === 'function') showToast('✅ خوش آمدید ' + found.username);
     } catch(e) {
         console.error('[auth] خطا در login:', e);
-        try { showApp(); } catch(e2) {}
+        alert('خطا در ورود: ' + e.message);
     }
 }
 
@@ -122,28 +87,23 @@ function bindAuthUI() {
     if (window._authDelegated) return;
     window._authDelegated = true;
 
-    // ✅ اتصال مستقیم به دکمه به جای Event Delegation برای جلوگیری از لگ
+    // اتصال مستقیم دکمه ورود
     var loginBtn = document.getElementById('login-btn');
     if (loginBtn) {
         loginBtn.onclick = function(e) {
             e.preventDefault();
-            this.innerHTML = '⏳ در حال ورود...';
-            var self = this;
-            setTimeout(function() {
-                login();
-                self.innerHTML = 'ورود';
-            }, 50);
+            this.innerHTML = '⏳ در حال بررسی...';
+            setTimeout(function() { login(); }, 50);
         };
     }
 
+    // اتصال دکمه خروج
     var logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-        logoutBtn.onclick = function(e) {
-            e.preventDefault();
-            logout();
-        };
+        logoutBtn.onclick = function(e) { e.preventDefault(); logout(); };
     }
 
+    // ورود با کلید Enter
     document.addEventListener('keydown', function(e) {
         if (e.key !== 'Enter') return;
         var t = e.target;
