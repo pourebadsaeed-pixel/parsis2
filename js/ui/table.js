@@ -1,17 +1,72 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
-   مسیر: js/ui/table.js
+   مسیر: js/ui/table.js (نسخه اصلاح‌شده جامع)
    ============================================================ */
 'use strict';
 
 var colWidths = DB.load(LS_KEYS.COL_WIDTHS, {});
 function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
 
+/* ============================================================
+   کمک‌تابع‌های نرمال‌سازی
+   ============================================================ */
+function normalizeCellText(s) {
+    return String(s || '')
+        .replace(/[\u200c\u200e\u200f]/g, ' ')
+        .replace(/[يى]/g, 'ی')
+        .replace(/[ك]/g, 'ک')
+        .replace(/\u066C/g, ',')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function normalizeForFilter(s) {
+    var t = normalizeDigits(normalizeCellText(s));
+    return t;
+}
+
+function cellToNumber(s) {
+    var t = normalizeDigits(String(s || '')).replace(/[^\d\-\.]/g, '');
+    if (!t || t === '-') return null;
+    var n = Number(t);
+    return isFinite(n) ? n : null;
+}
+
+/* ============================================================
+   تست فیلتر (پشتیبانی کامل عملگرها)
+   ============================================================ */
+function testFilter(cellText, filter) {
+    if (!filter || !filter.op) return true;
+    var txt = normalizeForFilter(cellText);
+    var val = normalizeForFilter(filter.val || '');
+    var numTxt = cellToNumber(cellText);
+    var numVal = cellToNumber(filter.val || '');
+
+    switch (filter.op) {
+        case 'contains':     return txt.indexOf(val) !== -1;
+        case 'notContains':  return txt.indexOf(val) === -1;
+        case 'eq':           return txt === val;
+        case 'neq':          return txt !== val;
+        case 'startsWith':   return val.length > 0 && txt.indexOf(val) === 0;
+        case 'endsWith':     return val.length > 0 && txt.slice(-val.length) === val;
+        case 'empty':        return txt === '' || txt === '—' || txt === '-';
+        case 'notEmpty':     return txt !== '' && txt !== '—' && txt !== '-';
+        case 'gt':           return numTxt !== null && numVal !== null && numTxt > numVal;
+        case 'gte':          return numTxt !== null && numVal !== null && numTxt >= numVal;
+        case 'lt':           return numTxt !== null && numVal !== null && numTxt < numVal;
+        case 'lte':          return numTxt !== null && numVal !== null && numTxt <= numVal;
+    }
+    return true;
+}
+
+/* ============================================================
+   لایه‌ی ثابت‌سازی عرض ستون‌ها
+   ============================================================ */
 function ensureFixedLayout(table) {
     if (!table) return;
     table.classList.add('w-col-resized');
     table.style.setProperty('table-layout', 'fixed', 'important');
-    
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.setProperty('overflow', 'hidden', 'important');
@@ -26,22 +81,12 @@ function removeFixedLayout(table) {
     table.style.removeProperty('table-layout');
     table.style.removeProperty('width');
     table.style.removeProperty('min-width');
-    
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.removeProperty('overflow');
         allCells[k].style.removeProperty('white-space');
         allCells[k].style.removeProperty('text-overflow');
     }
-}
-
-function tableHasAnyWidth(tableId) {
-    var w = colWidths[tableId];
-    if (!w) return false;
-    for (var k in w) {
-        if (w[k] && w[k] > 0) return true;
-    }
-    return false;
 }
 
 function applyColWidths(tableId) {
@@ -51,10 +96,8 @@ function applyColWidths(tableId) {
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
-    
     var totalW = 0;
     var hasWidth = false;
-    
     for (var i = 0; i < ths.length; i++) {
         var oi = ths[i].getAttribute('data-orig-index');
         var idx = oi !== null ? parseInt(oi, 10) : i;
@@ -70,7 +113,6 @@ function applyColWidths(tableId) {
             ths[i].style.removeProperty('max-width');
         }
     }
-    
     if (hasWidth) {
         ensureFixedLayout(table);
         table.style.setProperty('width', totalW + 'px', 'important');
@@ -86,8 +128,7 @@ var COL_MIN_W = 10;
 var COL_MAX_W = 5000;
 
 function makeTableResizable(table) {
-    if (!table || table.dataset.resizable === '1') return;
-    table.dataset.resizable = '1';
+    if (!table) return;
     var tableId = table.id;
     if (!tableId) return;
     table.setAttribute('data-table-id', tableId);
@@ -95,15 +136,36 @@ function makeTableResizable(table) {
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
-    
+    var needsSetup = false;
+
     for (var i = 0; i < ths.length; i++) {
+        if (ths[i].getAttribute('data-orig-index') === null) {
+            ths[i].setAttribute('data-orig-index', String(i));
+        }
+        if (!ths[i].querySelector('.col-resizer')) {
+            needsSetup = true;
+            break;
+        }
+    }
+
+    if (!needsSetup) {
+        // حتی اگر resizer هست، ولی data-resizable خالی است، علامت بزن که بازسازی نشود
+        table.dataset.resizable = '1';
+        applyColWidths(tableId);
+        return;
+    }
+
+    // اگر resizer قدیمی وجود دارد (بدون listener) اول پاک کن
+    var oldResizers = table.querySelectorAll('.col-resizer');
+    for (var or = 0; or < oldResizers.length; or++) oldResizers[or].remove();
+
+    for (var j = 0; j < ths.length; j++) {
         (function (th, idx) {
             if (th.getAttribute('data-orig-index') === null) {
                 th.setAttribute('data-orig-index', String(idx));
             }
             var origIdx = parseInt(th.getAttribute('data-orig-index'), 10);
 
-            if (th.querySelector('.col-resizer')) return;
             var res = document.createElement('div');
             res.className = 'col-resizer';
             res.title = 'بکش تا عرض تغییر کند • دابل‌کلیک: بازنشانی';
@@ -117,27 +179,23 @@ function makeTableResizable(table) {
                 var x = e.touches ? e.touches[0].clientX : e.clientX;
                 startX = x;
                 startW = th.offsetWidth;
-                
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
-                
                 ensureFixedLayout(table);
-                
+
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
                 var totalW = 0;
-                
-                for (var j = 0; j < allThs.length; j++) {
-                    if (allThs[j].style.display !== 'none') {
-                        var w = allThs[j].offsetWidth;
+                for (var k = 0; k < allThs.length; k++) {
+                    if (allThs[k].style.display !== 'none') {
+                        var w = allThs[k].offsetWidth;
                         totalW += w;
-                        allThs[j].style.setProperty('width', w + 'px', 'important');
-                        allThs[j].style.setProperty('min-width', w + 'px', 'important');
-                        allThs[j].style.setProperty('max-width', w + 'px', 'important');
+                        allThs[k].style.setProperty('width', w + 'px', 'important');
+                        allThs[k].style.setProperty('min-width', w + 'px', 'important');
+                        allThs[k].style.setProperty('max-width', w + 'px', 'important');
                     }
                 }
-                
                 table.style.setProperty('width', totalW + 'px', 'important');
                 table.style.setProperty('min-width', totalW + 'px', 'important');
             }
@@ -146,20 +204,15 @@ function makeTableResizable(table) {
                 if (!isDragging) return;
                 var x = e.touches ? e.touches[0].clientX : e.clientX;
                 var diff = startX - x;
-                
                 var w = Math.max(COL_MIN_W, Math.min(COL_MAX_W, startW + diff));
-                
                 th.style.setProperty('width', w + 'px', 'important');
                 th.style.setProperty('min-width', w + 'px', 'important');
                 th.style.setProperty('max-width', w + 'px', 'important');
-                
                 var currentTotalW = 0;
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
-                for (var j = 0; j < allThs.length; j++) {
-                    if (allThs[j].style.display !== 'none') {
-                        currentTotalW += allThs[j].offsetWidth;
-                    }
+                for (var k = 0; k < allThs.length; k++) {
+                    if (allThs[k].style.display !== 'none') currentTotalW += allThs[k].offsetWidth;
                 }
                 table.style.setProperty('width', currentTotalW + 'px', 'important');
                 table.style.setProperty('min-width', currentTotalW + 'px', 'important');
@@ -171,16 +224,15 @@ function makeTableResizable(table) {
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
                 document.body.classList.remove('resizing-cols');
-
                 if (!colWidths[tableId]) colWidths[tableId] = [];
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 if (curHdr) {
                     var allThs = curHdr.querySelectorAll('th');
-                    for (var j = 0; j < allThs.length; j++) {
-                        var oi = allThs[j].getAttribute('data-orig-index');
-                        var cidx = oi !== null ? parseInt(oi, 10) : j;
-                        if (allThs[j].style.display !== 'none') {
-                            colWidths[tableId][cidx] = allThs[j].offsetWidth;
+                    for (var k = 0; k < allThs.length; k++) {
+                        var oi2 = allThs[k].getAttribute('data-orig-index');
+                        var cidx = oi2 !== null ? parseInt(oi2, 10) : k;
+                        if (allThs[k].style.display !== 'none') {
+                            colWidths[tableId][cidx] = allThs[k].offsetWidth;
                         }
                     }
                 }
@@ -188,20 +240,17 @@ function makeTableResizable(table) {
             }
 
             res.addEventListener('dblclick', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 resetColumnWidths(tableId);
             });
 
             res.addEventListener('mousedown', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 start(e);
             });
 
             res.addEventListener('touchstart', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 start(e);
             }, { passive: false });
 
@@ -211,9 +260,10 @@ function makeTableResizable(table) {
                 if (isDragging) { move(e); e.preventDefault(); }
             }, { passive: false });
             document.addEventListener('touchend', end);
-        })(ths[i], i);
+        })(ths[j], j);
     }
 
+    table.dataset.resizable = '1';
     applyColWidths(tableId);
 }
 
@@ -221,12 +271,9 @@ function resetColumnWidths(tableId) {
     if (!tableId) return;
     delete colWidths[tableId];
     saveColWidths();
-
     var table = document.getElementById(tableId);
     if (!table) return;
-    
     removeFixedLayout(table);
-
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (headerRow) {
         var ths = headerRow.querySelectorAll('th');
@@ -236,7 +283,6 @@ function resetColumnWidths(tableId) {
             ths[i].style.removeProperty('max-width');
         }
     }
-
     showToast('↔ عرض ستون‌ها به حالت پیش‌فرض (fit محتوا) برگشت.');
 }
 
@@ -275,10 +321,9 @@ function makeAllTablesResizable() {
 }
 
 /* ============================================================
-   ✅ تاشو کردن پنل فیلتر (اصلاح شده برای تب‌های کپی‌شده)
+   پنل فیلتر تاشو
    ============================================================ */
 function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
-    // پیدا کردن صفحه فعال (حتی اگر کپی شده باشد)
     var page = document.querySelector('.page.active');
     if (!page || page.id.indexOf('page-' + pageId) !== 0) {
         page = document.getElementById('page-' + pageId);
@@ -289,25 +334,21 @@ function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
     var existingBody = page.querySelector('.filter-collapse-body');
 
     if (existingHeader && existingBody) {
-        // اگر قبلاً ساخته شده اما رویداد کلیک ندارد (مثلاً در تب کپی شده)
-        if (existingHeader.dataset.boundCollapse === '1') return;
-        existingHeader.dataset.boundCollapse = '1';
-        
-        existingHeader.addEventListener('click', function () {
-            var isHidden = existingBody.style.display === 'none';
-            existingBody.style.display = isHidden ? '' : 'none';
-            var arrow = existingHeader.querySelector('.filter-collapse-arrow');
-            if (arrow) arrow.style.transform = isHidden ? '' : 'rotate(-90deg)';
-            state.cardCollapsed[storageKey] = !isHidden;
-            DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
-        });
-        
-        // اعمال وضعیت اولیه
+        if (!existingHeader.dataset.boundCollapse) {
+            existingHeader.dataset.boundCollapse = '1';
+            existingHeader.addEventListener('click', function () {
+                var isHidden = existingBody.style.display === 'none';
+                existingBody.style.display = isHidden ? '' : 'none';
+                var arrow = existingHeader.querySelector('.filter-collapse-arrow');
+                if (arrow) arrow.style.transform = isHidden ? '' : 'rotate(-90deg)';
+                state.cardCollapsed[storageKey] = !isHidden;
+                DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
+            });
+        }
         var isCollapsed = state.cardCollapsed[storageKey] === true;
         existingBody.style.display = isCollapsed ? 'none' : '';
-        var arrow = existingHeader.querySelector('.filter-collapse-arrow');
-        if (arrow) arrow.style.transform = isCollapsed ? 'rotate(-90deg)' : '';
-        
+        var arrow2 = existingHeader.querySelector('.filter-collapse-arrow');
+        if (arrow2) arrow2.style.transform = isCollapsed ? 'rotate(-90deg)' : '';
         return;
     }
 
@@ -316,7 +357,6 @@ function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
 
     var card = page.querySelector('.card');
     if (!card) return;
-
     title = title || 'فیلترها';
     icon = icon || '🔍';
 
@@ -387,6 +427,15 @@ function findThByOrigIndex(headerRow, origIdx) {
 }
 
 function syncBodyOrigIndices(table, headerRow) {
+    if (!headerRow) {
+        headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+    }
+    if (!headerRow) return;
+    var ths = headerRow.querySelectorAll('th');
+    var origIndices = [];
+    for (var i = 0; i < ths.length; i++) {
+        origIndices.push(ths[i].getAttribute('data-orig-index') || String(i));
+    }
     var allRows = table.querySelectorAll('tr');
     for (var r = 0; r < allRows.length; r++) {
         var row = allRows[r];
@@ -395,7 +444,12 @@ function syncBodyOrigIndices(table, headerRow) {
         if (cells.length <= 1) continue;
         for (var c = 0; c < cells.length; c++) {
             if (cells[c].getAttribute('data-orig-index') === null) {
-                cells[c].setAttribute('data-orig-index', String(c));
+                // موقعیت c در ردیف با موقعیت c در هدر برابر است (اگر هنوز reorder نشده)
+                if (c < origIndices.length) {
+                    cells[c].setAttribute('data-orig-index', origIndices[c]);
+                } else {
+                    cells[c].setAttribute('data-orig-index', String(c));
+                }
             }
         }
     }
@@ -416,7 +470,6 @@ function applyColumnOrder(tableId) {
             headerThs[i].setAttribute('data-orig-index', String(i));
         }
     }
-
     syncBodyOrigIndices(table, headerRow);
 
     var allRows = table.querySelectorAll('tr');
@@ -502,6 +555,8 @@ function setHiddenCols(tableId, arr) {
 function applyColVisibility(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return;
+    // مطمئن شو orig-index روی همه‌ی سلول‌ها هست
+    syncBodyOrigIndices(table);
     var hidden = getHiddenCols(tableId);
     var rows = table.querySelectorAll('tr');
     for (var r = 0; r < rows.length; r++) {
@@ -561,10 +616,8 @@ function showColMenu(tableId, btn) {
          +  '</div>';
     menu.innerHTML = html;
     menu.classList.remove('hidden');
-    
-    menu.style.zIndex = '99999'; 
+    menu.style.zIndex = '99999';
     menu.style.position = 'fixed';
-    
     var rect = btn.getBoundingClientRect();
     menu.style.top = (rect.bottom + 6) + 'px';
     menu.style.left = Math.max(8, rect.left - 280 + rect.width) + 'px';
@@ -640,8 +693,13 @@ function applySortIndicator(tableId) {
         var ind = ths[i].querySelector('.sort-ind');
         if (!ind) continue;
         var k = ths[i].getAttribute('data-sort-key');
-        if (st && st.col === k) { ind.textContent = st.dir === 'asc' ? '▲' : '▼'; ind.classList.add('active'); }
-        else { ind.textContent = '⇅'; ind.classList.remove('active'); }
+        if (st && st.col === k) {
+            ind.textContent = st.dir === 'asc' ? '▲' : '▼';
+            ind.classList.add('active');
+        } else {
+            ind.textContent = '⇅';
+            ind.classList.remove('active');
+        }
     }
 }
 
@@ -678,44 +736,24 @@ function applyTableSort(tableId, rows, keyFn) {
 }
 
 /* ============================================================
-   فیلتر ردیف ستون‌ها
+   فیلتر ردیف ستون‌ها (نسخه پیشرفته)
    ============================================================ */
 var COLUMN_FILTERS = {};
 
-function normalizeCellText(s) {
-    return String(s || '')
-        .replace(/[\u200c\u200e\u200f]/g, ' ')
-        .replace(/[يى]/g, 'ی')
-        .replace(/[ك]/g, 'ک')
-        .replace(/\u066C/g, ',')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
-}
-
-function cellToNumber(s) {
-    var t = normalizeDigits(String(s || '')).replace(/[^\d\-\.]/g, '');
-    if (!t || t === '-') return null;
-    var n = Number(t);
-    return isFinite(n) ? n : null;
-}
-
-function testFilter(cellText, filter) {
-    if (!filter || !filter.op) return true;
-    var txt = normalizeCellText(cellText);
-    var val = normalizeCellText(filter.val || '');
-    switch (filter.op) {
-        case 'contains': return txt.indexOf(val) !== -1;
-        case 'notContains': return txt.indexOf(val) === -1;
-        case 'eq': return txt === val;
-        case 'neq': return txt !== val;
-        case 'startsWith': return txt.indexOf(val) === 0;
-        case 'endsWith': return val.length > 0 && txt.slice(-val.length) === val;
-        case 'empty': return txt === '' || txt === '—';
-        case 'notEmpty': return txt !== '' && txt !== '—';
-    }
-    return true;
-}
+var FILTER_OP_LABELS = {
+    '':          '—',
+    'contains':  '⊃',
+    'eq':        '=',
+    'neq':       '≠',
+    'gt':        '>',
+    'gte':       '≥',
+    'lt':        '<',
+    'lte':       '≤',
+    'startsWith':'^',
+    'endsWith':  '$',
+    'empty':     '∅',
+    'notEmpty':  '!'
+};
 
 function applyColumnFiltersToTable(tableId) {
     var table = document.getElementById(tableId);
@@ -725,59 +763,144 @@ function applyColumnFiltersToTable(tableId) {
     var tbody = table.querySelector('tbody');
     if (!tbody) return;
     var rows = tbody.querySelectorAll('tr');
-    if (!hasAny) { rows.forEach(function (tr) { tr.style.display = ''; }); return; }
-    rows.forEach(function (tr) {
+    if (!hasAny) {
+        for (var r0 = 0; r0 < rows.length; r0++) rows[r0].style.display = '';
+        return;
+    }
+    for (var r = 0; r < rows.length; r++) {
+        var tr = rows[r];
         var tds = tr.children;
-        if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; }
+        if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; continue; }
         var show = true;
         for (var key in filters) {
-            var idx = Number(key);
+            var origIdx = Number(key);
             var f = filters[key];
             if (!f || !f.op) continue;
-            var cellTxt = tds[idx] ? tds[idx].textContent : '';
+            // پیدا کردن سلول با data-orig-index (نه DOM index)
+            var cell = null;
+            for (var c = 0; c < tds.length; c++) {
+                var oi = tds[c].getAttribute('data-orig-index');
+                if (oi !== null && parseInt(oi, 10) === origIdx) { cell = tds[c]; break; }
+            }
+            var cellTxt = cell ? cell.textContent : '';
             if (!testFilter(cellTxt, f)) { show = false; break; }
         }
         tr.style.display = show ? '' : 'none';
-    });
+    }
 }
 
 function buildFilterRow(table) {
     if (!table || !table.id) return;
     var thead = table.querySelector('thead');
     if (!thead) return;
-    if (thead.querySelector('tr.column-filter-row')) return;
+    // اگر ردیف فیلتر سفارشی وجود دارد (مثل ar-filter-row یا cfd-filter-row) دست نزن
+    if (thead.querySelector('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row')) return;
     var headerRow = thead.querySelector('tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     if (ths.length === 0) return;
+
     var filterTr = document.createElement('tr');
     filterTr.className = 'column-filter-row';
+
     for (var i = 0; i < ths.length; i++) {
-        (function (idx) {
+        (function (th, domIdx) {
+            var origIdxStr = th.getAttribute('data-orig-index');
+            var origIdx = origIdxStr !== null ? origIdxStr : String(domIdx);
+
             var td = document.createElement('th');
             td.className = 'column-filter-cell';
-            td.setAttribute('data-orig-index', String(idx));
-            td.style.cssText = 'padding:4px 6px;background:var(--card-alt);font-weight:normal';
-            var inp = document.createElement('input');
-            inp.type = 'text';
-            inp.placeholder = '🔍';
-            inp.style.cssText = 'width:100%;padding:4px 6px;font-size:.72rem;border:1px solid var(--border);border-radius:6px';
-            td.appendChild(inp);
-            filterTr.appendChild(td);
-            inp.addEventListener('input', function () {
-                var v = this.value.trim();
-                if (!COLUMN_FILTERS[table.id]) COLUMN_FILTERS[table.id] = {};
-                if (!v) delete COLUMN_FILTERS[table.id][idx];
-                else COLUMN_FILTERS[table.id][idx] = { op: 'contains', val: v };
-                applyColumnFiltersToTable(table.id);
+            td.setAttribute('data-orig-index', origIdx);
+            td.style.cssText = 'padding:3px 4px;background:var(--card-alt);font-weight:normal';
+
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex;gap:2px;align-items:center;width:100%';
+
+            var opSel = document.createElement('select');
+            opSel.className = 'col-filter-op';
+            opSel.style.cssText = 'width:30px;min-width:30px;padding:2px 0;font-size:0.72rem;text-align:center;border:1px solid var(--border);border-radius:5px;background:var(--card-solid);cursor:pointer;font-family:inherit';
+            opSel.title = 'عملگر فیلتر';
+            var ops = [
+                ['', '—', 'بدون فیلتر'],
+                ['contains', '⊃', 'شامل'],
+                ['eq', '=', 'مساوی'],
+                ['neq', '≠', 'نامساوی'],
+                ['gt', '>', 'بزرگتر از'],
+                ['gte', '≥', 'بزرگتر یا مساوی'],
+                ['lt', '<', 'کوچکتر از'],
+                ['lte', '≤', 'کوچکتر یا مساوی'],
+                ['startsWith', '^', 'شروع شود با'],
+                ['endsWith', '$', 'پایان یابد با'],
+                ['empty', '∅', 'خالی'],
+                ['notEmpty', '!', 'خالی نباشد']
+            ];
+            ops.forEach(function (o) {
+                var opt = document.createElement('option');
+                opt.value = o[0]; opt.textContent = o[1]; opt.title = o[2];
+                opSel.appendChild(opt);
             });
-        })(i);
+
+            var valInp = document.createElement('input');
+            valInp.type = 'text';
+            valInp.className = 'col-filter-val';
+            valInp.placeholder = '🔍';
+            valInp.style.cssText = 'flex:1;min-width:0;padding:3px 5px;font-size:0.72rem;border:1px solid var(--border);border-radius:5px;font-family:inherit';
+            valInp.title = 'مقدار فیلتر — برای اعداد می‌توانید از >، <، = استفاده کنید';
+
+            // اگر فیلتر قبلی روی این ستون هست، بازیابی کن
+            var existing = COLUMN_FILTERS[table.id] && COLUMN_FILTERS[table.id][origIdx];
+            if (existing) {
+                opSel.value = existing.op || '';
+                valInp.value = existing.val || '';
+            }
+
+            function updateFilter() {
+                if (!COLUMN_FILTERS[table.id]) COLUMN_FILTERS[table.id] = {};
+                var op = opSel.value;
+                var val = valInp.value.trim();
+
+                // اگر عملگر خالی و مقدار خالی → حذف فیلتر
+                if (!op && !val) {
+                    delete COLUMN_FILTERS[table.id][origIdx];
+                }
+                // اگر عملگر خالی ولی مقدار دارد → پیش‌فرض شامل
+                else if (!op && val) {
+                    COLUMN_FILTERS[table.id][origIdx] = { op: 'contains', val: val };
+                }
+                // عملگر empty / notEmpty → نیازی به مقدار ندارد
+                else if (op === 'empty' || op === 'notEmpty') {
+                    COLUMN_FILTERS[table.id][origIdx] = { op: op, val: '' };
+                }
+                // عملگر انتخاب شده ولی مقدار خالی → حذف
+                else if (op && !val) {
+                    delete COLUMN_FILTERS[table.id][origIdx];
+                }
+                // نرمال
+                else {
+                    COLUMN_FILTERS[table.id][origIdx] = { op: op, val: val };
+                }
+                applyColumnFiltersToTable(table.id);
+            }
+
+            opSel.addEventListener('change', updateFilter);
+            valInp.addEventListener('input', updateFilter);
+
+            wrap.appendChild(opSel);
+            wrap.appendChild(valInp);
+            td.appendChild(wrap);
+            filterTr.appendChild(td);
+        })(ths[i], i);
     }
+
+    // قبل از افزودن، هر ردیف فیلتر قبلی رو (اگر مونده) حذف کن
+    var oldRows = thead.querySelectorAll('tr.column-filter-row');
+    for (var o = 0; o < oldRows.length; o++) oldRows[o].remove();
+
     thead.appendChild(filterTr);
 }
 
 function attachFilterRowsToAllTables() {
-    var tables = document.querySelectorAll('table.data-table, table.report-table, table.cf-table');
+    var tables = document.querySelectorAll('table.data-table, table.report-table, table.cf-table, table.ar-tbl');
     tables.forEach(function (t) {
         if (!t.id || !t.querySelector('thead')) return;
         buildFilterRow(t);
@@ -786,26 +909,34 @@ function attachFilterRowsToAllTables() {
 }
 
 /* ============================================================
-   Card collapse
+   تاشو کارت (idempotent)
    ============================================================ */
 function makeCardCollapsible(cardEl, key, defaultOpen) {
-    if (!cardEl || cardEl.dataset.collapsible === '1') return;
-    cardEl.dataset.collapsible = '1';
+    if (!cardEl) return;
     var collapsed = state.cardCollapsed[key] === true;
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'card-collapse-btn' + (collapsed ? ' collapsed' : '');
-    btn.textContent = '‹';
-    btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var nowCollapsed = !cardEl.classList.contains('collapsed');
-        cardEl.classList.toggle('collapsed', nowCollapsed);
-        btn.classList.toggle('collapsed', nowCollapsed);
-        state.cardCollapsed[key] = nowCollapsed;
-        DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
-    });
-    cardEl.appendChild(btn);
-    if (collapsed) cardEl.classList.add('collapsed');
+    var btn = cardEl.querySelector('.card-collapse-btn');
+
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card-collapse-btn';
+        btn.textContent = '‹';
+        cardEl.appendChild(btn);
+    }
+    btn.classList.toggle('collapsed', collapsed);
+    cardEl.classList.toggle('collapsed', collapsed);
+
+    if (!btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var nowCollapsed = !cardEl.classList.contains('collapsed');
+            cardEl.classList.toggle('collapsed', nowCollapsed);
+            btn.classList.toggle('collapsed', nowCollapsed);
+            state.cardCollapsed[key] = nowCollapsed;
+            DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed);
+        });
+    }
 }
 
 /* ============================================================
@@ -868,9 +999,9 @@ function buildHeaderButtons() {
                 }
                 if (!btn.dataset.bound) {
                     btn.dataset.bound = '1';
-                    btn.addEventListener('click', function (ev) { 
-                        ev.stopPropagation(); 
-                        showColMenu(tableId, btn); 
+                    btn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        showColMenu(tableId, btn);
                     });
                 }
             }
@@ -879,6 +1010,9 @@ function buildHeaderButtons() {
     if (typeof updateEyeButtons === 'function') updateEyeButtons();
 }
 
+/* ============================================================
+   صادرسازی
+   ============================================================ */
 window.colWidths = colWidths;
 window.saveColWidths = saveColWidths;
 window.applyColWidths = applyColWidths;
@@ -914,5 +1048,6 @@ window.buildHeaderButtons = buildHeaderButtons;
 window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
+window.syncBodyOrigIndices = syncBodyOrigIndices;
 
-console.log('✅ [ui/table.js] loaded — complete (fixed header buttons + turnover support)');
+console.log('✅ [ui/table.js] loaded — Advanced filter operators + clone-safe');
