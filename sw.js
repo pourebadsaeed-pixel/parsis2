@@ -1,4 +1,4 @@
-var CACHE_NAME = 'parsis-v19-2025'; // نسخه کش آپدیت شد
+var CACHE_NAME = 'parsis-v20-2025'; // نسخه کش آپدیت شد
 
 var ASSETS = [
   './index.html', './manifest.json', './offline.html',
