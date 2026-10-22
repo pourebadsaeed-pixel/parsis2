@@ -1,13 +1,12 @@
 /* ============================================================
-   پارسیس — پشتیبان‌گیری، بازیابی، ریست (IndexedDB)
-   مسیر: js/modules/backup.js (اصلاح شده)
+   پارسیس — پشتیبان‌گیری و بازیابی (اصلاح شده برای موبایل)
+   مسیر: js/modules/backup.js
    ============================================================ */
 'use strict';
 
 function downloadBackup() {
     var data = {};
-    var keys = DB.keys();
-    keys.forEach(function (k) {
+    DB.keys().forEach(function (k) {
         if (k === '__migrated') return;
         var v = DB.load(k, undefined);
         if (v !== undefined) data[k] = v;
@@ -30,9 +29,7 @@ function downloadBackup() {
             var req = indexedDB.open('parsisNoteImages', 1);
             req.onupgradeneeded = function (e) {
                 var db = e.target.result;
-                if (!db.objectStoreNames.contains('handles')) {
-                    db.createObjectStore('handles', { keyPath: 'id' });
-                }
+                if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
             };
             req.onsuccess = function () {
                 var db = req.result;
@@ -46,15 +43,7 @@ function downloadBackup() {
                         var rec = recs[i];
                         if (rec && rec.blob) {
                             var d = await blobToDataURL(rec.blob);
-                            if (d) {
-                                out.push({
-                                    id: rec.id,
-                                    name: rec.name || '',
-                                    size: rec.size || 0,
-                                    type: rec.type || 'image/png',
-                                    dataUrl: d
-                                });
-                            }
+                            if (d) out.push({ id: rec.id, name: rec.name || '', size: rec.size || 0, type: rec.type || 'image/png', dataUrl: d });
                         }
                     }
                     resolve(out);
@@ -67,31 +56,18 @@ function downloadBackup() {
 
     collectImages().then(function (images) {
         var backup = {
-            app: 'parsis',
-            version: APP_VERSION,
-            exportedAt: new Date().toISOString(),
-            data: data,
-            images: images
+            app: 'parsis', version: APP_VERSION, exportedAt: new Date().toISOString(), data: data, images: images
         };
-
         var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var now = new Date();
         var dateStr = todayJalaliStr().replace(/\//g, '-');
         var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
         var a = document.createElement('a');
-        a.href = url;
-        a.download = 'parsis-' + dateStr + '_' + timeStr + '.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        a.href = url; a.download = 'parsis-' + dateStr + '_' + timeStr + '.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
-
-        if (images.length > 0) {
-            showToast('✅ پشتیبان شامل ' + toFa(images.length) + ' تصویر یادداشت');
-        } else {
-            showToast('✅ پشتیبان دانلود شد.');
-        }
+        showToast('✅ پشتیبان با موفقیت دانلود شد.');
     });
 }
 
@@ -106,52 +82,29 @@ function restoreBackup(file) {
             var images = parsed.images || [];
 
             if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-                alert('❌ فایل پشتیبان خالی یا نامعتبر است.');
-                return;
+                alert('❌ فایل پشتیبان خالی یا نامعتبر است.'); return;
             }
 
-            var validKeys = [];
-            Object.keys(data).forEach(function (k) {
-                if (k.indexOf(LS_PREFIX) === 0) {
-                    validKeys.push(k.substring(LS_PREFIX.length));
-                } else {
-                    validKeys.push(k);
-                }
-            });
+            if (!confirm('⚠️ همه داده‌های فعلی پاک و جایگزین می‌شوند.\nادامه می‌دهید؟')) return;
 
-            if (validKeys.length === 0) {
-                alert('❌ فایل پشتیبان شامل داده‌ای نیست.');
-                return;
-            }
+            // ✅ نمایش صفحه انتظار (برای جلوگیری از ریفرش زودهنگام)
+            var loadingAlert = document.createElement('div');
+            loadingAlert.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.9);z-index:999999;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-family:inherit;font-size:1.2rem;flex-direction:column;gap:20px;backdrop-filter:blur(5px);';
+            loadingAlert.innerHTML = '<div>⏳ در حال بازیابی اطلاعات...</div><div style="font-size:0.9rem;opacity:0.8">لطفاً صبر کنید و صفحه را نبندید.</div>';
+            document.body.appendChild(loadingAlert);
 
-            var msg = '📦 محتوای پشتیبان:\n\n';
-            msg += '• تاریخ: ' + (parsed.exportedAt || '—') + '\n';
-            msg += '• نسخه: ' + (parsed.version || '—') + '\n';
-            msg += '• ' + toFa(validKeys.length) + ' کلید داده\n';
-            if (images.length > 0) msg += '• ' + toFa(images.length) + ' تصویر یادداشت\n';
-            msg += '\n⚠️ همه داده‌های فعلی پاک و جایگزین می‌شوند.\nادامه؟';
-            if (!confirm(msg)) return;
+            // پاک کردن کش فعلی
+            DB.keys().forEach(function (k) { if (k !== '__migrated') DB.remove(k); });
 
-            /* حذف داده‌های فعلی */
-            DB.keys().forEach(function (k) {
-                if (k !== '__migrated') DB.remove(k);
-            });
-
-            /* نوشتن داده‌های جدید */
+            // نوشتن داده‌های جدید در حافظه موقت
             var writeErrors = 0;
             Object.keys(data).forEach(function (origKey) {
                 try {
-                    var shortKey = (origKey.indexOf(LS_PREFIX) === 0)
-                        ? origKey.substring(LS_PREFIX.length)
-                        : origKey;
+                    var shortKey = (origKey.indexOf(LS_PREFIX) === 0) ? origKey.substring(LS_PREFIX.length) : origKey;
                     var val = data[origKey];
-                    if (typeof val === 'string') {
-                        try { val = JSON.parse(val); } catch (ex) {}
-                    }
+                    if (typeof val === 'string') { try { val = JSON.parse(val); } catch (ex) {} }
                     DB.save(shortKey, val);
-                } catch (err) {
-                    writeErrors++;
-                }
+                } catch (err) { writeErrors++; }
             });
 
             function dataURLToBlob(dataUrl) {
@@ -169,9 +122,7 @@ function restoreBackup(file) {
                 var req = indexedDB.open('parsisNoteImages', 1);
                 req.onupgradeneeded = function (ev) {
                     var db = ev.target.result;
-                    if (!db.objectStoreNames.contains('handles')) {
-                        db.createObjectStore('handles', { keyPath: 'id' });
-                    }
+                    if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
                 };
                 req.onsuccess = function () {
                     var db = req.result;
@@ -181,16 +132,7 @@ function restoreBackup(file) {
                     images.forEach(function (img) {
                         try {
                             var blob = dataURLToBlob(img.dataUrl);
-                            if (blob) {
-                                store.put({
-                                    id: img.id,
-                                    blob: blob,
-                                    name: img.name || '',
-                                    size: img.size || 0,
-                                    type: img.type || 'image/png',
-                                    isBlob: true
-                                });
-                            }
+                            if (blob) store.put({ id: img.id, blob: blob, name: img.name || '', size: img.size || 0, type: img.type || 'image/png', isBlob: true });
                         } catch (err) {}
                     });
                     tx.oncomplete = function () { callback(); };
@@ -199,24 +141,12 @@ function restoreBackup(file) {
                 req.onerror = function () { callback(); };
             }
 
-            // ✅ نمایش پیام انتظار
-            var loadingAlert = document.createElement('div');
-            loadingAlert.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999999;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-family:inherit;font-size:1.2rem;flex-direction:column;gap:20px;';
-            loadingAlert.innerHTML = '<div>⏳ در حال بازیابی اطلاعات...</div><div style="font-size:0.9rem;opacity:0.8">لطفاً صبر کنید و صفحه را نبندید.</div>';
-            document.body.appendChild(loadingAlert);
-
-            // 🌟 مهم: انتظار برای نوشتن داده‌ها در IndexedDB
+            // ✅ مهم‌ترین بخش: انتظار برای ذخیره کامل در دیتابیس
             DB.flush().then(function () {
                 restoreImages(function () {
-                    var finalMsg = '✅ بازیابی موفق!\n\n';
-                    finalMsg += '• ' + toFa(validKeys.length) + ' کلید بازیابی شد';
-                    if (images.length > 0) {
-                        finalMsg += '\n• ' + toFa(images.length) + ' تصویر بازیابی شد';
-                    }
-                    if (writeErrors > 0) {
-                        finalMsg += '\n⚠️ ' + toFa(writeErrors) + ' کلید نوشته نشد';
-                    }
-                    alert(finalMsg);
+                    var msg = '✅ بازیابی با موفقیت انجام شد!\n\n';
+                    if (writeErrors > 0) msg += '⚠️ ' + writeErrors + ' مورد خطا داشت.\n';
+                    alert(msg + 'برنامه مجدداً بارگذاری می‌شود.');
                     location.reload();
                 });
             });
@@ -232,55 +162,42 @@ function restoreBackup(file) {
 function resetAllData() {
     var pwd = prompt('رمز ریست:');
     if (pwd === null) return;
-    if (String(pwd).trim() !== '1234') {
-        alert('رمز اشتباه.');
-        return;
-    }
-    if (!confirm('⚠️ همه داده‌ها (شامل تصاویر یادداشت‌ها) پاک شود؟')) return;
+    if (String(pwd).trim() !== '1234') { alert('رمز اشتباه.'); return; }
+    if (!confirm('⚠️ همه داده‌ها پاک شود؟')) return;
 
-    DB.clearAll();
-
-    try {
-        var req = indexedDB.open('parsisNoteImages', 1);
-        req.onupgradeneeded = function (e) {
-            var db = e.target.result;
-            if (!db.objectStoreNames.contains('handles')) {
-                db.createObjectStore('handles', { keyPath: 'id' });
-            }
-        };
-        req.onsuccess = function () {
-            var db = req.result;
-            if (db.objectStoreNames.contains('handles')) {
-                var tx = db.transaction('handles', 'readwrite');
-                tx.objectStore('handles').clear();
-                tx.oncomplete = afterReset;
-                tx.onerror = afterReset;
-            } else {
-                afterReset();
-            }
-        };
-        req.onerror = afterReset;
-    } catch (e) {
-        afterReset();
-    }
-
-    function afterReset() {
+    DB.clearAll().then(function() {
         try {
-            var toRemove = [];
-            for (var i = 0; i < localStorage.length; i++) {
-                var k = localStorage.key(i);
-                if (k && k.indexOf(LS_PREFIX) === 0) toRemove.push(k);
-            }
-            toRemove.forEach(function (k) { localStorage.removeItem(k); });
-        } catch (e) {}
+            var req = indexedDB.open('parsisNoteImages', 1);
+            req.onupgradeneeded = function (e) {
+                var db = e.target.result;
+                if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles', { keyPath: 'id' });
+            };
+            req.onsuccess = function () {
+                var db = req.result;
+                if (db.objectStoreNames.contains('handles')) {
+                    var tx = db.transaction('handles', 'readwrite');
+                    tx.objectStore('handles').clear();
+                    tx.oncomplete = done; tx.onerror = done;
+                } else { done(); }
+            };
+            req.onerror = done;
+        } catch (e) { done(); }
 
-        alert('✅ همه داده‌ها پاک شد.');
-        location.reload();
-    }
+        function done() {
+            try {
+                var toRemove = [];
+                for (var i = 0; i < localStorage.length; i++) {
+                    var k = localStorage.key(i);
+                    if (k && k.indexOf(LS_PREFIX) === 0) toRemove.push(k);
+                }
+                toRemove.forEach(function (k) { localStorage.removeItem(k); });
+            } catch (e) {}
+            alert('✅ همه داده‌ها پاک شد.');
+            location.reload();
+        }
+    });
 }
 
 window.downloadBackup = downloadBackup;
 window.restoreBackup  = restoreBackup;
 window.resetAllData   = resetAllData;
-
-console.log('✅ [modules/backup.js] loaded — IndexedDB ready');
