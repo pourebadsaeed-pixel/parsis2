@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — مدیریت کاربران
+   پارسیس — مدیریت کاربران (نسخه کامل و اصلاح‌شده)
    مسیر: js/modules/users.js
    ============================================================ */
 'use strict';
@@ -48,7 +48,6 @@ function renderUsersList() {
     var countEl = document.getElementById('users-count');
     if (countEl) countEl.textContent = toFa(shown);
 
-    // Attach actions
     tb.querySelectorAll('.row-btn.edit').forEach(function(b) {
         b.onclick = function() {
             var id = this.getAttribute('data-id');
@@ -58,7 +57,10 @@ function renderUsersList() {
             document.getElementById('user-username').value = u.username;
             document.getElementById('user-password').value = u.password;
             document.getElementById('user-person').value = u.personId || '';
-            document.querySelector('[data-tab="users-add"]').click();
+            
+            var activePage = document.querySelector('.page.active');
+            var addTab = activePage ? activePage.querySelector('[data-tab="users-add"]') : null;
+            if (addTab) addTab.click();
         };
     });
 
@@ -72,6 +74,8 @@ function renderUsersList() {
             renderUsersList();
         };
     });
+
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('users-table'));
 }
 
 function clearUserForm() {
@@ -98,11 +102,7 @@ function bindUsersForm() {
 
         if (id) {
             for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) {
-                    l[i].username = username;
-                    l[i].password = password;
-                    l[i].personId = personId;
-                }
+                if (l[i].id === id) { l[i].username = username; l[i].password = password; l[i].personId = personId; }
             }
         } else {
             l.push({ id: uid(), username: username, password: password, personId: personId });
@@ -111,7 +111,10 @@ function bindUsersForm() {
         showToast('✅ کاربر ذخیره شد.');
         clearUserForm();
         renderUsersList();
-        document.querySelector('[data-tab="users-list"]').click();
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="users-list"]') : null;
+        if (listTab) listTab.click();
     });
 
     var newBtn = document.getElementById('new-user');
@@ -126,8 +129,7 @@ function initUsersPage() {
         pSel.innerHTML = '<option value="">— بدون شخص —</option>';
         persons.forEach(function(p) {
             var o = document.createElement('option');
-            o.value = p.id;
-            o.textContent = (p.first || '') + ' ' + (p.last || '');
+            o.value = p.id; o.textContent = (p.first || '') + ' ' + (p.last || '');
             pSel.appendChild(o);
         });
     }
