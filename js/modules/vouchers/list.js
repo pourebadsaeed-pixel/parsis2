@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد
+   پارسیس — فهرست اسناد (نسخه کامل و اصلاح‌شده با قیف)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -168,6 +168,7 @@ function renderVoucherList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('voucher-table-list'));
     if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('voucher-table-list'));
 }
 
 function handleVoucherRowAction() {
@@ -179,18 +180,12 @@ function handleVoucherRowAction() {
     if (action === 'preview') { openVoucherPreview(v); return; }
     if (action === 'edit')    { loadVoucherForEdit(v); return; }
 
-    // ✅ کپی با کپی عمیق و بازسازی کامل ردیف‌ها
     if (action === 'copy') {
         var srcLines = Array.isArray(v.lines) ? v.lines : [];
-        console.log('[COPY] Source voucher:', v.id, '| Lines:', srcLines.length);
-        console.log('[COPY] Source lines:', JSON.stringify(srcLines).substring(0, 300));
-
         if (srcLines.length === 0) {
             showToast('⚠️ این سند ردیفی ندارد که کپی شود.');
             return;
         }
-
-        // بازسازی کامل هر ردیف (نه فقط clone)
         var clonedLines = [];
         for (var li = 0; li < srcLines.length; li++) {
             var L = srcLines[li];
@@ -207,14 +202,10 @@ function handleVoucherRowAction() {
                 locked: !!L.locked
             });
         }
-
-        console.log('[COPY] Cloned lines count:', clonedLines.length);
-
         if (clonedLines.length === 0) {
             showToast('⚠️ خطا: ردیف‌ها قابل کپی نبودند.');
             return;
         }
-
         var newV = {
             id: uid(),
             number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
@@ -226,15 +217,9 @@ function handleVoucherRowAction() {
             lines: clonedLines,
             status: 'draft'
         };
-
         var list = DB.load('vouchers', []);
         list.push(newV);
         DB.save('vouchers', list);
-
-        // تأیید ذخیره
-        var verify = DB.load('vouchers', []).find(function(x) { return x.id === newV.id; });
-        console.log('[COPY] Verify saved:', verify ? 'YES' : 'NO', '| Lines in DB:', verify ? (verify.lines || []).length : 0);
-
         showToast('📋 سند با ' + toFa(clonedLines.length) + ' ردیف کپی شد (پیش‌نویس)');
         renderVoucherList();
         return;
@@ -461,4 +446,4 @@ window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
 window.bindVoucherListFilters     = bindVoucherListFilters;
 window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
 
-console.log('✅ [modules/vouchers/list.js] loaded — Copy with deep reconstruction + logging');
+console.log('✅ [modules/vouchers/list.js] loaded — Complete');
