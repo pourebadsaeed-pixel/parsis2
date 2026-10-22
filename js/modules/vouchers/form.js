@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فرم سند (نسخه مقاوم‌سازی‌شده)
+   پارسیس — فرم سند (نسخه مقاوم‌سازی‌شده + ساعت جاری)
    مسیر: js/modules/vouchers/form.js
    ============================================================ */
 'use strict';
@@ -9,6 +9,14 @@ var currentVoucherStatus = 'draft';
 
 window._voucherFormSavedAndClean = false;
 window._voucherSaved_backup = null;
+
+/* ============================================================
+   بخش ۰ — تابع کمکی: ساعت لحظه‌ای
+   ============================================================ */
+function getCurrentTimeHHMM() {
+    var now = new Date();
+    return pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+}
 
 /* ============================================================
    بخش ۱ — استایل کامپوننت لیست کشویی جستجوپذیر
@@ -558,13 +566,13 @@ function updateVoucherTotals() {
 }
 
 /* ============================================================
-   بخش ۵ — فرم سند جدید
+   بخش ۵ — فرم سند جدید (✅ ساعت پیش‌فرض = زمان جاری)
    ============================================================ */
 function newVoucherForm() {
     document.getElementById('v-id').value = '';
     document.getElementById('v-number').value = getNextVoucherNumberForPeriod(state.activePeriodId || '');
     document.getElementById('v-date').value = todayJalaliStr();
-    document.getElementById('v-time').value = '08:00';
+    document.getElementById('v-time').value = getCurrentTimeHHMM();
     document.getElementById('v-type').value = 'general';
     document.getElementById('v-desc').value = '';
     currentVoucherStatus = 'draft';
@@ -575,7 +583,7 @@ function newVoucherForm() {
 }
 
 /* ============================================================
-   بخش ۶ — بارگذاری سند برای ویرایش (نسخه مقاوم)
+   بخش ۶ — بارگذاری سند برای ویرایش (نسخه مقاوم + ساعت جاری)
    ============================================================ */
 function loadVoucherForEdit(v) {
     if (!v) { showToast('سند یافت نشد.'); return; }
@@ -645,8 +653,8 @@ function loadVoucherForEdit(v) {
         }
 
         // بازسازی voucherLines از منبع (اگر خالی شده)
-        var needsRestore = !Array.isArray(voucherLines) 
-            || voucherLines.length === 0 
+        var needsRestore = !Array.isArray(voucherLines)
+            || voucherLines.length === 0
             || (voucherLines.length === 1 && !voucherLines[0].account && !voucherLines[0].debit && !voucherLines[0].credit);
 
         if (needsRestore && srcLines.length > 0 && (srcLines[0].account || srcLines[0].debit || srcLines[0].credit)) {
@@ -673,7 +681,8 @@ function loadVoucherForEdit(v) {
             setVal('v-id', v.id);
             setVal('v-number', v.number);
             setVal('v-date', v.date);
-            setVal('v-time', v.time || '08:00');
+            // ✅ اگر سند ساعت دارد از همان استفاده کن، وگرنه ساعت جاری
+            setVal('v-time', v.time || getCurrentTimeHHMM());
             setVal('v-type', v.type || 'general');
             setVal('v-desc', v.desc || '');
 
@@ -705,7 +714,7 @@ function loadVoucherForEdit(v) {
 }
 
 /* ============================================================
-   بخش ۷ — ذخیره سند
+   بخش ۷ — ذخیره سند (✅ fallback ساعت = زمان جاری)
    ============================================================ */
 function persistVoucher(approve) {
     if (currentVoucherStatus === 'approved' && !approve) {
@@ -714,7 +723,7 @@ function persistVoucher(approve) {
     }
     var num = normalizeDigits(document.getElementById('v-number').value.trim());
     var d = normalizeDigits(document.getElementById('v-date').value.trim());
-    var t = document.getElementById('v-time').value.trim() || '08:00';
+    var t = document.getElementById('v-time').value.trim() || getCurrentTimeHHMM();
     var ty = document.getElementById('v-type').value;
     var ds = document.getElementById('v-desc').value.trim();
     var pid = state.activePeriodId || '';
@@ -907,7 +916,8 @@ function bindVoucherForm() {
         timeBtn.dataset.bound = '1';
         timeBtn.addEventListener('click', function() {
             if (typeof openTimePicker === 'function') {
-                var currentVal = document.getElementById('v-time').value || '08:00';
+                // ✅ پیش‌فرض انتخاب‌گر = مقدار فعلی فیلد، یا ساعت جاری
+                var currentVal = document.getElementById('v-time').value || getCurrentTimeHHMM();
                 openTimePicker(function(t) {
                     document.getElementById('v-time').value = t;
                 }, currentVal);
@@ -916,6 +926,7 @@ function bindVoucherForm() {
     }
 }
 
+window.getCurrentTimeHHMM         = getCurrentTimeHHMM;
 window.renderVoucherLines         = renderVoucherLines;
 window.copyVoucherLine            = copyVoucherLine;
 window.moveLine                   = moveLine;
@@ -927,4 +938,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — loadVoucherForEdit RESILIENT (retry loop + logging)');
+console.log('✅ [modules/vouchers/form.js] loaded — Default time = current time');
