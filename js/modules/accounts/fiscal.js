@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — دوره‌های مالی
+   پارسیس — دوره‌های مالی (اصلاح دکمه ویرایش و فیلتر قیفی)
    مسیر: js/modules/accounts/fiscal.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — attachRowActions (عمومی برای همه لیست‌ها)
-   ============================================================ */
 function attachRowActions(tb, sk, rf, ef) {
     var eds = tb.querySelectorAll('.row-btn.edit');
     var dls = tb.querySelectorAll('.row-btn.del');
@@ -34,9 +30,6 @@ function attachRowActions(tb, sk, rf, ef) {
     }
 }
 
-/* ============================================================
-   بخش ۲ — رندر فهرست دوره‌های مالی
-   ============================================================ */
 function renderFiscalList() {
     var list = DB.load('fiscalPeriods', []);
     var filterEl = document.getElementById('fiscal-filter');
@@ -51,7 +44,6 @@ function renderFiscalList() {
         return true;
     });
 
-    /* مرتب‌سازی */
     filtered = applyTableSort('fiscal-table', filtered, function (p, k) {
         if (k === 'title') return p.title || '';
         if (k === 'from') return p.from || '';
@@ -86,17 +78,17 @@ function renderFiscalList() {
     var countEl = document.getElementById('fiscal-count');
     if (countEl) countEl.textContent = toFa(shown);
 
-    /* فعال‌سازی دکمه‌های ویرایش/حذف */
     attachRowActions(tb, 'fiscalPeriods', renderFiscalList, function (p) {
         document.getElementById('fiscal-id').value = p.id;
         document.getElementById('fiscal-title').value = p.title;
         document.getElementById('fiscal-from').value = p.from;
         document.getElementById('fiscal-to').value = p.to;
-        var addTab = document.querySelector('[data-tab="fiscal-add"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var addTab = activePage ? activePage.querySelector('[data-tab="fiscal-add"]') : null;
         if (addTab) addTab.click();
     });
 
-    /* دکمه فعال‌سازی دوره */
     var acts = tb.querySelectorAll('.row-btn.approve');
     for (var a = 0; a < acts.length; a++) {
         acts[a].addEventListener('click', function () {
@@ -107,18 +99,13 @@ function renderFiscalList() {
         });
     }
 
-    /* اعمال تنظیمات ستون و مرتب‌سازی */
     if (typeof applyColVisibility === 'function') applyColVisibility('fiscal-table');
-    if (typeof makeTableResizable === 'function') {
-        makeTableResizable(document.getElementById('fiscal-table'));
-    }
+    if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('fiscal-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('fiscal-table', renderFiscalList);
     if (typeof applySortIndicator === 'function') applySortIndicator('fiscal-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('fiscal-table'));
 }
 
-/* ============================================================
-   بخش ۳ — پر کردن سلکت دوره در سایر صفحات
-   ============================================================ */
 function refreshPeriodFilters() {
     var list = DB.load('fiscalPeriods', []);
     var sel = document.getElementById('vl-period-filter');
@@ -134,9 +121,6 @@ function refreshPeriodFilters() {
     sel.value = v;
 }
 
-/* ============================================================
-   بخش ۴ — پاک کردن فرم
-   ============================================================ */
 function clearFiscalForm() {
     var ids = ['fiscal-id', 'fiscal-title', 'fiscal-from', 'fiscal-to'];
     ids.forEach(function (x) {
@@ -145,9 +129,6 @@ function clearFiscalForm() {
     });
 }
 
-/* ============================================================
-   بخش ۵ — اتصال دکمه‌های ذخیره/جدید
-   ============================================================ */
 function bindFiscalForm() {
     var saveBtn = document.getElementById('save-fiscal');
     if (saveBtn) saveBtn.addEventListener('click', function () {
@@ -182,7 +163,9 @@ function bindFiscalForm() {
         showToast('✅ دوره مالی ذخیره شد.');
         renderFiscalList();
         updateTopbarPeriod();
-        var listTab = document.querySelector('[data-tab="fiscal-list"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="fiscal-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -193,9 +176,6 @@ function bindFiscalForm() {
     if (filterEl) filterEl.addEventListener('input', renderFiscalList);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.attachRowActions    = attachRowActions;
 window.renderFiscalList    = renderFiscalList;
 window.refreshPeriodFilters = refreshPeriodFilters;
