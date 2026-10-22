@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش نقدینگی و گردش وجه نقد
+   پارسیس — گزارش نقدینگی و گردش وجه نقد (نسخه سازگار با فیلتر قیفی)
    مسیر: js/modules/reports/cashflow.js
    ============================================================ */
 'use strict';
@@ -270,56 +270,11 @@ function runCashFlowReport() {
         .cfd-multi-item:hover { background:var(--primary-soft); }
         .cfd-multi-item input[type=checkbox] { accent-color:var(--primary); width:16px; height:16px; }
         
-        .cfd-filter-row th { background:var(--card-alt) !important; padding:4px 6px !important; border-bottom:2px solid var(--border) !important; }
-        .cfd-f-input { width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.75rem; outline:none; box-sizing:border-box; }
-        .cfd-f-input:focus { border-color:var(--primary); }
-        
         .cfd-sort-th { cursor:pointer; user-select:none; }
         .cfd-sort-th:hover { background:#c8dcef !important; }
     `;
     document.head.appendChild(s);
 })();
-
-function applyCfdFilters() {
-    var table = document.getElementById('cfd-table');
-    if (!table) return;
-    var inputs = table.querySelectorAll('.cfd-f-input');
-    var trs = table.querySelectorAll('tbody tr');
-    
-    trs.forEach(function(tr) {
-        var show = true;
-        var tds = tr.querySelectorAll('td');
-        if (tds.length < 2) return; 
-        
-        inputs.forEach(function(inp) {
-            var colIdx = Number(inp.getAttribute('data-col'));
-            var val = normalizeDigits(inp.value.trim()).replace(/,/g, '').toLowerCase();
-            if (!val) return;
-            
-            var cell = tds[colIdx];
-            if (!cell) return;
-            
-            var cellText = normalizeDigits(cell.textContent.trim()).replace(/,/g, '').toLowerCase();
-            if (cellText.indexOf(val) === -1) {
-                show = false;
-            }
-        });
-        
-        tr.style.display = show ? '' : 'none';
-    });
-}
-
-if (!window._cfdApplyPatched) {
-    window._cfdApplyPatched = true;
-    var _origApply = window.applyColumnFiltersToTable;
-    window.applyColumnFiltersToTable = function(tableId) {
-        if (tableId === 'cfd-table') {
-            if (typeof applyCfdFilters === 'function') applyCfdFilters();
-        } else if (typeof _origApply === 'function') {
-            _origApply(tableId);
-        }
-    };
-}
 
 function runCashFlowByDescReport() {
     if (typeof makeFilterPanelCollapsible === 'function') {
@@ -559,15 +514,6 @@ function renderCfdTables() {
         html += '<th class="cfd-sort-th" data-sort="bal">مانده ' + sortIcon('bal') + '</th>';
         html += '<th class="cfd-sort-th" data-sort="count">تعداد ' + sortIcon('count') + '</th>';
         html += '<th class="cfd-sort-th" data-sort="pct">درصد ' + sortIcon('pct') + '</th>';
-        html += '</tr>';
-        
-        html += '<tr class="column-filter-row cfd-filter-row"><th></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="1" placeholder="..."></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="2" placeholder="..."></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="3" placeholder="..."></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="4" placeholder="..."></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="5" placeholder="..."></th>';
-        html += '<th><input type="text" class="cfd-f-input" data-col="6" placeholder="..."></th>';
         html += '</tr></thead><tbody>';
 
         var tIn = 0, tOut = 0;
@@ -686,6 +632,7 @@ function bindCfdTableEvents() {
         th.dataset.bound = '1';
         th.addEventListener('click', function(e) {
             if (e.target.tagName === 'INPUT') return;
+            if (e.target.closest('.col-filter-btn')) return;
             var col = this.getAttribute('data-sort');
             if (_cfdSort.col === col) {
                 _cfdSort.dir = _cfdSort.dir === 'asc' ? 'desc' : 'asc';
@@ -695,12 +642,6 @@ function bindCfdTableEvents() {
             }
             renderCfdTables();
         });
-    });
-
-    document.querySelectorAll('#cfd-table .cfd-f-input').forEach(function(inp) {
-        if (inp.dataset.bound) return;
-        inp.dataset.bound = '1';
-        inp.addEventListener('input', applyCfdFilters);
     });
 
     setTimeout(function () {
@@ -815,4 +756,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — Empty state layout fixed');
+console.log('✅ [modules/reports/cashflow.js] loaded — Cleaned & ready for funnel filter');
