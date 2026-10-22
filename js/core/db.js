@@ -1,7 +1,6 @@
 /* ============================================================
-   پارسیس — لایه دیتابیس (IndexedDB + کش حافظه)
+   پارسیس — لایه دیتابیس (IndexedDB + کش حافظه) - اصلاح باگ بکاپ
    مسیر: js/core/db.js
-   API همگام باقی می‌ماند؛ فقط DB.ready() را یک‌بار await کنید.
    ============================================================ */
 'use strict';
 
@@ -16,7 +15,6 @@ var _readyPromise = null;   // Promise resolved when cache is populated
 var _dirty = new Set();     // pending writes
 var _flushTimer = null;
 
-/* ---------- IndexedDB primitives ---------- */
 function openIdb() {
   return new Promise(function (resolve, reject) {
     if (_idb) return resolve(_idb);
@@ -83,7 +81,6 @@ function idbClear() {
   });
 }
 
-/* ---------- Batched writes ---------- */
 function scheduleFlush() {
   if (_flushTimer) return;
   _flushTimer = setTimeout(flushDirty, 120);
@@ -96,18 +93,13 @@ function flushDirty() {
   _dirty.clear();
   keys.forEach(function (k) {
     if (_cache.has(k)) {
-      idbPut(k, _cache.get(k)).catch(function (e) {
-        console.warn('[DB.flush put]', k, e);
-      });
+      idbPut(k, _cache.get(k)).catch(function (e) { console.warn('[DB.flush put]', k, e); });
     } else {
-      idbDelete(k).catch(function (e) {
-        console.warn('[DB.flush del]', k, e);
-      });
+      idbDelete(k).catch(function (e) { console.warn('[DB.flush del]', k, e); });
     }
   });
 }
 
-/* ---------- One-time migration from localStorage ---------- */
 function migrateFromLocalStorage() {
   var migrated = localStorage.getItem(LS_PREFIX + '__migrated');
   if (migrated === '1') return Promise.resolve(false);
@@ -144,7 +136,6 @@ function migrateFromLocalStorage() {
   });
 }
 
-/* ---------- Public API ---------- */
 var DB = {
   ready: function () {
     if (_readyPromise) return _readyPromise;
@@ -204,7 +195,7 @@ var DB = {
 
   clearAll: function () {
     _cache.clear();
-    idbClear().catch(function (e) { console.warn('[DB.clearAll]', e); });
+    return idbClear().catch(function (e) { console.warn('[DB.clearAll]', e); });
   },
 
   estimate: function () {
@@ -213,15 +204,39 @@ var DB = {
       : Promise.resolve({ usage: 0, quota: 0 });
   },
 
+  // ✅ تابع فلاش اصلاح شد تا منتظر بماند تا تمام داده‌ها در IndexedDB نوشته شوند
   flush: function () {
     return new Promise(function (resolve) {
-      flushDirty();
-      setTimeout(resolve, 50);
+      if (_flushTimer) {
+        clearTimeout(_flushTimer);
+        _flushTimer = null;
+      }
+      
+      if (_dirty.size === 0) {
+        resolve();
+        return;
+      }
+      
+      var keys = Array.from(_dirty);
+      _dirty.clear();
+      
+      var promises = keys.map(function (k) {
+        if (_cache.has(k)) {
+          return idbPut(k, _cache.get(k)).catch(function (e) { console.warn('[DB.flush put]', k, e); });
+        } else {
+          return idbDelete(k).catch(function (e) { console.warn('[DB.flush del]', k, e); });
+        }
+      });
+      
+      Promise.all(promises).then(function () {
+        resolve();
+      }).catch(function () {
+        resolve(); 
+      });
     });
   }
 };
 
-/* ---------- Best-effort flush on hide/close ---------- */
 window.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'hidden') flushDirty();
 });
