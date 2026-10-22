@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (با پیمایش آزاد، فیلتر و مرتب‌سازی)
+   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی: فیلتر قیفی)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -14,7 +14,6 @@ var _AR = {
 
 var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
 var _arSort = { col: 'code', dir: 'asc' };
-var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
 
 (function injectARStyle() {
     if (document.getElementById('ar-final-style')) return;
@@ -65,9 +64,6 @@ var _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
         .ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }
         .ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; transition:all .15s; flex-shrink:0; font-family:inherit; line-height:1 }
         .ar-turnover-btn:hover { background:#1e40af; color:#fff; transform:scale(1.15); box-shadow:0 2px 8px rgba(30,64,175,.4) }
-        .ar-filter-row th { background:var(--card-alt) !important; padding:4px 6px !important; border-bottom:2px solid var(--border) !important; }
-        .ar-filter-input { width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.75rem; outline:none; box-sizing:border-box; }
-        .ar-filter-input:focus { border-color:var(--primary); }
         .ar-filter-badge { background:#fef3c7; color:#92400e; padding:6px 12px; border-radius:8px; font-size:0.8rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin: 0 14px 10px 14px; border: 1px solid #f59e0b; }
         .ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:0.75rem; font-weight:bold; }
         @media (max-width:720px) {
@@ -181,7 +177,6 @@ function rebuildAccountFilterPanel() {
     });
     document.getElementById('ra-run').addEventListener('click', function () {
         _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
-        _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
         renderAccountReview();
     });
     document.getElementById('ra-print').addEventListener('click', function () {
@@ -357,71 +352,6 @@ function refreshReportPeriodSelects() {
         }
         sel.value = v;
     });
-}
-
-function applyDOMFilters() {
-    var table = document.getElementById('ra-acc-table');
-    if (!table) return;
-    var tbody = document.getElementById('ra-tbody');
-    var tfoot = document.getElementById('ra-tfoot');
-    if (!tbody || !tfoot) return;
-    
-    var trs = tbody.querySelectorAll('tr.ar-row');
-    var totalD = 0, totalC = 0, totalMD = 0, totalMC = 0;
-    var hide = getHideState('ra');
-    
-    trs.forEach(function(tr) {
-        var codeTxt = (tr.querySelector('td[data-orig-index="0"]') || {}).textContent || '';
-        var nameTxt = (tr.querySelector('td[data-orig-index="1"]') || {}).textContent || '';
-        var debitTxt = (tr.querySelector('td[data-orig-index="2"]') || {}).textContent || '';
-        var creditTxt = (tr.querySelector('td[data-orig-index="3"]') || {}).textContent || '';
-        var mdTxt = (tr.querySelector('td[data-orig-index="4"]') || {}).textContent || '';
-        var mcTxt = (tr.querySelector('td[data-orig-index="5"]') || {}).textContent || '';
-        
-        var match = true;
-        var f = _arFilters;
-        
-        if (f.code && codeTxt.indexOf(f.code) === -1) match = false;
-        if (f.name && nameTxt.indexOf(f.name) === -1) match = false;
-        if (f.debit && debitTxt.indexOf(f.debit) === -1) match = false;
-        if (f.credit && creditTxt.indexOf(f.credit) === -1) match = false;
-        if (f.md && mdTxt.indexOf(f.md) === -1) match = false;
-        if (f.mc && mcTxt.indexOf(f.mc) === -1) match = false;
-        
-        if (match) {
-            tr.style.display = '';
-            totalD += Number(tr.getAttribute('data-debit')) || 0;
-            totalC += Number(tr.getAttribute('data-credit')) || 0;
-            totalMD += Number(tr.getAttribute('data-md')) || 0;
-            totalMC += Number(tr.getAttribute('data-mc')) || 0;
-        } else {
-            tr.style.display = 'none';
-        }
-    });
-    
-    tfoot.innerHTML = '<tr>' +
-        '<td data-orig-index="0"></td>' +
-        '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>' +
-        '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(totalD)) + '</td>' +
-        '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(totalC)) + '</td>' +
-        '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(totalMD)) + '</td>' +
-        '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(totalMC)) + '</td>' +
-        '</tr>';
-        
-    if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
-    
-    if (typeof columnOrders !== 'undefined' && columnOrders['ra-acc-table']) {
-        var savedOrder = columnOrders['ra-acc-table'];
-        var footRow = tfoot.querySelector('tr');
-        if (footRow) {
-            var cells = Array.from(footRow.children);
-            var map = {};
-            cells.forEach(function(c) { if(c.hasAttribute('data-orig-index')) map[c.getAttribute('data-orig-index')] = c; });
-            savedOrder.forEach(function(origIdx) {
-                if (map[origIdx]) footRow.appendChild(map[origIdx]);
-            });
-        }
-    }
 }
 
 function renderAccountReview() {
@@ -622,15 +552,6 @@ function renderAccountReview() {
     html += '<th class="' + thSortClass('credit') + '" data-sort-key="credit" data-orig-index="3">گردش بستانکار' + thSortIcon('credit') + '</th>';
     html += '<th class="' + thSortClass('md') + '" data-sort-key="md" data-orig-index="4">مانده بدهکار' + thSortIcon('md') + '</th>';
     html += '<th class="' + thSortClass('mc') + '" data-sort-key="mc" data-orig-index="5">مانده بستانکار' + thSortIcon('mc') + '</th>';
-    html += '</tr>';
-    
-    html += '<tr class="ar-filter-row">';
-    html += '<th data-orig-index="0"><input type="text" class="ar-filter-input" data-col="code" value="' + esc(_arFilters.code) + '" placeholder="..."></th>';
-    html += '<th data-orig-index="1"><input type="text" class="ar-filter-input" data-col="name" value="' + esc(_arFilters.name) + '" placeholder="..."></th>';
-    html += '<th data-orig-index="2"><input type="text" class="ar-filter-input" data-col="debit" value="' + esc(_arFilters.debit) + '" placeholder="..."></th>';
-    html += '<th data-orig-index="3"><input type="text" class="ar-filter-input" data-col="credit" value="' + esc(_arFilters.credit) + '" placeholder="..."></th>';
-    html += '<th data-orig-index="4"><input type="text" class="ar-filter-input" data-col="md" value="' + esc(_arFilters.md) + '" placeholder="..."></th>';
-    html += '<th data-orig-index="5"><input type="text" class="ar-filter-input" data-col="mc" value="' + esc(_arFilters.mc) + '" placeholder="..."></th>';
     html += '</tr></thead>';
     
     html += '<tbody id="ra-tbody">' + rowsHtml + '</tbody>';
@@ -644,7 +565,7 @@ function renderAccountReview() {
 
     box.querySelectorAll('.ar-th-sort').forEach(function (th) {
         th.addEventListener('click', function (e) {
-            if (e.target.tagName === 'INPUT') return;
+            if (e.target.tagName === 'INPUT' || e.target.closest('.col-filter-btn')) return;
             var key = this.getAttribute('data-sort-key');
             if (_arSort.col === key) {
                 _arSort.dir = _arSort.dir === 'asc' ? 'desc' : 'asc';
@@ -653,14 +574,6 @@ function renderAccountReview() {
                 _arSort.dir = 'asc';
             }
             renderAccountReview();
-        });
-    });
-
-    box.querySelectorAll('.ar-filter-input').forEach(function (inp) {
-        inp.addEventListener('input', function () {
-            var col = this.getAttribute('data-col');
-            _arFilters[col] = this.value;
-            applyDOMFilters();
         });
     });
 
@@ -682,20 +595,16 @@ function renderAccountReview() {
     }
 
     setTimeout(function () {
-        if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('ra-acc-table'));
+        var t = document.getElementById('ra-acc-table');
+        if (typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
-        
-        applyDOMFilters();
+        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی دکمه‌های قیف
     }, 50);
 }
 
 function bindAccountReviewEvents(accounts, box) {
-    function clearFilters() {
-        _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
-    }
-
     box.querySelectorAll('.ar-lvl').forEach(function (el) {
         el.addEventListener('click', function () {
             var lvl = Number(this.getAttribute('data-lvl'));
@@ -703,7 +612,6 @@ function bindAccountReviewEvents(accounts, box) {
             
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
-            clearFilters();
 
             if (lvl < _AR.activeLevel) {
                 _AR.path = _AR.path.slice(0, lvl - 1);
@@ -719,7 +627,6 @@ function bindAccountReviewEvents(accounts, box) {
         a.addEventListener('click', function () {
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
-            clearFilters();
             
             var id = this.getAttribute('data-goto');
             var idx = _AR.path.indexOf(id);
@@ -739,7 +646,6 @@ function bindAccountReviewEvents(accounts, box) {
         a.addEventListener('click', function () {
             _AR.detailFilter = null;
             _AR.detailFilterType = null;
-            clearFilters();
             
             _AR.path = [];
             _AR.activeLevel = 1;
@@ -757,7 +663,6 @@ function bindAccountReviewEvents(accounts, box) {
             var isDetail = tr.hasAttribute('data-detail-id');
             
             _AR.selectedId = id;
-            clearFilters();
             
             if (isDetail) {
                 _AR.detailFilter = id;
@@ -898,7 +803,6 @@ function openAccountTurnover(accountId, detailInfo) {
     if (rows.length === 0) {
         body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
     } else {
-        // ✅ دکمه تنظیمات ستون‌ها مستقیماً در HTML قرار داده شد
         var html = '<div class="list-header" data-col-table="turnover-table" data-hide-key="turnover" style="margin-bottom:12px">'
                  + '<span class="count-badge">' + toFa(rows.length) + '</span>'
                  + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
@@ -1014,22 +918,6 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-(function initAccountReviewFinal() {
-    function apply() {
-        window.runAccountReport = function () {
-            _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
-            _arFilters = { code: '', name: '', debit: '', credit: '', md: '', mc: '' };
-            renderAccountReview();
-        };
-        window._renderAccountReportTree = renderAccountReview;
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(apply, 2500); });
-    } else {
-        setTimeout(apply, 2500);
-    }
-})();
-
 window._AR                            = _AR;
 window._AR_LEVELS                     = _AR_LEVELS;
 window.rebuildAccountFilterPanel      = rebuildAccountFilterPanel;
@@ -1044,4 +932,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — All Fixed');
+console.log('✅ [modules/reports/account.js] loaded — Fixed funnel filter');
