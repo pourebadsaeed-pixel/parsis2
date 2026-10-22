@@ -1,11 +1,15 @@
 /* ============================================================
-   پارسیس — اشخاص (اصلاح دکمه ویرایش و فیلتر قیفی)
+   پارسیس — اشخاص (نسخه ضد باگ با فیلتر قیفی)
    مسیر: js/modules/persons.js
    ============================================================ */
 'use strict';
 
 function renderPersonsList() {
     var list = DB.load('persons', []);
+    // ✅ محافظت در برابر داده‌های خراب
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(function(x) { return x && typeof x === 'object'; });
+
     var filterEl = document.getElementById('persons-filter');
     var filter = (filterEl ? filterEl.value : '').toLowerCase();
     var tb = document.getElementById('persons-list-body');
@@ -14,18 +18,14 @@ function renderPersonsList() {
 
     var shown = 0;
     var filtered = list.filter(function (p) {
-        var txt = ((p.first || '') + ' '
-                 + (p.last || '') + ' '
-                 + (p.mobile || '') + ' '
-                 + (p.email || '') + ' '
-                 + (p.nationalId || '')).toLowerCase();
+        var txt = ((p.first || '') + ' ' + (p.last || '') + ' ' + (p.mobile || '') + ' ' + (p.email || '') + ' ' + (p.nationalId || '')).toLowerCase();
         if (filter && txt.indexOf(filter) === -1) return false;
         return true;
     });
 
-    filtered = applyTableSort('persons-table', filtered, function (p, k) {
-        return p[k] || '';
-    });
+    try {
+        filtered = applyTableSort('persons-table', filtered, function (p, k) { return p[k] || ''; });
+    } catch(e) { console.warn('Sort error:', e); }
 
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
@@ -76,13 +76,13 @@ function renderPersonsList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('persons-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('persons-table', renderPersonsList);
     if (typeof applySortIndicator === 'function') applySortIndicator('persons-table');
+    
+    // ✅ ساخت دکمه‌های قیف
     if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('persons-table'));
 }
 
 function clearPersonForm() {
-    var ids = ['pr-id', 'pr-first', 'pr-last', 'pr-father', 'pr-national-id',
-               'pr-birth', 'pr-mobile', 'pr-phone', 'pr-email',
-               'pr-bank-title', 'pr-acc', 'pr-iban', 'pr-card', 'pr-address'];
+    var ids = ['pr-id', 'pr-first', 'pr-last', 'pr-father', 'pr-national-id', 'pr-birth', 'pr-mobile', 'pr-phone', 'pr-email', 'pr-bank-title', 'pr-acc', 'pr-iban', 'pr-card', 'pr-address'];
     ids.forEach(function (i) {
         var el = document.getElementById(i);
         if (el) el.value = '';
@@ -97,30 +97,19 @@ function bindPersonsForm() {
         if (!f) { alert('نام اجباری.'); return; }
 
         var o = {
-            id: id || uid(),
-            first: f,
-            last: document.getElementById('pr-last').value.trim(),
-            father: document.getElementById('pr-father').value.trim(),
-            nationalId: normalizeDigits(document.getElementById('pr-national-id').value.trim()),
-            birth: normalizeDigits(document.getElementById('pr-birth').value.trim()),
-            mobile: normalizeDigits(document.getElementById('pr-mobile').value.trim()),
-            phone: normalizeDigits(document.getElementById('pr-phone').value.trim()),
-            email: document.getElementById('pr-email').value.trim(),
-            bankTitle: document.getElementById('pr-bank-title').value.trim(),
-            acc: normalizeDigits(document.getElementById('pr-acc').value.trim()),
-            iban: document.getElementById('pr-iban').value.trim(),
-            card: normalizeDigits(document.getElementById('pr-card').value.trim()),
+            id: id || uid(), first: f, last: document.getElementById('pr-last').value.trim(),
+            father: document.getElementById('pr-father').value.trim(), nationalId: normalizeDigits(document.getElementById('pr-national-id').value.trim()),
+            birth: normalizeDigits(document.getElementById('pr-birth').value.trim()), mobile: normalizeDigits(document.getElementById('pr-mobile').value.trim()),
+            phone: normalizeDigits(document.getElementById('pr-phone').value.trim()), email: document.getElementById('pr-email').value.trim(),
+            bankTitle: document.getElementById('pr-bank-title').value.trim(), acc: normalizeDigits(document.getElementById('pr-acc').value.trim()),
+            iban: document.getElementById('pr-iban').value.trim(), card: normalizeDigits(document.getElementById('pr-card').value.trim()),
             address: document.getElementById('pr-address').value.trim()
         };
 
         var l = DB.load('persons', []);
-        if (id) {
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) l[i] = o;
-            }
-        } else {
-            l.push(o);
-        }
+        if (!Array.isArray(l)) l = [];
+        if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } } 
+        else { l.push(o); }
         DB.save('persons', l);
         showToast('✅ شخص ذخیره شد.');
         clearPersonForm();
@@ -134,13 +123,10 @@ function bindPersonsForm() {
 
     var newBtn = document.getElementById('new-person');
     if (newBtn) newBtn.addEventListener('click', clearPersonForm);
-
     var filterEl = document.getElementById('persons-filter');
     if (filterEl) filterEl.addEventListener('input', renderPersonsList);
 }
 
 window.renderPersonsList = renderPersonsList;
-window.clearPersonForm   = clearPersonForm;
-window.bindPersonsForm   = bindPersonsForm;
-
-console.log('✅ [modules/persons.js] loaded');
+window.clearPersonForm = clearPersonForm;
+window.bindPersonsForm = bindPersonsForm;
