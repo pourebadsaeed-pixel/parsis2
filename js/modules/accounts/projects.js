@@ -1,11 +1,14 @@
 /* ============================================================
-   پارسیس — پروژه‌ها (اصلاح دکمه ویرایش و فیلتر قیفی)
+   پارسیس — پروژه‌ها (نسخه ضد باگ با فیلتر قیفی)
    مسیر: js/modules/accounts/projects.js
    ============================================================ */
 'use strict';
 
 function renderProjectsList() {
     var list = DB.load('projects', []);
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(function(x) { return x && typeof x === 'object'; });
+
     var filterEl = document.getElementById('proj-filter');
     var filter = (filterEl ? filterEl.value : '').toLowerCase();
     var tb = document.getElementById('proj-list-body');
@@ -18,9 +21,9 @@ function renderProjectsList() {
         return true;
     });
 
-    filtered = applyTableSort('proj-table', filtered, function (p, k) {
-        return p[k] || '';
-    });
+    try {
+        filtered = applyTableSort('proj-table', filtered, function (p, k) { return p[k] || ''; });
+    } catch(e) {}
 
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
@@ -73,13 +76,9 @@ function bindProjectsForm() {
 
         var o = { id: id || uid(), name: n };
         var l = DB.load('projects', []);
-        if (id) {
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) l[i] = o;
-            }
-        } else {
-            l.push(o);
-        }
+        if (!Array.isArray(l)) l = [];
+        if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } } 
+        else { l.push(o); }
         DB.save('projects', l);
         showToast('✅ پروژه ذخیره شد.');
         clearProjectForm();
@@ -92,7 +91,6 @@ function bindProjectsForm() {
 
     var newBtn = document.getElementById('new-project');
     if (newBtn) newBtn.addEventListener('click', clearProjectForm);
-
     var filterEl = document.getElementById('proj-filter');
     if (filterEl) filterEl.addEventListener('input', renderProjectsList);
 }
@@ -100,5 +98,3 @@ function bindProjectsForm() {
 window.renderProjectsList = renderProjectsList;
 window.clearProjectForm   = clearProjectForm;
 window.bindProjectsForm   = bindProjectsForm;
-
-console.log('✅ [modules/accounts/projects.js] loaded');
