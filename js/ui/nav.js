@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — ناوبری (سایدبار، تب‌ها، صفحات پرکاربرد، swipe)
-   مسیر: js/ui/nav.js
+   مسیر: js/ui/nav.js (نسخه اصلاح‌شده: تب‌های Delegation-based)
    ============================================================ */
 'use strict';
 
@@ -36,17 +36,12 @@ function renderFrequentNav() {
     var container = document.getElementById('nav-frequent-items');
     var group = document.getElementById('nav-frequent-group');
     if (!container || !group) return;
-
     var usage = state.formUsage || {};
     var entries = Object.keys(usage)
         .map(function (k) { return { page: k, count: usage[k] }; })
         .sort(function (a, b) { return b.count - a.count; })
         .slice(0, 6);
-
-    if (entries.length === 0) {
-        group.style.display = 'none';
-        return;
-    }
+    if (entries.length === 0) { group.style.display = 'none'; return; }
     group.style.display = '';
 
     var meta = {
@@ -74,11 +69,11 @@ function renderFrequentNav() {
         'fiscal':                 { label: '📅 دوره مالی' },
         'estimate-daily':         { label: '📝 برآورد هزینه‌ها' },
         'cashflow-sources':       { label: '📌 منابع دریافتنی' },
-        'users':                  { label: '👤 معرفی کاربران' }
+        'users':                  { label: '👤 معرفی کاربران' },
+        'jalali-calendar':        { label: '📅 مدیریت تقویم' }
     };
 
     container.innerHTML = '';
-
     var clearBtn = document.createElement('button');
     clearBtn.className = 'clear-freq-btn';
     clearBtn.type = 'button';
@@ -97,36 +92,60 @@ function renderFrequentNav() {
         var b = document.createElement('button');
         b.setAttribute('data-page', e.page);
         b.innerHTML = '<span>' + m.label + '</span>';
-        b.addEventListener('click', function () { goToPage(e.page, true); }); // ✅ Force New
+        b.addEventListener('click', function () {
+            // ✅ استفاده از تب موجود یا ایجاد تب جدید
+            if (typeof goToPage === 'function') goToPage(e.page);
+        });
         container.appendChild(b);
     });
 }
 
+/* ============================================================
+   setupTabs — با Event Delegation (کلون‌safe)
+   ============================================================ */
 function setupTabs() {
-    var btns = document.querySelectorAll('.tab-btn');
-    for (var i = 0; i < btns.length; i++) {
-        btns[i].addEventListener('click', function () {
-            var tn = this.getAttribute('data-tab');
-            if (!tn) return;
-            var parent = this.parentElement;
-            var tbs = parent.querySelectorAll('.tab-btn');
-            for (var j = 0; j < tbs.length; j++) tbs[j].classList.remove('active');
-            this.classList.add('active');
+    if (window._tabsDelegated) return;
+    window._tabsDelegated = true;
 
-            var sec = parent.parentElement;
-            var cs = sec.querySelectorAll('.tab-content');
-            for (var k = 0; k < cs.length; k++) cs[k].classList.remove('active');
-            var target = document.getElementById('tab-' + tn);
-            if (target) target.classList.add('active');
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.tab-btn');
+        if (!btn) return;
+        var tn = btn.getAttribute('data-tab');
+        if (!tn) return;
 
-            if (typeof attachDatePickers === 'function') attachDatePickers();
-        });
-    }
+        e.preventDefault();
+        e.stopPropagation();
+
+        var parent = btn.parentElement;
+        if (!parent) return;
+        var tbs = parent.querySelectorAll('.tab-btn');
+        for (var j = 0; j < tbs.length; j++) tbs[j].classList.remove('active');
+        btn.classList.add('active');
+
+        var sec = parent.parentElement;
+        if (!sec) return;
+        var cs = sec.querySelectorAll('.tab-content');
+        for (var k = 0; k < cs.length; k++) cs[k].classList.remove('active');
+
+        // پیدا کردن محتوای درست در همان صفحه (کلون)
+        var currentPage = btn.closest('.page');
+        var target = null;
+        if (currentPage) target = currentPage.querySelector('#tab-' + tn);
+        if (!target) target = document.getElementById('tab-' + tn);
+        if (target) target.classList.add('active');
+
+        if (typeof attachDatePickers === 'function') attachDatePickers();
+    });
 }
 
+/* ============================================================
+   جستجوی سایدبار
+   ============================================================ */
 function initSidebarSearch() {
     var inp = document.getElementById('sidebar-search-input');
     if (!inp) return;
+    if (inp.dataset.boundSearch) return;
+    inp.dataset.boundSearch = '1';
     inp.addEventListener('input', function () {
         var q = this.value.trim().toLowerCase();
         var groups = document.querySelectorAll('#sidebar-nav .nav-group');
@@ -145,25 +164,27 @@ function initSidebarSearch() {
     });
 }
 
+/* ============================================================
+   سوایپ صفحه اصلی
+   ============================================================ */
 function initHomeSwipe() {
     var grid = document.getElementById('home-grid');
     if (!grid) return;
+    if (grid.dataset.swipeBound) return;
+    grid.dataset.swipeBound = '1';
     var startX = 0, startY = 0, tracking = false;
-
     grid.addEventListener('touchstart', function (e) {
         if (e.touches.length !== 1) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         tracking = true;
     }, { passive: true });
-
     grid.addEventListener('touchend', function (e) {
         if (!tracking) return;
         tracking = false;
         var dx = e.changedTouches[0].clientX - startX;
         var dy = e.changedTouches[0].clientY - startY;
         if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
-
         if (dx < 0) {
             if (state.homePage < MAX_HOME_PAGES) {
                 state.homePage++;
@@ -236,70 +257,109 @@ function renderHomePageDots() {
     }
 }
 
+/* ============================================================
+   bindSidebarNav — Delegation-based
+   ============================================================ */
 function bindSidebarNav() {
     var menuBtn = document.getElementById('menu-btn');
-    if (menuBtn) menuBtn.addEventListener('click', openSidebar);
+    if (menuBtn && !menuBtn.dataset.boundMenu) {
+        menuBtn.dataset.boundMenu = '1';
+        menuBtn.addEventListener('click', openSidebar);
+    }
 
     var closeBtn = document.getElementById('close-sidebar');
-    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+    if (closeBtn && !closeBtn.dataset.boundClose) {
+        closeBtn.dataset.boundClose = '1';
+        closeBtn.addEventListener('click', closeSidebar);
+    }
 
     var overlay = document.getElementById('overlay');
-    if (overlay) overlay.addEventListener('click', function () {
-        closeSidebar();
-        closeSettings();
-    });
-
-    var titles = document.querySelectorAll('.nav-group-title');
-    for (var i = 0; i < titles.length; i++) {
-        titles[i].addEventListener('click', function () {
-            this.parentElement.classList.toggle('collapsed');
+    if (overlay && !overlay.dataset.boundOv) {
+        overlay.dataset.boundOv = '1';
+        overlay.addEventListener('click', function () {
+            closeSidebar();
+            closeSettings();
         });
     }
 
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.nav-group-items button[data-page]');
-        if (btn) {
-            // ✅ همیشه تب جدید باز کند مگر برای صفحه اصلی
+    // گروه‌های باز/بسته — delegation
+    if (!window._navGroupsDelegated) {
+        window._navGroupsDelegated = true;
+        document.addEventListener('click', function (e) {
+            var title = e.target.closest('.nav-group-title');
+            if (title) {
+                title.parentElement.classList.toggle('collapsed');
+                return;
+            }
+        });
+    }
+
+    // دکمه‌های صفحه — delegation
+    if (!window._navPagesDelegated) {
+        window._navPagesDelegated = true;
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nav-group-items button[data-page]');
+            if (!btn) return;
             var pageName = btn.getAttribute('data-page');
-            if (pageName === 'home') goToPage('home');
-            else goToPage(pageName, true); 
-        }
-    });
+            if (pageName === 'home') {
+                if (typeof goToPage === 'function') goToPage('home');
+            } else {
+                // ✅ استفاده از تب موجود (بدون forceNew) — اگر نیاز بود کاربر باز می‌کند
+                if (typeof goToPage === 'function') goToPage(pageName);
+            }
+            if (typeof closeSidebar === 'function') closeSidebar();
+        });
+    }
 
     var sideExpand = document.getElementById('side-expand');
-    if (sideExpand) sideExpand.addEventListener('click', function () {
-        document.querySelectorAll('.nav-group').forEach(function (g) {
-            g.classList.remove('collapsed');
+    if (sideExpand && !sideExpand.dataset.boundExpand) {
+        sideExpand.dataset.boundExpand = '1';
+        sideExpand.addEventListener('click', function () {
+            document.querySelectorAll('.nav-group').forEach(function (g) {
+                g.classList.remove('collapsed');
+            });
         });
-    });
+    }
 
     var sideCollapse = document.getElementById('side-collapse');
-    if (sideCollapse) sideCollapse.addEventListener('click', function () {
-        document.querySelectorAll('.nav-group').forEach(function (g) {
-            g.classList.add('collapsed');
+    if (sideCollapse && !sideCollapse.dataset.boundCollapse) {
+        sideCollapse.dataset.boundCollapse = '1';
+        sideCollapse.addEventListener('click', function () {
+            document.querySelectorAll('.nav-group').forEach(function (g) {
+                g.classList.add('collapsed');
+            });
         });
-    });
+    }
 
-    var hpTabs = document.querySelectorAll('.home-page-tab');
-    for (var hpt = 0; hpt < hpTabs.length; hpt++) {
-        hpTabs[hpt].addEventListener('click', function () {
-            setHomePage(Number(this.getAttribute('data-home-page')));
+    // تب‌های صفحه اصلی — delegation
+    if (!window._homePageTabsDelegated) {
+        window._homePageTabsDelegated = true;
+        document.addEventListener('click', function (e) {
+            var t = e.target.closest('.home-page-tab');
+            if (!t) return;
+            setHomePage(Number(t.getAttribute('data-home-page')));
         });
     }
 
     var setExpand = document.getElementById('settings-expand-all');
-    if (setExpand) setExpand.addEventListener('click', function () {
-        document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
-            d.open = true;
+    if (setExpand && !setExpand.dataset.boundSExp) {
+        setExpand.dataset.boundSExp = '1';
+        setExpand.addEventListener('click', function () {
+            document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
+                d.open = true;
+            });
         });
-    });
+    }
 
     var setCollapse = document.getElementById('settings-collapse-all');
-    if (setCollapse) setCollapse.addEventListener('click', function () {
-        document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
-            d.open = false;
+    if (setCollapse && !setCollapse.dataset.boundSCol) {
+        setCollapse.dataset.boundSCol = '1';
+        setCollapse.addEventListener('click', function () {
+            document.querySelectorAll('#settings-modal .settings-details').forEach(function (d) {
+                d.open = false;
+            });
         });
-    });
+    }
 }
 
 window.openSidebar        = openSidebar;
@@ -317,4 +377,4 @@ window.bindSidebarNav     = bindSidebarNav;
 window.isHomePageEmpty    = isHomePageEmpty;
 window.getMaxActiveHomePage = getMaxActiveHomePage;
 
-console.log('✅ [ui/nav.js] loaded');
+console.log('✅ [ui/nav.js] loaded — Delegation-based tabs (clone-safe)');
