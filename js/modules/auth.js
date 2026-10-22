@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — احراز هویت (نسخه نهایی، بهینه‌شده و بدون لگ)
+   پارسیس — احراز هویت (نسخه بدون لگ با کلیک مستقیم)
    مسیر: js/modules/auth.js
    ============================================================ */
 'use strict';
@@ -93,16 +93,15 @@ function login() {
 
         showApp();
 
-        // ✅ بهینه‌سازی: فقط موارد ضروری رندر می‌شوند تا مرورگر فریز نشود
+        // ✅ حالا که لاگین شدیم، برنامه سنگین را استارت می‌زنیم
+        if (typeof window.startApp === 'function') {
+            window.startApp();
+        }
+
         setTimeout(function() {
-            var renderFns = [
-                'updateDateDisplay', 'updateTopbarPeriod', 'updateHomeWidgets',
-                'applyPageHelpers', 'renderFrequentNav', 'updateEyeButtons'
-            ];
+            var renderFns = ['updateDateDisplay', 'updateTopbarPeriod', 'updateHomeWidgets', 'applyPageHelpers', 'renderFrequentNav', 'updateEyeButtons'];
             renderFns.forEach(function(fn) {
-                if (typeof window[fn] === 'function') {
-                    try { window[fn](); } catch(e) { console.warn('[' + fn + ']', e); }
-                }
+                if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
             });
         }, 30);
 
@@ -123,23 +122,34 @@ function bindAuthUI() {
     if (window._authDelegated) return;
     window._authDelegated = true;
 
-    document.addEventListener('click', function(e) {
-        var t = e.target;
-        if (!t) return;
-        if (t.id === 'login-btn' || (t.closest && t.closest('#login-btn'))) {
-            e.preventDefault(); login(); return;
-        }
-        if (t.id === 'logout-btn' || (t.closest && t.closest('#logout-btn'))) {
-            e.preventDefault(); logout(); return;
-        }
-    });
+    // ✅ اتصال مستقیم به دکمه به جای Event Delegation برای جلوگیری از لگ
+    var loginBtn = document.getElementById('login-btn');
+    if (loginBtn) {
+        loginBtn.onclick = function(e) {
+            e.preventDefault();
+            this.innerHTML = '⏳ در حال ورود...';
+            var self = this;
+            setTimeout(function() {
+                login();
+                self.innerHTML = 'ورود';
+            }, 50);
+        };
+    }
+
+    var logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.onclick = function(e) {
+            e.preventDefault();
+            logout();
+        };
+    }
 
     document.addEventListener('keydown', function(e) {
         if (e.key !== 'Enter') return;
         var t = e.target;
-        if (!t) return;
-        if (t.id === 'login-password' || t.id === 'login-username') {
-            e.preventDefault(); login();
+        if (t && (t.id === 'login-password' || t.id === 'login-username')) {
+            e.preventDefault();
+            login();
         }
     });
 }
