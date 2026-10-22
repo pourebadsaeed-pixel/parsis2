@@ -1,7 +1,109 @@
 /* ============================================================
-   پارسیس — راه‌اندازی (نسخه پایدار)
+   پارسیس — راه‌اندازی نهایی (رفع مشکل دکمه‌های منو و تنظیمات)
+   مسیر: js/app.js
    ============================================================ */
 'use strict';
+
+function bindSettingsButtons() {
+    var settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+        settingsBtn.onclick = function (e) {
+            e.preventDefault();
+            var modal = document.getElementById('settings-modal');
+            var overlay = document.getElementById('settings-overlay');
+            if (modal) modal.classList.add('show');
+            if (overlay) overlay.classList.add('show');
+            if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
+            if (typeof renderDashboardOrderUI === 'function') renderDashboardOrderUI();
+            var aboutEl = document.getElementById('about-version');
+            if (aboutEl) aboutEl.textContent = APP_NAME + ' — نسخه ' + toFa(APP_VERSION) + ' (PWA)';
+        };
+    }
+    var closeBtn = document.getElementById('close-settings');
+    if (closeBtn) closeBtn.onclick = closeSettings;
+    var overlay = document.getElementById('settings-overlay');
+    if (overlay) overlay.onclick = closeSettings;
+    var backupBtn = document.getElementById('modal-backup-btn');
+    if (backupBtn) backupBtn.onclick = downloadBackup;
+    var restoreBtn = document.getElementById('modal-restore-btn');
+    if (restoreBtn) restoreBtn.onclick = function () { document.getElementById('restore-file').click(); };
+    var restoreFile = document.getElementById('restore-file');
+    if (restoreFile) restoreFile.onchange = function () { if (this.files[0]) restoreBackup(this.files[0]); this.value = ''; };
+    var resetBtn = document.getElementById('modal-reset-btn');
+    if (resetBtn) resetBtn.onclick = resetAllData;
+}
+
+function bindCurrencyHide() {
+    var setLang = document.getElementById('set-language');
+    if (setLang && !setLang.dataset.bound) { setLang.dataset.bound = '1'; setLang.value = state.language; setLang.onchange = function () { state.language = this.value; saveState(LS_KEYS.LANGUAGE); }; }
+    var setCur = document.getElementById('set-currency');
+    if (setCur && !setCur.dataset.bound) { setCur.dataset.bound = '1'; setCur.value = state.currency; setCur.onchange = function () { state.currency = this.value; saveState(LS_KEYS.CURRENCY); }; }
+    
+    function onCurrencyDisplay(v) {
+        state.currencyDisplay = v; saveState(LS_KEYS.CURRENCY_DISPLAY);
+        var s1 = document.getElementById('set-currency-display'); var s2 = document.getElementById('set-currency-display2');
+        if (s1) s1.value = v; if (s2) s2.value = v;
+        if (typeof updateUnitChips === 'function') updateUnitChips();
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+        if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
+    }
+    var s1 = document.getElementById('set-currency-display');
+    if (s1 && !s1.dataset.bound) { s1.dataset.bound = '1'; s1.onchange = function () { onCurrencyDisplay(this.value); }; }
+    var s2 = document.getElementById('set-currency-display2');
+    if (s2 && !s2.dataset.bound) { s2.dataset.bound = '1'; s2.value = state.currencyDisplay; s2.onchange = function () { onCurrencyDisplay(this.value); }; }
+    
+    function onHideNumbers(v) {
+        state.hideNumbers = v; saveState(LS_KEYS.HIDE_NUMBERS);
+        var cb = document.getElementById('set-hide-numbers'); if (cb) cb.checked = v;
+        if (typeof updateEyeButtons === 'function') updateEyeButtons();
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+        if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
+    }
+    var hideCb = document.getElementById('set-hide-numbers');
+    if (hideCb && !hideCb.dataset.bound) { hideCb.dataset.bound = '1'; hideCb.checked = state.hideNumbers; hideCb.onchange = function () { onHideNumbers(this.checked); }; }
+}
+
+function bindBankCashTypes() {
+    var addBankBtn = document.getElementById('add-bank-type');
+    if (addBankBtn && !addBankBtn.dataset.bound) {
+        addBankBtn.dataset.bound = '1';
+        addBankBtn.onclick = function () {
+            var inp = document.getElementById('new-bank-type'); var v = inp.value.trim();
+            if (!v || state.bankTypes.indexOf(v) !== -1) return;
+            state.bankTypes.push(v); saveState(LS_KEYS.BANK_TYPES); inp.value = '';
+            renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+        };
+    }
+    var addCashBtn = document.getElementById('add-cash-type');
+    if (addCashBtn && !addCashBtn.dataset.bound) {
+        addCashBtn.dataset.bound = '1';
+        addCashBtn.onclick = function () {
+            var inp = document.getElementById('new-cash-type'); var v = inp.value.trim();
+            if (!v || state.cashTypes.indexOf(v) !== -1) return;
+            state.cashTypes.push(v); saveState(LS_KEYS.CASH_TYPES); inp.value = '';
+            renderChips('cash-types-list', state.cashTypes, 'cashTypes');
+        };
+    }
+}
+
+function bindSmsButtons() {
+    function onSmsAutoRead(val) { state.smsAutoRead = val; DB.save(LS_KEYS.SMS_AUTO_READ, val); var e1 = document.getElementById('sms-auto-read'); var e2 = document.getElementById('set-sms-auto-read'); if (e1) e1.checked = val; if (e2) e2.checked = val; }
+    var sar = document.getElementById('sms-auto-read'); if (sar && !sar.dataset.bound) { sar.dataset.bound = '1'; sar.onchange = function () { onSmsAutoRead(this.checked); }; }
+    var ssar = document.getElementById('set-sms-auto-read'); if (ssar && !ssar.dataset.bound) { ssar.dataset.bound = '1'; ssar.onchange = function () { onSmsAutoRead(this.checked); }; }
+    var readClip = document.getElementById('sms-read-clip'); if (readClip && !readClip.dataset.bound) { readClip.dataset.bound = '1'; readClip.onclick = function () { if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false); }; }
+    var parseSms = document.getElementById('parse-sms'); if (parseSms && !parseSms.dataset.bound) {
+        parseSms.dataset.bound = '1';
+        parseSms.onclick = function () {
+            var text = document.getElementById('sms-text').value; if (!text.trim()) return;
+            if (typeof addSmsToInbox === 'function') {
+                var res = addSmsToInbox(text, 'paste');
+                if (res.ok) { showToast('✅ اضافه شد'); document.getElementById('sms-text').value = ''; if (typeof renderSmsInbox === 'function') renderSmsInbox(); if (typeof updateSmsBadge === 'function') updateSmsBadge(); }
+            }
+        };
+    }
+    var clearSms = document.getElementById('clear-sms'); if (clearSms && !clearSms.dataset.bound) { clearSms.dataset.bound = '1'; clearSms.onclick = function () { document.getElementById('sms-text').value = ''; document.getElementById('sms-result').innerHTML = ''; }; }
+    var smsClearConv = document.getElementById('sms-clear-converted'); if (smsClearConv && !smsClearConv.dataset.bound) { smsClearConv.dataset.bound = '1'; smsClearConv.onclick = function () { if (!confirm('حذف تبدیل‌شده‌ها؟')) return; if (typeof getSmsInbox === 'function') { var l = getSmsInbox().filter(function (s) { return s.status === 'new'; }); if (typeof saveSmsInbox === 'function') saveSmsInbox(l); if (typeof renderSmsInbox === 'function') renderSmsInbox(); if (typeof updateSmsBadge === 'function') updateSmsBadge(); } }; }
+}
 
 function bindBaseDataForms() {
     try { if (typeof bindFiscalForm === 'function') bindFiscalForm(); } catch(e){ console.warn(e); }
@@ -11,10 +113,6 @@ function bindBaseDataForms() {
     try { if (typeof bindCashBoxesForm === 'function') bindCashBoxesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindProjectsForm === 'function') bindProjectsForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindChartForm === 'function') bindChartForm(); } catch(e){ console.warn(e); }
-    try { if (typeof bindSettingsButtons === 'function') bindSettingsButtons(); } catch(e){ console.warn(e); }
-    try { if (typeof bindCurrencyHide === 'function') bindCurrencyHide(); } catch(e){ console.warn(e); }
-    try { if (typeof bindBankCashTypes === 'function') bindBankCashTypes(); } catch(e){ console.warn(e); }
-    try { if (typeof bindSmsButtons === 'function') bindSmsButtons(); } catch(e){ console.warn(e); }
     try { if (typeof bindEstimatesForm === 'function') bindEstimatesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindSourcesForm === 'function') bindSourcesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindFacilitiesForm === 'function') bindFacilitiesForm(); } catch(e){ console.warn(e); }
@@ -39,9 +137,9 @@ function bindFilterInputs() {
         if (!el || el.dataset.bound) return;
         el.dataset.bound = '1';
         var fn = filterMap[id];
-        el.addEventListener('input', function () {
+        el.oninput = function () {
             if (typeof window[fn] === 'function') window[fn]();
-        });
+        };
     });
 }
 
@@ -50,9 +148,9 @@ function bindExportButtons() {
     for (var e = 0; e < eB.length; e++) {
         if (eB[e].dataset.bound) continue;
         eB[e].dataset.bound = '1';
-        eB[e].addEventListener('click', function () {
+        eB[e].onclick = function () {
             if (typeof exportToCsv === 'function') exportToCsv(this.getAttribute('data-export'), this.getAttribute('data-export'));
-        });
+        };
     }
 }
 
@@ -71,12 +169,14 @@ function startApp() {
     try { if (typeof initSidebarSearch === 'function') initSidebarSearch(); } catch(e){}
     try { if (typeof initHomeSwipe === 'function') initHomeSwipe(); } catch(e){}
 
-    // بایند تمام فرم‌ها
+    // ✅ این دو خط بسیار مهم هستند و در نسخه قبل جا افتاده بودند
+    try { if (typeof bindSidebarNav === 'function') bindSidebarNav(); } catch(e){ console.warn('Sidebar bind error:', e); }
+    try { if (typeof bindSettingsButtons === 'function') bindSettingsButtons(); } catch(e){ console.warn('Settings bind error:', e); }
+
     bindBaseDataForms();
     bindFilterInputs();
     bindExportButtons();
 
-    // رندر کردن محتویات اولیه
     try { if (typeof updateDateDisplay === 'function') updateDateDisplay(); } catch(e){}
     try { if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod(); } catch(e){}
     try { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); } catch(e){ console.error('Widget error:', e); }
