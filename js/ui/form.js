@@ -4,9 +4,6 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۰ — پچ getElementById (فعال‌سازی خود صفحه)
-   ============================================================ */
 (function patchGetElementById() {
     if (window._getByIdPatched) return;
     window._getByIdPatched = true;
@@ -16,11 +13,9 @@
         if (!id) return origGet.call(document, id);
         var activePage = document.querySelector('.page.active');
         if (activePage) {
-            // ۱) اگر خودِ صفحه‌ی فعال با این id مطابقت دارد (مثل page-X یا page-X-timestamp)
             if (activePage.id === id || activePage.id.indexOf(id + '-') === 0) {
                 return activePage;
             }
-            // ۲) عنصر داخل صفحه‌ی فعال
             if (activePage.querySelector) {
                 var el = activePage.querySelector('#' + id);
                 if (el) return el;
@@ -30,9 +25,6 @@
     };
 })();
 
-/* ============================================================
-   بخش ۱ — CSS نوار تب
-   ============================================================ */
 (function injectFormTabsCss() {
     if (document.getElementById('form-tabs-style')) return;
     var s = document.createElement('style');
@@ -67,9 +59,6 @@
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   بخش ۲ — state
-   ============================================================ */
 var TAB_STATE = {
     tabs: [{ id: 'home', page: 'home', domId: 'page-home', title: 'صفحه اصلی', icon: '🏠' }],
     active: 'home',
@@ -99,9 +88,6 @@ var PAGE_BINDERS = {
     'sms':              'bindSmsButtons'
 };
 
-/* ============================================================
-   بخش ۳ — متا‌ی صفحه
-   ============================================================ */
 function getPageMeta(pageId) {
     if (typeof PAGE_TITLES_FA !== 'undefined' && PAGE_TITLES_FA[pageId]) {
         return PAGE_TITLES_FA[pageId];
@@ -121,9 +107,6 @@ function getPageMeta(pageId) {
     return { title: title, icon: icon };
 }
 
-/* ============================================================
-   بخش ۴ — Context (نگهداری state بین تب‌ها)
-   ============================================================ */
 function getGlobalContext() {
     var ctx = {};
     try {
@@ -197,9 +180,6 @@ function clearFormData(pageId) {
     }
 }
 
-/* ============================================================
-   بخش ۵ — نوار تب
-   ============================================================ */
 function ensureTabBar() {
     var bar = document.getElementById('form-tabs-bar');
     if (bar) return bar;
@@ -303,17 +283,12 @@ function renderTabs() {
     }, 30);
 }
 
-/* ============================================================
-   بخش ۶ — پاک‌سازی صفحه کلون‌شده از مارکرهای بایند
-   ============================================================ */
 function cleanClonedPage(clone) {
-    // ۱) حذف ویژگی‌هایی که مانع بایند مجدد می‌شن
     var ATTRS_TO_CLEAR = [
         'data-bound', 'data-bound-collapse',
         'data-picker', 'data-picker-bound',
         'data-resizable', 'data-sort-attached',
-        'data-collapsible',
-        'data-money',
+        'data-collapsible', 'data-money',
         'data-crop-ready', 'data-drag-ready',
         'data-cs-bound'
     ];
@@ -321,18 +296,14 @@ function cleanClonedPage(clone) {
         var els = clone.querySelectorAll('[' + attr + ']');
         for (var i = 0; i < els.length; i++) els[i].removeAttribute(attr);
     });
-    // خود صفحه
     clone.removeAttribute('data-rebound');
     clone.removeAttribute('data-filter-collapse-init');
 
-    // ۲) حذف ردیف فیلترها و ریسایزرها که باید از نو با listener ساخته شوند
     var toRemove = clone.querySelectorAll(
-        '.col-resizer, tr.column-filter-row'
+        '.col-resizer, tr.column-filter-row, .col-filter-btn'
     );
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    // ۳) دکمه‌های auto-generated که خودشان را بازسازی می‌کنند
-    // (col-resizer قبلاً حذف شد، این‌ها هم حذف تا بازسازی شوند)
     ['share-btn', 'widget-share-btn', 'eye-toggle-btn', 'col-toggle-btn', 'col-reset-btn']
         .forEach(function(cls) {
             var els = clone.querySelectorAll('.' + cls);
@@ -342,9 +313,6 @@ function cleanClonedPage(clone) {
     return clone;
 }
 
-/* ============================================================
-   بخش ۷ — سوئیچ تب (اصلاح‌شده)
-   ============================================================ */
 function switchToTab(tabId) {
     var tab = TAB_STATE.tabs.find(function(t) { return t.id === tabId; });
     if (!tab) return;
@@ -368,12 +336,10 @@ function switchToTab(tabId) {
     TAB_STATE.active = tabId;
     renderTabs();
 
-    // همیشه رندر و ری‌بایند
     if (tab.page !== 'home') {
         if (typeof runPageRenderer === 'function') runPageRenderer(tab.page);
         if (typeof applyPageHelpers === 'function') applyPageHelpers();
 
-        // بایند دکمه‌های فرمِ این صفحه با فاصله‌ی کوتاه
         setTimeout(function() {
             try {
                 var fnName = PAGE_BINDERS[tab.page];
@@ -382,9 +348,6 @@ function switchToTab(tabId) {
                 }
                 if (typeof bindFilterInputs === 'function') bindFilterInputs();
                 if (typeof bindExportButtons === 'function') bindExportButtons();
-                if (typeof bindThemeFontButtons === 'function') {
-                    // فقط یک بار سراسری بایند شده، مشکلی نیست
-                }
             } catch(e) { console.warn('[switchToTab bind]', e); }
         }, 40);
     }
@@ -437,9 +400,6 @@ function closeAllTabs() {
     showToast('🧹 همه فرم‌ها بسته شد');
 }
 
-/* ============================================================
-   بخش ۸ — دکمه بستن همه
-   ============================================================ */
 function injectCloseAllButton() {
     if (document.getElementById('close-all-forms-btn')) return true;
     var searchBox = document.querySelector('.sidebar-search');
@@ -465,9 +425,6 @@ function injectCloseAllButton() {
     return true;
 }
 
-/* ============================================================
-   بخش ۹ — override goToPage
-   ============================================================ */
 function installGoToPageOverride() {
     if (typeof window.goToPage !== 'function') return false;
     if (window._origGoToPage) return true;
@@ -490,7 +447,6 @@ function installGoToPageOverride() {
             return;
         }
 
-        // محدودیت تب
         while (TAB_STATE.tabs.length >= TAB_STATE.max) {
             var toRemoveIdx = -1;
             for (var i = 1; i < TAB_STATE.tabs.length; i++) {
@@ -516,10 +472,8 @@ function installGoToPageOverride() {
         clone.classList.remove('active');
         clone.classList.remove('page-template');
 
-        // ✅ پاک‌سازی کامل مارکرهای بایند
         cleanClonedPage(clone);
 
-        // پاک‌سازی محتویات گزارش‌ها برای رندر مجدد
         var reportBoxes = clone.querySelectorAll('#ra-result, #rt-result, #rc-result, #cf-result, #cfd-result, #ri-result, #rf-result, #rff-result, #dash-grid-container');
         for (var ri = 0; ri < reportBoxes.length; ri++) reportBoxes[ri].innerHTML = '';
 
@@ -548,9 +502,6 @@ function installGoToPageOverride() {
     return true;
 }
 
-/* ============================================================
-   بخش ۱۰ — autoAttachReportHelpers
-   ============================================================ */
 function autoAttachReportHelpers() {
     setTimeout(function () {
         if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
@@ -572,9 +523,6 @@ function autoAttachReportHelpers() {
     }, 60);
 }
 
-/* ============================================================
-   بخش ۱۱ — Init
-   ============================================================ */
 function initFormTabs() {
     var tries = 0;
     var interval = setInterval(function () {
