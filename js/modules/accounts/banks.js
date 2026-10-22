@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — حساب‌های بانکی (اصلاح دکمه ویرایش و فیلتر قیفی)
+   پارسیس — حساب‌های بانکی (نسخه ضد باگ با فیلتر قیفی)
    مسیر: js/modules/accounts/banks.js
    ============================================================ */
 'use strict';
@@ -18,6 +18,9 @@ function refreshBankTypeSelect() {
 
 function renderBankAccountsList() {
     var list = DB.load('bankAccounts', []);
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(function(x) { return x && typeof x === 'object'; });
+
     var filterEl = document.getElementById('ba-filter');
     var filter = (filterEl ? filterEl.value : '').toLowerCase();
     var tb = document.getElementById('ba-list-body');
@@ -26,17 +29,17 @@ function renderBankAccountsList() {
 
     var shown = 0;
     var filtered = list.filter(function (b) {
-        if (filter && ((b.bank || '') + ' ' + (b.account || '') + ' ' + (b.branchName || '')).toLowerCase().indexOf(filter) === -1) {
-            return false;
-        }
+        if (filter && ((b.bank || '') + ' ' + (b.account || '') + ' ' + (b.branchName || '')).toLowerCase().indexOf(filter) === -1) return false;
         return true;
     });
 
-    filtered = applyTableSort('ba-table', filtered, function (b, k) {
-        if (k === 'order') return Number(b.order) || 9999;
-        if (k === 'minBalance') return Number(b.minBalance) || 0;
-        return b[k] || '';
-    });
+    try {
+        filtered = applyTableSort('ba-table', filtered, function (b, k) {
+            if (k === 'order') return Number(b.order) || 9999;
+            if (k === 'minBalance') return Number(b.minBalance) || 0;
+            return b[k] || '';
+        });
+    } catch(e) {}
 
     for (var i = 0; i < filtered.length; i++) {
         var b = filtered[i];
@@ -87,9 +90,7 @@ function renderBankAccountsList() {
 }
 
 function clearBAForm() {
-    var ids = ['ba-id', 'ba-bank', 'ba-branch-code', 'ba-branch-name',
-               'ba-account', 'ba-iban', 'ba-card', 'ba-order', 'ba-min-balance'];
-    ids.forEach(function (i) {
+    ['ba-id', 'ba-bank', 'ba-branch-code', 'ba-branch-name', 'ba-account', 'ba-iban', 'ba-card', 'ba-order', 'ba-min-balance'].forEach(function (i) {
         var el = document.getElementById(i);
         if (el) el.value = '';
     });
@@ -109,26 +110,18 @@ function bindBanksForm() {
         var mb = parseMoney(normalizeDigits(document.getElementById('ba-min-balance').value));
 
         var o2 = {
-            id: id || uid(),
-            bank: b,
-            type: document.getElementById('ba-type').value,
+            id: id || uid(), bank: b, type: document.getElementById('ba-type').value,
             branchCode: normalizeDigits(document.getElementById('ba-branch-code').value.trim()),
             branchName: document.getElementById('ba-branch-name').value.trim(),
             account: normalizeDigits(document.getElementById('ba-account').value.trim()),
             iban: document.getElementById('ba-iban').value.trim(),
-            card: normalizeDigits(document.getElementById('ba-card').value.trim()),
-            order: o,
-            minBalance: mb
+            card: normalizeDigits(document.getElementById('ba-card').value.trim()), order: o, minBalance: mb
         };
 
         var l = DB.load('bankAccounts', []);
-        if (id) {
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) l[i] = o2;
-            }
-        } else {
-            l.push(o2);
-        }
+        if (!Array.isArray(l)) l = [];
+        if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o2; } } 
+        else { l.push(o2); }
         DB.save('bankAccounts', l);
         showToast('✅ حساب بانکی ذخیره شد.');
         clearBAForm();
@@ -142,10 +135,8 @@ function bindBanksForm() {
 
     var newBtn = document.getElementById('new-ba');
     if (newBtn) newBtn.addEventListener('click', clearBAForm);
-
     var filterEl = document.getElementById('ba-filter');
     if (filterEl) filterEl.addEventListener('input', renderBankAccountsList);
-
     attachMoneyInput(document.getElementById('ba-min-balance'));
 }
 
@@ -153,5 +144,3 @@ window.refreshBankTypeSelect  = refreshBankTypeSelect;
 window.renderBankAccountsList = renderBankAccountsList;
 window.clearBAForm            = clearBAForm;
 window.bindBanksForm          = bindBanksForm;
-
-console.log('✅ [modules/accounts/banks.js] loaded');
