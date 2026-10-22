@@ -1,5 +1,6 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
+   مسیر: js/ui/table.js (رفع خطای سینتکس continue)
    ============================================================ */
 'use strict';
 
@@ -60,19 +61,19 @@ function testFilter(cellText, filter) {
 function ensureFixedLayout(table) {
     if (!table) return;
     table.classList.add('w-col-resized'); table.style.setProperty('table-layout', 'fixed', 'important');
-    table.querySelectorAll('th, td').forEach(c => { c.style.setProperty('overflow', 'hidden', 'important'); c.style.setProperty('white-space', 'nowrap', 'important'); c.style.setProperty('text-overflow', 'ellipsis', 'important'); });
+    table.querySelectorAll('th, td').forEach(function(c) { c.style.setProperty('overflow', 'hidden', 'important'); c.style.setProperty('white-space', 'nowrap', 'important'); c.style.setProperty('text-overflow', 'ellipsis', 'important'); });
 }
 function removeFixedLayout(table) {
     if (!table) return;
     table.classList.remove('w-col-resized'); table.style.removeProperty('table-layout'); table.style.removeProperty('width'); table.style.removeProperty('min-width');
-    table.querySelectorAll('th, td').forEach(c => { c.style.removeProperty('overflow'); c.style.removeProperty('white-space'); c.style.removeProperty('text-overflow'); });
+    table.querySelectorAll('th, td').forEach(function(c) { c.style.removeProperty('overflow'); c.style.removeProperty('white-space'); c.style.removeProperty('text-overflow'); });
 }
 
 function applyColWidths(tableId) {
     var table = document.getElementById(tableId); if (!table) return;
     var widths = colWidths[tableId] || []; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
     var totalW = 0, hasWidth = false;
-    headerRow.querySelectorAll('th').forEach((th, i) => {
+    headerRow.querySelectorAll('th').forEach(function(th, i) {
         var oi = th.getAttribute('data-orig-index'); var idx = oi !== null ? parseInt(oi, 10) : i;
         if (widths[idx]) { th.style.setProperty('width', widths[idx] + 'px', 'important'); th.style.setProperty('min-width', widths[idx] + 'px', 'important'); th.style.setProperty('max-width', widths[idx] + 'px', 'important'); totalW += widths[idx]; hasWidth = true; }
         else { th.style.removeProperty('width'); th.style.removeProperty('min-width'); th.style.removeProperty('max-width'); }
@@ -87,8 +88,8 @@ function makeTableResizable(table) {
     var ths = headerRow.querySelectorAll('th'); var needsSetup = false;
     for (var i = 0; i < ths.length; i++) { if (ths[i].getAttribute('data-orig-index') === null) ths[i].setAttribute('data-orig-index', String(i)); if (!ths[i].querySelector('.col-resizer')) { needsSetup = true; break; } }
     if (!needsSetup) { table.dataset.resizable = '1'; applyColWidths(tableId); return; }
-    table.querySelectorAll('.col-resizer').forEach(r => r.remove());
-    ths.forEach((th, idx) => {
+    table.querySelectorAll('.col-resizer').forEach(function(r) { r.remove(); });
+    ths.forEach(function(th, idx) {
         if (th.getAttribute('data-orig-index') === null) th.setAttribute('data-orig-index', String(idx));
         var res = document.createElement('div'); res.className = 'col-resizer'; res.title = 'تغییر عرض'; th.appendChild(res);
         var startX = 0, startW = 0, isDragging = false;
@@ -96,27 +97,27 @@ function makeTableResizable(table) {
             isDragging = true; var x = e.touches ? e.touches[0].clientX : e.clientX; startX = x; startW = th.offsetWidth;
             document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; document.body.classList.add('resizing-cols'); ensureFixedLayout(table);
             var allThs = table.querySelectorAll('thead tr:not(.column-filter-row) th'); var totalW = 0;
-            allThs.forEach(t => { if (t.style.display !== 'none') { var w = t.offsetWidth; totalW += w; t.style.setProperty('width', w + 'px', 'important'); t.style.setProperty('min-width', w + 'px', 'important'); t.style.setProperty('max-width', w + 'px', 'important'); } });
+            allThs.forEach(function(t) { if (t.style.display !== 'none') { var w = t.offsetWidth; totalW += w; t.style.setProperty('width', w + 'px', 'important'); t.style.setProperty('min-width', w + 'px', 'important'); t.style.setProperty('max-width', w + 'px', 'important'); } });
             table.style.setProperty('width', totalW + 'px', 'important'); table.style.setProperty('min-width', totalW + 'px', 'important');
         }
         function move(e) {
             if (!isDragging) return; var x = e.touches ? e.touches[0].clientX : e.clientX; var diff = startX - x;
             var w = Math.max(10, Math.min(5000, startW + diff));
             th.style.setProperty('width', w + 'px', 'important'); th.style.setProperty('min-width', w + 'px', 'important'); th.style.setProperty('max-width', w + 'px', 'important');
-            var currentTotalW = 0; table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(t => { if (t.style.display !== 'none') currentTotalW += t.offsetWidth; });
+            var currentTotalW = 0; table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(function(t) { if (t.style.display !== 'none') currentTotalW += t.offsetWidth; });
             table.style.setProperty('width', currentTotalW + 'px', 'important'); table.style.setProperty('min-width', currentTotalW + 'px', 'important');
         }
         function end() {
             if (!isDragging) return; isDragging = false; document.body.style.cursor = ''; document.body.style.userSelect = ''; document.body.classList.remove('resizing-cols');
             if (!colWidths[tableId]) colWidths[tableId] = [];
-            table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(th => { var oi = th.getAttribute('data-orig-index'); var cidx = oi !== null ? parseInt(oi, 10) : 0; if (th.style.display !== 'none') colWidths[tableId][cidx] = th.offsetWidth; });
+            table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(function(th) { var oi = th.getAttribute('data-orig-index'); var cidx = oi !== null ? parseInt(oi, 10) : 0; if (th.style.display !== 'none') colWidths[tableId][cidx] = th.offsetWidth; });
             saveColWidths();
         }
-        res.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); resetColumnWidths(tableId); });
-        res.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); start(e); });
-        res.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); start(e); }, { passive: false });
+        res.addEventListener('dblclick', function(e) { e.preventDefault(); e.stopPropagation(); resetColumnWidths(tableId); });
+        res.addEventListener('mousedown', function(e) { e.preventDefault(); e.stopPropagation(); start(e); });
+        res.addEventListener('touchstart', function(e) { e.preventDefault(); e.stopPropagation(); start(e); }, { passive: false });
         document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
-        document.addEventListener('touchmove', e => { if (isDragging) { move(e); e.preventDefault(); } }, { passive: false }); document.addEventListener('touchend', end);
+        document.addEventListener('touchmove', function(e) { if (isDragging) { move(e); e.preventDefault(); } }, { passive: false }); document.addEventListener('touchend', end);
     });
     table.dataset.resizable = '1'; applyColWidths(tableId);
 }
@@ -124,12 +125,12 @@ function makeTableResizable(table) {
 function resetColumnWidths(tableId) {
     if (!tableId) return; delete colWidths[tableId]; saveColWidths();
     var table = document.getElementById(tableId); if (!table) return; removeFixedLayout(table);
-    table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(th => { th.style.removeProperty('width'); th.style.removeProperty('min-width'); th.style.removeProperty('max-width'); });
-    showToast('↔ عرض ستون‌ها بازنشانی شد.');
+    table.querySelectorAll('thead tr:not(.column-filter-row) th').forEach(function(th) { th.style.removeProperty('width'); th.style.removeProperty('min-width'); th.style.removeProperty('max-width'); });
+    if (typeof showToast === 'function') showToast('↔ عرض ستون‌ها بازنشانی شد.');
 }
 
 var MANAGED_TABLE_IDS = ['fiscal-table', 'persons-table', 'comp-table', 'ba-table', 'cb-table', 'proj-table', 'voucher-table-list', 'rt-table', 'ri-table', 'rf-table', 'rff-table', 'cfs-table', 'cf-table', 'cfd-table', 'rc-table', 'ra-acc-table', 'turnover-table'];
-function makeAllTablesResizable() { MANAGED_TABLE_IDS.forEach(id => { var t = document.getElementById(id); if (t) makeTableResizable(t); }); }
+function makeAllTablesResizable() { MANAGED_TABLE_IDS.forEach(function(id) { var t = document.getElementById(id); if (t) makeTableResizable(t); }); }
 
 function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
     var page = document.querySelector('.page.active'); if (!page || page.id.indexOf('page-' + pageId) !== 0) page = document.getElementById('page-' + pageId);
@@ -145,7 +146,7 @@ function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
     header.innerHTML = '<span style="font-size:1rem">' + icon + '</span><span style="flex:1;font-weight:900;color:#1e40af;font-size:.9rem">' + title + '</span><span class="filter-collapse-arrow" style="font-size:.75rem;color:#1e40af;transition:transform .25s">▼</span>';
     card.insertBefore(header, card.firstChild);
     var body = document.createElement('div'); body.className = 'filter-collapse-body'; var children = Array.from(card.childNodes);
-    children.forEach(node => { if (node === header || (node.classList && node.classList.contains('filter-collapse-body'))) return; body.appendChild(node); });
+    children.forEach(function(node) { if (node === header || (node.classList && node.classList.contains('filter-collapse-body'))) return; body.appendChild(node); });
     card.appendChild(body);
     var collapsed = state.cardCollapsed[storageKey] === true; if (collapsed) { body.style.display = 'none'; header.querySelector('.filter-collapse-arrow').style.transform = 'rotate(-90deg)'; }
     header.addEventListener('click', function () { var nowCollapsed = body.style.display === 'none' ? false : true; body.style.display = nowCollapsed ? 'none' : ''; header.querySelector('.filter-collapse-arrow').style.transform = nowCollapsed ? 'rotate(-90deg)' : ''; state.cardCollapsed[storageKey] = nowCollapsed; DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed); });
@@ -153,19 +154,37 @@ function makeFilterPanelCollapsible(pageId, storageKey, title, icon) {
 
 var columnOrders = DB.load(LS_KEYS.COLUMN_ORDERS, {});
 function saveColumnOrders() { DB.save(LS_KEYS.COLUMN_ORDERS, columnOrders); }
-function getCurrentColumnOrder(tableId) { var table = document.getElementById(tableId); if (!table) return []; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return []; return Array.from(headerRow.querySelectorAll('th')).map((th, i) => { var idx = th.getAttribute('data-orig-index'); if (idx === null) { idx = String(i); th.setAttribute('data-orig-index', idx); } return parseInt(idx, 10); }); }
-function findThByOrigIndex(headerRow, origIdx) { return Array.from(headerRow.querySelectorAll('th')).find(th => parseInt(th.getAttribute('data-orig-index'), 10) === origIdx); }
+function getCurrentColumnOrder(tableId) { var table = document.getElementById(tableId); if (!table) return []; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return []; return Array.from(headerRow.querySelectorAll('th')).map(function(th, i) { var idx = th.getAttribute('data-orig-index'); if (idx === null) { idx = String(i); th.setAttribute('data-orig-index', idx); } return parseInt(idx, 10); }); }
+function findThByOrigIndex(headerRow, origIdx) { return Array.from(headerRow.querySelectorAll('th')).find(function(th) { return parseInt(th.getAttribute('data-orig-index'), 10) === origIdx; }); }
+
+// ✅ اصلاح باگ سینتکس در این تابع (تبدیل continue به return)
 function syncBodyOrigIndices(table, headerRow) {
     if (!headerRow) headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
-    var origIndices = Array.from(headerRow.querySelectorAll('th')).map((th, i) => th.getAttribute('data-orig-index') || String(i));
-    table.querySelectorAll('tr').forEach(row => { if (row === headerRow) return; var cells = row.children; if (cells.length <= 1) continue; for (var c = 0; c < cells.length; c++) { if (cells[c].getAttribute('data-orig-index') === null) cells[c].setAttribute('data-orig-index', c < origIndices.length ? origIndices[c] : String(c)); } });
+    var origIndices = Array.from(headerRow.querySelectorAll('th')).map(function(th, i) { return th.getAttribute('data-orig-index') || String(i); });
+    table.querySelectorAll('tr').forEach(function(row) { 
+        if (row === headerRow) return; 
+        var cells = row.children; 
+        if (cells.length <= 1) return; // ✅ اصلاح شد
+        for (var c = 0; c < cells.length; c++) { 
+            if (cells[c].getAttribute('data-orig-index') === null) cells[c].setAttribute('data-orig-index', c < origIndices.length ? origIndices[c] : String(c)); 
+        } 
+    });
 }
+
+// ✅ اصلاح باگ سینتکس در این تابع (تبدیل continue به return)
 function applyColumnOrder(tableId) {
     if (!tableId) return; var savedOrder = columnOrders[tableId]; if (!savedOrder || !savedOrder.length) return;
     var table = document.getElementById(tableId); if (!table) return; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
-    headerRow.querySelectorAll('th').forEach((th, i) => { if (th.getAttribute('data-orig-index') === null) th.setAttribute('data-orig-index', String(i)); });
+    headerRow.querySelectorAll('th').forEach(function(th, i) { if (th.getAttribute('data-orig-index') === null) th.setAttribute('data-orig-index', String(i)); });
     syncBodyOrigIndices(table, headerRow);
-    table.querySelectorAll('tr').forEach(row => { var cells = Array.from(row.children); if (cells.length <= 1) continue; var map = {}, unindexed = []; cells.forEach(c => { var oi = c.getAttribute('data-orig-index'); if (oi !== null) map[oi] = c; else unindexed.push(c); }); savedOrder.forEach(s => { if (map[String(s)]) row.appendChild(map[String(s)]); }); unindexed.forEach(c => row.appendChild(c)); });
+    table.querySelectorAll('tr').forEach(function(row) { 
+        var cells = Array.from(row.children); 
+        if (cells.length <= 1) return; // ✅ اصلاح شد
+        var map = {}, unindexed = []; 
+        cells.forEach(function(c) { var oi = c.getAttribute('data-orig-index'); if (oi !== null) map[oi] = c; else unindexed.push(c); }); 
+        savedOrder.forEach(function(s) { if (map[String(s)]) row.appendChild(map[String(s)]); }); 
+        unindexed.forEach(function(c) { row.appendChild(c); }); 
+    });
 }
 
 var colSettings = DB.load(LS_KEYS.COLUMN_SETTINGS, {});
@@ -173,18 +192,18 @@ function getHiddenCols(tableId) { return colSettings[tableId] || []; }
 function setHiddenCols(tableId, arr) { colSettings[tableId] = arr; DB.save(LS_KEYS.COLUMN_SETTINGS, colSettings); }
 function applyColVisibility(tableId) {
     var table = document.getElementById(tableId); if (!table) return; syncBodyOrigIndices(table);
-    var hidden = getHiddenCols(tableId); table.querySelectorAll('tr').forEach(row => { var cells = row.children; if (cells.length === 1 && cells[0].hasAttribute('colspan')) return; for (var c = 0; c < cells.length; c++) { var oi = cells[c].getAttribute('data-orig-index'); var idx = oi !== null ? parseInt(oi, 10) : c; cells[c].style.display = hidden.indexOf(idx) !== -1 ? 'none' : ''; } });
+    var hidden = getHiddenCols(tableId); table.querySelectorAll('tr').forEach(function(row) { var cells = row.children; if (cells.length === 1 && cells[0].hasAttribute('colspan')) return; for (var c = 0; c < cells.length; c++) { var oi = cells[c].getAttribute('data-orig-index'); var idx = oi !== null ? parseInt(oi, 10) : c; cells[c].style.display = hidden.indexOf(idx) !== -1 ? 'none' : ''; } });
 }
 
 var sortState = { vouchers: { col: 'number', dir: 'desc' }, facilities: { col: 'name', dir: 'asc' }, rf: { col: 'name', dir: 'asc' }, rff: { col: 'name', dir: 'asc' } };
 function compareVals(a, b) { if (a == null) a = ''; if (b == null) b = ''; if (typeof a === 'string' && typeof b === 'string') { var na = parseFloat(a), nb = parseFloat(b); if (!isNaN(na) && !isNaN(nb) && a.trim() === String(na) && b.trim() === String(nb)) return na - nb; return a.localeCompare(b, 'fa'); } if (typeof a === 'number' && typeof b === 'number') return a - b; return String(a).localeCompare(String(b), 'fa'); }
 var tableSortState = DB.load(LS_KEYS.TABLE_SORT_STATE, {});
-function applySortIndicator(tableId) { var table = document.getElementById(tableId); if (!table) return; var st = tableSortState[tableId]; table.querySelectorAll('thead th[data-sort-key]').forEach(th => { var ind = th.querySelector('.sort-ind'); if (!ind) return; var k = th.getAttribute('data-sort-key'); if (st && st.col === k) { ind.textContent = st.dir === 'asc' ? '▲' : '▼'; ind.classList.add('active'); } else { ind.textContent = '⇅'; ind.classList.remove('active'); } }); }
+function applySortIndicator(tableId) { var table = document.getElementById(tableId); if (!table) return; var st = tableSortState[tableId]; table.querySelectorAll('thead th[data-sort-key]').forEach(function(th) { var ind = th.querySelector('.sort-ind'); if (!ind) return; var k = th.getAttribute('data-sort-key'); if (st && st.col === k) { ind.textContent = st.dir === 'asc' ? '▲' : '▼'; ind.classList.add('active'); } else { ind.textContent = '⇅'; ind.classList.remove('active'); } }); }
 function attachTableSorting(tableId, rerender) {
     var table = document.getElementById(tableId); if (!table) return;
-    table.querySelectorAll('thead th[data-sortable]').forEach(th => {
+    table.querySelectorAll('thead th[data-sortable]').forEach(function(th) {
         if (th.dataset.sortAttached) return; th.dataset.sortAttached = '1';
-        th.addEventListener('click', e => {
+        th.addEventListener('click', function(e) {
             if (e.target.closest('.col-resizer') || e.target.closest('.col-filter-btn')) return;
             var k = th.getAttribute('data-sort-key'); if (!k) return; var st = tableSortState[tableId] || { col: k, dir: 'asc' };
             if (st.col === k) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.col = k; st.dir = 'asc'; }
@@ -192,16 +211,17 @@ function attachTableSorting(tableId, rerender) {
         });
     });
 }
-function applyTableSort(tableId, rows, keyFn) { var st = tableSortState[tableId]; if (!st) return rows; var dir = st.dir === 'asc' ? 1 : -1; return rows.slice().sort((a, b) => dir * compareVals(keyFn(a, st.col), keyFn(b, st.col))); }
+function applyTableSort(tableId, rows, keyFn) { var st = tableSortState[tableId]; if (!st) return rows; var dir = st.dir === 'asc' ? 1 : -1; return rows.slice().sort(function(a, b) { return dir * compareVals(keyFn(a, st.col), keyFn(b, st.col)); }); }
 
 var COLUMN_FILTERS = {};
 function applyColumnFiltersToTable(tableId) {
     var table = document.getElementById(tableId); if (!table) return;
-    var filters = COLUMN_FILTERS[tableId] || {}; var hasAny = Object.keys(filters).some(k => filters[k] && filters[k].op);
+    var filters = COLUMN_FILTERS[tableId] || {}; var hasAny = Object.keys(filters).some(function(k) { return filters[k] && filters[k].op; });
     var tbody = table.querySelector('tbody'); if (!tbody) return; var rows = tbody.querySelectorAll('tr');
-    if (!hasAny) { rows.forEach(tr => tr.style.display = ''); return; }
-    rows.forEach(tr => {
-        var tds = tr.children; if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; }
+    if (!hasAny) { rows.forEach(function(tr) { tr.style.display = ''; }); return; }
+    rows.forEach(function(tr) {
+        var tds = tr.children; 
+        if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; } // ✅ اصلاح شد
         var show = true;
         for (var key in filters) {
             var origIdx = Number(key); var f = filters[key]; if (!f || !f.op) continue;
@@ -213,7 +233,7 @@ function applyColumnFiltersToTable(tableId) {
 }
 
 function closeColFilterPopover() { var pop = document.getElementById('col-filter-popover'); if (pop) pop.remove(); }
-document.addEventListener('click', e => { var pop = document.getElementById('col-filter-popover'); if (!pop) return; if (pop.contains(e.target) || (e.target.closest && e.target.closest('.col-filter-btn'))) return; closeColFilterPopover(); });
+document.addEventListener('click', function(e) { var pop = document.getElementById('col-filter-popover'); if (!pop) return; if (pop.contains(e.target) || (e.target.closest && e.target.closest('.col-filter-btn'))) return; closeColFilterPopover(); });
 
 function openColFilterPopover(tableId, origIdx, btn) {
     closeColFilterPopover(); var pop = document.createElement('div'); pop.className = 'col-filter-popover'; pop.id = 'col-filter-popover';
@@ -221,15 +241,15 @@ function openColFilterPopover(tableId, origIdx, btn) {
     var ops = [['', '— انتخاب کنید —'], ['contains', 'شامل'], ['eq', 'مساوی'], ['neq', 'نامساوی'], ['gt', 'بزرگتر از'], ['gte', 'بزرگتر یا مساوی'], ['lt', 'کوچکتر از'], ['lte', 'کوچکتر یا مساوی'], ['startsWith', 'شروع با'], ['endsWith', 'پایان با'], ['empty', 'خالی'], ['notEmpty', 'خالی نباشد']];
     var opWrap = document.createElement('div'); opWrap.className = 'cf-dropdown-wrap';
     var opBtn = document.createElement('div'); opBtn.className = 'cf-op-btn';
-    var selectedLabel = ops.find(o => o[0] === currentOp)[1] || '— انتخاب کنید —';
+    var selectedLabel = ops.find(function(o) { return o[0] === currentOp; })[1] || '— انتخاب کنید —';
     opBtn.innerHTML = '<span>' + selectedLabel + '</span><span>▼</span>';
     var opList = document.createElement('div'); opList.className = 'cf-op-list';
-    ops.forEach(o => {
+    ops.forEach(function(o) {
         var item = document.createElement('div'); item.className = 'cf-op-item' + (o[0] === currentOp ? ' selected' : ''); item.textContent = o[1];
-        item.onclick = e => { e.stopPropagation(); currentOp = o[0]; opBtn.innerHTML = '<span>' + o[1] + '</span><span>▼</span>'; opList.classList.remove('show'); opList.querySelectorAll('.cf-op-item').forEach(el => el.classList.remove('selected')); item.classList.add('selected'); update(); };
+        item.onclick = function(e) { e.stopPropagation(); currentOp = o[0]; opBtn.innerHTML = '<span>' + o[1] + '</span><span>▼</span>'; opList.classList.remove('show'); opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); }); item.classList.add('selected'); update(); };
         opList.appendChild(item);
     });
-    opBtn.onclick = e => { e.stopPropagation(); opList.classList.toggle('show'); };
+    opBtn.onclick = function(e) { e.stopPropagation(); opList.classList.toggle('show'); };
     opWrap.appendChild(opBtn); opWrap.appendChild(opList); pop.appendChild(opWrap);
     var inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'مقدار...'; inp.value = existing.val || ''; pop.appendChild(inp);
     var actions = document.createElement('div'); actions.className = 'cf-actions'; actions.innerHTML = '<button class="cf-clear" type="button">پاک کردن</button><button class="cf-close" type="button">بستن</button>'; pop.appendChild(actions);
@@ -245,16 +265,16 @@ function openColFilterPopover(tableId, origIdx, btn) {
         applyColumnFiltersToTable(tableId);
     }
     inp.addEventListener('input', update);
-    pop.querySelector('.cf-clear').addEventListener('click', () => { inp.value = ''; currentOp = ''; opBtn.innerHTML = '<span>— انتخاب کنید —</span><span>▼</span>'; opList.querySelectorAll('.cf-op-item').forEach(el => el.classList.remove('selected')); update(); closeColFilterPopover(); });
+    pop.querySelector('.cf-clear').addEventListener('click', function() { inp.value = ''; currentOp = ''; opBtn.innerHTML = '<span>— انتخاب کنید —</span><span>▼</span>'; opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); }); update(); closeColFilterPopover(); });
     pop.querySelector('.cf-close').addEventListener('click', closeColFilterPopover);
-    setTimeout(() => inp.focus(), 30);
+    setTimeout(function() { inp.focus(); }, 30);
 }
 
 function buildFilterRow(table) {
     if (!table || !table.id) return; var thead = table.querySelector('thead'); if (!thead) return;
     var headerRow = thead.querySelector('tr:not(.column-filter-row)'); if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
-    ths.forEach((th, domIdx) => {
+    ths.forEach(function(th, domIdx) {
         if (th.querySelector('.col-filter-btn')) return;
         var origIdxStr = th.getAttribute('data-orig-index'); if (origIdxStr === null) { origIdxStr = String(domIdx); th.setAttribute('data-orig-index', origIdxStr); }
         if (getComputedStyle(th).position === 'static') th.style.position = 'relative';
@@ -268,28 +288,28 @@ function buildFilterRow(table) {
         if (existing && existing.op) btn.classList.add('active');
     });
 }
-function attachFilterRowsToAllTables() { document.querySelectorAll('table.data-table, table.report-table, table.cf-table, table.ar-tbl').forEach(t => { if (!t.id || !t.querySelector('thead')) return; buildFilterRow(t); if (COLUMN_FILTERS[t.id]) applyColumnFiltersToTable(t.id); }); }
+function attachFilterRowsToAllTables() { document.querySelectorAll('table.data-table, table.report-table, table.cf-table, table.ar-tbl').forEach(function(t) { if (!t.id || !t.querySelector('thead')) return; buildFilterRow(t); if (COLUMN_FILTERS[t.id]) applyColumnFiltersToTable(t.id); }); }
 
 function makeCardCollapsible(cardEl, key) {
     if (!cardEl) return; var collapsed = state.cardCollapsed[key] === true; var btn = cardEl.querySelector('.card-collapse-btn');
     if (!btn) { btn = document.createElement('button'); btn.type = 'button'; btn.className = 'card-collapse-btn'; btn.textContent = '‹'; cardEl.appendChild(btn); }
     btn.classList.toggle('collapsed', collapsed); cardEl.classList.toggle('collapsed', collapsed);
-    if (!btn.dataset.bound) { btn.dataset.bound = '1'; btn.addEventListener('click', e => { e.stopPropagation(); var now = !cardEl.classList.contains('collapsed'); cardEl.classList.toggle('collapsed', now); btn.classList.toggle('collapsed', now); state.cardCollapsed[key] = now; DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed); }); }
+    if (!btn.dataset.bound) { btn.dataset.bound = '1'; btn.addEventListener('click', function(e) { e.stopPropagation(); var now = !cardEl.classList.contains('collapsed'); cardEl.classList.toggle('collapsed', now); btn.classList.toggle('collapsed', now); state.cardCollapsed[key] = now; DB.save(LS_KEYS.CARD_COLLAPSED, state.cardCollapsed); }); }
 }
 
 function buildHeaderButtons() {
-    document.querySelectorAll('.list-header').forEach(h => {
+    document.querySelectorAll('.list-header').forEach(function(h) {
         var tableId = h.getAttribute('data-col-table'); var hideKey = h.getAttribute('data-hide-key');
         if (hideKey) {
             var eye = h.querySelector('.eye-toggle-btn'); if (!eye) { eye = document.createElement('button'); eye.type = 'button'; eye.className = 'eye-toggle-btn'; eye.setAttribute('data-hide-key', hideKey); h.appendChild(eye); }
-            if (!eye.dataset.bound) { eye.dataset.bound = '1'; eye.addEventListener('click', ev => { ev.stopPropagation(); if (typeof toggleHideState === 'function') toggleHideState(hideKey); if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage(); }); }
+            if (!eye.dataset.bound) { eye.dataset.bound = '1'; eye.addEventListener('click', function(ev) { ev.stopPropagation(); if (typeof toggleHideState === 'function') toggleHideState(hideKey); if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage(); }); }
         }
         if (tableId) {
             var rBtn = h.querySelector('.col-reset-btn'); if (!rBtn) { rBtn = document.createElement('button'); rBtn.type = 'button'; rBtn.className = 'col-reset-btn'; rBtn.innerHTML = '↻'; rBtn.title = 'بازنشانی عرض'; h.appendChild(rBtn); }
-            if (!rBtn.dataset.bound) { rBtn.dataset.bound = '1'; rBtn.addEventListener('click', ev => { ev.stopPropagation(); resetColumnWidths(tableId); }); }
+            if (!rBtn.dataset.bound) { rBtn.dataset.bound = '1'; rBtn.addEventListener('click', function(ev) { ev.stopPropagation(); resetColumnWidths(tableId); }); }
             if (tableId !== 'ra-acc-table') {
                 var btn = h.querySelector('.col-toggle-btn'); if (!btn) { btn = document.createElement('button'); btn.className = 'col-toggle-btn'; btn.type = 'button'; btn.innerHTML = '⚙'; btn.title = 'تنظیمات ستون‌ها'; h.appendChild(btn); }
-                if (!btn.dataset.bound) { btn.dataset.bound = '1'; btn.addEventListener('click', ev => { ev.stopPropagation(); showColMenu(tableId, btn); }); }
+                if (!btn.dataset.bound) { btn.dataset.bound = '1'; btn.addEventListener('click', function(ev) { ev.stopPropagation(); showColMenu(tableId, btn); }); }
             }
         }
     });
@@ -300,10 +320,10 @@ function showColMenu(tableId, btn) {
     var menu = document.getElementById('col-menu'); if (!menu) return;
     var table = document.getElementById(tableId); if (!table) return;
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
-    headerRow.querySelectorAll('th').forEach((th, i) => { if (th.getAttribute('data-orig-index') === null) th.setAttribute('data-orig-index', String(i)); });
+    headerRow.querySelectorAll('th').forEach(function(th, i) { if (th.getAttribute('data-orig-index') === null) th.setAttribute('data-orig-index', String(i)); });
     var hidden = getHiddenCols(tableId); var currentOrder = getCurrentColumnOrder(tableId);
     var html = '<div class="col-menu-head">نمایش و ترتیب ستون‌ها</div><div class="col-menu-body">';
-    currentOrder.forEach(origIdx => {
+    currentOrder.forEach(function(origIdx) {
         var th = findThByOrigIndex(headerRow, origIdx); if (!th) return;
         var label = String(th.textContent || '').replace(/[⇅▲▼⚲]/g, '').trim() || ('ستون ' + (origIdx + 1));
         var checked = hidden.indexOf(origIdx) === -1 ? 'checked' : '';
@@ -312,15 +332,15 @@ function showColMenu(tableId, btn) {
     html += '</div><div class="col-menu-foot"><button type="button" class="col-menu-reset">بازنشانی</button><button type="button" class="col-menu-order-reset">↺ ترتیب</button><button type="button" class="col-menu-close">بستن</button></div>';
     menu.innerHTML = html; menu.classList.remove('hidden'); menu.style.zIndex = '99999'; menu.style.position = 'fixed';
     var rect = btn.getBoundingClientRect(); menu.style.top = (rect.bottom + 6) + 'px'; menu.style.left = Math.max(8, rect.left - 280 + rect.width) + 'px';
-    menu.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', function () { var tid = this.getAttribute('data-table'); var idx = Number(this.getAttribute('data-col')); var h = getHiddenCols(tid).slice(); if (this.checked) h = h.filter(x => x !== idx); else if (h.indexOf(idx) === -1) h.push(idx); setHiddenCols(tid, h); applyColVisibility(tid); }));
-    menu.querySelectorAll('.col-move-btn').forEach(b => b.addEventListener('click', function () { var tid = this.getAttribute('data-table'); var cidx = Number(this.getAttribute('data-col')); var dir = Number(this.getAttribute('data-dir')); var arr = getCurrentColumnOrder(tid); var pos = arr.indexOf(cidx); if (pos < 0) return; var npos = pos + dir; if (npos < 0 || npos >= arr.length) return; var tmp = arr[pos]; arr[pos] = arr[npos]; arr[npos] = tmp; columnOrders[tid] = arr; saveColumnOrders(); applyColumnOrder(tid); applyColVisibility(tid); showColMenu(tableId, btn); }));
-    menu.querySelector('.col-menu-reset').addEventListener('click', () => { setHiddenCols(tableId, []); applyColVisibility(tableId); showColMenu(tableId, btn); });
-    menu.querySelector('.col-menu-order-reset').addEventListener('click', () => { delete columnOrders[tableId]; saveColumnOrders(); var table2 = document.getElementById(tableId); if (table2) { table2.querySelectorAll('tr').forEach(row => { var cells = Array.from(row.children); if (cells.length <= 1) return; var map = {}, unindexed = []; cells.forEach(c => { var oi = c.getAttribute('data-orig-index'); if (oi !== null) map[oi] = c; else unindexed.push(c); }); Object.keys(map).map(Number).sort((a, b) => a - b).forEach(k => row.appendChild(map[k])); unindexed.forEach(c => row.appendChild(c)); }); } showColMenu(tableId, btn); });
-    menu.querySelector('.col-menu-close').addEventListener('click', () => menu.classList.add('hidden'));
+    menu.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.addEventListener('change', function () { var tid = this.getAttribute('data-table'); var idx = Number(this.getAttribute('data-col')); var h = getHiddenCols(tid).slice(); if (this.checked) h = h.filter(function(x) { return x !== idx; }); else if (h.indexOf(idx) === -1) h.push(idx); setHiddenCols(tid, h); applyColVisibility(tid); }); });
+    menu.querySelectorAll('.col-move-btn').forEach(function(b) { b.addEventListener('click', function () { var tid = this.getAttribute('data-table'); var cidx = Number(this.getAttribute('data-col')); var dir = Number(this.getAttribute('data-dir')); var arr = getCurrentColumnOrder(tid); var pos = arr.indexOf(cidx); if (pos < 0) return; var npos = pos + dir; if (npos < 0 || npos >= arr.length) return; var tmp = arr[pos]; arr[pos] = arr[npos]; arr[npos] = tmp; columnOrders[tid] = arr; saveColumnOrders(); applyColumnOrder(tid); applyColVisibility(tid); showColMenu(tableId, btn); }); });
+    menu.querySelector('.col-menu-reset').addEventListener('click', function() { setHiddenCols(tableId, []); applyColVisibility(tableId); showColMenu(tableId, btn); });
+    menu.querySelector('.col-menu-order-reset').addEventListener('click', function() { delete columnOrders[tableId]; saveColumnOrders(); var table2 = document.getElementById(tableId); if (table2) { table2.querySelectorAll('tr').forEach(function(row) { var cells = Array.from(row.children); if (cells.length <= 1) return; var map = {}, unindexed = []; cells.forEach(function(c) { var oi = c.getAttribute('data-orig-index'); if (oi !== null) map[oi] = c; else unindexed.push(c); }); Object.keys(map).map(Number).sort(function(a, b) { return a - b; }).forEach(function(k) { row.appendChild(map[k]); }); unindexed.forEach(function(c) { row.appendChild(c); }); }); } showColMenu(tableId, btn); });
+    menu.querySelector('.col-menu-close').addEventListener('click', function() { menu.classList.add('hidden'); });
 }
 
-document.addEventListener('click', e => { var menu = document.getElementById('col-menu'); if (!menu || menu.classList.contains('hidden')) return; if (menu.contains(e.target) || (e.target.closest && e.target.closest('.col-toggle-btn'))) return; menu.classList.add('hidden'); });
+document.addEventListener('click', function(e) { var menu = document.getElementById('col-menu'); if (!menu || menu.classList.contains('hidden')) return; if (menu.contains(e.target) || (e.target.closest && e.target.closest('.col-toggle-btn'))) return; menu.classList.add('hidden'); });
 
 window.colWidths = colWidths; window.saveColWidths = saveColWidths; window.applyColWidths = applyColWidths; window.updateTableMinWidth = updateTableMinWidth; window.makeTableResizable = makeTableResizable; window.resetColumnWidths = resetColumnWidths; window.makeAllTablesResizable = makeAllTablesResizable; window.MANAGED_TABLE_IDS = MANAGED_TABLE_IDS; window.columnOrders = columnOrders; window.saveColumnOrders = saveColumnOrders; window.getCurrentColumnOrder = getCurrentColumnOrder; window.applyColumnOrder = applyColumnOrder; window.resetColumnOrder = resetColumnOrder; window.moveColumnInTable = moveColumnInTable; window.getHiddenCols = getHiddenCols; window.setHiddenCols = setHiddenCols; window.applyColVisibility = applyColVisibility; window.applyColVisibilityAll = applyColVisibilityAll; window.showColMenu = showColMenu; window.sortState = sortState; window.compareVals = compareVals; window.tableSortState = tableSortState; window.applySortIndicator = applySortIndicator; window.attachTableSorting = attachTableSorting; window.applyTableSort = applyTableSort; window.COLUMN_FILTERS = COLUMN_FILTERS; window.applyColumnFiltersToTable = applyColumnFiltersToTable; window.buildFilterRow = buildFilterRow; window.attachFilterRowsToAllTables = attachFilterRowsToAllTables; window.makeCardCollapsible = makeCardCollapsible; window.buildHeaderButtons = buildHeaderButtons; window.normalizeCellText = normalizeCellText; window.testFilter = testFilter; window.makeFilterPanelCollapsible = makeFilterPanelCollapsible; window.syncBodyOrigIndices = syncBodyOrigIndices; window.openColFilterPopover = openColFilterPopover; window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — Filter popover fixed');
+console.log('✅ [ui/table.js] loaded — Syntax error fixed');
