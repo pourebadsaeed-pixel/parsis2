@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (نسخه کامل و اصلاح‌شده با قیف)
+   پارسیس — فهرست اسناد (نسخه ضد باگ)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -14,12 +14,8 @@ function ensureVoucherPaginationBox() {
     box.id = 'vlist-pagination';
     box.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;margin-top:14px;padding:6px 0;flex-wrap:wrap;direction:rtl';
     var tableWrap = document.querySelector('#page-voucher-list .table-wrap');
-    if (tableWrap && tableWrap.parentNode) {
-        tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
-    } else {
-        var page = document.getElementById('page-voucher-list');
-        if (page) page.appendChild(box);
-    }
+    if (tableWrap && tableWrap.parentNode) tableWrap.parentNode.insertBefore(box, tableWrap.nextSibling);
+    else { var page = document.getElementById('page-voucher-list'); if (page) page.appendChild(box); }
     return box;
 }
 
@@ -54,13 +50,13 @@ function renderVoucherList() {
     if (!tb) return;
 
     var allVouchers = DB.load('vouchers', []);
+    if (!Array.isArray(allVouchers)) allVouchers = [];
+    allVouchers = allVouchers.filter(function(x) { return x && typeof x === 'object'; });
 
-    if (!Array.isArray(allVouchers) || allVouchers.length === 0) {
+    if (allVouchers.length === 0) {
         tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است.</td></tr>';
-        var cEl = document.getElementById('vlist-count');
-        if (cEl) cEl.textContent = '۰';
-        var box = document.getElementById('vlist-pagination');
-        if (box) box.style.display = 'none';
+        var cEl = document.getElementById('vlist-count'); if (cEl) cEl.textContent = '۰';
+        var box = document.getElementById('vlist-pagination'); if (box) box.style.display = 'none';
         return;
     }
 
@@ -74,7 +70,7 @@ function renderVoucherList() {
 
     var periods = DB.load('fiscalPeriods', []);
     var pMap = {};
-    periods.forEach(function (p) { pMap[p.id] = p.title; });
+    if (Array.isArray(periods)) { periods.forEach(function (p) { if(p) pMap[p.id] = p.title; }); }
 
     if (searchVal) {
         vouchers = vouchers.filter(function (v) {
@@ -182,80 +178,39 @@ function handleVoucherRowAction() {
 
     if (action === 'copy') {
         var srcLines = Array.isArray(v.lines) ? v.lines : [];
-        if (srcLines.length === 0) {
-            showToast('⚠️ این سند ردیفی ندارد که کپی شود.');
-            return;
-        }
+        if (srcLines.length === 0) { showToast('⚠️ این سند ردیفی ندارد که کپی شود.'); return; }
         var clonedLines = [];
         for (var li = 0; li < srcLines.length; li++) {
-            var L = srcLines[li];
-            if (!L || typeof L !== 'object') continue;
-            clonedLines.push({
-                id: uid(),
-                account: L.account || '',
-                details: JSON.parse(JSON.stringify(L.details || {})),
-                debit: Number(L.debit) || 0,
-                credit: Number(L.credit) || 0,
-                description: L.description || '',
-                trackingNumber: L.trackingNumber || '',
-                trackingDate: L.trackingDate || '',
-                locked: !!L.locked
-            });
+            var L = srcLines[li]; if (!L || typeof L !== 'object') continue;
+            clonedLines.push({ id: uid(), account: L.account || '', details: JSON.parse(JSON.stringify(L.details || {})), debit: Number(L.debit) || 0, credit: Number(L.credit) || 0, description: L.description || '', trackingNumber: L.trackingNumber || '', trackingDate: L.trackingDate || '', locked: !!L.locked });
         }
-        if (clonedLines.length === 0) {
-            showToast('⚠️ خطا: ردیف‌ها قابل کپی نبودند.');
-            return;
-        }
-        var newV = {
-            id: uid(),
-            number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
-            date: todayJalaliStr(),
-            time: v.time || '08:00',
-            type: v.type || 'general',
-            periodId: state.activePeriodId || '',
-            desc: v.desc || '',
-            lines: clonedLines,
-            status: 'draft'
-        };
-        var list = DB.load('vouchers', []);
-        list.push(newV);
-        DB.save('vouchers', list);
+        if (clonedLines.length === 0) { showToast('⚠️ خطا: ردیف‌ها قابل کپی نبودند.'); return; }
+        var newV = { id: uid(), number: getNextVoucherNumberForPeriod(state.activePeriodId || ''), date: todayJalaliStr(), time: v.time || '08:00', type: v.type || 'general', periodId: state.activePeriodId || '', desc: v.desc || '', lines: clonedLines, status: 'draft' };
+        var list = DB.load('vouchers', []); list.push(newV); DB.save('vouchers', list);
         showToast('📋 سند با ' + toFa(clonedLines.length) + ' ردیف کپی شد (پیش‌نویس)');
-        renderVoucherList();
-        return;
+        renderVoucherList(); return;
     }
 
     if (action === 'approve') {
         var issues = getVoucherIssues(v);
         if (issues.length > 0) { alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• ')); return; }
         var list = DB.load('vouchers', []);
-        for (var x = 0; x < list.length; x++) {
-            if (list[x].id === id) list[x].status = 'approved';
-        }
-        DB.save('vouchers', list);
-        renderVoucherList();
-        showToast('✅ سند تأیید شد.');
-        return;
+        for (var x = 0; x < list.length; x++) { if (list[x].id === id) list[x].status = 'approved'; }
+        DB.save('vouchers', list); renderVoucherList(); showToast('✅ سند تأیید شد.'); return;
     }
 
     if (action === 'unapprove') {
         if (!confirm('به پیش‌نویس برگردد؟')) return;
         var list2 = DB.load('vouchers', []);
-        for (var y = 0; y < list2.length; y++) {
-            if (list2[y].id === id) list2[y].status = 'draft';
-        }
-        DB.save('vouchers', list2);
-        renderVoucherList();
-        return;
+        for (var y = 0; y < list2.length; y++) { if (list2[y].id === id) list2[y].status = 'draft'; }
+        DB.save('vouchers', list2); renderVoucherList(); return;
     }
 
     if (action === 'delete') {
         if (!confirm('حذف شود؟')) return;
         var list3 = DB.load('vouchers', []).filter(function (x) { return x.id !== id; });
-        DB.save('vouchers', list3);
-        renderVoucherList();
-        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        return;
+        DB.save('vouchers', list3); renderVoucherList();
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); return;
     }
 }
 
@@ -264,22 +219,16 @@ function setupSorting() {
     for (var i = 0; i < ths.length; i++) {
         ths[i].addEventListener('click', function () {
             var col = this.getAttribute('data-sort');
-            if (sortState.vouchers.col === col) {
-                sortState.vouchers.dir = sortState.vouchers.dir === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortState.vouchers.col = col;
-                sortState.vouchers.dir = 'asc';
-            }
+            if (sortState.vouchers.col === col) { sortState.vouchers.dir = sortState.vouchers.dir === 'asc' ? 'desc' : 'asc'; } 
+            else { sortState.vouchers.col = col; sortState.vouchers.dir = 'asc'; }
             renderVoucherList();
         });
     }
 }
 
 function openVoucherPreview(v) {
-    var body = document.getElementById('vpreview-body');
-    if (!body) return;
-    var accounts = DB.load('accounts', []);
-    var periods = DB.load('fiscalPeriods', []);
+    var body = document.getElementById('vpreview-body'); if (!body) return;
+    var accounts = DB.load('accounts', []); var periods = DB.load('fiscalPeriods', []);
     var period = periods.find(function (p) { return p.id === v.periodId; });
     var status = v.status === 'approved' ? '<span class="badge badge-approved">✓ تأیید</span>' : '<span class="badge badge-draft">پیش‌نویس</span>';
 
@@ -290,26 +239,16 @@ function openVoucherPreview(v) {
     html += '<div><span class="lbl">نوع:</span> ' + voucherTypeName(v.type) + '</div>';
     html += '<div><span class="lbl">دوره:</span> ' + esc(period ? period.title : '—') + '</div>';
     html += '<div class="full"><span class="lbl">شرح:</span> <b>' + esc(v.desc || '') + '</b></div>';
-    html += '<div><span class="lbl">وضعیت:</span> ' + status + '</div>';
-    html += '</div></div>';
+    html += '<div><span class="lbl">وضعیت:</span> ' + status + '</div></div></div>';
 
     html += '<div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>معین</th><th>تفصیلی</th><th>شرح</th><th>بدهکار</th><th>بستانکار</th></tr></thead><tbody>';
-
-    var td = 0, tc = 0;
-    var lines = v.lines || [];
+    var td = 0, tc = 0; var lines = v.lines || [];
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         var accLabel = line.account ? getAccountLabel(line.account, accounts) : '—';
         var dt = '';
-        if (line.details) {
-            Object.keys(line.details).forEach(function (lt) {
-                var did = line.details[lt];
-                if (did) { if (dt) dt += ' ، '; dt += linkTypeName(lt) + ': ' + getDetailLabel(lt, did); }
-            });
-        }
-        var d = Number(line.debit) || 0;
-        var c = Number(line.credit) || 0;
-        td += d; tc += c;
+        if (line.details) { Object.keys(line.details).forEach(function (lt) { var did = line.details[lt]; if (did) { if (dt) dt += ' ، '; dt += linkTypeName(lt) + ': ' + getDetailLabel(lt, did); } }); }
+        var d = Number(line.debit) || 0; var c = Number(line.credit) || 0; td += d; tc += c;
         html += '<tr><td>' + toFa(i + 1) + '</td><td>' + esc(accLabel) + '</td><td>' + (dt ? esc(dt) : '—') + '</td><td>' + esc(line.description || '') + '</td><td class="num dr">' + (d ? formatMoney(d) : '—') + '</td><td class="num cr">' + (c ? formatMoney(c) : '—') + '</td></tr>';
     }
     html += '</tbody><tfoot><tr><td colspan="4" style="text-align:left">جمع</td><td class="num dr">' + formatMoney(td) + '</td><td class="num cr">' + formatMoney(tc) + '</td></tr></tfoot></table></div>';
@@ -318,116 +257,54 @@ function openVoucherPreview(v) {
     else html += '<div class="vp-balance-err">⚠️ اختلاف: ' + formatMoney(Math.abs(td - tc)) + '</div>';
 
     body.innerHTML = html;
-    var m = document.getElementById('vpreview-modal');
-    var o = document.getElementById('vpreview-overlay');
-    if (m) m.classList.add('show');
-    if (o) o.classList.add('show');
-    window._currentPreviewVoucher = v;
+    var m = document.getElementById('vpreview-modal'); var o = document.getElementById('vpreview-overlay');
+    if (m) m.classList.add('show'); if (o) o.classList.add('show'); window._currentPreviewVoucher = v;
 }
 
 function closeVoucherPreview() {
-    var m = document.getElementById('vpreview-modal');
-    var o = document.getElementById('vpreview-overlay');
-    if (m) m.classList.remove('show');
-    if (o) o.classList.remove('show');
-    window._currentPreviewVoucher = null;
-}
-
-function printVoucherPreview() {
-    var v = window._currentPreviewVoucher;
-    if (!v) return;
-    var body = document.getElementById('vpreview-body');
-    var win = window.open('', '_blank');
-    if (!win) return;
-    var ff = typeof getPrintFontFamily === 'function' ? getPrintFontFamily() : 'Tahoma';
-    win.document.write('<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>سند ' + esc(v.number) + '</title><style>');
-    win.document.write('body{font-family:' + ff + ';direction:rtl;color:#222;font-size:12px;}h1{text-align:center;font-size:15px;}table{width:100%;border-collapse:collapse;font-size:10px;}th,td{border:1px solid #999;padding:5px 7px;}th{background:#e6f0fa;}.dr{color:#c0392b;}.cr{color:#1e9e6a;}');
-    win.document.write('</style></head><body><h1>سند شماره ' + toFa(esc(v.number)) + '</h1>' + body.innerHTML + '</body></html>');
-    win.document.close();
-    setTimeout(function () { win.focus(); win.print(); }, 400);
+    var m = document.getElementById('vpreview-modal'); var o = document.getElementById('vpreview-overlay');
+    if (m) m.classList.remove('show'); if (o) o.classList.remove('show'); window._currentPreviewVoucher = null;
 }
 
 function openVoucherForEditById(vid) {
     var v = findVoucherById(vid);
     if (!v) { showToast('سند یافت نشد.'); return; }
     if (v.status === 'approved') {
-        var ans = confirm('این سند تأیید شده است.\n\nOK = برگشت از تأیید + ویرایش\nCancel = فقط مشاهده');
-        if (ans) {
+        if (confirm('این سند تأیید شده است.\n\nOK = برگشت از تأیید + ویرایش\nCancel = فقط مشاهده')) {
             var l = DB.load('vouchers', []);
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === vid) { l[i].status = 'draft'; break; }
-            }
-            DB.save('vouchers', l);
-            showToast('↩ سند به پیش‌نویس برگشت.');
-            loadVoucherForEdit(v);
-        } else {
-            openVoucherPreview(v);
-        }
+            for (var i = 0; i < l.length; i++) { if (l[i].id === vid) { l[i].status = 'draft'; break; } }
+            DB.save('vouchers', l); showToast('↩ سند به پیش‌نویس برگشت.'); loadVoucherForEdit(v);
+        } else { openVoucherPreview(v); }
         return;
     }
     loadVoucherForEdit(v);
 }
 
-function editVoucherFromAnywhere(vid) {
-    openVoucherForEditById(vid);
-}
-
 function bindVoucherListFilters() {
-    var vpf = document.getElementById('vl-period-filter');
-    if (vpf && !vpf.dataset.bound) {
-        vpf.dataset.bound = '1';
-        vpf.addEventListener('change', function () {
-            window._vlistPg.page = 1;
-            renderVoucherList();
-        });
-    }
-    var vsrch = document.getElementById('vlist-search');
-    if (vsrch && !vsrch.dataset.bound) {
-        vsrch.dataset.bound = '1';
-        vsrch.addEventListener('input', function () {
-            window._vlistPg.page = 1;
-            renderVoucherList();
-        });
-    }
-    var vstatus = document.getElementById('vlist-status-filter');
-    if (vstatus && !vstatus.dataset.bound) {
-        vstatus.dataset.bound = '1';
-        vstatus.addEventListener('change', function () {
-            window._vlistPg.page = 1;
-            renderVoucherList();
-        });
-    }
+    var vpf = document.getElementById('vl-period-filter'); if (vpf && !vpf.dataset.bound) { vpf.dataset.bound = '1'; vpf.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
+    var vsrch = document.getElementById('vlist-search'); if (vsrch && !vsrch.dataset.bound) { vsrch.dataset.bound = '1'; vsrch.addEventListener('input', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
+    var vstatus = document.getElementById('vlist-status-filter'); if (vstatus && !vstatus.dataset.bound) { vstatus.dataset.bound = '1'; vstatus.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
 }
 
 (function patchGoToPageForVoucherList() {
     function install() {
         if (typeof window.goToPage !== 'function') { setTimeout(install, 500); return; }
-        if (window._gtpVListPatched) return;
-        window._gtpVListPatched = true;
+        if (window._gtpVListPatched) return; window._gtpVListPatched = true;
         var orig = window.goToPage;
         window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
-            if (name === 'voucher-list') {
-                setTimeout(function () {
-                    try { renderVoucherList(); } catch (e) { console.error('vlist:', e); }
-                }, 120);
-            }
+            if (name === 'voucher-list') { setTimeout(function () { try { renderVoucherList(); } catch (e) { console.error('vlist:', e); } }, 120); }
             return r;
         };
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(install, 2000); });
-    } else {
-        setTimeout(install, 2000);
-    }
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function () { setTimeout(install, 2000); }); } else { setTimeout(install, 2000); }
 })();
 
 (function ensureVoucherListRendering() {
     setInterval(function () {
         var page = document.getElementById('page-voucher-list');
         if (!page || !page.classList.contains('active')) return;
-        var tb = document.getElementById('voucher-list-body');
-        if (!tb) return;
+        var tb = document.getElementById('voucher-list-body'); if (!tb) return;
         var rows = tb.querySelectorAll('tr').length;
         var isEmpty = rows === 0 || (rows === 1 && tb.querySelector('.empty-row'));
         var dbCount = DB.load('vouchers', []).length;
@@ -435,15 +312,10 @@ function bindVoucherListFilters() {
     }, 3000);
 })();
 
-window.renderVoucherList          = renderVoucherList;
-window.handleVoucherRowAction     = handleVoucherRowAction;
-window.setupSorting               = setupSorting;
-window.openVoucherPreview         = openVoucherPreview;
-window.closeVoucherPreview        = closeVoucherPreview;
-window.printVoucherPreview        = printVoucherPreview;
-window.openVoucherForEditById     = openVoucherForEditById;
-window.editVoucherFromAnywhere    = editVoucherFromAnywhere;
-window.bindVoucherListFilters     = bindVoucherListFilters;
-window.VOUCHER_PAGE_SIZE          = VOUCHER_PAGE_SIZE;
-
-console.log('✅ [modules/vouchers/list.js] loaded — Complete');
+window.renderVoucherList = renderVoucherList;
+window.handleVoucherRowAction = handleVoucherRowAction;
+window.setupSorting = setupSorting;
+window.openVoucherPreview = openVoucherPreview;
+window.closeVoucherPreview = closeVoucherPreview;
+window.openVoucherForEditById = openVoucherForEditById;
+window.bindVoucherListFilters = bindVoucherListFilters;
