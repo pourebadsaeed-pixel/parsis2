@@ -1,6 +1,5 @@
 /* ============================================================
-   پارسیس — احراز هویت (نسخه نهایی، بدون لگ با رفرش هوشمند)
-   مسیر: js/modules/auth.js
+   پارسیس — احراز هویت (نسخه پایدار)
    ============================================================ */
 'use strict';
 
@@ -55,31 +54,22 @@ function login() {
             return;
         }
 
-        // ✅ ذخیره سشن
         try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch(e) {}
-        try { sessionStorage.setItem('parsis.justLoggedIn', '1'); } catch(e) {}
         
-        // ✅ نمایش پیام موفقیت
         var btn = document.getElementById('login-btn');
-        if (btn) {
-            btn.innerHTML = '✅ ورود موفق، لطفاً صبر کنید...';
-            btn.style.background = 'linear-gradient(135deg,#10b981,#059669)';
-        }
+        if (btn) { btn.innerHTML = '⏳ در حال ورود...'; btn.disabled = true; }
         
-        // ✅ رفرش هوشمند (حل قطعی مشکل لگ)
-        setTimeout(function() {
-            location.reload();
-        }, 300);
+        // رفرش صفحه برای بارگذاری کامل و بدون لگ
+        setTimeout(function() { location.reload(); }, 200);
 
     } catch(e) {
         console.error('[auth] خطا در login:', e);
-        alert('خطا در ورود: ' + e.message);
+        alert('خطا در ورود.');
     }
 }
 
 function logout() {
     try { sessionStorage.removeItem('parsis.session'); } catch(e) {}
-    try { sessionStorage.removeItem('parsis.justLoggedIn'); } catch(e) {}
     location.reload();
 }
 
@@ -87,29 +77,15 @@ function bindAuthUI() {
     if (window._authDelegated) return;
     window._authDelegated = true;
 
-    // اتصال مستقیم دکمه ورود
     var loginBtn = document.getElementById('login-btn');
-    if (loginBtn) {
-        loginBtn.onclick = function(e) {
-            e.preventDefault();
-            this.innerHTML = '⏳ در حال بررسی...';
-            setTimeout(function() { login(); }, 50);
-        };
-    }
-
-    // اتصال دکمه خروج
+    if (loginBtn) loginBtn.onclick = function(e) { e.preventDefault(); login(); };
+    
     var logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.onclick = function(e) { e.preventDefault(); logout(); };
-    }
+    if (logoutBtn) logoutBtn.onclick = function(e) { e.preventDefault(); logout(); };
 
-    // ورود با کلید Enter
     document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter') return;
-        var t = e.target;
-        if (t && (t.id === 'login-password' || t.id === 'login-username')) {
-            e.preventDefault();
-            login();
+        if (e.key === 'Enter' && (e.target.id === 'login-password' || e.target.id === 'login-username')) {
+            e.preventDefault(); login();
         }
     });
 }
