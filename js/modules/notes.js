@@ -540,4 +540,64 @@ async function openNoteView(noteId) {
 function closeNoteView() {
     var m = document.getElementById('noteview-modal');
     var o = document.getElementById('noteview-overlay');
-    if (m
+    if (m) m.classList.remove('show');
+    if (o) o.classList.remove('show');
+}
+
+function bindNotesForm() {
+    var addItemBtn = document.getElementById('nt-add-item');
+    if (addItemBtn) addItemBtn.addEventListener('click', function () { noteChecklist.push({ id: uid(), text: '', done: false }); renderNoteChecklist(); });
+
+    var saveBtn = document.getElementById('nt-save');
+    if (saveBtn) saveBtn.addEventListener('click', saveNote);
+
+    var newBtn = document.getElementById('nt-new');
+    if (newBtn) newBtn.addEventListener('click', clearNoteForm);
+
+    var cancelBtn = document.getElementById('nt-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', function () {
+        clearNoteForm();
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="notes-list"]') : null;
+        if (listTab) listTab.click();
+    });
+
+    var imgInput = document.getElementById('nt-image-input');
+    if (imgInput) {
+        imgInput.addEventListener('click', function (e) { if (window.showOpenFilePicker) { e.preventDefault(); handleNoteImagesFS(); } });
+        imgInput.addEventListener('change', function () {
+            if (!window.showOpenFilePicker && this.files && this.files.length) handleNoteImages(this.files);
+            this.value = '';
+        });
+    }
+
+    var filterEl = document.getElementById('notes-filter');
+    if (filterEl) filterEl.addEventListener('input', renderNotesList);
+
+    var catFilter = document.getElementById('notes-cat-filter');
+    if (catFilter) catFilter.addEventListener('change', renderNotesList);
+
+    var viewBtns = document.querySelectorAll('[data-notes-view]');
+    for (var nv = 0; nv < viewBtns.length; nv++) {
+        viewBtns[nv].addEventListener('click', function () {
+            state.notesView = this.getAttribute('data-notes-view');
+            saveState(LS_KEYS.NOTES_VIEW);
+            renderNotesList();
+        });
+    }
+}
+
+window.noteChecklist      = noteChecklist;
+window.noteImageRefs      = noteImageRefs;
+window.getNoteCategoryMeta = getNoteCategoryMeta;
+window.renderNoteChecklist = renderNoteChecklist;
+window.renderNoteImages   = renderNoteImages;
+window.openImageView      = openImageView;
+window.clearNoteForm      = clearNoteForm;
+window.saveNote           = saveNote;
+window.renderNotesList    = renderNotesList;
+window.openNoteView       = openNoteView;
+window.closeNoteView      = closeNoteView;
+window.bindNotesForm      = bindNotesForm;
+
+console.log('✅ [modules/notes.js] loaded — Complete');
