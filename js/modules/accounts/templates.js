@@ -1,13 +1,11 @@
 /* ============================================================
    پارسیس — الگوهای سند + شرح‌های استاندارد
-   مسیر: js/modules/accounts/templates.js
+   مسیر: js/modules/accounts/templates.js (نسخه کامل)
    ============================================================ */
 'use strict';
 
-/* خطوط الگوی در حال ویرایش */
 var templateLines = [];
 
-/* استایل اختصاصی برای لیست کشویی جستجوپذیر و ظاهر فرم سند */
 (function injectTplCss() {
     if (document.getElementById('tpl-fix-style')) return;
     var s = document.createElement('style');
@@ -16,7 +14,6 @@ var templateLines = [];
         .tpl-line-box { padding:14px; background:var(--card-alt); border-radius:14px; margin-bottom:12px; position:relative; border:1px solid var(--border); }
         .tpl-line-box .ln-num { position:absolute; top:10px; right:14px; font-size:0.75rem; color:var(--text-muted); font-weight:800; }
         
-        /* استایل لیست کشویی جستجوپذیر */
         .cs-wrapper { position: relative; width: 100%; margin-top: 14px; }
         .cs-trigger { padding:10px; font-size:0.82rem; border:1.5px solid var(--border); border-radius:10px; background:var(--card-solid); cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none; min-height:40px; }
         .cs-trigger:hover { border-color:var(--primary); }
@@ -65,9 +62,6 @@ var templateLines = [];
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   ساخت کامپوننت لیست کشویی جستجوپذیر
-   ============================================================ */
 function createSearchableSelect(items, selectedValue, placeholder, onChange) {
     var wrap = document.createElement('div');
     wrap.className = 'cs-wrapper';
@@ -142,9 +136,6 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange) {
     return wrap;
 }
 
-/* ============================================================
-   الگوهای پیش‌فرض
-   ============================================================ */
 function getDefaultTemplates() {
     return [
         { id: 'tpl-taxi', name: 'کرایه تاکسی روزانه', desc: 'کرایه تاکسی شغلی', lines: [
@@ -166,9 +157,6 @@ function getDefaultStdDescriptions() {
     return ['کرایه تاکسی', 'خرید ملزومات', 'هزینه سوخت', 'هزینه پذیرایی', 'پرداخت قبض', 'دریافت از مشتری', 'پرداخت به تأمین‌کننده', 'حقوق و دستمزد', 'اجاره', 'تلفن و اینترنت'];
 }
 
-/* ============================================================
-   توابع کمکی
-   ============================================================ */
 function refreshTemplateSelect() {
     var sel = document.getElementById('v-template');
     if (!sel) return;
@@ -195,9 +183,6 @@ function findAccountByNameHint(hint) {
     return '';
 }
 
-/* ============================================================
-   رندر فهرست الگوها (تب اول)
-   ============================================================ */
 function renderTemplateList() {
     var list = DB.load('voucherTemplates', []);
     var box = document.getElementById('tpl-list-body');
@@ -286,7 +271,8 @@ function renderTemplateList() {
                 });
                 
                 renderTemplateLines();
-                var addTab = document.querySelector('[data-tab="tpl-add"]');
+                var activePage = document.querySelector('.page.active');
+                var addTab = activePage ? activePage.querySelector('[data-tab="tpl-add"]') : null;
                 if (addTab) addTab.click();
                 return;
             }
@@ -303,9 +289,6 @@ function renderTemplateList() {
     }
 }
 
-/* ============================================================
-   رندر اقلام الگو (با کامپوننت جستجوپذیر)
-   ============================================================ */
 function renderTemplateLines() {
     var box = document.getElementById('tpl-lines');
     if (!box) return;
@@ -320,7 +303,6 @@ function renderTemplateLines() {
     var leaves = accounts.filter(function (a) { return !accounts.some(function (x) { return x.parent === a.id; }); });
     leaves.sort(function (a, b) { return compareVals(a.code || '', b.code || ''); });
 
-    // آماده‌سازی لیست حساب‌ها برای کامپوننت
     var accItems = leaves.map(function(a) {
         return { value: a.id, text: getAccountLabel(a.id, accounts) };
     });
@@ -333,15 +315,13 @@ function renderTemplateLines() {
         
         wrap.insertAdjacentHTML('beforeend', '<span class="ln-num">#' + toFa(idx + 1) + '</span>');
 
-        /* --- ردیف ۱: انتخاب حساب (جستجوپذیر) --- */
         var accSelect = createSearchableSelect(accItems, line.account, '— انتخاب حساب —', function(val) {
             line.account = val;
-            line.details = {}; // با تغییر حساب، تفصیلی پاک می‌شود
-            renderTemplateLines(); // رندر مجدد برای نمایش/مخفی کردن تفصیلی
+            line.details = {}; 
+            renderTemplateLines(); 
         });
         wrap.appendChild(accSelect);
 
-        /* --- ردیف ۲: انتخاب تفصیلی (جستجوپذیر) --- */
         var acc = accounts.find(function (a) { return a.id === line.account; });
         if (acc && acc.links && acc.links.length > 0) {
             var combined = [];
@@ -371,7 +351,6 @@ function renderTemplateLines() {
             wrap.appendChild(detSelect);
         }
 
-        /* --- ردیف ۳: مبالغ بدهکار و بستانکار --- */
         var amtRow = document.createElement('div');
         amtRow.className = 'tpl-amounts-row';
 
@@ -423,7 +402,6 @@ function renderTemplateLines() {
         amtRow.appendChild(mkAmtInput('بستانکار', false));
         wrap.appendChild(amtRow);
 
-        /* --- ردیف ۴: شرح --- */
         var descRow = document.createElement('div');
         descRow.className = 'tpl-desc-row';
         var descInp = document.createElement('input');
@@ -441,7 +419,6 @@ function renderTemplateLines() {
         descRow.appendChild(descInp); descRow.appendChild(addStdBtn);
         wrap.appendChild(descRow);
 
-        /* --- ردیف ۵: دکمه‌های عملیات --- */
         var actWrap = document.createElement('div');
         actWrap.className = 'tpl-actions-row';
 
@@ -470,9 +447,6 @@ function renderTemplateLines() {
     });
 }
 
-/* ============================================================
-   شرح‌های استاندارد
-   ============================================================ */
 function renderStdDescChips() {
     var list = DB.load('standardDescriptions', getDefaultStdDescriptions());
     var box = document.getElementById('std-desc-chips');
@@ -540,9 +514,6 @@ function addDescriptionToStandard(desc, silent) {
     return true;
 }
 
-/* ============================================================
-   اتصال دکمه‌های فرم الگو
-   ============================================================ */
 function bindTemplatesForm() {
     var addLineBtn = document.getElementById('tpl-add-line');
     if (addLineBtn) addLineBtn.addEventListener('click', function () {
@@ -593,7 +564,8 @@ function bindTemplatesForm() {
         
         renderTemplateList();
         refreshTemplateSelect();
-        var listTab = document.querySelector('[data-tab="tpl-list"]');
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="tpl-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -638,9 +610,6 @@ function bindTemplatesForm() {
     if (stdSearch) stdSearch.addEventListener('input', function () { renderStdDescChips(); });
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.createSearchableSelect     = createSearchableSelect;
 window.getDefaultTemplates        = getDefaultTemplates;
 window.getDefaultStdDescriptions  = getDefaultStdDescriptions;
@@ -654,4 +623,4 @@ window.refreshStdDescDatalist     = refreshStdDescDatalist;
 window.addDescriptionToStandard   = addDescriptionToStandard;
 window.bindTemplatesForm          = bindTemplatesForm;
 
-console.log('✅ [modules/accounts/templates.js] loaded — Searchable Dropdown added');
+console.log('✅ [modules/accounts/templates.js] loaded — Complete');
