@@ -1,23 +1,38 @@
 /* ============================================================
-   پارسیس — فرم‌ها: سیستم تب پیشرفته (با اتصال خودکار دکمه‌ها)
+   پارسیس — فرم‌ها: سیستم تب پیشرفته (نسخه اصلاح‌شده جامع)
    مسیر: js/ui/form.js
    ============================================================ */
 'use strict';
 
+/* ============================================================
+   بخش ۰ — پچ getElementById (فعال‌سازی خود صفحه)
+   ============================================================ */
 (function patchGetElementById() {
     if (window._getByIdPatched) return;
     window._getByIdPatched = true;
     var origGet = document.getElementById;
+
     document.getElementById = function(id) {
+        if (!id) return origGet.call(document, id);
         var activePage = document.querySelector('.page.active');
-        if (activePage && activePage.querySelector) {
-            var el = activePage.querySelector('#' + id);
-            if (el) return el;
+        if (activePage) {
+            // ۱) اگر خودِ صفحه‌ی فعال با این id مطابقت دارد (مثل page-X یا page-X-timestamp)
+            if (activePage.id === id || activePage.id.indexOf(id + '-') === 0) {
+                return activePage;
+            }
+            // ۲) عنصر داخل صفحه‌ی فعال
+            if (activePage.querySelector) {
+                var el = activePage.querySelector('#' + id);
+                if (el) return el;
+            }
         }
         return origGet.call(document, id);
     };
 })();
 
+/* ============================================================
+   بخش ۱ — CSS نوار تب
+   ============================================================ */
 (function injectFormTabsCss() {
     if (document.getElementById('form-tabs-style')) return;
     var s = document.createElement('style');
@@ -52,15 +67,15 @@
     document.head.appendChild(s);
 })();
 
+/* ============================================================
+   بخش ۲ — state
+   ============================================================ */
 var TAB_STATE = {
     tabs: [{ id: 'home', page: 'home', domId: 'page-home', title: 'صفحه اصلی', icon: '🏠' }],
     active: 'home',
     max: 15
 };
 
-/* ============================================================
-   نقشه اتصال دکمه‌های هر صفحه
-   ============================================================ */
 var PAGE_BINDERS = {
     'persons':          'bindPersonsForm',
     'companies':        'bindCompaniesForm',
@@ -84,6 +99,9 @@ var PAGE_BINDERS = {
     'sms':              'bindSmsButtons'
 };
 
+/* ============================================================
+   بخش ۳ — متا‌ی صفحه
+   ============================================================ */
 function getPageMeta(pageId) {
     if (typeof PAGE_TITLES_FA !== 'undefined' && PAGE_TITLES_FA[pageId]) {
         return PAGE_TITLES_FA[pageId];
@@ -99,13 +117,13 @@ function getPageMeta(pageId) {
     var icon = parts[0];
     var title = parts.slice(1).join(' ') || txt;
     var cc = icon && icon.charCodeAt(0);
-    if (!cc || cc < 0x2000) {
-        icon = '📄';
-        title = txt;
-    }
+    if (!cc || cc < 0x2000) { icon = '📄'; title = txt; }
     return { title: title, icon: icon };
 }
 
+/* ============================================================
+   بخش ۴ — Context (نگهداری state بین تب‌ها)
+   ============================================================ */
 function getGlobalContext() {
     var ctx = {};
     try {
@@ -179,19 +197,19 @@ function clearFormData(pageId) {
     }
 }
 
+/* ============================================================
+   بخش ۵ — نوار تب
+   ============================================================ */
 function ensureTabBar() {
     var bar = document.getElementById('form-tabs-bar');
     if (bar) return bar;
-
     var topbar = document.querySelector('.topbar');
     if (!topbar) return null;
-
     bar = document.createElement('div');
     bar.id = 'form-tabs-bar';
     bar.className = 'form-tabs-bar';
     bar.style.display = 'none';
     topbar.parentNode.insertBefore(bar, topbar.nextSibling);
-
     function setStickyTop() {
         try { bar.style.top = topbar.offsetHeight + 'px'; } catch (e) {}
     }
@@ -203,14 +221,9 @@ function ensureTabBar() {
 function renderTabs() {
     var bar = ensureTabBar();
     if (!bar) return;
-
-    if (TAB_STATE.tabs.length <= 1) {
-        bar.style.display = 'none';
-        return;
-    }
+    if (TAB_STATE.tabs.length <= 1) { bar.style.display = 'none'; return; }
     bar.style.display = '';
     bar.innerHTML = '';
-
     TAB_STATE.tabs.forEach(function (t) {
         var tab = document.createElement('div');
         tab.className = 'form-tab' + (t.id === TAB_STATE.active ? ' active' : '');
@@ -266,19 +279,15 @@ function renderTabs() {
         tab.addEventListener('dragend', function () {
             this.classList.remove('dragging');
         });
-        tab.addEventListener('dragover', function (e) {
-            e.preventDefault();
-        });
+        tab.addEventListener('dragover', function (e) { e.preventDefault(); });
         tab.addEventListener('drop', function (e) {
             e.preventDefault();
             var draggedId = e.dataTransfer.getData('text/plain');
             var targetId = t.id;
             if (draggedId === targetId) return;
-            
             var draggedIdx = TAB_STATE.tabs.findIndex(function(x) { return x.id === draggedId; });
             var targetIdx = TAB_STATE.tabs.findIndex(function(x) { return x.id === targetId; });
             if (draggedIdx === -1 || targetIdx === -1) return;
-
             var dragged = TAB_STATE.tabs.splice(draggedIdx, 1)[0];
             TAB_STATE.tabs.splice(targetIdx, 0, dragged);
             renderTabs();
@@ -286,7 +295,6 @@ function renderTabs() {
 
         bar.appendChild(tab);
     });
-
     setTimeout(function () {
         var activeEl = bar.querySelector('.form-tab.active');
         if (activeEl && activeEl.scrollIntoView) {
@@ -295,6 +303,48 @@ function renderTabs() {
     }, 30);
 }
 
+/* ============================================================
+   بخش ۶ — پاک‌سازی صفحه کلون‌شده از مارکرهای بایند
+   ============================================================ */
+function cleanClonedPage(clone) {
+    // ۱) حذف ویژگی‌هایی که مانع بایند مجدد می‌شن
+    var ATTRS_TO_CLEAR = [
+        'data-bound', 'data-bound-collapse',
+        'data-picker', 'data-picker-bound',
+        'data-resizable', 'data-sort-attached',
+        'data-collapsible',
+        'data-money',
+        'data-crop-ready', 'data-drag-ready',
+        'data-cs-bound'
+    ];
+    ATTRS_TO_CLEAR.forEach(function(attr) {
+        var els = clone.querySelectorAll('[' + attr + ']');
+        for (var i = 0; i < els.length; i++) els[i].removeAttribute(attr);
+    });
+    // خود صفحه
+    clone.removeAttribute('data-rebound');
+    clone.removeAttribute('data-filter-collapse-init');
+
+    // ۲) حذف ردیف فیلترها و ریسایزرها که باید از نو با listener ساخته شوند
+    var toRemove = clone.querySelectorAll(
+        '.col-resizer, tr.column-filter-row'
+    );
+    for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
+
+    // ۳) دکمه‌های auto-generated که خودشان را بازسازی می‌کنند
+    // (col-resizer قبلاً حذف شد، این‌ها هم حذف تا بازسازی شوند)
+    ['share-btn', 'widget-share-btn', 'eye-toggle-btn', 'col-toggle-btn', 'col-reset-btn']
+        .forEach(function(cls) {
+            var els = clone.querySelectorAll('.' + cls);
+            for (var i = 0; i < els.length; i++) els[i].remove();
+        });
+
+    return clone;
+}
+
+/* ============================================================
+   بخش ۷ — سوئیچ تب (اصلاح‌شده)
+   ============================================================ */
 function switchToTab(tabId) {
     var tab = TAB_STATE.tabs.find(function(t) { return t.id === tabId; });
     if (!tab) return;
@@ -305,7 +355,6 @@ function switchToTab(tabId) {
     }
 
     document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
-
     applyGlobalContext(tab.context);
 
     var targetPage = document.getElementById(tab.domId);
@@ -319,39 +368,37 @@ function switchToTab(tabId) {
     TAB_STATE.active = tabId;
     renderTabs();
 
+    // همیشه رندر و ری‌بایند
     if (tab.page !== 'home') {
         if (typeof runPageRenderer === 'function') runPageRenderer(tab.page);
         if (typeof applyPageHelpers === 'function') applyPageHelpers();
-        
+
+        // بایند دکمه‌های فرمِ این صفحه با فاصله‌ی کوتاه
         setTimeout(function() {
             try {
-                if (targetPage && targetPage.dataset.rebound !== '1') {
-                    targetPage.dataset.rebound = '1';
-                    
-                    var fnName = PAGE_BINDERS[tab.page];
-                    if (fnName && typeof window[fnName] === 'function') {
-                        window[fnName]();
-                    }
-                    if (typeof bindFilterInputs === 'function') bindFilterInputs();
-                    if (typeof bindExportButtons === 'function') bindExportButtons();
+                var fnName = PAGE_BINDERS[tab.page];
+                if (fnName && typeof window[fnName] === 'function') {
+                    window[fnName]();
+                }
+                if (typeof bindFilterInputs === 'function') bindFilterInputs();
+                if (typeof bindExportButtons === 'function') bindExportButtons();
+                if (typeof bindThemeFontButtons === 'function') {
+                    // فقط یک بار سراسری بایند شده، مشکلی نیست
                 }
             } catch(e) { console.warn('[switchToTab bind]', e); }
-        }, 30);
+        }, 40);
     }
 }
 
 function closeTab(tabId) {
     if (tabId === 'home') return;
-
     var idx = TAB_STATE.tabs.findIndex(function(t) { return t.id === tabId; });
     if (idx === -1) return;
     var tab = TAB_STATE.tabs[idx];
-
     if (hasUnsavedData(tab.page)) {
         if (!confirm('این فرم داده‌های ذخیره‌نشده دارد.\n\nOK = بستن و از دست دادن داده‌ها\nCancel = انصراف')) return;
         clearFormData(tab.page);
     }
-
     var wasActive = TAB_STATE.active === tabId;
     TAB_STATE.tabs.splice(idx, 1);
 
@@ -364,49 +411,41 @@ function closeTab(tabId) {
         var prevIdx = Math.min(idx - 1, TAB_STATE.tabs.length - 1);
         if (prevIdx < 0) prevIdx = 0;
         var prev = TAB_STATE.tabs[prevIdx];
-        if (prev) {
-            switchToTab(prev.id);
-            return;
-        }
+        if (prev) { switchToTab(prev.id); return; }
     }
     renderTabs();
 }
 
 function closeAllTabs() {
     var nonHome = TAB_STATE.tabs.filter(function (t) { return t.id !== 'home'; });
-    if (nonHome.length === 0) {
-        showToast('فرم بازی وجود ندارد');
-        return;
-    }
-
+    if (nonHome.length === 0) { showToast('فرم بازی وجود ندارد'); return; }
     var anyDirty = false;
     nonHome.forEach(function (t) { if (hasUnsavedData(t.page)) anyDirty = true; });
     if (anyDirty) {
         if (!confirm('بعضی فرم‌ها داده‌های ذخیره‌نشده دارند.\n\nOK = بستن همه\nCancel = انصراف')) return;
     }
-    
-    nonHome.forEach(function (t) { 
+    nonHome.forEach(function (t) {
         clearFormData(t.page);
         var remNode = document.getElementById(t.domId);
         if (remNode && !remNode.classList.contains('page-template') && remNode.id !== 'page-' + t.page) {
             remNode.remove();
         }
     });
-
     TAB_STATE.tabs = [{ id: 'home', page: 'home', domId: 'page-home', title: 'صفحه اصلی', icon: '🏠' }];
     TAB_STATE.active = 'home';
     switchToTab('home');
     showToast('🧹 همه فرم‌ها بسته شد');
 }
 
+/* ============================================================
+   بخش ۸ — دکمه بستن همه
+   ============================================================ */
 function injectCloseAllButton() {
     if (document.getElementById('close-all-forms-btn')) return true;
     var searchBox = document.querySelector('.sidebar-search');
     if (!searchBox) return false;
-
     var wrap = document.createElement('div');
     wrap.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--border)';
-
     var btn = document.createElement('button');
     btn.id = 'close-all-forms-btn';
     btn.type = 'button';
@@ -417,18 +456,18 @@ function injectCloseAllButton() {
         'color:#991b1b','border:1px solid #fca5a5','border-radius:10px',
         'font-family:inherit','font-size:.82rem','font-weight:800','cursor:pointer'
     ].join(';');
-
     btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         closeAllTabs();
     });
-
     wrap.appendChild(btn);
     searchBox.parentNode.insertBefore(wrap, searchBox.nextSibling);
     return true;
 }
 
+/* ============================================================
+   بخش ۹ — override goToPage
+   ============================================================ */
 function installGoToPageOverride() {
     if (typeof window.goToPage !== 'function') return false;
     if (window._origGoToPage) return true;
@@ -446,19 +485,16 @@ function installGoToPageOverride() {
         }
 
         var existingTab = TAB_STATE.tabs.find(function(t) { return t.page === name; });
-
         if (!forceNew && existingTab) {
             switchToTab(existingTab.id);
             return;
         }
 
+        // محدودیت تب
         while (TAB_STATE.tabs.length >= TAB_STATE.max) {
             var toRemoveIdx = -1;
             for (var i = 1; i < TAB_STATE.tabs.length; i++) {
-                if (TAB_STATE.tabs[i].id !== TAB_STATE.active) {
-                    toRemoveIdx = i;
-                    break;
-                }
+                if (TAB_STATE.tabs[i].id !== TAB_STATE.active) { toRemoveIdx = i; break; }
             }
             if (toRemoveIdx === -1) break;
             var removedTab = TAB_STATE.tabs.splice(toRemoveIdx, 1)[0];
@@ -479,26 +515,19 @@ function installGoToPageOverride() {
         clone.id = uniqueId;
         clone.classList.remove('active');
         clone.classList.remove('page-template');
-        
-        // پاک کردن نشانه‌های اتصال قبلی از روی کلون برای اتصال مجدد دکمه‌ها
-        clone.querySelectorAll('[data-bound]').forEach(function(el) { delete el.dataset.bound; });
-        clone.querySelectorAll('[data-bound-collapse]').forEach(function(el) { delete el.dataset.boundCollapse; });
-        clone.querySelectorAll('[data-picker]').forEach(function(el) { delete el.dataset.picker; });
-        clone.querySelectorAll('[data-picker-bound]').forEach(function(el) { delete el.dataset.pickerBound; });
-        
-        // پاک کردن محتویات گزارش‌ها برای رندر مجدد
-        clone.querySelectorAll('#ra-clean-panel').forEach(function(el) { el.remove(); });
-        clone.querySelectorAll('#ra-result').forEach(function(el) { el.innerHTML = ''; });
-        clone.querySelectorAll('#rt-result').forEach(function(el) { el.innerHTML = ''; });
-        clone.querySelectorAll('#rc-result').forEach(function(el) { el.innerHTML = ''; });
-        clone.querySelectorAll('#cf-result').forEach(function(el) { el.innerHTML = ''; });
-        clone.querySelectorAll('#cfd-result').forEach(function(el) { el.innerHTML = ''; });
+
+        // ✅ پاک‌سازی کامل مارکرهای بایند
+        cleanClonedPage(clone);
+
+        // پاک‌سازی محتویات گزارش‌ها برای رندر مجدد
+        var reportBoxes = clone.querySelectorAll('#ra-result, #rt-result, #rc-result, #cf-result, #cfd-result, #ri-result, #rf-result, #rff-result, #dash-grid-container');
+        for (var ri = 0; ri < reportBoxes.length; ri++) reportBoxes[ri].innerHTML = '';
 
         origPage.parentNode.appendChild(clone);
 
         var meta = getPageMeta(name);
         var newTabId = 'tab_' + Date.now();
-        
+
         if (name === 'voucher-new') {
             voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
             currentVoucherStatus = 'draft';
@@ -519,10 +548,12 @@ function installGoToPageOverride() {
     return true;
 }
 
+/* ============================================================
+   بخش ۱۰ — autoAttachReportHelpers
+   ============================================================ */
 function autoAttachReportHelpers() {
     setTimeout(function () {
         if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
-
         var ids = ['cf-table', 'cfd-table', 'rt-table', 'ri-table', 'rf-table',
                    'rff-table', 'rr-table', 'dc-table', 'turnover-table', 'rc-table'];
         ids.forEach(function (id) {
@@ -533,7 +564,6 @@ function autoAttachReportHelpers() {
                 applyColumnOrder(id);
             }
         });
-
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
         if (typeof attachDatePickers === 'function') attachDatePickers();
         if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
@@ -542,6 +572,9 @@ function autoAttachReportHelpers() {
     }, 60);
 }
 
+/* ============================================================
+   بخش ۱۱ — Init
+   ============================================================ */
 function initFormTabs() {
     var tries = 0;
     var interval = setInterval(function () {
@@ -562,14 +595,15 @@ if (document.readyState === 'loading') {
     setTimeout(initFormTabs, 500);
 }
 
-window.TAB_STATE             = TAB_STATE;
-window.getPageMeta           = getPageMeta;
-window.hasUnsavedData        = hasUnsavedData;
-window.clearFormData         = clearFormData;
-window.renderTabs            = renderTabs;
-window.switchToTab           = switchToTab;
-window.closeTab              = closeTab;
-window.closeAllTabs          = closeAllTabs;
+window.TAB_STATE = TAB_STATE;
+window.getPageMeta = getPageMeta;
+window.hasUnsavedData = hasUnsavedData;
+window.clearFormData = clearFormData;
+window.renderTabs = renderTabs;
+window.switchToTab = switchToTab;
+window.closeTab = closeTab;
+window.closeAllTabs = closeAllTabs;
 window.autoAttachReportHelpers = autoAttachReportHelpers;
+window.cleanClonedPage = cleanClonedPage;
 
-console.log('✅ [ui/form.js] loaded — Advanced Tabs (Isolated Contexts + Auto Rebind)');
+console.log('✅ [ui/form.js] loaded — Comprehensive tab + clone fix');
