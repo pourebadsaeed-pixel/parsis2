@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — احراز هویت (نسخه نهایی و مقاوم)
+   پارسیس — احراز هویت (نسخه نهایی، بهینه‌شده و بدون لگ)
    مسیر: js/modules/auth.js
    ============================================================ */
 'use strict';
@@ -9,9 +9,8 @@
         var users = DB.load('users', null);
         if (!users || !Array.isArray(users) || users.length === 0) {
             DB.save('users', [{ id: 'u_admin', username: 'سرپرست', password: '1369', personId: '' }]);
-            console.log('👤 [auth] کاربر پیش‌فرض ساخته شد');
         }
-    } catch(e) { console.error('[auth] ensureDefaultUsers:', e); }
+    } catch(e) {}
 })();
 
 function normalizeFaLogin(s) {
@@ -31,7 +30,6 @@ function showLoginScreen() {
     if (overlay) overlay.style.display = 'flex';
     if (app) app.style.display = 'none';
     forceBodyVisible();
-    console.log('[auth] ✓ صفحه لاگین نمایش داده شد');
 }
 
 function showApp() {
@@ -40,13 +38,11 @@ function showApp() {
     if (overlay) overlay.style.display = 'none';
     if (app) app.style.display = 'block';
     forceBodyVisible();
-    // پاک کردن welcome overlay اگر وجود داشت
     var welcome = document.getElementById('welcome-overlay');
     if (welcome) {
         welcome.style.display = 'none';
         if (welcome.parentNode) welcome.parentNode.removeChild(welcome);
     }
-    console.log('[auth] ✓ برنامه نمایش داده شد');
 }
 
 function checkAuth() {
@@ -59,7 +55,6 @@ function checkAuth() {
 }
 
 function login() {
-    console.log('[auth] login() called');
     try {
         var userInput = document.getElementById('login-username');
         var passInput = document.getElementById('login-password');
@@ -84,36 +79,25 @@ function login() {
         });
 
         if (!found) {
-            console.log('[auth] ✗ لاگین ناموفق');
             if (errEl) { errEl.textContent = 'نام کاربری یا کلمه عبور اشتباه است.'; errEl.style.display = 'block'; }
             if (passInput) { passInput.value = ''; passInput.focus(); }
             return;
         }
 
-        console.log('[auth] ✓ لاگین موفق برای:', found.username);
-
-        // ذخیره session
         try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch(e) {}
-        // پرچم جلوگیری از welcome بعد از لاگین
         try { sessionStorage.setItem('parsis.justLoggedIn', '1'); } catch(e) {}
-        setTimeout(function() {
-            try { sessionStorage.removeItem('parsis.justLoggedIn'); } catch(e) {}
-        }, 3000);
+        setTimeout(function() { try { sessionStorage.removeItem('parsis.justLoggedIn'); } catch(e) {} }, 3000);
 
         state.currentUser = found;
         if (errEl) errEl.style.display = 'none';
 
-        // نمایش فوری برنامه
         showApp();
 
-        // رندر اجباری همه کامپوننت‌ها بدون نیاز به رفرش
+        // ✅ بهینه‌سازی: فقط موارد ضروری رندر می‌شوند تا مرورگر فریز نشود
         setTimeout(function() {
             var renderFns = [
                 'updateDateDisplay', 'updateTopbarPeriod', 'updateHomeWidgets',
-                'applyPageHelpers', 'renderFrequentNav', 'initUsersPage',
-                'updateEyeButtons', 'attachDatePickers', 'buildHeaderButtons',
-                'makeAllTablesResizable', 'renderSmsInbox', 'updateSmsBadge',
-                'rerenderCurrentPage'
+                'applyPageHelpers', 'renderFrequentNav', 'updateEyeButtons'
             ];
             renderFns.forEach(function(fn) {
                 if (typeof window[fn] === 'function') {
@@ -123,10 +107,8 @@ function login() {
         }, 30);
 
         if (typeof showToast === 'function') showToast('✅ خوش آمدید ' + found.username);
-
     } catch(e) {
         console.error('[auth] خطا در login:', e);
-        // حتی در صورت خطا، تلاش کنیم لاگین را تمام کنیم
         try { showApp(); } catch(e2) {}
     }
 }
@@ -137,39 +119,27 @@ function logout() {
     location.reload();
 }
 
-/* ============================================================
-   ✅ بایند مقاوم با Event Delegation
-   ============================================================ */
 function bindAuthUI() {
     if (window._authDelegated) return;
     window._authDelegated = true;
 
-    console.log('[auth] ✓ رویدادها متصل شدند (delegation)');
-
-    // کلیک — روی document گوش می‌دهیم تا حتی اگر دکمه دوباره ساخته شود، کار کند
     document.addEventListener('click', function(e) {
         var t = e.target;
         if (!t) return;
         if (t.id === 'login-btn' || (t.closest && t.closest('#login-btn'))) {
-            e.preventDefault();
-            login();
-            return;
+            e.preventDefault(); login(); return;
         }
         if (t.id === 'logout-btn' || (t.closest && t.closest('#logout-btn'))) {
-            e.preventDefault();
-            logout();
-            return;
+            e.preventDefault(); logout(); return;
         }
     });
 
-    // Enter برای submit
     document.addEventListener('keydown', function(e) {
         if (e.key !== 'Enter') return;
         var t = e.target;
         if (!t) return;
         if (t.id === 'login-password' || t.id === 'login-username') {
-            e.preventDefault();
-            login();
+            e.preventDefault(); login();
         }
     });
 }
