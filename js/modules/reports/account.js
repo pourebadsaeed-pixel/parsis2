@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی با رفع باگ بستن و چاپ سند)
+   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی با چاپ ضدگلوله)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -88,6 +88,20 @@ var _arSort = { col: 'code', dir: 'asc' };
     `;
     document.head.appendChild(s);
 })();
+
+// تابع اختصاصی و ضدگلوله برای چاپ محتوای داخل مودال‌ها
+function _arPrintContent(selector, title) {
+    var el = document.querySelector(selector);
+    if (!el) { alert('محتوایی برای چاپ یافت نشد.'); return; }
+    var win = window.open('', '_blank');
+    if (!win) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
+    var ff = typeof getPrintFontFamily === 'function' ? getPrintFontFamily() : 'Tahoma';
+    win.document.write('<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + title + '</title><style>');
+    win.document.write('body{font-family:' + ff + ';direction:rtl;color:#222;font-size:12px;padding:10px;}h1{text-align:center;font-size:15px;margin-bottom:20px;}table{width:100%;border-collapse:collapse;font-size:10px;}th,td{border:1px solid #999;padding:5px 7px;text-align:center;}th{background:#e6f0fa;font-weight:bold;}.dr{color:#c0392b;font-weight:bold;}.cr{color:#1e9e6a;font-weight:bold;}.neg-money{color:#c0392b;}');
+    win.document.write('</style></head><body><h1>' + title + '</h1>' + el.innerHTML + '</body></html>');
+    win.document.close();
+    setTimeout(function () { win.focus(); win.print(); win.onafterprint = function() { win.close(); }; }, 500);
+}
 
 function rebuildAccountFilterPanel() {
     var page = document.querySelector('.page.active');
@@ -180,7 +194,7 @@ function rebuildAccountFilterPanel() {
         renderAccountReview();
     });
     document.getElementById('ra-print').addEventListener('click', function () {
-        if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
+        _arPrintContent('#ra-result', 'مرور حساب‌ها');
     });
     document.getElementById('ra-export').addEventListener('click', function () {
         if (typeof exportReportTable === 'function') exportReportTable('#ra-result', 'account-report');
@@ -807,7 +821,6 @@ function openAccountTurnover(accountId, detailInfo) {
                  + '<span class="count-badge">' + toFa(rows.length) + '</span>'
                  + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
                  + '<button class="col-toggle-btn" onclick="event.stopPropagation(); showColMenu(\'turnover-table\', this)" title="نمایش/مخفی کردن ستون‌ها" style="margin-right:auto">⚙</button>'
-                 + '<button class="share-btn" onclick="printHtmlReport(\'#turnover-body\', \'گردش حساب\')" title="چاپ">🖨</button>'
                  + '</div>'
                  + '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
                  +  '<th style="width:50px">#</th>'
@@ -918,20 +931,19 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-// ✅ این ۹ خط کد برای اتصال قطعی دکمه‌های پیش‌نمایش سند (بستن و چاپ) به کل صفحه اضافه شد
+// ✅ اتصال مستقیم دکمه‌های چاپ و بستن مودال‌ها برای اطمینان ۱۰۰٪
 document.addEventListener('click', function(e) {
     if (e.target.closest('#close-vpreview') || e.target.closest('#vpreview-close-btn') || e.target.closest('#vpreview-overlay')) {
         if (typeof closeVoucherPreview === 'function') closeVoucherPreview();
     }
     if (e.target.closest('#vpreview-print')) {
-        if (typeof printVoucherPreview === 'function') printVoucherPreview();
+        _arPrintContent('#vpreview-body', 'پیش‌نمایش سند');
     }
-});
-
-// ✅ این ۶ خط کد برای اتصال قطعی دکمه‌های بستن مودال گردش حساب
-document.addEventListener('click', function(e) {
     if (e.target.closest('#close-turnover') || e.target.closest('#turnover-close-btn') || e.target.closest('#turnover-overlay')) {
         if (typeof closeTurnover === 'function') closeTurnover();
+    }
+    if (e.target.closest('#turnover-print')) {
+        _arPrintContent('#turnover-body', 'گردش حساب');
     }
 });
 
@@ -949,4 +961,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Fixed funnel filter & modal buttons');
+console.log('✅ [modules/reports/account.js] loaded — Fixed funnel filter & bulletproof printing');
