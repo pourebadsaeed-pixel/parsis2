@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فرم سند (نسخه مقاوم‌سازی‌شده + ساعت جاری)
+   پارسیس — فرم سند (نسخه کامل)
    مسیر: js/modules/vouchers/form.js
    ============================================================ */
 'use strict';
@@ -10,17 +10,11 @@ var currentVoucherStatus = 'draft';
 window._voucherFormSavedAndClean = false;
 window._voucherSaved_backup = null;
 
-/* ============================================================
-   بخش ۰ — تابع کمکی: ساعت لحظه‌ای
-   ============================================================ */
 function getCurrentTimeHHMM() {
     var now = new Date();
     return pad2(now.getHours()) + ':' + pad2(now.getMinutes());
 }
 
-/* ============================================================
-   بخش ۱ — استایل کامپوننت لیست کشویی جستجوپذیر
-   ============================================================ */
 (function injectVoucherSearchableCss() {
     if (document.getElementById('cs-voucher-style')) return;
     var s = document.createElement('style');
@@ -49,11 +43,7 @@ function getCurrentTimeHHMM() {
 if (!window._csGlobalListenerAdded) {
     window._csGlobalListenerAdded = true;
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('.cs-wrapper')) {
-            document.querySelectorAll('.cs-wrapper.open').forEach(function(el) {
-                el.classList.remove('open');
-            });
-        }
+        if (!e.target.closest('.cs-wrapper')) document.querySelectorAll('.cs-wrapper.open').forEach(function(el) { el.classList.remove('open'); });
     });
 }
 
@@ -73,16 +63,11 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange, dis
     var searchBox = document.createElement('div');
     searchBox.className = 'cs-search-box';
     var searchInp = document.createElement('input');
-    searchInp.type = 'text';
-    searchInp.className = 'cs-search-input';
-    searchInp.placeholder = 'جستجو...';
-    searchBox.appendChild(searchInp);
-    dropdown.appendChild(searchBox);
+    searchInp.type = 'text'; searchInp.className = 'cs-search-input'; searchInp.placeholder = 'جستجو...';
+    searchBox.appendChild(searchInp); dropdown.appendChild(searchBox);
 
     var list = document.createElement('ul');
-    list.className = 'cs-options';
-    dropdown.appendChild(list);
-    wrap.appendChild(dropdown);
+    list.className = 'cs-options'; dropdown.appendChild(list); wrap.appendChild(dropdown);
 
     function renderOptions(q) {
         list.innerHTML = '';
@@ -95,11 +80,8 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange, dis
             if (i.value === selectedValue) li.className = 'selected';
             li.onclick = function(e) {
                 e.stopPropagation();
-                selectedValue = i.value;
-                trigger.textContent = i.text;
-                wrap.classList.remove('open');
-                searchInp.value = '';
-                renderOptions('');
+                selectedValue = i.value; trigger.textContent = i.text;
+                wrap.classList.remove('open'); searchInp.value = ''; renderOptions('');
                 if (onChange) onChange(i.value);
             };
             list.appendChild(li);
@@ -111,13 +93,9 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange, dis
         trigger.addEventListener('click', function(e) {
             e.stopPropagation();
             var isOpen = wrap.classList.contains('open');
-            document.querySelectorAll('.cs-wrapper.open').forEach(function(el) {
-                if (el !== wrap) el.classList.remove('open');
-            });
-            if (!isOpen) {
-                wrap.classList.add('open');
-                setTimeout(function() { searchInp.focus(); }, 50);
-            } else { wrap.classList.remove('open'); }
+            document.querySelectorAll('.cs-wrapper.open').forEach(function(el) { if (el !== wrap) el.classList.remove('open'); });
+            if (!isOpen) { wrap.classList.add('open'); setTimeout(function() { searchInp.focus(); }, 50); } 
+            else wrap.classList.remove('open');
         });
         searchInp.addEventListener('input', function() { renderOptions(this.value); });
     }
@@ -125,36 +103,22 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange, dis
     return wrap;
 }
 
-/* ============================================================
-   بخش ۲ — توابع کمکی
-   ============================================================ */
 function sortAccountsByCode(arr) {
     return arr.slice().sort(function (a, b) {
-        var ca = String(a.code || '');
-        var cb = String(b.code || '');
-        var pa = ca.split('-').map(function (x) { return parseInt(x, 10) || 0; });
-        var pb = cb.split('-').map(function (x) { return parseInt(x, 10) || 0; });
+        var ca = String(a.code || ''); var cb = String(b.code || '');
+        var pa = ca.split('-').map(function (x) { return parseInt(x, 10) || 0; }); var pb = cb.split('-').map(function (x) { return parseInt(x, 10) || 0; });
         var n = Math.max(pa.length, pb.length);
-        for (var i = 0; i < n; i++) {
-            var va = pa[i] || 0;
-            var vb = pb[i] || 0;
-            if (va !== vb) return va - vb;
-        }
+        for (var i = 0; i < n; i++) { var va = pa[i] || 0; var vb = pb[i] || 0; if (va !== vb) return va - vb; }
         return ca.localeCompare(cb, 'fa');
     });
 }
 
 function getLeafAccountsSortedByCode() {
     var accounts = DB.load('accounts', []);
-    var leaves = accounts.filter(function (a) {
-        return !accounts.some(function (x) { return x.parent === a.id; });
-    });
+    var leaves = accounts.filter(function (a) { return !accounts.some(function (x) { return x.parent === a.id; }); });
     return sortAccountsByCode(leaves);
 }
 
-/* ============================================================
-   بخش ۳ — نوار وضعیت
-   ============================================================ */
 function getOrCreateVoucherStatusBar() {
     var bar = document.getElementById('voucher-status-bar');
     if (bar) return bar;
@@ -173,20 +137,15 @@ function setVoucherStatusBar(status, vId) {
     if (!bar) return;
     if (!status) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
-    var icon = bar.querySelector('.vsb-icon');
-    var text = bar.querySelector('.vsb-text');
-    var idEl = bar.querySelector('.vsb-id');
+    var icon = bar.querySelector('.vsb-icon'); var text = bar.querySelector('.vsb-text'); var idEl = bar.querySelector('.vsb-id');
     if (status === 'approved') {
-        bar.style.background = 'linear-gradient(135deg,#d1fae5,#a7f3d0)';
-        bar.style.color = '#065f46'; bar.style.borderColor = '#059669';
+        bar.style.background = 'linear-gradient(135deg,#d1fae5,#a7f3d0)'; bar.style.color = '#065f46'; bar.style.borderColor = '#059669';
         icon.textContent = '✅'; text.textContent = 'سند تأیید شده';
     } else if (status === 'draft') {
-        bar.style.background = 'linear-gradient(135deg,#fef3c7,#fde68a)';
-        bar.style.color = '#92400e'; bar.style.borderColor = '#f59e0b';
+        bar.style.background = 'linear-gradient(135deg,#fef3c7,#fde68a)'; bar.style.color = '#92400e'; bar.style.borderColor = '#f59e0b';
         icon.textContent = '📝'; text.textContent = 'سند به‌عنوان پیش‌نویس ذخیره شد';
     } else if (status === 'dirty') {
-        bar.style.background = 'linear-gradient(135deg,#dbeafe,#bfdbfe)';
-        bar.style.color = '#1e40af'; bar.style.borderColor = '#3b82f6';
+        bar.style.background = 'linear-gradient(135deg,#dbeafe,#bfdbfe)'; bar.style.color = '#1e40af'; bar.style.borderColor = '#3b82f6';
         icon.textContent = '✏️'; text.textContent = 'سند در حال ویرایش — ذخیره نشده';
     }
     idEl.textContent = vId ? ('شناسه: ' + String(vId).substring(0, 8)) : '';
@@ -210,9 +169,7 @@ function validateDateInActivePeriod(dateStr) {
     if (!state.activePeriodId) return { ok: true };
     var ap = periods.find(function (p) { return p.id === state.activePeriodId; });
     if (!ap) return { ok: true };
-    if (dateStr < ap.from || dateStr > ap.to) {
-        return { ok: false, msg: 'تاریخ باید در بازه دوره فعال («' + ap.from + ' تا ' + ap.to + '») باشد' };
-    }
+    if (dateStr < ap.from || dateStr > ap.to) return { ok: false, msg: 'تاریخ باید در بازه دوره فعال («' + ap.from + ' تا ' + ap.to + '») باشد' };
     return { ok: true };
 }
 
@@ -224,9 +181,7 @@ function getVoucherAmount(v) {
 
 function findVoucherById(id) {
     var l = DB.load('vouchers', []);
-    for (var i = 0; i < l.length; i++) {
-        if (l[i].id === id) return l[i];
-    }
+    for (var i = 0; i < l.length; i++) { if (l[i].id === id) return l[i]; }
     return null;
 }
 
@@ -238,15 +193,11 @@ function getVoucherIssues(v) {
     if (!v.number) issues.push('شماره سند خالی است');
     if (!v.date) issues.push('تاریخ سند خالی است');
     if (!v.desc || !String(v.desc).trim()) issues.push('شرح سند خالی است');
-    var valid = lines.filter(function (l) {
-        return (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0;
-    });
+    var valid = lines.filter(function (l) { return (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0; });
     if (valid.length < 2) issues.push('حداقل دو ردیف با مبلغ لازم است');
     var lineIssues = [];
     for (var i = 0; i < lines.length; i++) {
-        var line = lines[i];
-        var d = Number(line.debit) || 0;
-        var c = Number(line.credit) || 0;
+        var line = lines[i]; var d = Number(line.debit) || 0; var c = Number(line.credit) || 0;
         if (d === 0 && c === 0) continue;
         var ln = toFa(i + 1);
         if (!line.account) { lineIssues.push('ردیف ' + ln + ': حساب معین تعیین نشده'); continue; }
@@ -255,55 +206,32 @@ function getVoucherIssues(v) {
         if (acc.links && acc.links.length > 0) {
             var validLinks = acc.links.filter(function (lt) { return getLinkedItems(lt).length > 0; });
             if (validLinks.length > 0) {
-                var hasAnyDetail = validLinks.some(function (lt) {
-                    return line.details && line.details[lt];
-                });
-                if (!hasAnyDetail) {
-                    var linkNames = validLinks.map(linkTypeName).join(' یا ');
-                    lineIssues.push('ردیف ' + ln + ': یکی از تفصیلی‌های «' + linkNames + '» باید انتخاب شود');
-                }
+                var hasAnyDetail = validLinks.some(function (lt) { return line.details && line.details[lt]; });
+                if (!hasAnyDetail) { var linkNames = validLinks.map(linkTypeName).join(' یا '); lineIssues.push('ردیف ' + ln + ': یکی از تفصیلی‌های «' + linkNames + '» باید انتخاب شود'); }
             }
         }
-        if (!line.description || !String(line.description).trim()) {
-            lineIssues.push('ردیف ' + ln + ': شرح قلم خالی است');
-        }
+        if (!line.description || !String(line.description).trim()) lineIssues.push('ردیف ' + ln + ': شرح قلم خالی است');
     }
     var td = 0, tc = 0;
-    lines.forEach(function (l) {
-        td += Number(l.debit) || 0;
-        tc += Number(l.credit) || 0;
-    });
-    if (td !== tc) {
-        issues.push('سند متوازن نیست (اختلاف: ' + formatMoney(Math.abs(td - tc)) + ' ' + currencyLabel() + ')');
-    }
+    lines.forEach(function (l) { td += Number(l.debit) || 0; tc += Number(l.credit) || 0; });
+    if (td !== tc) issues.push('سند متوازن نیست (اختلاف: ' + formatMoney(Math.abs(td - tc)) + ' ' + currencyLabel() + ')');
     return issues.concat(lineIssues);
 }
 
-/* ============================================================
-   بخش ۴ — رندر اقلام سند
-   ============================================================ */
 function renderVoucherLines() {
     var box = document.getElementById('voucher-lines');
     if (!box) { console.warn('[renderVoucherLines] #voucher-lines not found'); return; }
 
     box.innerHTML = '';
-
-    if (!Array.isArray(voucherLines) || voucherLines.length === 0) {
-        voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
-    }
+    if (!Array.isArray(voucherLines) || voucherLines.length === 0) voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
 
     var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
-    var accItems = leaves.map(function(a) {
-        return { value: a.id, text: getAccountLabel(a.id, accounts) };
-    });
+    var accItems = leaves.map(function(a) { return { value: a.id, text: getAccountLabel(a.id, accounts) }; });
 
     for (var i = 0; i < voucherLines.length; i++) (function (idx) {
         var line = voucherLines[idx];
-        if (!line || typeof line !== 'object') {
-            voucherLines[idx] = { id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' };
-            line = voucherLines[idx];
-        }
+        if (!line || typeof line !== 'object') { voucherLines[idx] = { id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }; line = voucherLines[idx]; }
         if (!line.details) line.details = {};
 
         var wrap = document.createElement('div');
@@ -316,9 +244,7 @@ function renderVoucherLines() {
         wrap.appendChild(numSpan);
 
         var accSelect = createSearchableSelect(accItems, line.account, '— انتخاب معین —', function(val) {
-            line.account = val;
-            line.details = {};
-            renderVoucherLines();
+            line.account = val; line.details = {}; renderVoucherLines();
         }, line.locked);
         accSelect.style.marginTop = '14px';
         wrap.appendChild(accSelect);
@@ -333,79 +259,60 @@ function renderVoucherLines() {
                 });
             });
             var currentDetVal = null;
-            acc.links.forEach(function (lt) {
-                if (line.details[lt]) currentDetVal = lt + '::' + line.details[lt];
-            });
+            acc.links.forEach(function (lt) { if (line.details[lt]) currentDetVal = lt + '::' + line.details[lt]; });
+
             var detSelect = createSearchableSelect(combined, currentDetVal, '— انتخاب تفصیلی —', function(val) {
                 line.details = {};
-                if (val) {
-                    var parts = val.split('::');
-                    line.details[parts[0]] = parts[1];
-                }
+                if (val) { var parts = val.split('::'); line.details[parts[0]] = parts[1]; }
             }, line.locked);
             detSelect.style.marginTop = '8px';
             wrap.appendChild(detSelect);
         }
 
         var r3 = document.createElement('div');
-        r3.className = 'ln-row r4';
-        r3.style.marginTop = '10px';
+        r3.className = 'ln-row r4'; r3.style.marginTop = '10px';
 
-        var wD = document.createElement('div');
-        wD.className = 'ln-amount-wrap';
+        var wD = document.createElement('div'); wD.className = 'ln-amount-wrap';
         var iD = document.createElement('input');
         iD.type = 'text'; iD.inputMode = 'numeric'; iD.dir = 'ltr'; iD.placeholder = 'بدهکار';
         iD.value = line.debit ? formatRaw(line.debit) : '';
         iD.addEventListener('input', function () {
-            var v = normalizeDigits(this.value).replace(/[^\d]/g, '');
-            this.value = v;
-            var x = Number(v) || 0;
-            line.debit = x;
+            var v = normalizeDigits(this.value).replace(/[^\d]/g, ''); this.value = v;
+            var x = Number(v) || 0; line.debit = x;
             if (x > 0 && line.credit !== 0) { line.credit = 0; iC.value = ''; }
             updateVoucherTotals();
         });
         iD.addEventListener('blur', function () {
             var v = Number(normalizeDigits(this.value).replace(/[^\d]/g, '')) || 0;
-            this.value = v ? formatRaw(v) : '';
-            line.debit = v;
-            updateVoucherTotals();
+            this.value = v ? formatRaw(v) : ''; line.debit = v; updateVoucherTotals();
         });
         var cD = document.createElement('button');
         cD.type = 'button'; cD.className = 'calc-btn'; cD.textContent = '🧮';
         cD.addEventListener('click', function (e) {
             e.preventDefault(); e.stopPropagation();
-            calcOpen(function () { return line.debit || 0; },
-                function (v) { line.debit = v; if (v > 0 && line.credit !== 0) line.credit = 0; renderVoucherLines(); updateVoucherTotals(); },
-                'ماشین حساب بدهکار');
+            calcOpen(function () { return line.debit || 0; }, function (v) { line.debit = v; if (v > 0 && line.credit !== 0) line.credit = 0; renderVoucherLines(); updateVoucherTotals(); }, 'ماشین حساب بدهکار');
         });
         wD.appendChild(iD); wD.appendChild(cD);
 
-        var wC = document.createElement('div');
-        wC.className = 'ln-amount-wrap';
+        var wC = document.createElement('div'); wC.className = 'ln-amount-wrap';
         var iC = document.createElement('input');
         iC.type = 'text'; iC.inputMode = 'numeric'; iC.dir = 'ltr'; iC.placeholder = 'بستانکار';
         iC.value = line.credit ? formatRaw(line.credit) : '';
         iC.addEventListener('input', function () {
-            var v = normalizeDigits(this.value).replace(/[^\d]/g, '');
-            this.value = v;
-            var x = Number(v) || 0;
-            line.credit = x;
+            var v = normalizeDigits(this.value).replace(/[^\d]/g, ''); this.value = v;
+            var x = Number(v) || 0; line.credit = x;
             if (x > 0 && line.debit !== 0) { line.debit = 0; iD.value = ''; }
             updateVoucherTotals();
         });
         iC.addEventListener('blur', function () {
             var v = Number(normalizeDigits(this.value).replace(/[^\d]/g, '')) || 0;
-            this.value = v ? formatRaw(v) : '';
-            line.credit = v;
-            updateVoucherTotals();
+            this.value = v ? formatRaw(v) : ''; line.credit = v; updateVoucherTotals();
         });
         var cC = document.createElement('button');
         cC.type = 'button'; cC.className = 'calc-btn'; cC.textContent = '🧮';
         cC.addEventListener('click', function (e) {
             e.preventDefault(); e.stopPropagation();
-            calcOpen(function () { return line.credit || 0; },
-                function (v) { line.credit = v; if (v > 0 && line.debit !== 0) line.debit = 0; renderVoucherLines(); updateVoucherTotals(); },
-                'ماشین حساب بستانکار');
+            calcOpen(function () { return line.credit || 0; }, function (v) { line.credit = v; if (v > 0 && line.debit !== 0) line.debit = 0; renderVoucherLines(); updateVoucherTotals(); }, 'ماشین حساب بستانکار');
         });
         wC.appendChild(iC); wC.appendChild(cC);
         r3.appendChild(wD); r3.appendChild(wC);
@@ -425,25 +332,18 @@ function renderVoucherLines() {
         wrap.appendChild(r3);
 
         var r4 = document.createElement('div');
-        r4.className = 'desc-row';
-        r4.style.marginTop = '8px';
-        r4.style.gridTemplateColumns = '1fr auto auto';
+        r4.className = 'desc-row'; r4.style.marginTop = '8px'; r4.style.gridTemplateColumns = '1fr auto auto';
 
         var iDsc = document.createElement('input');
-        iDsc.type = 'text'; iDsc.placeholder = 'شرح قلم *';
-        iDsc.value = line.description || '';
+        iDsc.type = 'text'; iDsc.placeholder = 'شرح قلم *'; iDsc.value = line.description || '';
         iDsc.setAttribute('list', 'std-desc-list');
         if (!line.description && (Number(line.debit) > 0 || Number(line.credit) > 0)) iDsc.classList.add('desc-required');
         iDsc.addEventListener('input', function () { line.description = this.value; this.classList.remove('desc-required'); });
 
         var clearBtn = document.createElement('button');
-        clearBtn.type = 'button'; clearBtn.className = 'desc-clear-btn';
-        clearBtn.title = 'خالی کردن شرح'; clearBtn.textContent = '🧹';
+        clearBtn.type = 'button'; clearBtn.className = 'desc-clear-btn'; clearBtn.title = 'خالی کردن شرح'; clearBtn.textContent = '🧹';
         clearBtn.style.cssText = 'background:#fee2e2;color:#dc2626;border:none;border-radius:10px;width:38px;height:38px;font-size:1.05rem;font-weight:800;cursor:pointer;flex-shrink:0';
-        clearBtn.addEventListener('click', function (e) {
-            e.preventDefault();
-            iDsc.value = ''; line.description = ''; iDsc.classList.remove('desc-required'); iDsc.focus();
-        });
+        clearBtn.addEventListener('click', function (e) { e.preventDefault(); iDsc.value = ''; line.description = ''; iDsc.classList.remove('desc-required'); iDsc.focus(); });
 
         var btnAddDesc = document.createElement('button');
         btnAddDesc.type = 'button'; btnAddDesc.className = 'desc-add-btn'; btnAddDesc.textContent = '＋';
@@ -471,38 +371,25 @@ function renderVoucherLines() {
 
         var bSwap = document.createElement('button');
         bSwap.className = 'ln-btn ln-swap'; bSwap.textContent = '🔄 جابجایی';
-        bSwap.addEventListener('click', function () {
-            var tmp = line.debit; line.debit = line.credit; line.credit = tmp;
-            renderVoucherLines(); showToast('🔄 جابه‌جا شد.');
-        });
+        bSwap.addEventListener('click', function () { var tmp = line.debit; line.debit = line.credit; line.credit = tmp; renderVoucherLines(); showToast('🔄 جابه‌جا شد.'); });
 
         var bMoveTo = document.createElement('button');
         bMoveTo.className = 'ln-btn ln-moveto'; bMoveTo.textContent = '📍 انتقال';
         bMoveTo.addEventListener('click', function () {
-            var total = voucherLines.length;
-            if (total < 2) { showToast('فقط یک ردیف.'); return; }
+            var total = voucherLines.length; if (total < 2) { showToast('فقط یک ردیف.'); return; }
             var ans = prompt('این ردیف به کدام شماره منتقل شود؟ (۱ تا ' + toFa(total) + ')\nشماره فعلی: ' + toFa(idx + 1), String(idx + 1));
-            if (!ans) return;
-            var target = Number(normalizeDigits(ans));
+            if (!ans) return; var target = Number(normalizeDigits(ans));
             if (isNaN(target) || target < 1 || target > total) { alert('نامعتبر.'); return; }
-            target = target - 1;
-            if (target === idx) return;
-            var moved = voucherLines.splice(idx, 1)[0];
-            voucherLines.splice(target, 0, moved);
-            window._focusLineId = moved.id;
-            renderVoucherLines();
+            target = target - 1; if (target === idx) return;
+            var moved = voucherLines.splice(idx, 1)[0]; voucherLines.splice(target, 0, moved);
+            window._focusLineId = moved.id; renderVoucherLines();
         });
 
         var bX = document.createElement('button');
         bX.className = 'ln-btn ln-del'; bX.textContent = '× حذف';
-        bX.addEventListener('click', function () {
-            if (!confirm('این ردیف حذف شود؟')) return;
-            voucherLines.splice(idx, 1);
-            renderVoucherLines();
-        });
+        bX.addEventListener('click', function () { if (!confirm('این ردیف حذف شود؟')) return; voucherLines.splice(idx, 1); renderVoucherLines(); });
 
-        aW.appendChild(bU); aW.appendChild(bD); aW.appendChild(bCp);
-        aW.appendChild(bSwap); aW.appendChild(bMoveTo); aW.appendChild(bX);
+        aW.appendChild(bU); aW.appendChild(bD); aW.appendChild(bCp); aW.appendChild(bSwap); aW.appendChild(bMoveTo); aW.appendChild(bX);
         wrap.appendChild(aW);
 
         box.appendChild(wrap);
@@ -511,15 +398,10 @@ function renderVoucherLines() {
     updateVoucherTotals();
 
     if (window._focusLineId) {
-        var tid = window._focusLineId;
-        window._focusLineId = null;
+        var tid = window._focusLineId; window._focusLineId = null;
         setTimeout(function () {
             var t = box.querySelector('[data-line-id="' + tid + '"]');
-            if (t) {
-                t.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                t.classList.add('focus-highlight');
-                setTimeout(function () { t.classList.remove('focus-highlight'); }, 1200);
-            }
+            if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.classList.add('focus-highlight'); setTimeout(function () { t.classList.remove('focus-highlight'); }, 1200); }
         }, 60);
     }
 
@@ -527,10 +409,8 @@ function renderVoucherLines() {
 }
 
 function copyVoucherLine(idx) {
-    var src = voucherLines[idx];
-    if (!src) return;
-    var copyLine = JSON.parse(JSON.stringify(src));
-    copyLine.id = uid();
+    var src = voucherLines[idx]; if (!src) return;
+    var copyLine = JSON.parse(JSON.stringify(src)); copyLine.id = uid();
     voucherLines.splice(idx + 1, 0, copyLine);
     window._focusLineId = copyLine.id;
     renderVoucherLines();
@@ -538,24 +418,15 @@ function copyVoucherLine(idx) {
 }
 
 function moveLine(idx, dir) {
-    var ni = idx + dir;
-    if (ni < 0 || ni >= voucherLines.length) return;
-    var tmp = voucherLines[idx];
-    voucherLines[idx] = voucherLines[ni];
-    voucherLines[ni] = tmp;
-    window._focusLineId = voucherLines[ni].id;
-    renderVoucherLines();
+    var ni = idx + dir; if (ni < 0 || ni >= voucherLines.length) return;
+    var tmp = voucherLines[idx]; voucherLines[idx] = voucherLines[ni]; voucherLines[ni] = tmp;
+    window._focusLineId = voucherLines[ni].id; renderVoucherLines();
 }
 
 function updateVoucherTotals() {
     var td = 0, tc = 0;
-    for (var i = 0; i < voucherLines.length; i++) {
-        td += Number(voucherLines[i].debit) || 0;
-        tc += Number(voucherLines[i].credit) || 0;
-    }
-    var tdEl = document.getElementById('v-total-debit');
-    var tcEl = document.getElementById('v-total-credit');
-    var st = document.getElementById('v-balance-status');
+    for (var i = 0; i < voucherLines.length; i++) { td += Number(voucherLines[i].debit) || 0; tc += Number(voucherLines[i].credit) || 0; }
+    var tdEl = document.getElementById('v-total-debit'); var tcEl = document.getElementById('v-total-credit'); var st = document.getElementById('v-balance-status');
     if (tdEl) tdEl.textContent = formatMoney(td);
     if (tcEl) tcEl.textContent = formatMoney(tc);
     if (st) {
@@ -565,9 +436,6 @@ function updateVoucherTotals() {
     }
 }
 
-/* ============================================================
-   بخش ۵ — فرم سند جدید (✅ ساعت پیش‌فرض = زمان جاری)
-   ============================================================ */
 function newVoucherForm() {
     document.getElementById('v-id').value = '';
     document.getElementById('v-number').value = getNextVoucherNumberForPeriod(state.activePeriodId || '');
@@ -582,145 +450,68 @@ function newVoucherForm() {
     setVoucherStatusBar(null);
 }
 
-/* ============================================================
-   بخش ۶ — بارگذاری سند برای ویرایش (نسخه مقاوم + ساعت جاری)
-   ============================================================ */
 function loadVoucherForEdit(v) {
     if (!v) { showToast('سند یافت نشد.'); return; }
 
-    console.log('[loadVoucherForEdit] START — ID:', v.id, '| Status:', v.status, '| Lines:', (v.lines || []).length);
-
-    // ۱) کپی امن از ردیف‌ها
     var srcLines = [];
     if (Array.isArray(v.lines) && v.lines.length > 0) {
         for (var i = 0; i < v.lines.length; i++) {
-            var L = v.lines[i];
-            if (!L || typeof L !== 'object') continue;
+            var L = v.lines[i]; if (!L || typeof L !== 'object') continue;
             srcLines.push({
-                id: uid(),
-                account: L.account || '',
-                details: JSON.parse(JSON.stringify(L.details || {})),
-                debit: Number(L.debit) || 0,
-                credit: Number(L.credit) || 0,
-                description: L.description || '',
-                trackingNumber: L.trackingNumber || '',
-                trackingDate: L.trackingDate || '',
-                locked: !!L.locked
+                id: uid(), account: L.account || '', details: JSON.parse(JSON.stringify(L.details || {})),
+                debit: Number(L.debit) || 0, credit: Number(L.credit) || 0, description: L.description || '',
+                trackingNumber: L.trackingNumber || '', trackingDate: L.trackingDate || '', locked: !!L.locked
             });
         }
     }
-    if (srcLines.length === 0) {
-        srcLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
-        console.log('[loadVoucherForEdit] WARNING: No lines in source voucher!');
-    }
-    console.log('[loadVoucherForEdit] Prepared', srcLines.length, 'lines');
+    if (srcLines.length === 0) srcLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
 
-    // ۲) ست کردن state سراسری
     currentVoucherStatus = v.status || 'draft';
     voucherLines = JSON.parse(JSON.stringify(srcLines));
     window._voucherFormSavedAndClean = true;
 
-    // ۳) پاک کردن Context همه تب‌های سند
     if (typeof TAB_STATE !== 'undefined' && Array.isArray(TAB_STATE.tabs)) {
-        TAB_STATE.tabs.forEach(function(t) {
-            if (t.page === 'voucher-new') t.context = null;
-        });
+        TAB_STATE.tabs.forEach(function(t) { if (t.page === 'voucher-new') t.context = null; });
     }
 
-    // ۴) رفتن به صفحه سند
     try { goToPage('voucher-new'); } catch(e) { console.error('[goToPage]', e); }
 
-    // ۵) حلقه retry برای رندر مطمئن
-    var attempts = 0;
-    var MAX = 40;
-    var lastLog = 0;
+    var attempts = 0; var MAX = 40;
 
     function tryRender() {
         attempts++;
-
         var activePage = document.querySelector('.page.active');
         if (!activePage || activePage.id.indexOf('page-voucher-new') === -1) {
             if (attempts < MAX) setTimeout(tryRender, 50);
-            else console.warn('[loadVoucherForEdit] Page not ready after', MAX, 'attempts');
             return;
         }
-
         var linesBox = activePage.querySelector('#voucher-lines');
-        if (!linesBox) {
-            if (attempts < MAX) setTimeout(tryRender, 50);
-            else console.warn('[loadVoucherForEdit] #voucher-lines not found');
-            return;
-        }
+        if (!linesBox) { if (attempts < MAX) setTimeout(tryRender, 50); return; }
 
-        // بازسازی voucherLines از منبع (اگر خالی شده)
-        var needsRestore = !Array.isArray(voucherLines)
-            || voucherLines.length === 0
-            || (voucherLines.length === 1 && !voucherLines[0].account && !voucherLines[0].debit && !voucherLines[0].credit);
+        var needsRestore = !Array.isArray(voucherLines) || voucherLines.length === 0 || (voucherLines.length === 1 && !voucherLines[0].account && !voucherLines[0].debit && !voucherLines[0].credit);
+        if (needsRestore && srcLines.length > 0 && (srcLines[0].account || srcLines[0].debit || srcLines[0].credit)) voucherLines = JSON.parse(JSON.stringify(srcLines));
 
-        if (needsRestore && srcLines.length > 0 && (srcLines[0].account || srcLines[0].debit || srcLines[0].credit)) {
-            voucherLines = JSON.parse(JSON.stringify(srcLines));
-            console.log('[loadVoucherForEdit] Restored voucherLines from srcLines');
-        }
-
-        // رندر
         try { renderVoucherLines(); } catch(e) { console.error('[render]', e); }
-
-        // چک موفقیت
         var renderedCount = linesBox.querySelectorAll('.voucher-line').length;
 
-        if (attempts === 1 || attempts % 10 === 0) {
-            console.log('[loadVoucherForEdit] Attempt', attempts, '— rendered:', renderedCount, 'lines');
-        }
-
         if (renderedCount > 0) {
-            // موفق — تنظیم فیلدها
-            var setVal = function(id, val) {
-                var e = activePage.querySelector('#' + id);
-                if (e) e.value = val;
-            };
-            setVal('v-id', v.id);
-            setVal('v-number', v.number);
-            setVal('v-date', v.date);
-            // ✅ اگر سند ساعت دارد از همان استفاده کن، وگرنه ساعت جاری
-            setVal('v-time', v.time || getCurrentTimeHHMM());
-            setVal('v-type', v.type || 'general');
-            setVal('v-desc', v.desc || '');
+            var setVal = function(id, val) { var e = activePage.querySelector('#' + id); if (e) e.value = val; };
+            setVal('v-id', v.id); setVal('v-number', v.number); setVal('v-date', v.date);
+            setVal('v-time', v.time || getCurrentTimeHHMM()); setVal('v-type', v.type || 'general'); setVal('v-desc', v.desc || '');
 
-            if (typeof bindVoucherForm === 'function') {
-                activePage.dataset.rebound = '1';
-                bindVoucherForm();
-            }
-            if (typeof setVoucherStatusBar === 'function') {
-                setVoucherStatusBar(v.status === 'approved' ? 'approved' : 'draft', v.id);
-            }
-
-            console.log('[loadVoucherForEdit] SUCCESS after', attempts, 'attempts');
+            if (typeof bindVoucherForm === 'function') { activePage.dataset.rebound = '1'; bindVoucherForm(); }
+            if (typeof setVoucherStatusBar === 'function') setVoucherStatusBar(v.status === 'approved' ? 'approved' : 'draft', v.id);
             return;
         }
-
-        if (attempts < MAX) {
-            setTimeout(tryRender, 50);
-        } else {
-            console.error('[loadVoucherForEdit] FAILED after', MAX, 'attempts. Final state:', {
-                voucherLinesCount: voucherLines.length,
-                srcLinesCount: srcLines.length,
-                renderedCount: renderedCount
-            });
-            showToast('⚠️ خطا در بارگذاری ردیف‌ها. لطفاً Console را ببینید.');
-        }
+        if (attempts < MAX) setTimeout(tryRender, 50);
+        else { showToast('⚠️ خطا در بارگذاری ردیف‌ها.'); }
     }
 
     setTimeout(tryRender, 80);
 }
 
-/* ============================================================
-   بخش ۷ — ذخیره سند (✅ fallback ساعت = زمان جاری)
-   ============================================================ */
 function persistVoucher(approve) {
-    if (currentVoucherStatus === 'approved' && !approve) {
-        alert('سند تأیید شده قابل ذخیره به‌عنوان پیش‌نویس نیست.');
-        return;
-    }
+    if (currentVoucherStatus === 'approved' && !approve) { alert('سند تأیید شده قابل ذخیره به‌عنوان پیش‌نویس نیست.'); return; }
     var num = normalizeDigits(document.getElementById('v-number').value.trim());
     var d = normalizeDigits(document.getElementById('v-date').value.trim());
     var t = document.getElementById('v-time').value.trim() || getCurrentTimeHHMM();
@@ -731,18 +522,12 @@ function persistVoucher(approve) {
     var dv = validateDateInActivePeriod(d);
     if (!dv.ok) { alert('⚠️ ' + dv.msg); return; }
     if (!ds) { alert('⚠️ شرح سند اجباری.'); return; }
-    var valid = voucherLines.filter(function (l) {
-        return (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0;
-    });
+    var valid = voucherLines.filter(function (l) { return (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0; });
     if (valid.length < 2) { alert('حداقل دو ردیف با مبلغ.'); return; }
     var id = document.getElementById('v-id').value;
     var status = approve ? 'approved' : 'draft';
     if (!id) num = getNextVoucherNumberForPeriod(pid);
-    var vch = {
-        id: id || uid(),
-        number: num, date: d, time: t, type: ty,
-        periodId: pid, desc: ds, lines: valid, status: status
-    };
+    var vch = { id: id || uid(), number: num, date: d, time: t, type: ty, periodId: pid, desc: ds, lines: valid, status: status };
     if (approve) {
         var issues = getVoucherIssues(vch);
         if (issues.length > 0) { alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• ')); return; }
@@ -750,34 +535,21 @@ function persistVoucher(approve) {
     var l = DB.load('vouchers', []);
     if (id) {
         var found = false;
-        for (var kk = 0; kk < l.length; kk++) {
-            if (l[kk].id === id) { l[kk] = vch; found = true; }
-        }
+        for (var kk = 0; kk < l.length; kk++) { if (l[kk].id === id) { l[kk] = vch; found = true; } }
         if (!found) l.push(vch);
-    } else { l.push(vch); }
+    } else l.push(vch);
     DB.save('vouchers', l);
     if (approve) {
-        showToast('✅ سند تأیید شد.');
-        window._voucherFormSavedAndClean = true;
-        setVoucherStatusBar('approved', vch.id);
-        goToPage('voucher-list');
+        showToast('✅ سند تأیید شد.'); window._voucherFormSavedAndClean = true; setVoucherStatusBar('approved', vch.id); goToPage('voucher-list');
     } else {
         showToast('✅ پیش‌نویس ذخیره شد.');
-        document.getElementById('v-id').value = vch.id;
-        document.getElementById('v-number').value = vch.number;
-        document.getElementById('v-date').value = vch.date;
-        document.getElementById('v-time').value = vch.time;
-        document.getElementById('v-desc').value = vch.desc;
-        currentVoucherStatus = 'draft';
-        setVoucherStatusBar('draft', vch.id);
-        window._voucherFormSavedAndClean = true;
+        document.getElementById('v-id').value = vch.id; document.getElementById('v-number').value = vch.number;
+        document.getElementById('v-date').value = vch.date; document.getElementById('v-time').value = vch.time; document.getElementById('v-desc').value = vch.desc;
+        currentVoucherStatus = 'draft'; setVoucherStatusBar('draft', vch.id); window._voucherFormSavedAndClean = true;
     }
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 }
 
-/* ============================================================
-   بخش ۸ — تشخیص تغییر
-   ============================================================ */
 (function attachVoucherDirtyListener() {
     function markDirty(e) {
         if (!window._voucherFormSavedAndClean) return;
@@ -787,21 +559,15 @@ function persistVoucher(approve) {
         window._voucherFormSavedAndClean = false;
         var bar = document.getElementById('voucher-status-bar');
         if (bar) {
-            bar.style.background = 'linear-gradient(135deg,#dbeafe,#bfdbfe)';
-            bar.style.color = '#1e40af'; bar.style.borderColor = '#3b82f6';
-            var icon = bar.querySelector('.vsb-icon');
-            var text = bar.querySelector('.vsb-text');
-            if (icon) icon.textContent = '✏️';
-            if (text) text.textContent = 'سند در حال ویرایش — ذخیره نشده';
+            bar.style.background = 'linear-gradient(135deg,#dbeafe,#bfdbfe)'; bar.style.color = '#1e40af'; bar.style.borderColor = '#3b82f6';
+            var icon = bar.querySelector('.vsb-icon'); var text = bar.querySelector('.vsb-text');
+            if (icon) icon.textContent = '✏️'; if (text) text.textContent = 'سند در حال ویرایش — ذخیره نشده';
         }
     }
     document.addEventListener('input', markDirty, true);
     document.addEventListener('change', markDirty, true);
 })();
 
-/* ============================================================
-   بخش ۹ — الگوها
-   ============================================================ */
 function applyTemplate(tplId) {
     var list = DB.load('voucherTemplates', []);
     var t = list.find(function (x) { return x.id === tplId; });
@@ -811,20 +577,10 @@ function applyTemplate(tplId) {
         var tl = t.lines[i];
         var accId = tl.account || findAccountByNameHint(tl.nameHint) || '';
         var amt = Number(tl.fixedAmount) || 0;
-        voucherLines.push({
-            id: uid(), account: accId,
-            details: tl.details ? JSON.parse(JSON.stringify(tl.details)) : {},
-            debit: (tl.side === 'debit') ? amt : 0,
-            credit: (tl.side === 'credit') ? amt : 0,
-            description: tl.desc || ''
-        });
+        voucherLines.push({ id: uid(), account: accId, details: tl.details ? JSON.parse(JSON.stringify(tl.details)) : {}, debit: (tl.side === 'debit') ? amt : 0, credit: (tl.side === 'credit') ? amt : 0, description: tl.desc || '' });
     }
-    if (voucherLines.length === 0) {
-        voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
-    }
-    if (t.desc && !document.getElementById('v-desc').value.trim()) {
-        document.getElementById('v-desc').value = t.desc;
-    }
+    if (voucherLines.length === 0) voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
+    if (t.desc && !document.getElementById('v-desc').value.trim()) document.getElementById('v-desc').value = t.desc;
     renderVoucherLines();
     showToast('✅ الگو اعمال شد.');
 }
@@ -832,96 +588,38 @@ function applyTemplate(tplId) {
 function saveVoucherAsTemplate() {
     var valid = voucherLines.filter(function (l) { return l.account; });
     if (valid.length === 0) { alert('ابتدا حساب انتخاب کن.'); return; }
-    var name = prompt('نام الگو:');
-    if (!name) return;
-    name = name.trim();
-    if (!name) return;
+    var name = prompt('نام الگو:'); if (!name) return; name = name.trim(); if (!name) return;
     var tplDesc = document.getElementById('v-desc').value.trim();
-    var tpl = {
-        id: uid(), name: name, desc: tplDesc,
-        lines: valid.map(function (l) {
-            var amt = Number(l.debit) > 0 ? Number(l.debit) : Number(l.credit);
-            return {
-                account: l.account, details: l.details || {},
-                desc: l.description || '',
-                side: (Number(l.debit) > 0 ? 'debit' : 'credit'),
-                fixedAmount: amt || 0
-            };
-        })
-    };
-    var list = DB.load('voucherTemplates', []);
-    list.push(tpl);
+    var tpl = { id: uid(), name: name, desc: tplDesc, lines: valid.map(function (l) { var amt = Number(l.debit) > 0 ? Number(l.debit) : Number(l.credit); return { account: l.account, details: l.details || {}, desc: l.description || '', side: (Number(l.debit) > 0 ? 'debit' : 'credit'), fixedAmount: amt || 0 }; }) };
+    var list = DB.load('voucherTemplates', []); list.push(tpl);
     DB.save('voucherTemplates', list);
     if (typeof refreshTemplateSelect === 'function') refreshTemplateSelect();
     if (typeof renderTemplateList === 'function') renderTemplateList();
     showToast('✅ الگو ذخیره شد.');
 }
 
-/* ============================================================
-   بخش ۱۰ — اتصال دکمه‌ها
-   ============================================================ */
 function bindVoucherForm() {
     var addBtn = document.getElementById('add-line');
-    if (addBtn && !addBtn.dataset.bound) {
-        addBtn.dataset.bound = '1';
-        addBtn.addEventListener('click', function () {
-            voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' });
-            renderVoucherLines();
-        });
-    }
+    if (addBtn && !addBtn.dataset.bound) { addBtn.dataset.bound = '1'; addBtn.addEventListener('click', function () { voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }); renderVoucherLines(); }); }
     var saveBtn = document.getElementById('save-voucher');
-    if (saveBtn && !saveBtn.dataset.bound) {
-        saveBtn.dataset.bound = '1';
-        saveBtn.addEventListener('click', function () { persistVoucher(false); });
-    }
+    if (saveBtn && !saveBtn.dataset.bound) { saveBtn.dataset.bound = '1'; saveBtn.addEventListener('click', function () { persistVoucher(false); }); }
     var saveApproveBtn = document.getElementById('save-voucher-approve');
-    if (saveApproveBtn && !saveApproveBtn.dataset.bound) {
-        saveApproveBtn.dataset.bound = '1';
-        saveApproveBtn.addEventListener('click', function () { persistVoucher(true); });
-    }
+    if (saveApproveBtn && !saveApproveBtn.dataset.bound) { saveApproveBtn.dataset.bound = '1'; saveApproveBtn.addEventListener('click', function () { persistVoucher(true); }); }
     var newBtn = document.getElementById('new-voucher');
-    if (newBtn && !newBtn.dataset.bound) {
-        newBtn.dataset.bound = '1';
-        newBtn.addEventListener('click', newVoucherForm);
-    }
+    if (newBtn && !newBtn.dataset.bound) { newBtn.dataset.bound = '1'; newBtn.addEventListener('click', newVoucherForm); }
     var vDescClearBtn = document.getElementById('v-desc-clear');
-    if (vDescClearBtn && !vDescClearBtn.dataset.bound) {
-        vDescClearBtn.dataset.bound = '1';
-        vDescClearBtn.addEventListener('click', function () {
-            document.getElementById('v-desc').value = '';
-            document.getElementById('v-desc').focus();
-        });
-    }
+    if (vDescClearBtn && !vDescClearBtn.dataset.bound) { vDescClearBtn.dataset.bound = '1'; vDescClearBtn.addEventListener('click', function () { document.getElementById('v-desc').value = ''; document.getElementById('v-desc').focus(); }); }
     var applyTplBtn = document.getElementById('apply-template');
-    if (applyTplBtn && !applyTplBtn.dataset.bound) {
-        applyTplBtn.dataset.bound = '1';
-        applyTplBtn.addEventListener('click', function () {
-            var id = document.getElementById('v-template').value;
-            if (!id) { alert('الگو انتخاب کن.'); return; }
-            applyTemplate(id);
-        });
-    }
+    if (applyTplBtn && !applyTplBtn.dataset.bound) { applyTplBtn.dataset.bound = '1'; applyTplBtn.addEventListener('click', function () { var id = document.getElementById('v-template').value; if (!id) { alert('الگو انتخاب کن.'); return; } applyTemplate(id); }); }
     var saveAsTplBtn = document.getElementById('save-as-template');
-    if (saveAsTplBtn && !saveAsTplBtn.dataset.bound) {
-        saveAsTplBtn.dataset.bound = '1';
-        saveAsTplBtn.addEventListener('click', saveVoucherAsTemplate);
-    }
+    if (saveAsTplBtn && !saveAsTplBtn.dataset.bound) { saveAsTplBtn.dataset.bound = '1'; saveAsTplBtn.addEventListener('click', saveVoucherAsTemplate); }
     var gotoTplBtn = document.getElementById('goto-templates');
-    if (gotoTplBtn && !gotoTplBtn.dataset.bound) {
-        gotoTplBtn.dataset.bound = '1';
-        gotoTplBtn.addEventListener('click', function () { goToPage('templates'); });
-    }
+    if (gotoTplBtn && !gotoTplBtn.dataset.bound) { gotoTplBtn.dataset.bound = '1'; gotoTplBtn.addEventListener('click', function () { goToPage('templates'); }); }
     var timeBtn = document.getElementById('v-time-clock');
     if (timeBtn && !timeBtn.dataset.bound) {
         timeBtn.dataset.bound = '1';
         timeBtn.addEventListener('click', function() {
-            if (typeof openTimePicker === 'function') {
-                // ✅ پیش‌فرض انتخاب‌گر = مقدار فعلی فیلد، یا ساعت جاری
-                var currentVal = document.getElementById('v-time').value || getCurrentTimeHHMM();
-                openTimePicker(function(t) {
-                    document.getElementById('v-time').value = t;
-                }, currentVal);
-            }
+            if (typeof openTimePicker === 'function') { var currentVal = document.getElementById('v-time').value || getCurrentTimeHHMM(); openTimePicker(function(t) { document.getElementById('v-time').value = t; }, currentVal); }
         });
     }
 }
