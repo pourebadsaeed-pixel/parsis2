@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
-   مسیر: js/ui/table.js (نسخه اصلاح‌شده جامع)
+   مسیر: js/ui/table.js (نسخه: فیلتر پاپ‌آور با آیکن قیف)
    ============================================================ */
 'use strict';
 
@@ -8,7 +8,107 @@ var colWidths = DB.load(LS_KEYS.COL_WIDTHS, {});
 function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
 
 /* ============================================================
-   کمک‌تابع‌های نرمال‌سازی
+   استایل آیکن قیف و پاپ‌آور فیلتر
+   ============================================================ */
+(function injectFilterCss() {
+    if (document.getElementById('col-filter-style')) return;
+    var s = document.createElement('style');
+    s.id = 'col-filter-style';
+    s.textContent = `
+        .col-filter-btn {
+            position: absolute;
+            top: 50%;
+            left: 18px;
+            transform: translateY(-50%);
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            opacity: 0.4;
+            transition: all 0.2s;
+            padding: 0;
+            z-index: 4;
+        }
+        .col-filter-btn:hover {
+            opacity: 1;
+            background: var(--primary-light);
+            color: var(--primary-dark);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .col-filter-btn.active {
+            opacity: 1;
+            background: var(--primary);
+            color: #fff;
+        }
+        .col-filter-popover {
+            position: fixed;
+            z-index: 99999;
+            background: var(--card-solid);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            padding: 12px;
+            width: 240px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            direction: rtl;
+            animation: cfFadeIn 0.15s ease;
+        }
+        @keyframes cfFadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .col-filter-popover select,
+        .col-filter-popover input {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            background: var(--card-solid);
+            color: var(--text);
+            outline: none;
+        }
+        .col-filter-popover select:focus,
+        .col-filter-popover input:focus {
+            border-color: var(--primary);
+        }
+        .col-filter-popover .cf-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+            margin-top: 4px;
+        }
+        .col-filter-popover .cf-actions button {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .col-filter-popover .cf-clear { background: #fee2e2; color: #dc2626; }
+        .col-filter-popover .cf-clear:hover { background: #dc2626; color: #fff; }
+        .col-filter-popover .cf-close { background: var(--primary-light); color: var(--primary-dark); }
+        .col-filter-popover .cf-close:hover { background: var(--primary); color: #fff; }
+    `;
+    document.head.appendChild(s);
+})();
+
+/* ============================================================
+   نرمال‌سازی سلول
    ============================================================ */
 function normalizeCellText(s) {
     return String(s || '')
@@ -34,7 +134,7 @@ function cellToNumber(s) {
 }
 
 /* ============================================================
-   تست فیلتر (پشتیبانی کامل عملگرها)
+   تست فیلتر
    ============================================================ */
 function testFilter(cellText, filter) {
     if (!filter || !filter.op) return true;
@@ -61,7 +161,7 @@ function testFilter(cellText, filter) {
 }
 
 /* ============================================================
-   لایه‌ی ثابت‌سازی عرض ستون‌ها
+   Fixed layout helpers
    ============================================================ */
 function ensureFixedLayout(table) {
     if (!table) return;
@@ -149,13 +249,11 @@ function makeTableResizable(table) {
     }
 
     if (!needsSetup) {
-        // حتی اگر resizer هست، ولی data-resizable خالی است، علامت بزن که بازسازی نشود
         table.dataset.resizable = '1';
         applyColWidths(tableId);
         return;
     }
 
-    // اگر resizer قدیمی وجود دارد (بدون listener) اول پاک کن
     var oldResizers = table.querySelectorAll('.col-resizer');
     for (var or = 0; or < oldResizers.length; or++) oldResizers[or].remove();
 
@@ -427,9 +525,7 @@ function findThByOrigIndex(headerRow, origIdx) {
 }
 
 function syncBodyOrigIndices(table, headerRow) {
-    if (!headerRow) {
-        headerRow = table.querySelector('thead tr:not(.column-filter-row)');
-    }
+    if (!headerRow) headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
     var origIndices = [];
@@ -444,7 +540,6 @@ function syncBodyOrigIndices(table, headerRow) {
         if (cells.length <= 1) continue;
         for (var c = 0; c < cells.length; c++) {
             if (cells[c].getAttribute('data-orig-index') === null) {
-                // موقعیت c در ردیف با موقعیت c در هدر برابر است (اگر هنوز reorder نشده)
                 if (c < origIndices.length) {
                     cells[c].setAttribute('data-orig-index', origIndices[c]);
                 } else {
@@ -555,7 +650,6 @@ function setHiddenCols(tableId, arr) {
 function applyColVisibility(tableId) {
     var table = document.getElementById(tableId);
     if (!table) return;
-    // مطمئن شو orig-index روی همه‌ی سلول‌ها هست
     syncBodyOrigIndices(table);
     var hidden = getHiddenCols(tableId);
     var rows = table.querySelectorAll('tr');
@@ -600,7 +694,7 @@ function showColMenu(tableId, btn) {
         var origIdx = currentOrder[i];
         var th = findThByOrigIndex(headerRow, origIdx);
         if (!th) continue;
-        var label = String(th.textContent || '').replace(/[⇅▲▼]/g, '').trim() || ('ستون ' + (origIdx + 1));
+        var label = String(th.textContent || '').replace(/[⇅▲▼⚲]/g, '').trim() || ('ستون ' + (origIdx + 1));
         var checked = hidden.indexOf(origIdx) === -1 ? 'checked' : '';
         html += '<div class="col-menu-item" style="padding:6px 10px;display:flex;gap:6px;align-items:center">'
              +    '<input type="checkbox" data-table="' + tableId + '" data-col="' + origIdx + '" ' + checked + '>'
@@ -713,6 +807,7 @@ function attachTableSorting(tableId, rerender) {
             th.dataset.sortAttached = '1';
             th.addEventListener('click', function (e) {
                 if (e.target.classList.contains('col-resizer')) return;
+                if (e.target.classList.contains('col-filter-btn')) return;
                 var k = th.getAttribute('data-sort-key');
                 if (!k) return;
                 var st = tableSortState[tableId] || { col: k, dir: 'asc' };
@@ -736,24 +831,9 @@ function applyTableSort(tableId, rows, keyFn) {
 }
 
 /* ============================================================
-   فیلتر ردیف ستون‌ها (نسخه پیشرفته)
+   فیلتر ستون‌ها (پاپ‌آور + آیکن قیف)
    ============================================================ */
 var COLUMN_FILTERS = {};
-
-var FILTER_OP_LABELS = {
-    '':          '—',
-    'contains':  '⊃',
-    'eq':        '=',
-    'neq':       '≠',
-    'gt':        '>',
-    'gte':       '≥',
-    'lt':        '<',
-    'lte':       '≤',
-    'startsWith':'^',
-    'endsWith':  '$',
-    'empty':     '∅',
-    'notEmpty':  '!'
-};
 
 function applyColumnFiltersToTable(tableId) {
     var table = document.getElementById(tableId);
@@ -776,7 +856,6 @@ function applyColumnFiltersToTable(tableId) {
             var origIdx = Number(key);
             var f = filters[key];
             if (!f || !f.op) continue;
-            // پیدا کردن سلول با data-orig-index (نه DOM index)
             var cell = null;
             for (var c = 0; c < tds.length; c++) {
                 var oi = tds[c].getAttribute('data-orig-index');
@@ -789,114 +868,153 @@ function applyColumnFiltersToTable(tableId) {
     }
 }
 
+function closeColFilterPopover() {
+    var pop = document.getElementById('col-filter-popover');
+    if (pop) pop.remove();
+}
+
+document.addEventListener('click', function(e) {
+    var pop = document.getElementById('col-filter-popover');
+    if (!pop) return;
+    if (pop.contains(e.target)) return;
+    if (e.target.closest && e.target.closest('.col-filter-btn')) return;
+    closeColFilterPopover();
+});
+
+function openColFilterPopover(tableId, origIdx, btn) {
+    closeColFilterPopover();
+
+    var pop = document.createElement('div');
+    pop.className = 'col-filter-popover';
+    pop.id = 'col-filter-popover';
+
+    var existing = (COLUMN_FILTERS[tableId] && COLUMN_FILTERS[tableId][origIdx]) || {};
+
+    var ops = [
+        ['', '— انتخاب کنید —'],
+        ['contains', 'شامل'],
+        ['eq', 'مساوی'],
+        ['neq', 'نامساوی'],
+        ['gt', 'بزرگتر از'],
+        ['gte', 'بزرگتر یا مساوی'],
+        ['lt', 'کوچکتر از'],
+        ['lte', 'کوچکتر یا مساوی'],
+        ['startsWith', 'شروع با'],
+        ['endsWith', 'پایان با'],
+        ['empty', 'خالی'],
+        ['notEmpty', 'خالی نباشد']
+    ];
+
+    var selHtml = '<select>';
+    ops.forEach(function(o) {
+        var selected = existing.op === o[0] ? 'selected' : '';
+        selHtml += '<option value="' + o[0] + '" ' + selected + '>' + o[1] + '</option>';
+    });
+    selHtml += '</select>';
+
+    pop.innerHTML = selHtml
+        + '<input type="text" placeholder="مقدار..." value="' + esc(existing.val || '') + '">'
+        + '<div class="cf-actions">'
+        + '<button class="cf-clear" type="button">پاک کردن</button>'
+        + '<button class="cf-close" type="button">بستن</button>'
+        + '</div>';
+
+    document.body.appendChild(pop);
+
+    var rect = btn.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 4) + 'px';
+    pop.style.left = Math.max(4, rect.left - 100) + 'px';
+
+    var sel = pop.querySelector('select');
+    var inp = pop.querySelector('input');
+
+    function update() {
+        var op = sel.value;
+        var val = inp.value.trim();
+
+        if (!op && !val) {
+            if (COLUMN_FILTERS[tableId]) delete COLUMN_FILTERS[tableId][origIdx];
+            btn.classList.remove('active');
+        } else if (!op && val) {
+            if (!COLUMN_FILTERS[tableId]) COLUMN_FILTERS[tableId] = {};
+            COLUMN_FILTERS[tableId][origIdx] = { op: 'contains', val: val };
+            btn.classList.add('active');
+        } else if (op === 'empty' || op === 'notEmpty') {
+            if (!COLUMN_FILTERS[tableId]) COLUMN_FILTERS[tableId] = {};
+            COLUMN_FILTERS[tableId][origIdx] = { op: op, val: '' };
+            btn.classList.add('active');
+        } else if (op && !val) {
+            if (COLUMN_FILTERS[tableId]) delete COLUMN_FILTERS[tableId][origIdx];
+            btn.classList.remove('active');
+        } else {
+            if (!COLUMN_FILTERS[tableId]) COLUMN_FILTERS[tableId] = {};
+            COLUMN_FILTERS[tableId][origIdx] = { op: op, val: val };
+            btn.classList.add('active');
+        }
+
+        applyColumnFiltersToTable(tableId);
+    }
+
+    sel.addEventListener('change', update);
+    inp.addEventListener('input', update);
+
+    pop.querySelector('.cf-clear').addEventListener('click', function() {
+        sel.value = '';
+        inp.value = '';
+        update();
+        closeColFilterPopover();
+    });
+
+    pop.querySelector('.cf-close').addEventListener('click', closeColFilterPopover);
+
+    // autofocus
+    setTimeout(function() { inp.focus(); }, 30);
+}
+
 function buildFilterRow(table) {
     if (!table || !table.id) return;
     var thead = table.querySelector('thead');
     if (!thead) return;
-    // اگر ردیف فیلتر سفارشی وجود دارد (مثل ar-filter-row یا cfd-filter-row) دست نزن
-    if (thead.querySelector('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row')) return;
     var headerRow = thead.querySelector('tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
-    if (ths.length === 0) return;
-
-    var filterTr = document.createElement('tr');
-    filterTr.className = 'column-filter-row';
 
     for (var i = 0; i < ths.length; i++) {
-        (function (th, domIdx) {
+        (function(th, domIdx) {
+            if (th.querySelector('.col-filter-btn')) return;
+
             var origIdxStr = th.getAttribute('data-orig-index');
-            var origIdx = origIdxStr !== null ? origIdxStr : String(domIdx);
+            if (origIdxStr === null) {
+                origIdxStr = String(domIdx);
+                th.setAttribute('data-orig-index', origIdxStr);
+            }
 
-            var td = document.createElement('th');
-            td.className = 'column-filter-cell';
-            td.setAttribute('data-orig-index', origIdx);
-            td.style.cssText = 'padding:3px 4px;background:var(--card-alt);font-weight:normal';
+            if (getComputedStyle(th).position === 'static') {
+                th.style.position = 'relative';
+            }
 
-            var wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;gap:2px;align-items:center;width:100%';
+            var btn = document.createElement('button');
+            btn.className = 'col-filter-btn';
+            btn.type = 'button';
+            // Funnel SVG icon
+            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+            btn.title = 'فیلتر ستون';
+            btn.setAttribute('data-col-idx', origIdxStr);
+            btn.setAttribute('data-table-id', table.id);
 
-            var opSel = document.createElement('select');
-            opSel.className = 'col-filter-op';
-            opSel.style.cssText = 'width:30px;min-width:30px;padding:2px 0;font-size:0.72rem;text-align:center;border:1px solid var(--border);border-radius:5px;background:var(--card-solid);cursor:pointer;font-family:inherit';
-            opSel.title = 'عملگر فیلتر';
-            var ops = [
-                ['', '—', 'بدون فیلتر'],
-                ['contains', '⊃', 'شامل'],
-                ['eq', '=', 'مساوی'],
-                ['neq', '≠', 'نامساوی'],
-                ['gt', '>', 'بزرگتر از'],
-                ['gte', '≥', 'بزرگتر یا مساوی'],
-                ['lt', '<', 'کوچکتر از'],
-                ['lte', '≤', 'کوچکتر یا مساوی'],
-                ['startsWith', '^', 'شروع شود با'],
-                ['endsWith', '$', 'پایان یابد با'],
-                ['empty', '∅', 'خالی'],
-                ['notEmpty', '!', 'خالی نباشد']
-            ];
-            ops.forEach(function (o) {
-                var opt = document.createElement('option');
-                opt.value = o[0]; opt.textContent = o[1]; opt.title = o[2];
-                opSel.appendChild(opt);
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                openColFilterPopover(table.id, this.getAttribute('data-col-idx'), this);
             });
 
-            var valInp = document.createElement('input');
-            valInp.type = 'text';
-            valInp.className = 'col-filter-val';
-            valInp.placeholder = '🔍';
-            valInp.style.cssText = 'flex:1;min-width:0;padding:3px 5px;font-size:0.72rem;border:1px solid var(--border);border-radius:5px;font-family:inherit';
-            valInp.title = 'مقدار فیلتر — برای اعداد می‌توانید از >، <، = استفاده کنید';
+            th.appendChild(btn);
 
-            // اگر فیلتر قبلی روی این ستون هست، بازیابی کن
-            var existing = COLUMN_FILTERS[table.id] && COLUMN_FILTERS[table.id][origIdx];
-            if (existing) {
-                opSel.value = existing.op || '';
-                valInp.value = existing.val || '';
+            var existing = COLUMN_FILTERS[table.id] && COLUMN_FILTERS[table.id][origIdxStr];
+            if (existing && existing.op) {
+                btn.classList.add('active');
             }
-
-            function updateFilter() {
-                if (!COLUMN_FILTERS[table.id]) COLUMN_FILTERS[table.id] = {};
-                var op = opSel.value;
-                var val = valInp.value.trim();
-
-                // اگر عملگر خالی و مقدار خالی → حذف فیلتر
-                if (!op && !val) {
-                    delete COLUMN_FILTERS[table.id][origIdx];
-                }
-                // اگر عملگر خالی ولی مقدار دارد → پیش‌فرض شامل
-                else if (!op && val) {
-                    COLUMN_FILTERS[table.id][origIdx] = { op: 'contains', val: val };
-                }
-                // عملگر empty / notEmpty → نیازی به مقدار ندارد
-                else if (op === 'empty' || op === 'notEmpty') {
-                    COLUMN_FILTERS[table.id][origIdx] = { op: op, val: '' };
-                }
-                // عملگر انتخاب شده ولی مقدار خالی → حذف
-                else if (op && !val) {
-                    delete COLUMN_FILTERS[table.id][origIdx];
-                }
-                // نرمال
-                else {
-                    COLUMN_FILTERS[table.id][origIdx] = { op: op, val: val };
-                }
-                applyColumnFiltersToTable(table.id);
-            }
-
-            opSel.addEventListener('change', updateFilter);
-            valInp.addEventListener('input', updateFilter);
-
-            wrap.appendChild(opSel);
-            wrap.appendChild(valInp);
-            td.appendChild(wrap);
-            filterTr.appendChild(td);
         })(ths[i], i);
     }
-
-    // قبل از افزودن، هر ردیف فیلتر قبلی رو (اگر مونده) حذف کن
-    var oldRows = thead.querySelectorAll('tr.column-filter-row');
-    for (var o = 0; o < oldRows.length; o++) oldRows[o].remove();
-
-    thead.appendChild(filterTr);
 }
 
 function attachFilterRowsToAllTables() {
@@ -909,7 +1027,7 @@ function attachFilterRowsToAllTables() {
 }
 
 /* ============================================================
-   تاشو کارت (idempotent)
+   تاشو کارت
    ============================================================ */
 function makeCardCollapsible(cardEl, key, defaultOpen) {
     if (!cardEl) return;
@@ -1049,5 +1167,7 @@ window.normalizeCellText = normalizeCellText;
 window.testFilter = testFilter;
 window.makeFilterPanelCollapsible = makeFilterPanelCollapsible;
 window.syncBodyOrigIndices = syncBodyOrigIndices;
+window.openColFilterPopover = openColFilterPopover;
+window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — Advanced filter operators + clone-safe');
+console.log('✅ [ui/table.js] loaded — Funnel filter popover + Persian operators');
