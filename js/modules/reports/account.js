@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی: فیلتر قیفی)
+   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی با رفع باگ بستن گردش)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -917,6 +917,13 @@ function closeTurnover() {
     if (overlay) overlay.classList.remove('show');
     document.body.classList.remove('vpreview-elevated');
 }
+
+// ✅ این ۶ خط کد اضافه شد تا دکمه‌های بستن گردش حساب در هر شرایطی کار کنند
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#close-turnover') || e.target.closest('#turnover-close-btn') || e.target.closest('#turnover-overlay')) {
+        if (typeof closeTurnover === 'function') closeTurnover();
+    }
+});
 
 window._AR                            = _AR;
 window._AR_LEVELS                     = _AR_LEVELS;
