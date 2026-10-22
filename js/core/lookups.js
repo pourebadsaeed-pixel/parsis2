@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — جستجوی حساب‌ها، چاپ، CSV
+   پارسیس — جستجوی حساب‌ها، چاپ، CSV (نسخه نهایی چاپ گزارش‌ها)
    مسیر: js/core/lookups.js
    ============================================================ */
 'use strict';
@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   بخش چاپ (کاملاً اصلاح شده برای تب‌های فعال)
+   تابع چاپ هوشمند و استاندارد (با حذف آیکن‌ها و محاسبه مجدد جمع)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -147,108 +147,97 @@ function printHtmlReport(selector, title) {
     }
 
     var dateRange = '';
-    var fromEl = document.getElementById('rt-from') || 
-                 document.getElementById('ra-from') || 
-                 document.getElementById('cf-from') || 
-                 document.getElementById('cfd-from');
-                 
-    var toEl = document.getElementById('rt-to') || 
-               document.getElementById('ra-to') || 
-               document.getElementById('cf-to') || 
-               document.getElementById('cfd-to');
-
-    var fVal = fromEl && fromEl.value ? fromEl.value : '';
-    var tVal = toEl && toEl.value ? toEl.value : '';
-
-    if (fVal || tVal) {
-        dateRange = 'از تاریخ: ' + toFa(fVal) + ' | تا تاریخ: ' + toFa(tVal);
-    } else if (activePage) {
-        var dateInputs = activePage.querySelectorAll('.date-picker');
-        var dates = [];
-        dateInputs.forEach(function(inp) {
-            if (inp.value) {
-                var label = inp.closest('.field') ? inp.closest('.field').querySelector('label') : null;
-                var labelText = label ? label.textContent.trim() : '';
-                dates.push((labelText ? labelText + ': ' : '') + toFa(inp.value));
-            }
-        });
-        if (dates.length > 0) dateRange = dates.join(' | ');
+    var fromVal = '', toVal = '';
+    if (selector === '#ra-result') {
+        fromVal = (document.getElementById('ra-from') || {}).value || '';
+        toVal = (document.getElementById('ra-to') || {}).value || '';
+    } else if (selector === '#rt-result') {
+        fromVal = (document.getElementById('rt-from') || {}).value || '';
+        toVal = (document.getElementById('rt-to') || {}).value || '';
+    } else if (selector === '#cf-result') {
+        fromVal = (document.getElementById('cf-from') || {}).value || '';
+        toVal = (document.getElementById('cf-to') || {}).value || '';
+    } else if (selector === '#cfd-result') {
+        fromVal = (document.getElementById('cfd-from') || {}).value || '';
+        toVal = (document.getElementById('cfd-to') || {}).value || '';
+    } else if (selector === '#ri-result') {
+        fromVal = (document.getElementById('ri-from') || {}).value || '';
+        toVal = (document.getElementById('ri-to') || {}).value || '';
+    }
+    
+    if (fromVal || toVal) {
+        dateRange = 'از تاریخ: ' + toFa(fromVal) + (toVal ? ' | تا تاریخ: ' + toFa(toVal) : '');
     }
 
-    var tablesHtml = '';
-    var isLandscape = false;
+    var clone = targetEl.cloneNode(true);
 
-    var sourceTables = targetEl.tagName === 'TABLE' ? [targetEl] : targetEl.querySelectorAll('table');
+    // ✅ حذف تمام آیکن‌ها و دکمه‌های اضافی
+    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle');
+    for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    if (sourceTables.length === 0) {
-        tablesHtml = targetEl.innerHTML;
-    } else {
-        sourceTables.forEach(function(tbl) {
-            if (tbl.offsetWidth === 0 && !tbl.closest('.modal')) return; 
-
-            var clone = tbl.cloneNode(true);
-
-            clone.querySelectorAll('tr.column-filter-row, tr.ar-filter-row, tr.cfd-filter-row').forEach(el => el.remove());
-            
-            var ths = clone.querySelectorAll('thead th');
-            var actionColIndex = -1;
-            ths.forEach(function(th, i) { 
-                if (th.textContent.includes('عملیات')) actionColIndex = i; 
-            });
-            if (actionColIndex > -1) {
-                clone.querySelectorAll('tr').forEach(function(tr) {
-                    var cells = tr.children;
-                    if (cells.length > actionColIndex) cells[actionColIndex].remove();
+    // ✅ محاسبه مجدد جمع (فقط ردیف‌های قابل مشاهده)
+    clone.querySelectorAll('table').forEach(function(table) {
+        var tfoot = table.querySelector('tfoot');
+        var tbody = table.querySelector('tbody');
+        if (!tfoot || !tbody) return;
+        
+        var visibleRows = Array.from(tbody.querySelectorAll('tr')).filter(function(tr) { 
+            return tr.style.display !== 'none' && !tr.classList.contains('empty-row'); 
+        });
+        
+        var footRow = tfoot.querySelector('tr');
+        if (!footRow) return;
+        
+        Array.from(footRow.children).forEach(function(cell, idx) {
+            var txt = cell.textContent.trim();
+            if (/\d/.test(txt) && !/^[^\d]*$/.test(txt)) {
+                var sum = 0;
+                var hasNumbers = false;
+                visibleRows.forEach(function(tr) {
+                    var td = tr.children[idx];
+                    if (td) {
+                        var tdTxt = td.textContent.replace(/,/g, '').replace(/[۰-۹]/g, function(d) { return d.charCodeAt(0) - 0x06F0; }).replace(/[^\d\-\.]/g, '');
+                        var val = parseFloat(tdTxt);
+                        if (!isNaN(val)) { sum += val; hasNumbers = true; }
+                    }
                 });
+                if (hasNumbers) {
+                    var isNeg = sum < 0;
+                    var absSum = Math.abs(sum);
+                    var formatted = absSum.toLocaleString('fa-IR');
+                    cell.textContent = isNeg ? '(' + formatted + ')' : formatted;
+                    if (isNeg) cell.style.color = '#dc2626';
+                    else cell.style.color = '#1e40af';
+                }
             }
-            clone.querySelectorAll('.row-actions, .col-resizer, .eye-toggle-btn, .col-toggle-btn, button, .ar-turnover-btn').forEach(el => el.remove());
-
-            var thCount = clone.querySelectorAll('thead tr:first-child th').length;
-            if (thCount > 6) isLandscape = true;
-
-            var groupTitle = '';
-            var parentGroup = tbl.closest('.cfd-group');
-            if (parentGroup) {
-                var titleEl = parentGroup.querySelector('.cfd-title');
-                if (titleEl) groupTitle = titleEl.textContent.trim();
-            }
-
-            if (groupTitle) {
-                tablesHtml += `<div style="margin-top:20px; margin-bottom:10px; font-weight:bold; font-size:12pt; color:#1e40af;">${esc(groupTitle)}</div>`;
-            }
-            
-            tablesHtml += clone.outerHTML;
         });
-    }
-
-    var now = new Date();
-    var timeStr = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
-    var dateStr = todayJalaliStr().replace(/\//g, '-');
-    var safeTitle = (title || 'گزارش').replace(/[\\/:*?"<>|]/g, '').trim(); 
-    var fileName = safeTitle + '-(' + timeStr + '-' + dateStr + ')';
+    });
 
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
         <head>
             <meta charset="UTF-8">
-            <title>${esc(fileName)}</title>
+            <title>${esc(title)}</title>
             <style>
-                @page { size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'}; margin: 12mm; }
-                body { font-family: 'B Nazanin', Tahoma, sans-serif; font-size: 11pt; direction: rtl; color: #000; margin: 0; padding: 0; }
+                @page { 
+                    size: A4; 
+                    margin: 15mm; 
+                    @bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma, sans-serif; font-size: 10pt; color: #555; }
+                }
+                body { font-family: Tahoma, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 11pt; }
                 .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
-                .header h1 { font-family: 'B Titr', Tahoma, sans-serif; font-size: 14pt; margin: 0 0 5px 0; color: #1e40af; }
+                .header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; }
                 .header .date-range { font-size: 11pt; color: #475569; font-weight: bold; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
                 tr { page-break-inside: avoid !important; }
                 thead { display: table-header-group; }
-                th, td { border: 1px solid #64748b; padding: 4px 8px; text-align: center; vertical-align: middle; word-wrap: break-word; }
-                th { background-color: #e2e8f0 !important; font-weight: bold !important; font-family: 'B Titr', Tahoma, sans-serif; color: #1e40af; font-size: 11pt; }
-                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; font-family: 'B Titr', Tahoma, sans-serif; color: #1e40af; }
-                td:first-child { text-align: right; font-weight: bold; }
-                .num, .ltr { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-size: 10pt; white-space: nowrap; }
-                .dr, .neg-money, td[style*="color:#c0392b"] { color: #dc2626 !important; font-weight: bold; }
-                .cr, td[style*="color:#1e9e6a"] { color: #059669 !important; font-weight: bold; }
+                th, td { border: 1px solid #64748b; padding: 4px 8px; text-align: center; vertical-align: middle; font-size: 10pt; }
+                th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
+                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
+                .num { direction: ltr; font-family: Arial, Tahoma, sans-serif; }
+                .dr { color: #dc2626 !important; font-weight: bold; }
+                .cr { color: #059669 !important; font-weight: bold; }
             </style>
         </head>
         <body>
@@ -256,9 +245,7 @@ function printHtmlReport(selector, title) {
                 <h1>${esc(title)}</h1>
                 ${dateRange ? `<div class="date-range">${esc(dateRange)}</div>` : ''}
             </div>
-            <div>
-                ${tablesHtml}
-            </div>
+            <div>${clone.innerHTML}</div>
         </body>
         </html>
     `;
@@ -273,15 +260,13 @@ function printHtmlReport(selector, title) {
     printWindow.document.write(htmlContent);
     printWindow.document.close();
 
-    showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
 
-    printWindow.onload = function() {
-        setTimeout(function() {
-            printWindow.focus();
-            printWindow.print();
-            printWindow.onafterprint = function() { printWindow.close(); };
-        }, 500);
-    };
+    setTimeout(function() {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.onafterprint = function() { printWindow.close(); };
+    }, 500);
 }
 
 function exportToCsv(key, filename) {
@@ -388,4 +373,4 @@ window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 
-console.log('✅ [core/lookups.js] loaded — Clean Print Window + Active Tab Support');
+console.log('✅ [core/lookups.js] loaded — Clean Print Window + Smart Totals');
