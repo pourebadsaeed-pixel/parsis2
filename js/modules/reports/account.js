@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی با رفع باگ بستن گردش)
+   پارسیس — گزارش مرور حساب‌ها (نسخه نهایی با رفع باگ بستن و چاپ سند)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -600,7 +600,7 @@ function renderAccountReview() {
         if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
         if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
         if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
-        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی دکمه‌های قیف
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
     }, 50);
 }
 
@@ -918,7 +918,17 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-// ✅ این ۶ خط کد اضافه شد تا دکمه‌های بستن گردش حساب در هر شرایطی کار کنند
+// ✅ این ۹ خط کد برای اتصال قطعی دکمه‌های پیش‌نمایش سند (بستن و چاپ) به کل صفحه اضافه شد
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#close-vpreview') || e.target.closest('#vpreview-close-btn') || e.target.closest('#vpreview-overlay')) {
+        if (typeof closeVoucherPreview === 'function') closeVoucherPreview();
+    }
+    if (e.target.closest('#vpreview-print')) {
+        if (typeof printVoucherPreview === 'function') printVoucherPreview();
+    }
+});
+
+// ✅ این ۶ خط کد برای اتصال قطعی دکمه‌های بستن مودال گردش حساب
 document.addEventListener('click', function(e) {
     if (e.target.closest('#close-turnover') || e.target.closest('#turnover-close-btn') || e.target.closest('#turnover-overlay')) {
         if (typeof closeTurnover === 'function') closeTurnover();
@@ -939,4 +949,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Fixed funnel filter');
+console.log('✅ [modules/reports/account.js] loaded — Fixed funnel filter & modal buttons');
