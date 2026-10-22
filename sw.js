@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v38-2025'; // ✅ نسخه آپدیت شد تا فایل‌های جدید لود شوند
+var CACHE_NAME = 'parsis-v40-2025'; // ✅ نسخه آپدیت شد تا فایل‌های جدید لود شوند
 
 var ASSETS = [
   './index.html',
