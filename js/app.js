@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — راه‌اندازی نهایی برنامه
+   پارسیس — راه‌اندازی نهایی برنامه (نسخه بهینه‌شده برای لاگین)
    مسیر: js/app.js
    ============================================================ */
 'use strict';
@@ -25,7 +25,6 @@ function bindSettingsButtons() {
 
     var closeBtn = document.getElementById('close-settings');
     if (closeBtn) closeBtn.addEventListener('click', closeSettings);
-
     var overlay = document.getElementById('settings-overlay');
     if (overlay) overlay.addEventListener('click', closeSettings);
 
@@ -78,12 +77,10 @@ function bindCurrencyHide() {
     function onCurrencyDisplay(v) {
         state.currencyDisplay = v;
         saveState(LS_KEYS.CURRENCY_DISPLAY);
-
         var s1 = document.getElementById('set-currency-display');
         var s2 = document.getElementById('set-currency-display2');
         if (s1) s1.value = v;
         if (s2) s2.value = v;
-
         if (typeof updateUnitChips === 'function') updateUnitChips();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
         if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
@@ -105,10 +102,8 @@ function bindCurrencyHide() {
     function onHideNumbers(v) {
         state.hideNumbers = v;
         saveState(LS_KEYS.HIDE_NUMBERS);
-
         var cb = document.getElementById('set-hide-numbers');
         if (cb) cb.checked = v;
-
         if (typeof updateEyeButtons === 'function') updateEyeButtons();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
         if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage();
@@ -129,8 +124,7 @@ function bindBankCashTypes() {
         addBankBtn.addEventListener('click', function () {
             var inp = document.getElementById('new-bank-type');
             var v = inp.value.trim();
-            if (!v) return;
-            if (state.bankTypes.indexOf(v) !== -1) return;
+            if (!v || state.bankTypes.indexOf(v) !== -1) return;
             state.bankTypes.push(v);
             saveState(LS_KEYS.BANK_TYPES);
             inp.value = '';
@@ -144,8 +138,7 @@ function bindBankCashTypes() {
         addCashBtn.addEventListener('click', function () {
             var inp = document.getElementById('new-cash-type');
             var v = inp.value.trim();
-            if (!v) return;
-            if (state.cashTypes.indexOf(v) !== -1) return;
+            if (!v || state.cashTypes.indexOf(v) !== -1) return;
             state.cashTypes.push(v);
             saveState(LS_KEYS.CASH_TYPES);
             inp.value = '';
@@ -158,7 +151,6 @@ function bindSmsButtons() {
     function onSmsAutoRead(val) {
         state.smsAutoRead = val;
         DB.save(LS_KEYS.SMS_AUTO_READ, val);
-
         var e1 = document.getElementById('sms-auto-read');
         var e2 = document.getElementById('set-sms-auto-read');
         if (e1) e1.checked = val;
@@ -185,20 +177,14 @@ function bindSmsButtons() {
             else showToast('⚠️ سیستم پیامک لود نشده.');
         });
     }
-
+    
     var parseSms = document.getElementById('parse-sms');
     if (parseSms && !parseSms.dataset.bound) {
         parseSms.dataset.bound = '1';
         parseSms.addEventListener('click', function () {
             var text = document.getElementById('sms-text').value;
-            if (!text.trim()) {
-                alert('متن را وارد کن.');
-                return;
-            }
-            if (typeof addSmsToInbox !== 'function') {
-                alert('سیستم پیامک لود نشده.');
-                return;
-            }
+            if (!text.trim()) { alert('متن را وارد کن.'); return; }
+            if (typeof addSmsToInbox !== 'function') { alert('سیستم پیامک لود نشده.'); return; }
             var res = addSmsToInbox(text, 'paste');
             if (res.ok) {
                 showToast('✅ اضافه شد');
@@ -234,20 +220,6 @@ function bindSmsButtons() {
     }
 }
 
-function bindWidgetToggles() {
-    var wT = document.querySelectorAll('[data-widget-toggle]');
-    for (var wt = 0; wt < wT.length; wt++) {
-        if (wT[wt].dataset.bound) continue;
-        wT[wt].dataset.bound = '1';
-        wT[wt].addEventListener('change', function () {
-            var k = this.getAttribute('data-widget-toggle');
-            state.widgets[k] = this.checked;
-            DB.save(LS_KEYS.WIDGETS, state.widgets);
-            if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        });
-    }
-}
-
 function bindBaseDataForms() {
     if (typeof bindFiscalForm === 'function') bindFiscalForm();
     if (typeof bindPersonsForm === 'function') bindPersonsForm();
@@ -272,74 +244,34 @@ function bindVoucherTemplatesForms() {
 
 function bindModalClosers() {
     var closeVp = document.getElementById('close-vpreview');
-    if (closeVp && typeof closeVoucherPreview === 'function') {
-        closeVp.addEventListener('click', closeVoucherPreview);
-    }
+    if (closeVp && typeof closeVoucherPreview === 'function') closeVp.addEventListener('click', closeVoucherPreview);
     var vpClose = document.getElementById('vpreview-close-btn');
-    if (vpClose && typeof closeVoucherPreview === 'function') {
-        vpClose.addEventListener('click', closeVoucherPreview);
-    }
+    if (vpClose && typeof closeVoucherPreview === 'function') vpClose.addEventListener('click', closeVoucherPreview);
     var vpOv = document.getElementById('vpreview-overlay');
-    if (vpOv && typeof closeVoucherPreview === 'function') {
-        vpOv.addEventListener('click', closeVoucherPreview);
-    }
-    var vpPrint = document.getElementById('vpreview-print');
-    if (vpPrint && typeof printVoucherPreview === 'function') {
-        vpPrint.addEventListener('click', printVoucherPreview);
-    }
-
+    if (vpOv && typeof closeVoucherPreview === 'function') vpOv.addEventListener('click', closeVoucherPreview);
+    
     var closeTo = document.getElementById('close-turnover');
     if (closeTo && typeof closeTurnover === 'function') closeTo.addEventListener('click', closeTurnover);
     var toClose = document.getElementById('turnover-close-btn');
     if (toClose && typeof closeTurnover === 'function') toClose.addEventListener('click', closeTurnover);
     var toOv = document.getElementById('turnover-overlay');
     if (toOv && typeof closeTurnover === 'function') toOv.addEventListener('click', closeTurnover);
-    var toPrint = document.getElementById('turnover-print');
-    if (toPrint && typeof printHtmlReport === 'function') {
-        toPrint.addEventListener('click', function () {
-            printHtmlReport('#turnover-body', 'گردش حساب');
-        });
-    }
-
+    
     var closeIv = document.getElementById('close-imgview');
     if (closeIv) closeIv.addEventListener('click', function () {
         document.getElementById('imgview-modal').classList.remove('show');
         document.getElementById('imgview-overlay').classList.remove('show');
     });
-    var ivOv = document.getElementById('imgview-overlay');
-    if (ivOv) ivOv.addEventListener('click', function () {
-        document.getElementById('imgview-modal').classList.remove('show');
-        document.getElementById('imgview-overlay').classList.remove('show');
-    });
-
+    
     var closeNv = document.getElementById('close-noteview');
     if (closeNv && typeof closeNoteView === 'function') closeNv.addEventListener('click', closeNoteView);
-    var nvOv = document.getElementById('noteview-overlay');
-    if (nvOv && typeof closeNoteView === 'function') nvOv.addEventListener('click', closeNoteView);
-
-    var closeScan = document.getElementById('voucher-scan-close');
-    if (closeScan) closeScan.addEventListener('click', function () {
-        var m = document.getElementById('voucher-scan-modal');
-        var o = document.getElementById('voucher-scan-overlay');
-        if (m) m.remove();
-        if (o) o.remove();
-    });
-    var scanOv = document.getElementById('voucher-scan-overlay');
-    if (scanOv) scanOv.addEventListener('click', function () {
-        var m = document.getElementById('voucher-scan-modal');
-        var o = document.getElementById('voucher-scan-overlay');
-        if (m) m.remove();
-        if (o) o.remove();
-    });
 }
 
 function initGlobalReportDelegation() {
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('button');
-        if (!btn) return;
-
+        if (!btn || !btn.id) return;
         var id = btn.id;
-        if (!id) return;
 
         var printTitles = {
             'cf-print':  ['#cf-result',  'پیش‌بینی روزانه نقدینگی'],
@@ -352,20 +284,7 @@ function initGlobalReportDelegation() {
             'rc-print':  ['#rc-result',  'گزارش مقایسه‌ای']
         };
         if (printTitles[id] && typeof printHtmlReport === 'function') {
-            printHtmlReport(printTitles[id][0], printTitles[id][1]);
-            return;
-        }
-
-        var exportNames = {
-            'cf-export': 'cash-flow', 'cfd-export': 'cash-flow-by-desc',
-            'ra-export': 'account-report', 'rt-export': 'trial-balance',
-            'ri-export': 'incomplete-transactions', 'rf-export': 'facility-summary',
-            'rff-export': 'facility-full-report', 'rc-export': 'comparison-report'
-        };
-        if (exportNames[id] && typeof exportReportTable === 'function') {
-            var targetId = '#' + id.replace('-export', '-result');
-            exportReportTable(targetId, exportNames[id]);
-            return;
+            printHtmlReport(printTitles[id][0], printTitles[id][1]); return;
         }
 
         var runMap = {
@@ -375,44 +294,18 @@ function initGlobalReportDelegation() {
             'rff-run': 'runFacilityFullReport', 'rc-run': 'runComparisonReport'
         };
         if (runMap[id] && typeof window[runMap[id]] === 'function') {
-            window[runMap[id]]();
-            return;
-        }
-
-        if (id === 'cf-today' || id === 'cfd-today') {
-            var prefix = id.replace('-today', '');
-            var t = todayJalaliStr();
-            var fromEl = document.getElementById(prefix + '-from');
-            var toEl = document.getElementById(prefix + '-to');
-            if (fromEl) fromEl.value = t;
-            if (toEl) toEl.value = addJalaliDays(t, 30);
-            if (prefix === 'cf' && typeof runCashFlowReport === 'function') runCashFlowReport();
-            if (prefix === 'cfd' && typeof runCashFlowByDescReport === 'function') runCashFlowByDescReport();
-            return;
+            window[runMap[id]](); return;
         }
     });
 }
 
-function bindSidebarNavApp() {
-    if (typeof initSidebarSearch === 'function') initSidebarSearch();
-    if (typeof window.bindSidebarNav === 'function' && !window._sbNavBound) {
-        window._sbNavBound = true;
-        window.bindSidebarNav();
-    }
-}
-
 function bindFilterInputs() {
     var filterMap = {
-        'fiscal-filter':    'renderFiscalList',
-        'persons-filter':   'renderPersonsList',
-        'comp-filter':      'renderCompaniesList',
-        'ba-filter':        'renderBankAccountsList',
-        'cb-filter':        'renderCashBoxesList',
-        'proj-filter':      'renderProjectsList',
-        'fac-filter':       'renderFacilitiesList',
-        'cfs-filter':       'renderCfsList',
-        'est-filter':       'renderEstimateList',
-        'users-filter':     'renderUsersList'
+        'fiscal-filter': 'renderFiscalList', 'persons-filter': 'renderPersonsList',
+        'comp-filter': 'renderCompaniesList', 'ba-filter': 'renderBankAccountsList',
+        'cb-filter': 'renderCashBoxesList', 'proj-filter': 'renderProjectsList',
+        'fac-filter': 'renderFacilitiesList', 'cfs-filter': 'renderCfsList',
+        'est-filter': 'renderEstimateList', 'users-filter': 'renderUsersList'
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
@@ -423,12 +316,6 @@ function bindFilterInputs() {
             if (typeof window[fn] === 'function') window[fn]();
         });
     });
-
-    var facCat = document.getElementById('fac-cat-filter');
-    if (facCat && !facCat.dataset.bound && typeof renderFacilitiesList === 'function') {
-        facCat.dataset.bound = '1';
-        facCat.addEventListener('change', renderFacilitiesList);
-    }
 }
 
 function bindExportButtons() {
@@ -437,27 +324,23 @@ function bindExportButtons() {
         if (eB[e].dataset.bound) continue;
         eB[e].dataset.bound = '1';
         eB[e].addEventListener('click', function () {
-            if (typeof exportToCsv === 'function') {
-                exportToCsv(this.getAttribute('data-export'), this.getAttribute('data-export'));
-            }
+            if (typeof exportToCsv === 'function') exportToCsv(this.getAttribute('data-export'), this.getAttribute('data-export'));
         });
     }
 }
 
-function init() {
-    if (typeof bindAuthUI === 'function') bindAuthUI();
-    if (typeof initUsers === 'function') initUsers();
-
-    checkAuth(); 
+// ✅ این تابع سنگین است و فقط زمانی اجرا می‌شود که کاربر لاگین کرده باشد
+function startApp() {
+    if (window._parsisAppStarted) return;
+    window._parsisAppStarted = true;
+    console.log('🚀 Starting heavy app components...');
 
     if (typeof applyTheme === 'function') applyTheme(state.theme);
     if (typeof applyFont === 'function') applyFont(state.font);
-
     if (typeof renderChips === 'function') {
         renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         renderChips('cash-types-list', state.cashTypes, 'cashTypes');
     }
-
     if (typeof setupTabs === 'function') setupTabs();
     if (typeof setupSorting === 'function') setupSorting();
     if (typeof initCalendarListeners === 'function') initCalendarListeners();
@@ -470,15 +353,11 @@ function init() {
         if (ldc) ldc.disabled = true;
     }
 
-    if (!DB.load('voucherTemplates', null)) {
-        if (typeof getDefaultTemplates === 'function') {
-            DB.save('voucherTemplates', getDefaultTemplates());
-        }
+    if (!DB.load('voucherTemplates', null) && typeof getDefaultTemplates === 'function') {
+        DB.save('voucherTemplates', getDefaultTemplates());
     }
-    if (!DB.load('standardDescriptions', null)) {
-        if (typeof getDefaultStdDescriptions === 'function') {
-            DB.save('standardDescriptions', getDefaultStdDescriptions());
-        }
+    if (!DB.load('standardDescriptions', null) && typeof getDefaultStdDescriptions === 'function') {
+        DB.save('standardDescriptions', getDefaultStdDescriptions());
     }
 
     if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
@@ -487,64 +366,29 @@ function init() {
     if (typeof applyWidgetVisibility === 'function') applyWidgetVisibility();
     if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
     if (typeof renderFrequentNav === 'function') renderFrequentNav();
-
     if (typeof renderSmsInbox === 'function') renderSmsInbox();
     if (typeof updateSmsBadge === 'function') updateSmsBadge();
 
-    var c2 = document.getElementById('set-currency-display2');
-    if (c2) c2.value = state.currencyDisplay;
-
-    var hn = document.getElementById('set-hide-numbers');
-    if (hn) hn.checked = state.hideNumbers;
-
-    var s1 = document.getElementById('set-sms-auto-read');
-    if (s1) s1.checked = state.smsAutoRead;
-
-    var s2 = document.getElementById('sms-auto-read');
-    if (s2) s2.checked = state.smsAutoRead;
-
-    var aboutEl = document.getElementById('about-version');
-    if (aboutEl) {
-        aboutEl.textContent = APP_NAME + ' — نسخه ' + toFa(APP_VERSION) + ' (PWA)';
-    }
-
-    if (typeof updateUnitChips === 'function') updateUnitChips();
-
-    initGlobalReportDelegation();
-
     var binds = [
-        ['bindSidebarNavApp',  typeof bindSidebarNavApp !== 'undefined' ? bindSidebarNavApp : null],
-        ['bindSettingsButtons', typeof bindSettingsButtons !== 'undefined' ? bindSettingsButtons : null],
-        ['bindThemeFontButtons', function () {
-            if (typeof bindThemeFontButtons === 'function') bindThemeFontButtons();
-        }],
-        ['bindWidgetToggles',  typeof bindWidgetToggles !== 'undefined' ? bindWidgetToggles : null],
-        ['bindCurrencyHide',   typeof bindCurrencyHide !== 'undefined' ? bindCurrencyHide : null],
-        ['bindBankCashTypes',  typeof bindBankCashTypes !== 'undefined' ? bindBankCashTypes : null],
-        ['bindSmsButtons',     typeof bindSmsButtons !== 'undefined' ? bindSmsButtons : null],
-        ['bindBaseDataForms',  typeof bindBaseDataForms !== 'undefined' ? bindBaseDataForms : null],
-        ['bindCashForms',      typeof bindCashForms !== 'undefined' ? bindCashForms : null],
-        ['bindVoucherTemplatesForms', typeof bindVoucherTemplatesForms !== 'undefined' ? bindVoucherTemplatesForms : null],
-        ['bindModalClosers',   typeof bindModalClosers !== 'undefined' ? bindModalClosers : null],
-        ['bindNotesForm',      function () {
-            if (typeof bindNotesForm === 'function') bindNotesForm();
-        }],
-        ['bindFilterInputs',   typeof bindFilterInputs !== 'undefined' ? bindFilterInputs : null],
-        ['bindExportButtons',  typeof bindExportButtons !== 'undefined' ? bindExportButtons : null]
+        [bindSettingsButtons, 'bindSettingsButtons'],
+        [function(){ if(typeof bindThemeFontButtons === 'function') bindThemeFontButtons(); }, 'bindThemeFontButtons'],
+        [bindCurrencyHide, 'bindCurrencyHide'],
+        [bindBankCashTypes, 'bindBankCashTypes'],
+        [bindSmsButtons, 'bindSmsButtons'],
+        [bindBaseDataForms, 'bindBaseDataForms'],
+        [bindCashForms, 'bindCashForms'],
+        [bindVoucherTemplatesForms, 'bindVoucherTemplatesForms'],
+        [bindModalClosers, 'bindModalClosers'],
+        [function(){ if (typeof bindNotesForm === 'function') bindNotesForm(); }, 'bindNotesForm'],
+        [bindFilterInputs, 'bindFilterInputs'],
+        [bindExportButtons, 'bindExportButtons']
     ];
 
     binds.forEach(function (pair) {
-        try {
-            if (pair[1]) pair[1]();
-        } catch (e) {
-            console.warn('[' + pair[0] + ']', e);
-        }
+        try { if (typeof pair[0] === 'function') pair[0](); } catch (e) { console.warn('[' + pair[1] + ']', e); }
     });
 
-    if (typeof initUsersPage === 'function' && document.getElementById('page-users')) {
-        initUsersPage();
-    }
-
+    if (typeof initUsersPage === 'function' && document.getElementById('page-users')) initUsersPage();
     if (typeof updateDateDisplay === 'function') updateDateDisplay();
     if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
@@ -563,7 +407,6 @@ function init() {
     if (typeof attachDatePickers === 'function') attachDatePickers();
     if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
     if (typeof makeAllTablesResizable === 'function') makeAllTablesResizable();
-
     if (typeof checkClipboardSupport === 'function') checkClipboardSupport();
     if (typeof clearNoteForm === 'function') clearNoteForm();
 
@@ -572,34 +415,42 @@ function init() {
         makeCardCollapsible(document.getElementById('voucher-head-card'), 'voucher-head-card', true);
     }
 
-    setTimeout(function () {
-        if (typeof fetchLiveRates === 'function') fetchLiveRates(true);
-    }, 1500);
-
-    setInterval(function () {
-        if (state.widgets.liveRates && typeof fetchLiveRates === 'function') {
-            fetchLiveRates(true);
-        }
-    }, 300000);
+    setTimeout(function () { if (typeof fetchLiveRates === 'function') fetchLiveRates(true); }, 1500);
+    setInterval(function () { if (state.widgets.liveRates && typeof fetchLiveRates === 'function') fetchLiveRates(true); }, 300000);
 
     function autoRead() {
-        if (!state.smsAutoRead) return;
-        if (typeof readClipboardAndAdd !== 'function') return;
+        if (!state.smsAutoRead || typeof readClipboardAndAdd !== 'function') return;
         setTimeout(function () { readClipboardAndAdd(true); }, 700);
     }
     window.addEventListener('focus', autoRead);
-    document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') autoRead();
-    });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') autoRead(); });
 
     if (typeof aiInit === 'function') aiInit();
     if (typeof aiRender === 'function') aiRender();
     if (typeof renderEstimateItems === 'function') renderEstimateItems();
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
-    if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 300);
-
+    
     console.log('🎉 ' + APP_NAME + ' v' + APP_VERSION + ' — آماده است.');
 }
+
+function init() {
+    if (typeof bindAuthUI === 'function') bindAuthUI();
+    if (typeof initUsers === 'function') initUsers();
+
+    // ✅ اول وضعیت لاگین را چک می‌کنیم
+    var isLogged = false;
+    if (typeof checkAuth === 'function') {
+        isLogged = checkAuth();
+    }
+
+    if (isLogged) {
+        startApp(); // اگر از قبل لاگین بود، برنامه کامل بالا می‌آید
+    } else {
+        console.log('⏳ منتظر لاگین...');
+    }
+}
+
+window.startApp = startApp;
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -612,26 +463,3 @@ if ('serviceWorker' in navigator) {
         console.log('SW register failed:', e);
     });
 }
-
-window.addEventListener('error', function (e) {
-    console.error('[Global Error]', e.error || e.message);
-});
-
-window.addEventListener('unhandledrejection', function (e) {
-    console.warn('[Unhandled Rejection]', e.reason);
-});
-
-window.bindSettingsButtons      = bindSettingsButtons;
-window.bindCurrencyHide         = bindCurrencyHide;
-window.bindBankCashTypes        = bindBankCashTypes;
-window.bindSmsButtons           = bindSmsButtons;
-window.bindWidgetToggles        = bindWidgetToggles;
-window.bindBaseDataForms        = bindBaseDataForms;
-window.bindCashForms            = bindCashForms;
-window.bindVoucherTemplatesForms = bindVoucherTemplatesForms;
-window.bindModalClosers         = bindModalClosers;
-window.bindFilterInputs         = bindFilterInputs;
-window.bindExportButtons        = bindExportButtons;
-window.parsisInit               = init;
-
-console.log('✅ [app.js] loaded — ready to init');
