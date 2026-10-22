@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — صندوق‌ها (اصلاح دکمه ویرایش و فیلتر قیفی)
+   پارسیس — صندوق‌ها (نسخه ضد باگ با فیلتر قیفی)
    مسیر: js/modules/accounts/cashboxes.js
    ============================================================ */
 'use strict';
@@ -10,14 +10,16 @@ function refreshCashTypeSelect() {
     sel.innerHTML = '<option value="">— نوع —</option>';
     for (var i = 0; i < state.cashTypes.length; i++) {
         var o = document.createElement('option');
-        o.value = state.cashTypes[i];
-        o.textContent = state.cashTypes[i];
+        o.value = state.cashTypes[i]; o.textContent = state.cashTypes[i];
         sel.appendChild(o);
     }
 }
 
 function renderCashBoxesList() {
     var list = DB.load('cashBoxes', []);
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(function(x) { return x && typeof x === 'object'; });
+
     var filterEl = document.getElementById('cb-filter');
     var filter = (filterEl ? filterEl.value : '').toLowerCase();
     var tb = document.getElementById('cb-list-body');
@@ -26,35 +28,28 @@ function renderCashBoxesList() {
 
     var shown = 0;
     var filtered = list.filter(function (c) {
-        if (filter && ((c.title || '') + ' ' + (c.type || '')).toLowerCase().indexOf(filter) === -1) {
-            return false;
-        }
+        if (filter && ((c.title || '') + ' ' + (c.type || '')).toLowerCase().indexOf(filter) === -1) return false;
         return true;
     });
 
-    filtered = applyTableSort('cb-table', filtered, function (c, k) {
-        if (k === 'order') return Number(c.order) || 9999;
-        return c[k] || '';
-    });
+    try {
+        filtered = applyTableSort('cb-table', filtered, function (c, k) {
+            if (k === 'order') return Number(c.order) || 9999;
+            return c[k] || '';
+        });
+    } catch(e) {}
 
     for (var i = 0; i < filtered.length; i++) {
         var c = filtered[i];
         shown++;
         var tr = document.createElement('tr');
         tr.innerHTML = '<td dir="ltr">' + (c.order != null ? toFa(esc(c.order)) : '—') + '</td>'
-            + '<td>' + esc(c.title) + '</td>'
-            + '<td>' + esc(c.type) + '</td>'
-            + '<td>' + esc(c.unit) + '</td>'
-            + '<td><div class="row-actions">'
-            + '<button class="row-btn edit" data-id="' + c.id + '">✎</button>'
-            + '<button class="row-btn del" data-id="' + c.id + '">×</button>'
-            + '</div></td>';
+            + '<td>' + esc(c.title) + '</td><td>' + esc(c.type) + '</td><td>' + esc(c.unit) + '</td>'
+            + '<td><div class="row-actions"><button class="row-btn edit" data-id="' + c.id + '">✎</button><button class="row-btn del" data-id="' + c.id + '">×</button></div></td>';
         tb.appendChild(tr);
     }
 
-    if (shown === 0) {
-        tb.innerHTML = '<tr><td colspan="5" class="empty-row">یافت نشد.</td></tr>';
-    }
+    if (shown === 0) tb.innerHTML = '<tr><td colspan="5" class="empty-row">یافت نشد.</td></tr>';
 
     var countEl = document.getElementById('cb-count');
     if (countEl) countEl.textContent = toFa(shown);
@@ -65,7 +60,6 @@ function renderCashBoxesList() {
         document.getElementById('cb-type').value = c.type || '';
         document.getElementById('cb-unit').value = c.unit || '';
         document.getElementById('cb-order').value = (c.order != null ? c.order : '');
-        
         var activePage = document.querySelector('.page.active');
         var addTab = activePage ? activePage.querySelector('[data-tab="cb-add"]') : null;
         if (addTab) addTab.click();
@@ -79,8 +73,7 @@ function renderCashBoxesList() {
 }
 
 function clearCBForm() {
-    var ids = ['cb-id', 'cb-title', 'cb-unit', 'cb-order'];
-    ids.forEach(function (i) {
+    ['cb-id', 'cb-title', 'cb-unit', 'cb-order'].forEach(function (i) {
         var el = document.getElementById(i);
         if (el) el.value = '';
     });
@@ -99,21 +92,14 @@ function bindCashBoxesForm() {
         var o = oR === '' ? null : Number(oR);
 
         var o2 = {
-            id: id || uid(),
-            title: t,
-            type: document.getElementById('cb-type').value,
-            unit: document.getElementById('cb-unit').value.trim(),
-            order: o
+            id: id || uid(), title: t, type: document.getElementById('cb-type').value,
+            unit: document.getElementById('cb-unit').value.trim(), order: o
         };
 
         var l = DB.load('cashBoxes', []);
-        if (id) {
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) l[i] = o2;
-            }
-        } else {
-            l.push(o2);
-        }
+        if (!Array.isArray(l)) l = [];
+        if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o2; } } 
+        else { l.push(o2); }
         DB.save('cashBoxes', l);
         showToast('✅ صندوق ذخیره شد.');
         clearCBForm();
@@ -127,7 +113,6 @@ function bindCashBoxesForm() {
 
     var newBtn = document.getElementById('new-cb');
     if (newBtn) newBtn.addEventListener('click', clearCBForm);
-
     var filterEl = document.getElementById('cb-filter');
     if (filterEl) filterEl.addEventListener('input', renderCashBoxesList);
 }
@@ -136,5 +121,3 @@ window.refreshCashTypeSelect = refreshCashTypeSelect;
 window.renderCashBoxesList   = renderCashBoxesList;
 window.clearCBForm           = clearCBForm;
 window.bindCashBoxesForm     = bindCashBoxesForm;
-
-console.log('✅ [modules/accounts/cashboxes.js] loaded');
