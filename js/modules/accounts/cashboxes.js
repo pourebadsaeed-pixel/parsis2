@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — صندوق‌ها
+   پارسیس — صندوق‌ها (اصلاح دکمه ویرایش و فیلتر قیفی)
    مسیر: js/modules/accounts/cashboxes.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — پر کردن سلکت نوع
-   ============================================================ */
 function refreshCashTypeSelect() {
     var sel = document.getElementById('cb-type');
     if (!sel) return;
@@ -20,9 +16,6 @@ function refreshCashTypeSelect() {
     }
 }
 
-/* ============================================================
-   بخش ۲ — رندر فهرست صندوق‌ها
-   ============================================================ */
 function renderCashBoxesList() {
     var list = DB.load('cashBoxes', []);
     var filterEl = document.getElementById('cb-filter');
@@ -72,7 +65,9 @@ function renderCashBoxesList() {
         document.getElementById('cb-type').value = c.type || '';
         document.getElementById('cb-unit').value = c.unit || '';
         document.getElementById('cb-order').value = (c.order != null ? c.order : '');
-        var addTab = document.querySelector('[data-tab="cb-add"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var addTab = activePage ? activePage.querySelector('[data-tab="cb-add"]') : null;
         if (addTab) addTab.click();
     });
 
@@ -80,11 +75,9 @@ function renderCashBoxesList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('cb-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('cb-table', renderCashBoxesList);
     if (typeof applySortIndicator === 'function') applySortIndicator('cb-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('cb-table'));
 }
 
-/* ============================================================
-   بخش ۳ — پاک کردن فرم
-   ============================================================ */
 function clearCBForm() {
     var ids = ['cb-id', 'cb-title', 'cb-unit', 'cb-order'];
     ids.forEach(function (i) {
@@ -95,9 +88,6 @@ function clearCBForm() {
     if (typeEl) typeEl.value = '';
 }
 
-/* ============================================================
-   بخش ۴ — اتصال دکمه‌ها
-   ============================================================ */
 function bindCashBoxesForm() {
     var saveBtn = document.getElementById('save-cb');
     if (saveBtn) saveBtn.addEventListener('click', function () {
@@ -129,7 +119,9 @@ function bindCashBoxesForm() {
         clearCBForm();
         renderCashBoxesList();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        var listTab = document.querySelector('[data-tab="cb-list"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="cb-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -140,9 +132,6 @@ function bindCashBoxesForm() {
     if (filterEl) filterEl.addEventListener('input', renderCashBoxesList);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.refreshCashTypeSelect = refreshCashTypeSelect;
 window.renderCashBoxesList   = renderCashBoxesList;
 window.clearCBForm           = clearCBForm;
