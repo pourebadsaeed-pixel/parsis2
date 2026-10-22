@@ -1,13 +1,9 @@
 /* ============================================================
    پارسیس — پشتیبان‌گیری، بازیابی، ریست (IndexedDB)
-   مسیر: js/modules/backup.js
-   وابستگی: core/db.js + core/utils.js + ui/toast.js
+   مسیر: js/modules/backup.js (اصلاح شده)
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — دانلود پشتیبان
-   ============================================================ */
 function downloadBackup() {
     var data = {};
     var keys = DB.keys();
@@ -99,9 +95,6 @@ function downloadBackup() {
     });
 }
 
-/* ============================================================
-   بخش ۲ — بازیابی پشتیبان
-   ============================================================ */
 function restoreBackup(file) {
     var reader = new FileReader();
     reader.onload = function (e) {
@@ -117,7 +110,6 @@ function restoreBackup(file) {
                 return;
             }
 
-            /* پشتیبانی از فرمت قدیمی (کلیدهای parsis.xxx) */
             var validKeys = [];
             Object.keys(data).forEach(function (k) {
                 if (k.indexOf(LS_PREFIX) === 0) {
@@ -207,12 +199,14 @@ function restoreBackup(file) {
                 req.onerror = function () { callback(); };
             }
 
-            /* 🌟 مهم: نوشتن داده‌ها در IndexedDB قبل از reload */
-            var flushPromise = (typeof DB.flush === 'function')
-                ? DB.flush()
-                : new Promise(function (r) { setTimeout(r, 500); });
+            // ✅ نمایش پیام انتظار
+            var loadingAlert = document.createElement('div');
+            loadingAlert.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999999;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-family:inherit;font-size:1.2rem;flex-direction:column;gap:20px;';
+            loadingAlert.innerHTML = '<div>⏳ در حال بازیابی اطلاعات...</div><div style="font-size:0.9rem;opacity:0.8">لطفاً صبر کنید و صفحه را نبندید.</div>';
+            document.body.appendChild(loadingAlert);
 
-            flushPromise.then(function () {
+            // 🌟 مهم: انتظار برای نوشتن داده‌ها در IndexedDB
+            DB.flush().then(function () {
                 restoreImages(function () {
                     var finalMsg = '✅ بازیابی موفق!\n\n';
                     finalMsg += '• ' + toFa(validKeys.length) + ' کلید بازیابی شد';
@@ -226,6 +220,7 @@ function restoreBackup(file) {
                     location.reload();
                 });
             });
+
         } catch (err) {
             alert('❌ خطا در خواندن فایل:\n' + (err.message || err));
         }
@@ -234,9 +229,6 @@ function restoreBackup(file) {
     reader.readAsText(file, 'UTF-8');
 }
 
-/* ============================================================
-   بخش ۳ — ریست کامل
-   ============================================================ */
 function resetAllData() {
     var pwd = prompt('رمز ریست:');
     if (pwd === null) return;
@@ -246,10 +238,8 @@ function resetAllData() {
     }
     if (!confirm('⚠️ همه داده‌ها (شامل تصاویر یادداشت‌ها) پاک شود؟')) return;
 
-    /* ۱) پاک کردن کش + IndexedDB اصلی */
     DB.clearAll();
 
-    /* ۲) پاک کردن IndexedDB تصاویر یادداشت‌ها */
     try {
         var req = indexedDB.open('parsisNoteImages', 1);
         req.onupgradeneeded = function (e) {
@@ -275,7 +265,6 @@ function resetAllData() {
     }
 
     function afterReset() {
-        /* ۳) پاک کردن leftover localStorage */
         try {
             var toRemove = [];
             for (var i = 0; i < localStorage.length; i++) {
