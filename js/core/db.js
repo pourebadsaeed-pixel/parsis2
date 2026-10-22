@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — لایه دیتابیس (IndexedDB + کش حافظه) - اصلاح باگ بکاپ
+   پارسیس — لایه دیتابیس (نسخه نهایی، ذخیره‌سازی اتمیک و بدون لگ)
    مسیر: js/core/db.js
    ============================================================ */
 'use strict';
@@ -9,10 +9,10 @@ var IDB_NAME = 'parsis-db';
 var IDB_STORE = 'kv';
 var IDB_VERSION = 1;
 
-var _cache = new Map();     // key -> value (in-memory)
-var _idb = null;            // IDBDatabase
-var _readyPromise = null;   // Promise resolved when cache is populated
-var _dirty = new Set();     // pending writes
+var _cache = new Map();     
+var _idb = null;            
+var _readyPromise = null;   
+var _dirty = new Set();     
 var _flushTimer = null;
 
 function openIdb() {
@@ -21,9 +21,7 @@ function openIdb() {
     var req = indexedDB.open(IDB_NAME, IDB_VERSION);
     req.onupgradeneeded = function (e) {
       var db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE);
-      }
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
     };
     req.onsuccess = function () { _idb = req.result; resolve(_idb); };
     req.onerror = function () { reject(req.error); };
@@ -48,58 +46,6 @@ function idbGetAll() {
   });
 }
 
-function idbPut(key, value) {
-  return openIdb().then(function (db) {
-    return new Promise(function (resolve, reject) {
-      var tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(value, key);
-      tx.oncomplete = function () { resolve(); };
-      tx.onerror = function () { reject(tx.error); };
-    });
-  });
-}
-
-function idbDelete(key) {
-  return openIdb().then(function (db) {
-    return new Promise(function (resolve, reject) {
-      var tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).delete(key);
-      tx.oncomplete = function () { resolve(); };
-      tx.onerror = function () { reject(tx.error); };
-    });
-  });
-}
-
-function idbClear() {
-  return openIdb().then(function (db) {
-    return new Promise(function (resolve, reject) {
-      var tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).clear();
-      tx.oncomplete = function () { resolve(); };
-      tx.onerror = function () { reject(tx.error); };
-    });
-  });
-}
-
-function scheduleFlush() {
-  if (_flushTimer) return;
-  _flushTimer = setTimeout(flushDirty, 120);
-}
-
-function flushDirty() {
-  _flushTimer = null;
-  if (_dirty.size === 0) return;
-  var keys = Array.from(_dirty);
-  _dirty.clear();
-  keys.forEach(function (k) {
-    if (_cache.has(k)) {
-      idbPut(k, _cache.get(k)).catch(function (e) { console.warn('[DB.flush put]', k, e); });
-    } else {
-      idbDelete(k).catch(function (e) { console.warn('[DB.flush del]', k, e); });
-    }
-  });
-}
-
 function migrateFromLocalStorage() {
   var migrated = localStorage.getItem(LS_PREFIX + '__migrated');
   if (migrated === '1') return Promise.resolve(false);
@@ -118,21 +64,22 @@ function migrateFromLocalStorage() {
     return Promise.resolve(false);
   }
 
-  return Promise.all(toMigrate.map(function (item) {
-    try {
-      var raw = localStorage.getItem(item.full);
-      if (raw == null || raw === '' || raw === 'undefined' || raw === 'null') return null;
-      var parsed = JSON.parse(raw);
-      if (!_cache.has(item.short)) _cache.set(item.short, parsed);
-      return idbPut(item.short, parsed);
-    } catch (e) {
-      console.warn('[DB.migrate] skip', item.full, e);
-      return null;
-    }
-  })).then(function () {
-    localStorage.setItem(LS_PREFIX + '__migrated', '1');
-    console.log('[DB] migrated ' + toMigrate.length + ' keys from localStorage');
-    return true;
+  return openIdb().then(function (db) {
+    var tx = db.transaction(IDB_STORE, 'readwrite');
+    var store = tx.objectStore(IDB_STORE);
+    toMigrate.forEach(function (item) {
+      try {
+        var raw = localStorage.getItem(item.full);
+        if (raw == null || raw === '' || raw === 'undefined' || raw === 'null') return;
+        var parsed = JSON.parse(raw);
+        if (!_cache.has(item.short)) _cache.set(item.short, parsed);
+        store.put(parsed, item.short);
+      } catch (e) {}
+    });
+    return new Promise(function(resolve) {
+      tx.oncomplete = function() { localStorage.setItem(LS_PREFIX + '__migrated', '1'); resolve(true); };
+      tx.onerror = function() { resolve(false); };
+    });
   });
 }
 
@@ -146,20 +93,11 @@ var DB = {
         return migrateFromLocalStorage();
       })
       .then(function () {
-        if (navigator.storage && navigator.storage.persist) {
-          navigator.storage.persist().catch(function () {});
-        }
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
         return true;
       })
       .catch(function (e) {
-        console.error('[DB.ready] IndexedDB unavailable — fallback to localStorage', e);
-        for (var i = 0; i < localStorage.length; i++) {
-          var full = localStorage.key(i);
-          if (!full || full.indexOf(LS_PREFIX) !== 0) continue;
-          var short = full.substring(LS_PREFIX.length);
-          if (short === '__migrated') continue;
-          try { _cache.set(short, JSON.parse(localStorage.getItem(full))); } catch (_) {}
-        }
+        console.error('[DB.ready] fallback', e);
         return false;
       });
     return _readyPromise;
@@ -174,10 +112,7 @@ var DB = {
   },
 
   save: function (k, v) {
-    if (v === undefined) {
-      console.warn('[DB.save] Skipping undefined for key:', k);
-      return;
-    }
+    if (v === undefined) return;
     _cache.set(k, v);
     _dirty.add(k);
     scheduleFlush();
@@ -189,22 +124,22 @@ var DB = {
     scheduleFlush();
   },
 
-  keys: function () {
-    return Array.from(_cache.keys());
-  },
+  keys: function () { return Array.from(_cache.keys()); },
 
   clearAll: function () {
     _cache.clear();
-    return idbClear().catch(function (e) { console.warn('[DB.clearAll]', e); });
+    _dirty.clear();
+    return openIdb().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).clear();
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+    });
   },
 
-  estimate: function () {
-    return (navigator.storage && navigator.storage.estimate)
-      ? navigator.storage.estimate()
-      : Promise.resolve({ usage: 0, quota: 0 });
-  },
-
-  // ✅ تابع فلاش اصلاح شد تا منتظر بماند تا تمام داده‌ها در IndexedDB نوشته شوند
+  // ✅ اصلاح انقلابی: ذخیره تمام داده‌ها در یک تراکنش (Transaction) برای جلوگیری از فریز شدن
   flush: function () {
     return new Promise(function (resolve) {
       if (_flushTimer) {
@@ -220,30 +155,36 @@ var DB = {
       var keys = Array.from(_dirty);
       _dirty.clear();
       
-      var promises = keys.map(function (k) {
-        if (_cache.has(k)) {
-          return idbPut(k, _cache.get(k)).catch(function (e) { console.warn('[DB.flush put]', k, e); });
-        } else {
-          return idbDelete(k).catch(function (e) { console.warn('[DB.flush del]', k, e); });
-        }
-      });
-      
-      Promise.all(promises).then(function () {
-        resolve();
-      }).catch(function () {
-        resolve(); 
-      });
+      openIdb().then(function (db) {
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        var store = tx.objectStore(IDB_STORE);
+        
+        keys.forEach(function (k) {
+          if (_cache.has(k)) {
+            store.put(_cache.get(k), k);
+          } else {
+            store.delete(k);
+          }
+        });
+        
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { resolve(); }; 
+      }).catch(function() { resolve(); });
     });
   }
 };
 
+function scheduleFlush() {
+  if (_flushTimer) return;
+  _flushTimer = setTimeout(DB.flush, 120);
+}
+
 window.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'hidden') flushDirty();
+  if (document.visibilityState === 'hidden') DB.flush();
 });
-window.addEventListener('pagehide', flushDirty);
-window.addEventListener('beforeunload', flushDirty);
+window.addEventListener('pagehide', DB.flush);
+window.addEventListener('beforeunload', DB.flush);
 
 window.LS_PREFIX = LS_PREFIX;
 window.DB = DB;
-
-console.log('✅ [core/db.js] loaded (IndexedDB-backed + memory cache)');
+console.log('✅ [core/db.js] loaded (Atomic IndexedDB writes)');
