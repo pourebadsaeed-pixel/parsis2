@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — تسهیلات (نسخه اصلاح‌شده: تب‌های فعال + دفترچه اقساط)
+   پارسیس — تسهیلات (نسخه کامل و اصلاح‌شده)
    مسیر: js/modules/vouchers/facilities.js
    ============================================================ */
 'use strict';
@@ -7,9 +7,6 @@
 var currentFacilityId = null;
 var currentInstallments = [];
 
-/* ============================================================
-   بخش ۱ — پر کردن سلکت بانک
-   ============================================================ */
 function refreshFacBankSelect() {
     var sel = document.getElementById('fc-bank');
     if (!sel) return;
@@ -38,9 +35,6 @@ function refreshRffBankSelect() {
     sel.value = v;
 }
 
-/* ============================================================
-   بخش ۲ — رندر فهرست تسهیلات
-   ============================================================ */
 function renderFacilitiesList() {
     var list = DB.load('facilities', []);
     var filterEl = document.getElementById('fac-filter');
@@ -108,7 +102,6 @@ function renderFacilitiesList() {
     var countEl = document.getElementById('fac-count');
     if (countEl) countEl.textContent = toFa(shown);
 
-    /* اتصال دکمه‌ها */
     var o = box.querySelectorAll('.row-btn.open');
     var e = box.querySelectorAll('.row-btn.edit');
     var d = box.querySelectorAll('.row-btn.del');
@@ -137,9 +130,6 @@ function renderFacilitiesList() {
     }
 }
 
-/* ============================================================
-   بخش ۳ — حذف تسهیلات
-   ============================================================ */
 function tryDeleteFacility(f) {
     var ins = f.installments || [];
     var pi = ins.filter(function (x) { return x.status === 'paid'; });
@@ -159,9 +149,6 @@ function tryDeleteFacility(f) {
     renderFacilitiesList();
 }
 
-/* ============================================================
-   بخش ۴ — بارگذاری تسهیلات در فرم
-   ============================================================ */
 function loadFacilityIntoForm(f) {
     document.getElementById('fc-id').value = f.id;
     document.getElementById('fc-name').value = f.name || '';
@@ -174,7 +161,6 @@ function loadFacilityIntoForm(f) {
     var insCard = document.getElementById('fac-installments-card');
     if (insCard) insCard.style.display = 'none';
 
-    // ✅ کلیک فقط روی تب صفحه فعال
     var activePage = document.querySelector('.page.active');
     var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
     if (addTab) addTab.click();
@@ -197,7 +183,6 @@ function loadFacilityForInstallments(f) {
 
     renderInstallments();
 
-    // ✅ کلیک فقط روی تب صفحه فعال
     var activePage = document.querySelector('.page.active');
     var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
     if (addTab) addTab.click();
@@ -207,9 +192,6 @@ function loadFacilityForInstallments(f) {
     }, 200);
 }
 
-/* ============================================================
-   بخش ۵ — رندر اقساط
-   ============================================================ */
 function renderInstallments() {
     var box = document.getElementById('fac-installments');
     if (!box) return;
@@ -322,14 +304,9 @@ function renderInstallments() {
     }
 
     renderInstallmentsTotals();
-
-    // ✅ فراخوانی یک‌باره date picker (بیرون از حلقه)
     if (typeof attachDatePickers === 'function') attachDatePickers();
 }
 
-/* ============================================================
-   بخش ۶ — جمع‌های اقساط
-   ============================================================ */
 function renderInstallmentsTotals() {
     var ti = 0, tp = 0;
     for (var i = 0; i < currentInstallments.length; i++) {
@@ -356,9 +333,6 @@ function renderInstallmentsTotals() {
     }
 }
 
-/* ============================================================
-   بخش ۷ — تاریخ ماه بعد
-   ============================================================ */
 function nextMonthDate(dateStr) {
     var p = (dateStr || todayJalaliStr()).split('/').map(Number);
     if (p.length !== 3) {
@@ -372,9 +346,6 @@ function nextMonthDate(dateStr) {
     return y + '/' + pad2(m) + '/' + pad2(d);
 }
 
-/* ============================================================
-   بخش ۸ — تولید خودکار اقساط
-   ============================================================ */
 function autoGenerateInstallments() {
     var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
     if (!init) { alert('مبلغ اولیه.'); return; }
@@ -415,9 +386,6 @@ function autoGenerateInstallments() {
     renderInstallments();
 }
 
-/* ============================================================
-   بخش ۹ — پاک کردن فرم
-   ============================================================ */
 function clearFacForm() {
     var ids = ['fc-id', 'fc-name', 'fc-date', 'fc-initial', 'fc-paid'];
     ids.forEach(function (x) {
@@ -433,9 +401,6 @@ function clearFacForm() {
     currentInstallments = [];
 }
 
-/* ============================================================
-   بخش ۱۰ — ذخیره تسهیلات
-   ============================================================ */
 function saveFacility() {
     var id = document.getElementById('fc-id').value;
     var name = document.getElementById('fc-name').value.trim();
@@ -474,16 +439,13 @@ function saveFacility() {
     showToast('✅ تسهیلات ذخیره شد.');
     clearFacForm();
     renderFacilitiesList();
-    // ✅ کلیک فقط روی تب صفحه فعال
+    
     var activePage = document.querySelector('.page.active');
     var listTab = activePage ? activePage.querySelector('[data-tab="fac-list"]') : null;
     if (listTab) listTab.click();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 }
 
-/* ============================================================
-   بخش ۱۱ — ذخیره فقط اقساط
-   ============================================================ */
 function saveFacilityInstallments() {
     if (!currentFacilityId) {
         alert('ابتدا تسهیلات را ذخیره کن.');
@@ -513,9 +475,6 @@ function saveFacilityInstallments() {
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 }
 
-/* ============================================================
-   بخش ۱۲ — پرداخت قسط + ساخت سند خودکار
-   ============================================================ */
 function payInstallment(facilityId, installmentIdx) {
     var facilities = DB.load('facilities', []);
     var f = facilities.find(function (x) { return x.id === facilityId; });
@@ -655,9 +614,6 @@ function payInstallment(facilityId, installmentIdx) {
     goToPage('voucher-new');
 }
 
-/* ============================================================
-   بخش ۱۳ — اتصال دکمه‌ها
-   ============================================================ */
 function bindFacilitiesForm() {
     var saveBtn = document.getElementById('save-fac');
     if (saveBtn) saveBtn.addEventListener('click', saveFacility);
@@ -690,9 +646,6 @@ function bindFacilitiesForm() {
     });
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.currentFacilityId          = currentFacilityId;
 window.currentInstallments        = currentInstallments;
 window.refreshFacBankSelect       = refreshFacBankSelect;
@@ -711,4 +664,4 @@ window.saveFacilityInstallments   = saveFacilityInstallments;
 window.payInstallment             = payInstallment;
 window.bindFacilitiesForm         = bindFacilitiesForm;
 
-console.log('✅ [modules/vouchers/facilities.js] loaded — Tab switching fixed');
+console.log('✅ [modules/vouchers/facilities.js] loaded — Complete');
