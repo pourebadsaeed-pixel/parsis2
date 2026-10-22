@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
-   مسیر: js/ui/table.js (رفع خطای سینتکس continue)
+   مسیر: js/ui/table.js (نسخه نهایی - کاملاً بدون خطا)
    ============================================================ */
 'use strict';
 
@@ -157,21 +157,19 @@ function saveColumnOrders() { DB.save(LS_KEYS.COLUMN_ORDERS, columnOrders); }
 function getCurrentColumnOrder(tableId) { var table = document.getElementById(tableId); if (!table) return []; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return []; return Array.from(headerRow.querySelectorAll('th')).map(function(th, i) { var idx = th.getAttribute('data-orig-index'); if (idx === null) { idx = String(i); th.setAttribute('data-orig-index', idx); } return parseInt(idx, 10); }); }
 function findThByOrigIndex(headerRow, origIdx) { return Array.from(headerRow.querySelectorAll('th')).find(function(th) { return parseInt(th.getAttribute('data-orig-index'), 10) === origIdx; }); }
 
-// ✅ اصلاح باگ سینتکس در این تابع (تبدیل continue به return)
 function syncBodyOrigIndices(table, headerRow) {
     if (!headerRow) headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
     var origIndices = Array.from(headerRow.querySelectorAll('th')).map(function(th, i) { return th.getAttribute('data-orig-index') || String(i); });
     table.querySelectorAll('tr').forEach(function(row) { 
         if (row === headerRow) return; 
         var cells = row.children; 
-        if (cells.length <= 1) return; // ✅ اصلاح شد
+        if (cells.length <= 1) return; // استفاده از return به جای continue
         for (var c = 0; c < cells.length; c++) { 
             if (cells[c].getAttribute('data-orig-index') === null) cells[c].setAttribute('data-orig-index', c < origIndices.length ? origIndices[c] : String(c)); 
         } 
     });
 }
 
-// ✅ اصلاح باگ سینتکس در این تابع (تبدیل continue به return)
 function applyColumnOrder(tableId) {
     if (!tableId) return; var savedOrder = columnOrders[tableId]; if (!savedOrder || !savedOrder.length) return;
     var table = document.getElementById(tableId); if (!table) return; var headerRow = table.querySelector('thead tr:not(.column-filter-row)'); if (!headerRow) return;
@@ -179,7 +177,7 @@ function applyColumnOrder(tableId) {
     syncBodyOrigIndices(table, headerRow);
     table.querySelectorAll('tr').forEach(function(row) { 
         var cells = Array.from(row.children); 
-        if (cells.length <= 1) return; // ✅ اصلاح شد
+        if (cells.length <= 1) return; // استفاده از return به جای continue
         var map = {}, unindexed = []; 
         cells.forEach(function(c) { var oi = c.getAttribute('data-orig-index'); if (oi !== null) map[oi] = c; else unindexed.push(c); }); 
         savedOrder.forEach(function(s) { if (map[String(s)]) row.appendChild(map[String(s)]); }); 
@@ -221,7 +219,7 @@ function applyColumnFiltersToTable(tableId) {
     if (!hasAny) { rows.forEach(function(tr) { tr.style.display = ''; }); return; }
     rows.forEach(function(tr) {
         var tds = tr.children; 
-        if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; } // ✅ اصلاح شد
+        if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; return; } // استفاده از return
         var show = true;
         for (var key in filters) {
             var origIdx = Number(key); var f = filters[key]; if (!f || !f.op) continue;
@@ -343,4 +341,4 @@ document.addEventListener('click', function(e) { var menu = document.getElementB
 
 window.colWidths = colWidths; window.saveColWidths = saveColWidths; window.applyColWidths = applyColWidths; window.updateTableMinWidth = updateTableMinWidth; window.makeTableResizable = makeTableResizable; window.resetColumnWidths = resetColumnWidths; window.makeAllTablesResizable = makeAllTablesResizable; window.MANAGED_TABLE_IDS = MANAGED_TABLE_IDS; window.columnOrders = columnOrders; window.saveColumnOrders = saveColumnOrders; window.getCurrentColumnOrder = getCurrentColumnOrder; window.applyColumnOrder = applyColumnOrder; window.resetColumnOrder = resetColumnOrder; window.moveColumnInTable = moveColumnInTable; window.getHiddenCols = getHiddenCols; window.setHiddenCols = setHiddenCols; window.applyColVisibility = applyColVisibility; window.applyColVisibilityAll = applyColVisibilityAll; window.showColMenu = showColMenu; window.sortState = sortState; window.compareVals = compareVals; window.tableSortState = tableSortState; window.applySortIndicator = applySortIndicator; window.attachTableSorting = attachTableSorting; window.applyTableSort = applyTableSort; window.COLUMN_FILTERS = COLUMN_FILTERS; window.applyColumnFiltersToTable = applyColumnFiltersToTable; window.buildFilterRow = buildFilterRow; window.attachFilterRowsToAllTables = attachFilterRowsToAllTables; window.makeCardCollapsible = makeCardCollapsible; window.buildHeaderButtons = buildHeaderButtons; window.normalizeCellText = normalizeCellText; window.testFilter = testFilter; window.makeFilterPanelCollapsible = makeFilterPanelCollapsible; window.syncBodyOrigIndices = syncBodyOrigIndices; window.openColFilterPopover = openColFilterPopover; window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — Syntax error fixed');
+console.log('✅ [ui/table.js] loaded — Syntax error fixed completely');
