@@ -1,13 +1,9 @@
 /* ============================================================
-   پارسیس — اشخاص
+   پارسیس — اشخاص (اصلاح دکمه ویرایش و فیلتر قیفی)
    مسیر: js/modules/persons.js
-   وابستگی: core/* + ui/*
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — رندر فهرست اشخاص
-   ============================================================ */
 function renderPersonsList() {
     var list = DB.load('persons', []);
     var filterEl = document.getElementById('persons-filter');
@@ -70,7 +66,9 @@ function renderPersonsList() {
         document.getElementById('pr-iban').value = p.iban || '';
         document.getElementById('pr-card').value = p.card || '';
         document.getElementById('pr-address').value = p.address || '';
-        var addTab = document.querySelector('[data-tab="persons-add"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var addTab = activePage ? activePage.querySelector('[data-tab="persons-add"]') : null;
         if (addTab) addTab.click();
     });
 
@@ -78,11 +76,9 @@ function renderPersonsList() {
     if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('persons-table'));
     if (typeof attachTableSorting === 'function') attachTableSorting('persons-table', renderPersonsList);
     if (typeof applySortIndicator === 'function') applySortIndicator('persons-table');
+    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('persons-table'));
 }
 
-/* ============================================================
-   بخش ۲ — پاک کردن فرم
-   ============================================================ */
 function clearPersonForm() {
     var ids = ['pr-id', 'pr-first', 'pr-last', 'pr-father', 'pr-national-id',
                'pr-birth', 'pr-mobile', 'pr-phone', 'pr-email',
@@ -93,9 +89,6 @@ function clearPersonForm() {
     });
 }
 
-/* ============================================================
-   بخش ۳ — اتصال دکمه‌های ذخیره/جدید/فیلتر
-   ============================================================ */
 function bindPersonsForm() {
     var saveBtn = document.getElementById('save-person');
     if (saveBtn) saveBtn.addEventListener('click', function () {
@@ -133,7 +126,9 @@ function bindPersonsForm() {
         clearPersonForm();
         renderPersonsList();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        var listTab = document.querySelector('[data-tab="persons-list"]');
+        
+        var activePage = document.querySelector('.page.active');
+        var listTab = activePage ? activePage.querySelector('[data-tab="persons-list"]') : null;
         if (listTab) listTab.click();
     });
 
@@ -144,9 +139,6 @@ function bindPersonsForm() {
     if (filterEl) filterEl.addEventListener('input', renderPersonsList);
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.renderPersonsList = renderPersonsList;
 window.clearPersonForm   = clearPersonForm;
 window.bindPersonsForm   = bindPersonsForm;
