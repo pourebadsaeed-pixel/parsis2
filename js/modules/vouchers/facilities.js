@@ -1,7 +1,6 @@
 /* ============================================================
-   پارسیس — تسهیلات (بخش ۱: رندر لیست + فرم + اقساط)
+   پارسیس — تسهیلات (نسخه اصلاح‌شده: تب‌های فعال + دفترچه اقساط)
    مسیر: js/modules/vouchers/facilities.js
-   وابستگی: core/* + ui/* + vouchers/form.js
    ============================================================ */
 'use strict';
 
@@ -175,7 +174,9 @@ function loadFacilityIntoForm(f) {
     var insCard = document.getElementById('fac-installments-card');
     if (insCard) insCard.style.display = 'none';
 
-    var addTab = document.querySelector('[data-tab="fac-add"]');
+    // ✅ کلیک فقط روی تب صفحه فعال
+    var activePage = document.querySelector('.page.active');
+    var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
     if (addTab) addTab.click();
 }
 
@@ -196,7 +197,9 @@ function loadFacilityForInstallments(f) {
 
     renderInstallments();
 
-    var addTab = document.querySelector('[data-tab="fac-add"]');
+    // ✅ کلیک فقط روی تب صفحه فعال
+    var activePage = document.querySelector('.page.active');
+    var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
     if (addTab) addTab.click();
 
     setTimeout(function () {
@@ -315,10 +318,13 @@ function renderInstallments() {
             row.appendChild(lastCell);
 
             box.appendChild(row);
-            if (typeof attachDatePickers === 'function') attachDatePickers();
         })(i);
     }
+
     renderInstallmentsTotals();
+
+    // ✅ فراخوانی یک‌باره date picker (بیرون از حلقه)
+    if (typeof attachDatePickers === 'function') attachDatePickers();
 }
 
 /* ============================================================
@@ -426,6 +432,7 @@ function clearFacForm() {
     currentFacilityId = null;
     currentInstallments = [];
 }
+
 /* ============================================================
    بخش ۱۰ — ذخیره تسهیلات
    ============================================================ */
@@ -467,7 +474,9 @@ function saveFacility() {
     showToast('✅ تسهیلات ذخیره شد.');
     clearFacForm();
     renderFacilitiesList();
-    var listTab = document.querySelector('[data-tab="fac-list"]');
+    // ✅ کلیک فقط روی تب صفحه فعال
+    var activePage = document.querySelector('.page.active');
+    var listTab = activePage ? activePage.querySelector('[data-tab="fac-list"]') : null;
     if (listTab) listTab.click();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 }
@@ -525,7 +534,6 @@ function payInstallment(facilityId, installmentIdx) {
     var facMoeinId = f.moeinId || '';
     var facDetailId = '';
 
-    /* اگر معین تسهیلات تعریف نشده، از کاربر بپرس */
     if (!facMoeinId) {
         var leaves = accounts.filter(function (a) {
             return !accounts.some(function (x) { return x.parent === a.id; });
@@ -615,7 +623,6 @@ function payInstallment(facilityId, installmentIdx) {
         status: 'draft'
     };
 
-    /* به‌روزرسانی اقساط */
     facilities.forEach(function (ff) {
         if (ff.id === facilityId) {
             ff.installments[installmentIdx].status = 'paid';
@@ -635,7 +642,6 @@ function payInstallment(facilityId, installmentIdx) {
     vouchers.push(v);
     DB.save('vouchers', vouchers);
 
-    /* بازخوانی اقساط فعلی */
     currentInstallments = JSON.parse(JSON.stringify(
         facilities.find(function (ff) { return ff.id === facilityId; }).installments
     ));
@@ -705,4 +711,4 @@ window.saveFacilityInstallments   = saveFacilityInstallments;
 window.payInstallment             = payInstallment;
 window.bindFacilitiesForm         = bindFacilitiesForm;
 
-console.log('✅ [modules/vouchers/facilities.js] loaded — complete');
+console.log('✅ [modules/vouchers/facilities.js] loaded — Tab switching fixed');
