@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
-   مسیر: js/ui/table.js (نسخه: فیلتر پاپ‌آور با آیکن قیف)
+   مسیر: js/ui/table.js (نسخه: فیلتر پاپ‌آور سفارشی + قیف)
    ============================================================ */
 'use strict';
 
@@ -18,11 +18,11 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
         .col-filter-btn {
             position: absolute;
             top: 50%;
-            left: 18px;
+            left: 4px;
             transform: translateY(-50%);
             width: 22px;
             height: 22px;
-            border-radius: 4px;
+            border-radius: 6px;
             background: transparent;
             border: none;
             color: var(--text-muted);
@@ -30,8 +30,7 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
-            opacity: 0.4;
+            opacity: 0.3;
             transition: all 0.2s;
             padding: 0;
             z-index: 4;
@@ -55,7 +54,7 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             padding: 12px;
-            width: 240px;
+            width: 250px;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -66,10 +65,50 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
             from { opacity: 0; transform: translateY(-4px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .col-filter-popover select,
+        .cf-dropdown-wrap { position: relative; }
+        .cf-op-btn {
+            padding: 9px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            background: var(--card-solid);
+            cursor: pointer;
+            font-size: 0.82rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            color: var(--text);
+            transition: border-color 0.2s;
+        }
+        .cf-op-btn:hover { border-color: var(--primary); }
+        .cf-op-list {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--card-solid);
+            border: 1.5px solid var(--primary);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            z-index: 100000;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+        }
+        .cf-op-list.show { display: block; }
+        .cf-op-item {
+            padding: 9px 12px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .cf-op-item:last-child { border-bottom: none; }
+        .cf-op-item:hover { background: var(--primary-soft); color: var(--primary-dark); }
+        .cf-op-item.selected { background: var(--primary-light); font-weight: 800; color: var(--primary-dark); }
         .col-filter-popover input {
             width: 100%;
-            padding: 8px 10px;
+            padding: 9px 12px;
             font-size: 0.82rem;
             border: 1.5px solid var(--border);
             border-radius: 8px;
@@ -77,11 +116,9 @@ function saveColWidths() { DB.save(LS_KEYS.COL_WIDTHS, colWidths); }
             background: var(--card-solid);
             color: var(--text);
             outline: none;
+            transition: border-color 0.2s;
         }
-        .col-filter-popover select:focus,
-        .col-filter-popover input:focus {
-            border-color: var(--primary);
-        }
+        .col-filter-popover input:focus { border-color: var(--primary); }
         .col-filter-popover .cf-actions {
             display: flex;
             gap: 8px;
@@ -122,8 +159,7 @@ function normalizeCellText(s) {
 }
 
 function normalizeForFilter(s) {
-    var t = normalizeDigits(normalizeCellText(s));
-    return t;
+    return normalizeDigits(normalizeCellText(s));
 }
 
 function cellToNumber(s) {
@@ -262,8 +298,6 @@ function makeTableResizable(table) {
             if (th.getAttribute('data-orig-index') === null) {
                 th.setAttribute('data-orig-index', String(idx));
             }
-            var origIdx = parseInt(th.getAttribute('data-orig-index'), 10);
-
             var res = document.createElement('div');
             res.className = 'col-resizer';
             res.title = 'بکش تا عرض تغییر کند • دابل‌کلیک: بازنشانی';
@@ -806,8 +840,10 @@ function attachTableSorting(tableId, rerender) {
             if (th.dataset.sortAttached) return;
             th.dataset.sortAttached = '1';
             th.addEventListener('click', function (e) {
-                if (e.target.classList.contains('col-resizer')) return;
-                if (e.target.classList.contains('col-filter-btn')) return;
+                // ✅ رفع باگ: با closest چک می‌کنیم که روی SVG داخل قیف کلیک شده یا نه
+                if (e.target.closest('.col-resizer')) return;
+                if (e.target.closest('.col-filter-btn')) return;
+                
                 var k = th.getAttribute('data-sort-key');
                 if (!k) return;
                 var st = tableSortState[tableId] || { col: k, dir: 'asc' };
@@ -831,7 +867,7 @@ function applyTableSort(tableId, rows, keyFn) {
 }
 
 /* ============================================================
-   فیلتر ستون‌ها (پاپ‌آور + آیکن قیف)
+   فیلتر ستون‌ها (پاپ‌آور سفارشی + آیکن قیف)
    ============================================================ */
 var COLUMN_FILTERS = {};
 
@@ -889,6 +925,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
     pop.id = 'col-filter-popover';
 
     var existing = (COLUMN_FILTERS[tableId] && COLUMN_FILTERS[tableId][origIdx]) || {};
+    var currentOp = existing.op || '';
 
     var ops = [
         ['', '— انتخاب کنید —'],
@@ -905,19 +942,57 @@ function openColFilterPopover(tableId, origIdx, btn) {
         ['notEmpty', 'خالی نباشد']
     ];
 
-    var selHtml = '<select>';
-    ops.forEach(function(o) {
-        var selected = existing.op === o[0] ? 'selected' : '';
-        selHtml += '<option value="' + o[0] + '" ' + selected + '>' + o[1] + '</option>';
-    });
-    selHtml += '</select>';
+    // ✅ ساخت لیست سفارشی (بدون select بومی برای موبایل)
+    var opWrap = document.createElement('div');
+    opWrap.className = 'cf-dropdown-wrap';
 
-    pop.innerHTML = selHtml
-        + '<input type="text" placeholder="مقدار..." value="' + esc(existing.val || '') + '">'
-        + '<div class="cf-actions">'
-        + '<button class="cf-clear" type="button">پاک کردن</button>'
-        + '<button class="cf-close" type="button">بستن</button>'
-        + '</div>';
+    var opBtn = document.createElement('div');
+    opBtn.className = 'cf-op-btn';
+    var selectedLabel = ops.find(function(o) { return o[0] === currentOp; })[1] || '— انتخاب کنید —';
+    opBtn.innerHTML = '<span>' + selectedLabel + '</span><span>▼</span>';
+
+    var opList = document.createElement('div');
+    opList.className = 'cf-op-list';
+
+    ops.forEach(function(o) {
+        var item = document.createElement('div');
+        item.className = 'cf-op-item' + (o[0] === currentOp ? ' selected' : '');
+        item.textContent = o[1];
+        item.onclick = function(e) {
+            e.stopPropagation();
+            currentOp = o[0];
+            opBtn.innerHTML = '<span>' + o[1] + '</span><span>▼</span>';
+            opList.classList.remove('show');
+            
+            opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); });
+            item.classList.add('selected');
+            update();
+        };
+        opList.appendChild(item);
+    });
+
+    opBtn.onclick = function(e) {
+        e.stopPropagation();
+        opList.classList.toggle('show');
+    };
+
+    opWrap.appendChild(opBtn);
+    opWrap.appendChild(opList);
+    pop.appendChild(opWrap);
+
+    // فیلد مقدار
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'مقدار...';
+    inp.value = existing.val || '';
+    pop.appendChild(inp);
+
+    // دکمه‌های عملیات
+    var actions = document.createElement('div');
+    actions.className = 'cf-actions';
+    actions.innerHTML = '<button class="cf-clear" type="button">پاک کردن</button>'
+                      + '<button class="cf-close" type="button">بستن</button>';
+    pop.appendChild(actions);
 
     document.body.appendChild(pop);
 
@@ -925,11 +1000,8 @@ function openColFilterPopover(tableId, origIdx, btn) {
     pop.style.top = (rect.bottom + 4) + 'px';
     pop.style.left = Math.max(4, rect.left - 100) + 'px';
 
-    var sel = pop.querySelector('select');
-    var inp = pop.querySelector('input');
-
     function update() {
-        var op = sel.value;
+        var op = currentOp;
         var val = inp.value.trim();
 
         if (!op && !val) {
@@ -955,19 +1027,19 @@ function openColFilterPopover(tableId, origIdx, btn) {
         applyColumnFiltersToTable(tableId);
     }
 
-    sel.addEventListener('change', update);
     inp.addEventListener('input', update);
 
     pop.querySelector('.cf-clear').addEventListener('click', function() {
-        sel.value = '';
         inp.value = '';
+        currentOp = '';
+        opBtn.innerHTML = '<span>— انتخاب کنید —</span><span>▼</span>';
+        opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); });
         update();
         closeColFilterPopover();
     });
 
     pop.querySelector('.cf-close').addEventListener('click', closeColFilterPopover);
 
-    // autofocus
     setTimeout(function() { inp.focus(); }, 30);
 }
 
@@ -992,11 +1064,15 @@ function buildFilterRow(table) {
             if (getComputedStyle(th).position === 'static') {
                 th.style.position = 'relative';
             }
+            
+            // فضای کافی برای قیف در سمت چپ
+            var currentPL = parseInt(getComputedStyle(th).paddingLeft) || 0;
+            if (currentPL < 26) th.style.paddingLeft = '26px';
 
             var btn = document.createElement('button');
             btn.className = 'col-filter-btn';
             btn.type = 'button';
-            // Funnel SVG icon
+            // آیکن قیف
             btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
             btn.title = 'فیلتر ستون';
             btn.setAttribute('data-col-idx', origIdxStr);
@@ -1170,4 +1246,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — Funnel filter popover + Persian operators');
+console.log('✅ [ui/table.js] loaded — Custom popover filter');
