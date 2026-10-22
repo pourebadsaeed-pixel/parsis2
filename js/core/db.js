@@ -1,6 +1,5 @@
 /* ============================================================
-   پارسیس — لایه دیتابیس (نسخه نهایی، ذخیره‌سازی اتمیک و بدون لگ)
-   مسیر: js/core/db.js
+   پارسیس — لایه دیتابیس (IndexedDB + کش) - نسخه پایدار
    ============================================================ */
 'use strict';
 
@@ -25,7 +24,6 @@ function openIdb() {
     };
     req.onsuccess = function () { _idb = req.result; resolve(_idb); };
     req.onerror = function () { reject(req.error); };
-    req.onblocked = function () { reject(new Error('IDB blocked')); };
   });
 }
 
@@ -46,43 +44,6 @@ function idbGetAll() {
   });
 }
 
-function migrateFromLocalStorage() {
-  var migrated = localStorage.getItem(LS_PREFIX + '__migrated');
-  if (migrated === '1') return Promise.resolve(false);
-
-  var toMigrate = [];
-  for (var i = 0; i < localStorage.length; i++) {
-    var full = localStorage.key(i);
-    if (!full || full.indexOf(LS_PREFIX) !== 0) continue;
-    var short = full.substring(LS_PREFIX.length);
-    if (short === '__migrated') continue;
-    toMigrate.push({ full: full, short: short });
-  }
-
-  if (toMigrate.length === 0) {
-    localStorage.setItem(LS_PREFIX + '__migrated', '1');
-    return Promise.resolve(false);
-  }
-
-  return openIdb().then(function (db) {
-    var tx = db.transaction(IDB_STORE, 'readwrite');
-    var store = tx.objectStore(IDB_STORE);
-    toMigrate.forEach(function (item) {
-      try {
-        var raw = localStorage.getItem(item.full);
-        if (raw == null || raw === '' || raw === 'undefined' || raw === 'null') return;
-        var parsed = JSON.parse(raw);
-        if (!_cache.has(item.short)) _cache.set(item.short, parsed);
-        store.put(parsed, item.short);
-      } catch (e) {}
-    });
-    return new Promise(function(resolve) {
-      tx.oncomplete = function() { localStorage.setItem(LS_PREFIX + '__migrated', '1'); resolve(true); };
-      tx.onerror = function() { resolve(false); };
-    });
-  });
-}
-
 var DB = {
   ready: function () {
     if (_readyPromise) return _readyPromise;
@@ -90,14 +51,16 @@ var DB = {
       .then(idbGetAll)
       .then(function (all) {
         Object.keys(all).forEach(function (k) { _cache.set(k, all[k]); });
-        return migrateFromLocalStorage();
-      })
-      .then(function () {
-        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
         return true;
       })
       .catch(function (e) {
-        console.error('[DB.ready] fallback', e);
+        console.error('[DB.ready] IDB failed, fallback to localStorage', e);
+        for (var i = 0; i < localStorage.length; i++) {
+          var full = localStorage.key(i);
+          if (!full || full.indexOf(LS_PREFIX) !== 0) continue;
+          var short = full.substring(LS_PREFIX.length);
+          try { _cache.set(short, JSON.parse(localStorage.getItem(full))); } catch (_) {}
+        }
         return false;
       });
     return _readyPromise;
@@ -139,34 +102,18 @@ var DB = {
     });
   },
 
-  // ✅ اصلاح انقلابی: ذخیره تمام داده‌ها در یک تراکنش (Transaction) برای جلوگیری از فریز شدن
   flush: function () {
     return new Promise(function (resolve) {
-      if (_flushTimer) {
-        clearTimeout(_flushTimer);
-        _flushTimer = null;
-      }
-      
-      if (_dirty.size === 0) {
-        resolve();
-        return;
-      }
-      
-      var keys = Array.from(_dirty);
-      _dirty.clear();
-      
+      if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+      if (_dirty.size === 0) { resolve(); return; }
+      var keys = Array.from(_dirty); _dirty.clear();
       openIdb().then(function (db) {
         var tx = db.transaction(IDB_STORE, 'readwrite');
         var store = tx.objectStore(IDB_STORE);
-        
         keys.forEach(function (k) {
-          if (_cache.has(k)) {
-            store.put(_cache.get(k), k);
-          } else {
-            store.delete(k);
-          }
+          if (_cache.has(k)) store.put(_cache.get(k), k);
+          else store.delete(k);
         });
-        
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { resolve(); }; 
       }).catch(function() { resolve(); });
@@ -176,15 +123,8 @@ var DB = {
 
 function scheduleFlush() {
   if (_flushTimer) return;
-  _flushTimer = setTimeout(DB.flush, 120);
+  _flushTimer = setTimeout(DB.flush, 100);
 }
-
-window.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'hidden') DB.flush();
-});
-window.addEventListener('pagehide', DB.flush);
-window.addEventListener('beforeunload', DB.flush);
 
 window.LS_PREFIX = LS_PREFIX;
 window.DB = DB;
-console.log('✅ [core/db.js] loaded (Atomic IndexedDB writes)');
