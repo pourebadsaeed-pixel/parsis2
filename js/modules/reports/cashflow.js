@@ -67,57 +67,66 @@ function getActiveFiscalYearStart() {
 }
 
 /* ============================================================
-   ✅ تزریق CSS (اصلاح‌شده: min-height + z-index روی دکمه)
+   ✅ تزریق CSS — دکمه در جریان عادی، کلاس اختصاصی cf-collapsed
    ============================================================ */
 function injectCfCollapseStyle() {
     if (document.getElementById('cf-collapse-style')) return;
     var s = document.createElement('style');
     s.id = 'cf-collapse-style';
     s.textContent = ''
-    + '.cf-filter-card { position:relative !important; padding-top:14px !important; }'
+    /* دکمه‌ی toggle: در جریان عادی، به‌صورت هدر کوچک بالای کارت */
     + '.cf-filter-toggle {'
-    +   'position:absolute; top:8px; left:8px;'
-    +   'width:34px; height:34px;'
+    +   'display:inline-flex !important;'
+    +   'align-items:center;'
+    +   'gap:8px;'
+    +   'padding:9px 16px;'
+    +   'margin-bottom:14px;'
     +   'border-radius:10px;'
     +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
     +   'color:#fff;'
     +   'border:none;'
     +   'cursor:pointer;'
-    +   'font-size:0.9rem;'
-    +   'display:flex; align-items:center; justify-content:center;'
-    +   'z-index:9999;'
-    +   'padding:0;'
-    +   'transition:all 0.2s;'
+    +   'font-size:0.85rem;'
+    +   'font-weight:800;'
     +   'font-family:inherit;'
-    +   'box-shadow: 0 3px 10px rgba(74,144,226,0.4);'
+    +   'box-shadow:0 3px 10px rgba(74,144,226,0.35);'
+    +   'transition:all 0.2s;'
     +   'user-select:none;'
     +   '-webkit-tap-highlight-color:transparent;'
     + '}'
-    + '.cf-filter-toggle:hover { transform:scale(1.1); box-shadow:0 5px 14px rgba(74,144,226,0.55); }'
-    + '.cf-filter-toggle:active { transform:scale(0.95); }'
-    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; }'
-    + '.cf-filter-card.collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
-    + '.cf-filter-card.collapsed .cf-filter-body { display:none !important; }'
-    + '.cf-filter-card.collapsed {'
-    +   'min-height:56px !important;'
-    +   'padding-bottom:10px !important;'
+    + '.cf-filter-toggle:hover {'
+    +   'transform:translateY(-1px);'
+    +   'box-shadow:0 5px 14px rgba(74,144,226,0.5);'
     + '}'
-    + '.cf-filter-card.collapsed::after {'
-    +   'content:"🔍 فیلترها (بسته) — برای باز کردن ▼ را بزنید";'
-    +   'display:block;'
-    +   'padding:8px 54px 4px 16px;'
+    + '.cf-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-toggle-icon {'
+    +   'display:inline-block;'
+    +   'transition:transform 0.25s;'
+    +   'line-height:1;'
     +   'font-size:0.8rem;'
-    +   'color:var(--text-muted);'
-    +   'font-weight:700;'
-    +   'text-align:right;'
-    +   'line-height:1.6;'
+    + '}'
+    /* کلاس اختصاصی cf-collapsed — تداخلی با .card.collapsed ندارد */
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon {'
+    +   'transform:rotate(-90deg);'
+    + '}'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body {'
+    +   'display:none !important;'
+    + '}'
+    + '.cf-filter-card.cf-collapsed .cf-filter-toggle {'
+    +   'margin-bottom:0 !important;'
+    + '}'
+    /* اطمینان مضاعف: حتی اگر کلاس قدیمی collapsed چسبیده باشد، دکمه دیده شود */
+    + '.cf-filter-card.collapsed .cf-filter-toggle {'
+    +   'display:inline-flex !important;'
+    +   'visibility:visible !important;'
+    +   'opacity:1 !important;'
     + '}';
     document.head.appendChild(s);
 }
 
 /* ============================================================
-   ✅ Global Delegation — روی کل سند (یک‌بار)
-   این تضمین می‌کند کلیک روی دکمه‌ی ▼ در هر clone/تب/دوباره‌سازی کار کند
+   ✅ Global Delegation — روی کل سند (یک‌بار، capture phase)
+   تضمین می‌کند کلیک روی دکمه در هر clone/تب/دوباره‌سازی کار کند
    ============================================================ */
 (function installCfToggleDelegation() {
     if (window._cfToggleDelegated) return;
@@ -132,13 +141,14 @@ function injectCfCollapseStyle() {
         var card = btn.closest('.cf-filter-card');
         if (!card) return;
 
-        var isCollapsed = card.classList.toggle('collapsed');
+        /* استفاده از cf-collapsed به جای collapsed */
+        var isCollapsed = card.classList.toggle('cf-collapsed');
         try { DB.save('cf.filterCollapsed', isCollapsed); } catch (er) {}
-    }, true); /* capture phase — قبل از هر handler دیگری */
+    }, true);
 })();
 
 /* ============================================================
-   ✅ فقط sync state (دیگر bind نمی‌کند — Delegation انجام می‌دهد)
+   ✅ فقط sync state — bind نمی‌کند (Delegation انجام می‌دهد)
    ============================================================ */
 function initCfFilterCollapse() {
     injectCfCollapseStyle();
@@ -148,8 +158,8 @@ function initCfFilterCollapse() {
 
     var cards = document.querySelectorAll('.cf-filter-card');
     for (var i = 0; i < cards.length; i++) {
-        if (collapsed) cards[i].classList.add('collapsed');
-        else cards[i].classList.remove('collapsed');
+        if (collapsed) cards[i].classList.add('cf-collapsed');
+        else cards[i].classList.remove('cf-collapsed');
     }
 }
 
@@ -304,6 +314,7 @@ function runCashFlowReport() {
              +  '</tr>';
     });
 
+    /* tfoot حذف شد — این گزارش نیازی به جمع ندارد */
     html += '</tbody>';
     html += '</table></div></div>';
 
@@ -882,4 +893,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — collapse/expand fixed via delegation + min-height + z-index');
+console.log('✅ [modules/reports/cashflow.js] loaded — collapse fixed (cf-collapsed + inline button + delegation)');
