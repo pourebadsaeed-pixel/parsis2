@@ -973,6 +973,7 @@
 
 <!-- ============ REPORT CASHFLOW ============ -->
 <section id="page-report-cashflow" class="page">
+    <h2>💵 پیش‌بینی روزانه نقدینگی</h2>
     <div class="card cf-filter-card" id="cf-filter-card">
         <button type="button" class="cf-filter-toggle" id="cf-filter-toggle" title="باز/بستن فیلترها">
             <span class="cf-toggle-icon">▼</span>
@@ -1002,41 +1003,48 @@
 
 <!-- ============ REPORT CASHFLOW DESC ============ -->
 <section id="page-report-cashflow-desc" class="page">
-    <div class="card">
-        <div class="grid-2">
-            <div class="field"><label>از تاریخ</label><input type="text" id="cfd-from" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>تا تاریخ</label><input type="text" id="cfd-to" class="date-picker" dir="ltr"></div>
-        </div>
-        <div class="grid-2">
-            <div class="field"><label>نوع سند</label>
-                <select id="cfd-vtype">
-                    <option value="general" selected>عمومی</option>
-                    <option value="">همه اسناد</option>
-                    <option value="opening">افتتاحیه</option>
-                    <option value="establishment">افتتاحیه استقرار</option>
-                    <option value="closing">بستن حساب</option>
-                    <option value="final">اختتامیه</option>
-                </select>
+    <h2>💸 گردش وجه نقد</h2>
+    <div class="card cf-filter-card" id="cfd-filter-card">
+        <button type="button" class="cf-filter-toggle" id="cfd-filter-toggle" title="باز/بستن فیلترها">
+            <span class="cf-toggle-icon">▼</span>
+            <span class="cf-toggle-label">فیلترها</span>
+        </button>
+        <div class="cf-filter-body" id="cfd-filter-body">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+                <button id="cfd-run" class="btn-primary">🔍 اجرا</button>
+                <button id="cfd-today" class="btn-secondary">امروز تا یک ماه</button>
+                <button id="cfd-print" class="btn-secondary">🖨 چاپ</button>
+                <button id="cfd-export" class="btn-secondary">📊 اکسل</button>
             </div>
-            <div class="field"><label>نمایش گزارش</label>
-                <select id="cfd-view">
-                    <option value="main" selected>گزارش اصلی</option>
-                    <option value="details">جزئیات</option>
-                    <option value="full">کامل (اصلی + جزئیات)</option>
-                </select>
+            <div class="grid-2">
+                <div class="field"><label>از تاریخ</label><input type="text" id="cfd-from" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>تا تاریخ</label><input type="text" id="cfd-to" class="date-picker" dir="ltr"></div>
             </div>
-        </div>
-        <label class="checkbox-item" style="margin-bottom:10px">
-            <input type="checkbox" id="cfd-strip-babet"> <span>حذف عبارت «بابت» از ابتدای شرح‌ها</span>
-        </label>
-        <label class="checkbox-item" style="margin-bottom:10px">
-            <input type="checkbox" id="cfd-only-balance"> <span>✔ فقط دارای مانده (غیرصفر)</span>
-        </label>
-        <div class="form-buttons">
-            <button id="cfd-run" class="btn-primary">🔍 اجرا</button>
-            <button id="cfd-today" class="btn-secondary">امروز تا یک ماه</button>
-            <button id="cfd-print" class="btn-secondary">🖨 چاپ</button>
-            <button id="cfd-export" class="btn-secondary">📊 اکسل</button>
+            <div class="grid-2">
+                <div class="field"><label>نوع سند</label>
+                    <select id="cfd-vtype">
+                        <option value="general" selected>عمومی</option>
+                        <option value="">همه اسناد</option>
+                        <option value="opening">افتتاحیه</option>
+                        <option value="establishment">افتتاحیه استقرار</option>
+                        <option value="closing">بستن حساب</option>
+                        <option value="final">اختتامیه</option>
+                    </select>
+                </div>
+                <div class="field"><label>نمایش گزارش</label>
+                    <select id="cfd-view">
+                        <option value="main" selected>گزارش اصلی</option>
+                        <option value="details">جزئیات</option>
+                        <option value="full">کامل (اصلی + جزئیات)</option>
+                    </select>
+                </div>
+            </div>
+            <label class="checkbox-item" style="margin-bottom:10px">
+                <input type="checkbox" id="cfd-strip-babet"> <span>حذف عبارت «بابت» از ابتدای شرح‌ها</span>
+            </label>
+            <label class="checkbox-item" style="margin-bottom:10px">
+                <input type="checkbox" id="cfd-only-balance"> <span>✔ فقط دارای مانده (غیرصفر)</span>
+            </label>
         </div>
     </div>
     <div class="card">
