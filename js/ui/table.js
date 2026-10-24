@@ -44,6 +44,7 @@ function testFilter(cellText, filter) {
     var numTxt = cellToNumber(cellText); var numVal = cellToNumber(filter.val || '');
     switch (filter.op) {
         case 'contains': return txt.indexOf(val) !== -1;
+        case 'notContains': return txt.indexOf(val) === -1; // ✅ اضافه شد
         case 'eq': return txt === val;
         case 'neq': return txt !== val;
         case 'gt': return numTxt !== null && numVal !== null && numTxt > numVal;
@@ -721,6 +722,8 @@ function applyColumnFiltersToTable(tableId) {
     var rows = tbody.querySelectorAll('tr');
     if (!hasAny) {
         for (var r0 = 0; r0 < rows.length; r0++) rows[r0].style.display = '';
+        // ✅ ارسال رویداد پس از پایان فیلتر
+        table.dispatchEvent(new CustomEvent('table-filtered'));
         return;
     }
     for (var r = 0; r < rows.length; r++) {
@@ -742,6 +745,8 @@ function applyColumnFiltersToTable(tableId) {
         }
         tr.style.display = show ? '' : 'none';
     }
+    // ✅ ارسال رویداد پس از پایان فیلتر
+    table.dispatchEvent(new CustomEvent('table-filtered'));
 }
 
 function closeColFilterPopover() {
@@ -770,6 +775,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
     var ops = [
         ['', '— انتخاب کنید —'],
         ['contains', 'شامل'],
+        ['notContains', 'نیست شبیه / شامل نباشد'], // ✅ اضافه شد
         ['eq', 'مساوی'],
         ['neq', 'نامساوی'],
         ['gt', 'بزرگتر از'],
