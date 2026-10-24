@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها
+   پارسیس — گزارش مرور حساب‌ها (کاملاً مستقل)
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -22,8 +22,7 @@ var _arSort = { col: 'code', dir: 'asc' };
     s.textContent = `
         .ar-wrap { background:var(--card-solid); border-radius:14px; border:1px solid var(--border); overflow:hidden; direction:rtl }
         .ar-tb { display:flex; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(180deg,#e8f0fb,#f4f8fd); border-bottom:1px solid var(--border) }
-        .ar-tb-title { flex:1; text-align:center; font-weight:900; color:#1e40af; font-size:.88rem }
-        .ar-tb-bc { font-size:.8rem; color:#64748b }
+        .ar-tb-bc { font-size:.8rem; color:#64748b; flex:1 }
         .ar-tb-bc a { color:#1e40af; text-decoration:none; cursor:pointer; border-bottom:1px dashed #93c5fd; padding:0 2px }
         .ar-tb-bc a:hover { background:#dbeafe }
         .ar-tb-bc .sep { color:#cbd5e1; margin:0 4px }
@@ -83,14 +82,14 @@ var _arSort = { col: 'code', dir: 'asc' };
 })();
 
 /* ============================================================
-   ✅ Collapsible Logic (Fixed)
+   ✅ Collapsible Logic (کاملاً مستقل)
    ============================================================ */
 function injectRaCollapseStyle() {
     if (document.getElementById('ra-collapse-style')) return;
     var s = document.createElement('style');
     s.id = 'ra-collapse-style';
     s.textContent = ''
-    + '.cf-filter-toggle {'
+    + '.ra-filter-toggle {'
     +   'display:inline-flex !important;'
     +   'align-items:center;'
     +   'gap:8px;'
@@ -109,13 +108,13 @@ function injectRaCollapseStyle() {
     +   'user-select:none;'
     +   '-webkit-tap-highlight-color:transparent;'
     + '}'
-    + '.cf-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
-    + '.cf-filter-toggle:active { transform:scale(0.97); }'
+    + '.ra-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.ra-filter-toggle:active { transform:scale(0.97); }'
     + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
     + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
     + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
-    + '.cf-filter-card.cf-collapsed .cf-filter-toggle { margin-bottom:0 !important; }'
-    + '.cf-filter-card.collapsed .cf-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    + '.cf-filter-card.cf-collapsed .ra-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .ra-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
     document.head.appendChild(s);
 }
 
@@ -127,12 +126,12 @@ injectRaCollapseStyle();
     window._raToggleDelegated = true;
 
     document.addEventListener('click', function (e) {
-        var btn = e.target && e.target.closest && e.target.closest('#ra-filter-toggle');
+        var btn = e.target && e.target.closest && e.target.closest('.ra-filter-toggle');
         if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
 
-        var card = btn.closest('.cf-filter-card'); // ✅ استفاده از closest
+        var card = btn.closest('.cf-filter-card'); 
         if (!card) return;
 
         var isCollapsed = card.classList.toggle('cf-collapsed');
@@ -141,7 +140,7 @@ injectRaCollapseStyle();
 })();
 
 /* ============================================================
-   Filter Panel Builder (Fixed)
+   Filter Panel Builder
    ============================================================ */
 function rebuildAccountFilterPanel() {
     var body = document.getElementById('ra-filter-body');
@@ -149,7 +148,7 @@ function rebuildAccountFilterPanel() {
     
     // ✅ اصلاح شرط: اگر دکمه‌ای وجود دارد یعنی ساخته شده
     if (body.querySelector('button')) return; 
-    body.innerHTML = ''; // پاک کردن کامنت‌های اولیه
+    body.innerHTML = ''; 
 
     var collapsed = false;
     try { collapsed = DB.load('ra.filterCollapsed', false); } catch (e) {}
