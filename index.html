@@ -974,21 +974,15 @@
 <!-- ============ REPORT CASHFLOW ============ -->
 <section id="page-report-cashflow" class="page">
     <div class="card">
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
-            <div class="field" style="flex:1 1 150px; margin-bottom:0; min-width:120px">
-                <label>از تاریخ</label>
-                <input type="text" id="cf-from" class="date-picker" dir="ltr">
-            </div>
-            <div class="field" style="flex:1 1 150px; margin-bottom:0; min-width:120px">
-                <label>تا تاریخ</label>
-                <input type="text" id="cf-to" class="date-picker" dir="ltr">
-            </div>
-            <div class="form-buttons" style="margin:0; flex-wrap:wrap">
-                <button id="cf-run" class="btn-primary">🔍 اجرا</button>
-                <button id="cf-today" class="btn-secondary">امروز تا یک ماه</button>
-                <button id="cf-print" class="btn-secondary">🖨 چاپ</button>
-                <button id="cf-export" class="btn-secondary">📊 اکسل</button>
-            </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+            <button id="cf-run" class="btn-primary">🔍 اجرا</button>
+            <button id="cf-today" class="btn-secondary">امروز تا یک ماه</button>
+            <button id="cf-print" class="btn-secondary">🖨 چاپ</button>
+            <button id="cf-export" class="btn-secondary">📊 اکسل</button>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>از تاریخ</label><input type="text" id="cf-from" class="date-picker" dir="ltr"></div>
+            <div class="field"><label>تا تاریخ</label><input type="text" id="cf-to" class="date-picker" dir="ltr"></div>
         </div>
     </div>
     <div class="card">
