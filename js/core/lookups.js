@@ -132,18 +132,11 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
     }
 }
 
-/* ============================================================
-   Helper: تبدیل ارقام فارسی → لاتین
-   ============================================================ */
 function _faDigitsToLatin(s) {
     if (s === undefined || s === null) return '';
     var t = String(s);
-    t = t.replace(/[\u06F0-\u06F9]/g, function (d) {
-        return String(d.charCodeAt(0) - 0x06F0);
-    });
-    t = t.replace(/[\u0660-\u0669]/g, function (d) {
-        return String(d.charCodeAt(0) - 0x0660);
-    });
+    t = t.replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    t = t.replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); });
     return t;
 }
 
@@ -151,36 +144,21 @@ function tryParseNumericCell(text) {
     if (text === null || text === undefined) return null;
     var s = String(text).trim();
     if (!s) return null;
-
     var isNeg = false;
-    if (/^\(.+\)$/.test(s)) {
-        isNeg = true;
-        s = s.slice(1, -1).trim();
-    }
-
+    if (/^\(.+\)$/.test(s)) { isNeg = true; s = s.slice(1, -1).trim(); }
     s = _faDigitsToLatin(s);
     s = s.replace(/[,٬\s]/g, '');
-
     if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
-
     var v = parseFloat(s);
     if (isNaN(v) || !isFinite(v)) return null;
     return isNeg ? -v : v;
 }
 
-/* ============================================================
-   تابع چاپ — حذف سایدبار + انتقال جمع به صفحه آخر + flatten جزئیات تسهیلات
-   ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
     var targetEl = activePage ? activePage.querySelector(selector) : null;
-
     if (!targetEl) targetEl = document.querySelector(selector);
-
-    if (!targetEl) {
-        alert('محتوایی برای چاپ یافت نشد.');
-        return;
-    }
+    if (!targetEl) { alert('محتوایی برای چاپ یافت نشد.'); return; }
 
     var dateRange = '';
     var fromVal = '', toVal = '';
@@ -213,7 +191,6 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    /* ✅ اگر حالت جزئیات گزارش جامع تسهیلات است، کارت‌ها را به جدول یکپارچه تبدیل کن */
     var detailList = clone.querySelector('.rff-detail-list');
     if (detailList && typeof window._flattenRffDetailToTableHtml === 'function') {
         var flatHtml = window._flattenRffDetailToTableHtml(detailList);
@@ -344,74 +321,21 @@ function printHtmlReport(selector, title) {
                         color: #94a3b8;
                     }
                 }
-                body {
-                    font-family: Tahoma, Arial, sans-serif;
-                    direction: rtl;
-                    color: #000;
-                    margin: 0;
-                    padding: 0;
-                    font-size: 10.5pt;
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 18px;
-                    padding-bottom: 12px;
-                    border-bottom: 2.5px solid #1e40af;
-                }
-                .header h1 {
-                    font-size: 17pt;
-                    margin: 0 0 8px 0;
-                    color: #1e40af;
-                    font-weight: 900;
-                    letter-spacing: -0.3px;
-                }
-                .header .date-range {
-                    font-size: 11pt;
-                    color: #475569;
-                    font-weight: bold;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 15px;
-                }
+                body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 10.5pt; }
+                .header { text-align: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2.5px solid #1e40af; }
+                .header h1 { font-size: 17pt; margin: 0 0 8px 0; color: #1e40af; font-weight: 900; letter-spacing: -0.3px; }
+                .header .date-range { font-size: 11pt; color: #475569; font-weight: bold; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
                 tr { page-break-inside: avoid !important; }
                 thead { display: table-header-group; }
-                th, td {
-                    border: 1px solid #64748b;
-                    padding: 5px 8px;
-                    text-align: center;
-                    vertical-align: middle;
-                    font-size: 9.5pt;
-                }
-                th {
-                    background-color: #e2e8f0 !important;
-                    font-weight: bold !important;
-                    color: #1e40af;
-                }
-                .num {
-                    direction: ltr;
-                    font-family: Arial, Tahoma, sans-serif;
-                    font-variant-numeric: tabular-nums;
-                }
+                th, td { border: 1px solid #64748b; padding: 5px 8px; text-align: center; vertical-align: middle; font-size: 9.5pt; }
+                th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
+                .num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }
                 .dr { color: #dc2626 !important; font-weight: bold; }
                 .cr { color: #059669 !important; font-weight: bold; }
-                .cfd-section-title {
-                    font-size: 14pt;
-                    font-weight: bold;
-                    text-align: center;
-                    margin: 15px 0 10px;
-                    color: #1e40af;
-                }
-                .cfd-head {
-                    background-color: #e2e8f0 !important;
-                    padding: 8px;
-                    font-weight: bold;
-                    border: 1px solid #64748b;
-                }
-                .cfd-details {
-                    display: block !important;
-                }
+                .cfd-section-title { font-size: 14pt; font-weight: bold; text-align: center; margin: 15px 0 10px; color: #1e40af; }
+                .cfd-head { background-color: #e2e8f0 !important; padding: 8px; font-weight: bold; border: 1px solid #64748b; }
+                .cfd-details { display: block !important; }
                 .ar-main { display: block !important; }
                 .ar-body { width: 100% !important; }
                 .ar-tb { margin-bottom: 15px !important; background: transparent !important; border: none !important; padding: 0 !important; }
@@ -434,18 +358,12 @@ function printHtmlReport(selector, title) {
     `;
 
     var printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        alert('لطفاً پاپ‌آپ (Popup) را در مرورگر خود مجاز کنید.');
-        return;
-    }
-
+    if (!printWindow) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
     printWindow.document.open();
     printWindow.document.write(htmlContent);
     printWindow.document.close();
 
-    if (typeof showToast === 'function') {
-        showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
-    }
+    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
 
     setTimeout(function () {
         printWindow.focus();
@@ -454,9 +372,6 @@ function printHtmlReport(selector, title) {
     }, 500);
 }
 
-/* ============================================================
-   ابزار کمکی: ساخت HTML XLS از جدول سلولی
-   ============================================================ */
 function _buildExcelCell(txt, isHeader, colspan, rowspan) {
     var attrs = '';
     if (colspan && parseInt(colspan, 10) > 1) attrs += ' colspan="' + colspan + '"';
@@ -523,9 +438,6 @@ function _triggerXlsDownload(htmlString, filename) {
     setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
 }
 
-/* ============================================================
-   ✅ Helper: یک سلول را به HTML اکسل تبدیل می‌کند (باهوش)
-   ============================================================ */
 function _excelCellFromRaw(val) {
     if (val === null || val === undefined) {
         return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'"></td>';
@@ -539,11 +451,6 @@ function _excelCellFromRaw(val) {
     return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'">' + esc(String(val)) + '</td>';
 }
 
-/* ============================================================
-   ✅ خروجی اکسل از یک آرایه دو بعدی (استاندارد)
-   headers: ['ستون ۱', 'ستون ۲', ...]
-   rows: [['مقدار', 123, ...], [...]]
-   ============================================================ */
 function exportDataToExcel(headers, rows, title, filename, sheetName) {
     var trs = [];
 
@@ -574,9 +481,14 @@ function exportDataToExcel(headers, rows, title, filename, sheetName) {
 }
 
 /* ============================================================
-   خروجی XLS ساختاری (برای list pages)
+   ✅ exportToCsv — برای vouchers به تابع اختصاصی delegate می‌کند
    ============================================================ */
 function exportToCsv(key, filename) {
+    if (key === 'vouchers' && typeof window.exportVoucherListToExcel === 'function') {
+        window.exportVoucherListToExcel(filename);
+        return;
+    }
+
     var data = DB.load(key, []);
     if (!Array.isArray(data)) data = [];
     if (data.length === 0) { alert('داده‌ای نیست.'); return; }
@@ -587,11 +499,8 @@ function exportToCsv(key, filename) {
     });
 
     var trs = [];
-
     var headerRow = '<tr>';
-    keys.forEach(function (k) {
-        headerRow += _buildExcelCell(k, true, 0, 0);
-    });
+    keys.forEach(function (k) { headerRow += _buildExcelCell(k, true, 0, 0); });
     headerRow += '</tr>';
     trs.push(headerRow);
 
@@ -613,17 +522,12 @@ function exportToCsv(key, filename) {
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
-/* ============================================================
-   خروجی XLS ساختاری از یک جدول HTML (با پشتیبانی از detail list)
-   ============================================================ */
 function exportReportTable(selector, filename) {
     var activePage = document.querySelector('.page.active');
     var el = activePage ? activePage.querySelector(selector) : null;
     if (!el) el = document.querySelector(selector);
-
     if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
 
-    /* ✅ تشخیص حالت جزئیات گزارش جامع تسهیلات */
     var detailList = el.querySelector('.rff-detail-list');
     if (detailList && typeof window._flattenRffDetailToTableData === 'function') {
         var flat = window._flattenRffDetailToTableData(detailList);
@@ -648,9 +552,7 @@ function exportReportTable(selector, filename) {
     if (!table) { alert('جدولی برای خروجی نیست.'); return; }
 
     var clone = table.cloneNode(true);
-    clone.querySelectorAll('.row-actions, .col-filter-btn, .col-resizer, button, .no-print, .ar-turnover-btn, .ar-col-toggle, .share-btn, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn').forEach(function (n) {
-        n.remove();
-    });
+    clone.querySelectorAll('.row-actions, .col-filter-btn, .col-resizer, button, .no-print, .ar-turnover-btn, .ar-col-toggle, .share-btn, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn').forEach(function (n) { n.remove(); });
 
     clone.querySelectorAll('tr').forEach(function (tr) {
         Array.from(tr.children).forEach(function (cell) {
@@ -664,7 +566,6 @@ function exportReportTable(selector, filename) {
         var tr = allTrs[i];
         var cells = Array.from(tr.children);
         if (cells.length === 0) continue;
-
         var rowHtml = '<tr>';
         cells.forEach(function (cell) {
             var isHeader = (cell.tagName === 'TH');
@@ -682,7 +583,7 @@ function exportReportTable(selector, filename) {
     var html = _wrapExcelHtml(trs2.join(''), filename || 'report');
     _triggerXlsDownload(html, filename || 'report');
 
-    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد (ستون‌ها تفکیک‌شده، اعداد قابل جمع).');
+    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
 window.getAccountLabel = getAccountLabel;
@@ -701,4 +602,4 @@ window.exportReportTable = exportReportTable;
 window.exportDataToExcel = exportDataToExcel;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — flatten + standard export');
+console.log('✅ [core/lookups.js] loaded — voucher export routed');
