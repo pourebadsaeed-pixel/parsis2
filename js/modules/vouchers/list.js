@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (نسخه نهایی با چاپ استاندارد سند)
+   پارسیس — فهرست اسناد (با چاپ استاندارد سند + اکسل استاندارد)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -263,9 +263,14 @@ function openVoucherPreview(v) {
     body.innerHTML = html;
     var m = document.getElementById('vpreview-modal'); var o = document.getElementById('vpreview-overlay');
     if (m) m.classList.add('show'); if (o) o.classList.add('show'); window._currentPreviewVoucher = v;
+
+    /* ✅ Bind دکمه اکسل */
+    var expBtn = document.getElementById('vpreview-export');
+    if (expBtn) {
+        expBtn.onclick = exportVoucherPreviewToExcel;
+    }
 }
 
-// ✅ تابع چاپ اختصاصی برای سند حسابداری (با چیدمان جدید)
 function printVoucherPreview() {
     var v = window._currentPreviewVoucher;
     if (!v) return;
@@ -296,7 +301,7 @@ function printVoucherPreview() {
             <meta charset="UTF-8">
             <title>سند حسابداری</title>
             <style>
-                @page { size: A4; margin: 15mm; @bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 10pt; } }
+                @page { size: A4; margin: 15mm; @bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 10pt; color: #475569; font-weight: bold; } @top-center { content: "سند حسابداری شماره ${toFa(esc(v.number))}"; font-family: Tahoma; font-size: 9pt; color: #94a3b8; } }
                 body { font-family: Tahoma, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 11pt; }
                 .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
                 .header .right-side, .header .left-side { display: flex; flex-direction: column; gap: 5px; font-size: 11pt; }
@@ -343,6 +348,61 @@ function printVoucherPreview() {
     win.document.write(htmlContent);
     win.document.close();
     setTimeout(function() { win.focus(); win.print(); win.onafterprint = function() { win.close(); }; }, 500);
+}
+
+/* ============================================================
+   ✅ خروجی اکسل استاندارد برای پیش‌نمایش سند
+   ============================================================ */
+function exportVoucherPreviewToExcel() {
+    var v = window._currentPreviewVoucher;
+    if (!v) { alert('سندی برای خروجی نیست.'); return; }
+
+    var accounts = DB.load('accounts', []);
+    var periods = DB.load('fiscalPeriods', []);
+    var period = periods.find(function (p) { return p.id === v.periodId; });
+
+    /* استفاده از تابع عمومی exportDataToExcel */
+    if (typeof exportDataToExcel !== 'function') {
+        alert('تابع خروجی اکسل در دسترس نیست.');
+        return;
+    }
+
+    /* ساخت ردیف‌ها */
+    var rows = [];
+    var td = 0, tc = 0;
+    (v.lines || []).forEach(function (line, idx) {
+        var accLabel = line.account ? getAccountLabel(line.account, accounts) : '—';
+        var detParts = [];
+        if (line.details) {
+            Object.keys(line.details).forEach(function (lt) {
+                if (line.details[lt]) detParts.push(linkTypeName(lt) + ': ' + getDetailLabel(lt, line.details[lt]));
+            });
+        }
+        var d = Number(line.debit) || 0;
+        var c = Number(line.credit) || 0;
+        td += d; tc += c;
+        rows.push([
+            String(idx + 1),
+            accLabel,
+            detParts.length ? detParts.join(' ، ') : '—',
+            line.description || '',
+            d > 0 ? d : '',
+            c > 0 ? c : ''
+        ]);
+    });
+
+    /* ردیف جمع */
+    rows.push(['', '', '', 'جمع کل', td, tc]);
+
+    /* اطلاعات سربرگ به عنوان عنوان گزارش */
+    var title = 'سند حسابداری شماره ' + v.number
+              + ' — تاریخ ' + v.date
+              + ' — ' + (v.status === 'approved' ? 'تأیید شده' : 'پیش‌نویس')
+              + (period ? ' — دوره: ' + period.title : '')
+              + (v.desc ? ' — شرح: ' + v.desc : '');
+
+    var headers = ['#', 'معین', 'تفصیلی', 'شرح قلم', 'بدهکار', 'بستانکار'];
+    exportDataToExcel(headers, rows, title, 'سند-' + v.number, 'سند');
 }
 
 function closeVoucherPreview() {
@@ -396,11 +456,21 @@ function bindVoucherListFilters() {
     }, 3000);
 })();
 
+/* ✅ Bind دکمه اکسل هنگام لود */
+document.addEventListener('click', function (e) {
+    if (e.target.closest('#vpreview-export')) {
+        if (typeof exportVoucherPreviewToExcel === 'function') exportVoucherPreviewToExcel();
+    }
+});
+
 window.renderVoucherList = renderVoucherList;
 window.handleVoucherRowAction = handleVoucherRowAction;
 window.setupSorting = setupSorting;
 window.openVoucherPreview = openVoucherPreview;
 window.closeVoucherPreview = closeVoucherPreview;
 window.printVoucherPreview = printVoucherPreview;
+window.exportVoucherPreviewToExcel = exportVoucherPreviewToExcel;
 window.openVoucherForEditById = openVoucherForEditById;
 window.bindVoucherListFilters = bindVoucherListFilters;
+
+console.log('✅ [modules/vouchers/list.js] loaded — print + standard excel');
