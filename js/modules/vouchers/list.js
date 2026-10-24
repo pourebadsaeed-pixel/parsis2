@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (با چاپ استاندارد سند + اکسل استاندارد)
+   پارسیس — فهرست اسناد (با فیلتر سراسری + اکسل استاندارد)
    مسیر: js/modules/vouchers/list.js
    ============================================================ */
 'use strict';
@@ -49,32 +49,27 @@ function renderVoucherPager(total, curPage) {
     mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین');
 }
 
-function renderVoucherList() {
-    var tb = document.getElementById('voucher-list-body');
-    if (!tb) return;
-
+/* ============================================================
+   ✅ محاسبه سطرها با تمام فیلترها (شامل فیلترهای ستونی)
+   ورودی: هیچ — داده از DB و DOM خوانده می‌شود
+   خروجی: { vouchers: [...], pMap: {...}, total: N }
+   ============================================================ */
+function _computeFilteredVouchers() {
     var allVouchers = DB.load('vouchers', []);
     if (!Array.isArray(allVouchers)) allVouchers = [];
     allVouchers = allVouchers.filter(function(x) { return x && typeof x === 'object'; });
-
-    if (allVouchers.length === 0) {
-        tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است.</td></tr>';
-        var cEl = document.getElementById('vlist-count'); if (cEl) cEl.textContent = '۰';
-        var box = document.getElementById('vlist-pagination'); if (box) box.style.display = 'none';
-        return;
-    }
 
     var periodFilter = (document.getElementById('vl-period-filter') || {}).value || '';
     var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
     var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
 
+    var periods = DB.load('fiscalPeriods', []);
+    var pMap = {};
+    if (Array.isArray(periods)) { periods.forEach(function (p) { if (p) pMap[p.id] = p.title; }); }
+
     var vouchers = allVouchers.slice();
     if (periodFilter) vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
     if (statusFilter) vouchers = vouchers.filter(function (v) { return (v.status || 'draft') === statusFilter; });
-
-    var periods = DB.load('fiscalPeriods', []);
-    var pMap = {};
-    if (Array.isArray(periods)) { periods.forEach(function (p) { if(p) pMap[p.id] = p.title; }); }
 
     if (searchVal) {
         vouchers = vouchers.filter(function (v) {
@@ -84,6 +79,32 @@ function renderVoucherList() {
         });
     }
 
+    /* ✅ فیلترهای ستونی — روی کل دیتاست قبل از pagination */
+    var vFilters = (typeof COLUMN_FILTERS !== 'undefined' && COLUMN_FILTERS['voucher-table-list']) || {};
+    var hasVFilters = Object.keys(vFilters).some(function(k) { return vFilters[k] && vFilters[k].op; });
+    if (hasVFilters) {
+        vouchers = vouchers.filter(function (v) {
+            var rowCells = [
+                String(v.number || ''),                        /* 0: شماره */
+                String(v.date || ''),                          /* 1: تاریخ */
+                voucherTypeName(v.type),                       /* 2: نوع */
+                pMap[v.periodId] || '—',                       /* 3: دوره */
+                v.desc || '',                                  /* 4: شرح */
+                getVoucherAmount(v),                           /* 5: مبلغ (عدد) */
+                v.status === 'approved' ? 'تأیید' : 'پیش‌نویس', /* 6: وضعیت */
+                ''                                             /* 7: عملیات */
+            ];
+            for (var key in vFilters) {
+                var origIdx = Number(key);
+                var f = vFilters[key];
+                if (!f || !f.op) continue;
+                if (typeof testFilter === 'function' && !testFilter(rowCells[origIdx] || '', f)) return false;
+            }
+            return true;
+        });
+    }
+
+    /* مرتب‌سازی */
     var st = (typeof sortState !== 'undefined' && sortState.vouchers) ? sortState.vouchers : { col: 'number', dir: 'desc' };
     vouchers.sort(function (a, b) {
         var va, vb;
@@ -96,79 +117,110 @@ function renderVoucherList() {
         return st.dir === 'asc' ? c : -c;
     });
 
-    var total = vouchers.length;
-    var totalPages = Math.max(1, Math.ceil(total / VOUCHER_PAGE_SIZE));
-    if (window._vlistPg.page > totalPages) window._vlistPg.page = totalPages;
-    if (window._vlistPg.page < 1) window._vlistPg.page = 1;
-    var startIdx = (window._vlistPg.page - 1) * VOUCHER_PAGE_SIZE;
-    var pageVouchers = vouchers.slice(startIdx, startIdx + VOUCHER_PAGE_SIZE);
+    return { vouchers: vouchers, pMap: pMap, total: vouchers.length, allCount: allVouchers.length };
+}
 
-    tb.innerHTML = '';
-    var hide = getHideState('voucher-list');
-    var shown = 0;
+function renderVoucherList() {
+    if (window._voucherListRendering) return;
+    window._voucherListRendering = true;
 
-    for (var i = 0; i < pageVouchers.length; i++) {
-        var v = pageVouchers[i];
-        var status = v.status || 'draft';
-        var issues = [];
-        try { issues = getVoucherIssues(v) || []; } catch (e) { issues = []; }
+    try {
+        var tb = document.getElementById('voucher-list-body');
+        if (!tb) return;
 
-        var badge;
-        if (status === 'approved') badge = '<span class="badge badge-approved">✓ تأیید</span>';
-        else if (issues.length > 0) badge = '<span class="badge badge-draft" title="ناقص">پیش‌نویس ⚠️</span>';
-        else badge = '<span class="badge badge-draft">پیش‌نویس</span>';
+        var result = _computeFilteredVouchers();
+        var allCount = result.allCount;
+        var vouchers = result.vouchers;
+        var pMap = result.pMap;
+        var total = result.total;
 
-        var tB = '<span class="badge badge-type">' + voucherTypeName(v.type) + '</span>';
-        var pN = pMap[v.periodId] || '—';
-        var amt = getVoucherAmount(v);
-        var descTxt = v.desc ? esc(v.desc) : '<span style="color:#cbd5e1">—</span>';
-
-        var tr = document.createElement('tr');
-        if (status === 'approved') tr.classList.add('approved-row');
-
-        var aH = '<div class="row-actions">'
-               + '<button class="row-btn open" data-id="' + v.id + '" data-action="preview" title="مشاهده">👁</button>'
-               + '<button class="row-btn copy" data-id="' + v.id + '" data-action="copy" title="کپی سند">📋</button>';
-        if (status === 'draft') {
-            aH += '<button class="row-btn edit" data-id="' + v.id + '" data-action="edit" title="ویرایش">✎</button>';
-            aH += '<button class="row-btn approve" data-id="' + v.id + '" data-action="approve" title="تأیید">✓</button>';
-            aH += '<button class="row-btn del" data-id="' + v.id + '" data-action="delete" title="حذف">×</button>';
-        } else {
-            aH += '<button class="row-btn unapprove" data-id="' + v.id + '" data-action="unapprove" title="برگشت از تأیید">↩</button>';
+        if (allCount === 0) {
+            tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است.</td></tr>';
+            var cEl = document.getElementById('vlist-count'); if (cEl) cEl.textContent = '۰';
+            var box = document.getElementById('vlist-pagination'); if (box) box.style.display = 'none';
+            return;
         }
-        aH += '</div>';
 
-        tr.innerHTML = '<td dir="ltr">' + toFa(esc(v.number)) + '</td>'
-            + '<td dir="ltr">' + toFa(esc(v.date)) + '</td>'
-            + '<td>' + tB + '</td>'
-            + '<td>' + esc(pN) + '</td>'
-            + '<td>' + descTxt + '</td>'
-            + '<td class="num" style="font-weight:bold">' + (hide ? '—' : formatMoney(amt)) + '</td>'
-            + '<td>' + badge + '</td>'
-            + '<td>' + aH + '</td>';
+        var totalPages = Math.max(1, Math.ceil(total / VOUCHER_PAGE_SIZE));
+        if (window._vlistPg.page > totalPages) window._vlistPg.page = totalPages;
+        if (window._vlistPg.page < 1) window._vlistPg.page = 1;
+        var startIdx = (window._vlistPg.page - 1) * VOUCHER_PAGE_SIZE;
+        var pageVouchers = vouchers.slice(startIdx, startIdx + VOUCHER_PAGE_SIZE);
 
-        tb.appendChild(tr);
-        shown++;
+        tb.innerHTML = '';
+        var hide = getHideState('voucher-list');
+        var shown = 0;
+
+        for (var i = 0; i < pageVouchers.length; i++) {
+            var v = pageVouchers[i];
+            var status = v.status || 'draft';
+            var issues = [];
+            try { issues = getVoucherIssues(v) || []; } catch (e) { issues = []; }
+
+            var badge;
+            if (status === 'approved') badge = '<span class="badge badge-approved">✓ تأیید</span>';
+            else if (issues.length > 0) badge = '<span class="badge badge-draft" title="ناقص">پیش‌نویس ⚠️</span>';
+            else badge = '<span class="badge badge-draft">پیش‌نویس</span>';
+
+            var tB = '<span class="badge badge-type">' + voucherTypeName(v.type) + '</span>';
+            var pN = pMap[v.periodId] || '—';
+            var amt = getVoucherAmount(v);
+            var descTxt = v.desc ? esc(v.desc) : '<span style="color:#cbd5e1">—</span>';
+
+            var tr = document.createElement('tr');
+            if (status === 'approved') tr.classList.add('approved-row');
+
+            var aH = '<div class="row-actions">'
+                   + '<button class="row-btn open" data-id="' + v.id + '" data-action="preview" title="مشاهده">👁</button>'
+                   + '<button class="row-btn copy" data-id="' + v.id + '" data-action="copy" title="کپی سند">📋</button>';
+            if (status === 'draft') {
+                aH += '<button class="row-btn edit" data-id="' + v.id + '" data-action="edit" title="ویرایش">✎</button>';
+                aH += '<button class="row-btn approve" data-id="' + v.id + '" data-action="approve" title="تأیید">✓</button>';
+                aH += '<button class="row-btn del" data-id="' + v.id + '" data-action="delete" title="حذف">×</button>';
+            } else {
+                aH += '<button class="row-btn unapprove" data-id="' + v.id + '" data-action="unapprove" title="برگشت از تأیید">↩</button>';
+            }
+            aH += '</div>';
+
+            tr.innerHTML = '<td dir="ltr">' + toFa(esc(v.number)) + '</td>'
+                + '<td dir="ltr">' + toFa(esc(v.date)) + '</td>'
+                + '<td>' + tB + '</td>'
+                + '<td>' + esc(pN) + '</td>'
+                + '<td>' + descTxt + '</td>'
+                + '<td class="num" style="font-weight:bold">' + (hide ? '—' : formatMoney(amt)) + '</td>'
+                + '<td>' + badge + '</td>'
+                + '<td>' + aH + '</td>';
+
+            tb.appendChild(tr);
+            shown++;
+        }
+
+        if (shown === 0) {
+            tb.innerHTML = '<tr><td colspan="8" class="empty-row">سندی مطابق فیلترها یافت نشد.</td></tr>';
+        }
+
+        var cntEl = document.getElementById('vlist-count');
+        if (cntEl) cntEl.textContent = toFa(total);
+
+        renderVoucherPager(total, window._vlistPg.page);
+
+        var btns = tb.querySelectorAll('.row-btn');
+        for (var b = 0; b < btns.length; b++) btns[b].addEventListener('click', handleVoucherRowAction);
+
+        if (typeof applyColVisibility === 'function') applyColVisibility('voucher-table-list');
+        if (typeof applyColWidths === 'function') applyColWidths('voucher-table-list');
+        if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('voucher-table-list'));
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+        if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
+        if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('voucher-table-list'));
+
+        /* همگام‌سازی cache فیلتر (تا setInterval دوباره رندر نکند) */
+        if (typeof COLUMN_FILTERS !== 'undefined') {
+            window._lastVoucherFilterKey = JSON.stringify(COLUMN_FILTERS['voucher-table-list'] || {});
+        }
+    } finally {
+        window._voucherListRendering = false;
     }
-
-    if (shown === 0) {
-        tb.innerHTML = '<tr><td colspan="8" class="empty-row">سندی مطابق فیلترها یافت نشد.</td></tr>';
-    }
-
-    var cntEl = document.getElementById('vlist-count');
-    if (cntEl) cntEl.textContent = toFa(total);
-
-    renderVoucherPager(total, window._vlistPg.page);
-
-    var btns = tb.querySelectorAll('.row-btn');
-    for (var b = 0; b < btns.length; b++) btns[b].addEventListener('click', handleVoucherRowAction);
-
-    if (typeof applyColVisibility === 'function') applyColVisibility('voucher-table-list');
-    if (typeof applyColWidths === 'function') applyColWidths('voucher-table-list');
-    if (typeof makeTableResizable === 'function') makeTableResizable(document.getElementById('voucher-table-list'));
-    if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-    if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
-    if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('voucher-table-list'));
 }
 
 function handleVoucherRowAction() {
@@ -264,7 +316,6 @@ function openVoucherPreview(v) {
     var m = document.getElementById('vpreview-modal'); var o = document.getElementById('vpreview-overlay');
     if (m) m.classList.add('show'); if (o) o.classList.add('show'); window._currentPreviewVoucher = v;
 
-    /* ✅ Bind دکمه اکسل */
     var expBtn = document.getElementById('vpreview-export');
     if (expBtn) {
         expBtn.onclick = exportVoucherPreviewToExcel;
@@ -351,7 +402,7 @@ function printVoucherPreview() {
 }
 
 /* ============================================================
-   ✅ خروجی اکسل استاندارد برای پیش‌نمایش سند
+   ✅ خروجی اکسل استاندارد پیش‌نمایش سند
    ============================================================ */
 function exportVoucherPreviewToExcel() {
     var v = window._currentPreviewVoucher;
@@ -361,13 +412,11 @@ function exportVoucherPreviewToExcel() {
     var periods = DB.load('fiscalPeriods', []);
     var period = periods.find(function (p) { return p.id === v.periodId; });
 
-    /* استفاده از تابع عمومی exportDataToExcel */
     if (typeof exportDataToExcel !== 'function') {
         alert('تابع خروجی اکسل در دسترس نیست.');
         return;
     }
 
-    /* ساخت ردیف‌ها */
     var rows = [];
     var td = 0, tc = 0;
     (v.lines || []).forEach(function (line, idx) {
@@ -391,10 +440,8 @@ function exportVoucherPreviewToExcel() {
         ]);
     });
 
-    /* ردیف جمع */
     rows.push(['', '', '', 'جمع کل', td, tc]);
 
-    /* اطلاعات سربرگ به عنوان عنوان گزارش */
     var title = 'سند حسابداری شماره ' + v.number
               + ' — تاریخ ' + v.date
               + ' — ' + (v.status === 'approved' ? 'تأیید شده' : 'پیش‌نویس')
@@ -403,6 +450,36 @@ function exportVoucherPreviewToExcel() {
 
     var headers = ['#', 'معین', 'تفصیلی', 'شرح قلم', 'بدهکار', 'بستانکار'];
     exportDataToExcel(headers, rows, title, 'سند-' + v.number, 'سند');
+}
+
+/* ============================================================
+   ✅ خروجی اکسل استاندارد فهرست اسناد
+   (همان ستون‌های جدول، مبلغ numeric)
+   ============================================================ */
+function exportVoucherListToExcel(filename) {
+    var result = _computeFilteredVouchers();
+    var vouchers = result.vouchers;
+    var pMap = result.pMap;
+
+    if (vouchers.length === 0) {
+        alert('داده‌ای برای خروجی نیست.');
+        return;
+    }
+
+    var rows = vouchers.map(function (v) {
+        return [
+            String(v.number || ''),
+            v.date || '',
+            voucherTypeName(v.type),
+            pMap[v.periodId] || '—',
+            v.desc || '',
+            getVoucherAmount(v),   /* ✅ مبلغ numeric */
+            v.status === 'approved' ? 'تأیید شده' : 'پیش‌نویس'
+        ];
+    });
+
+    var headers = ['شماره', 'تاریخ', 'نوع سند', 'دوره', 'شرح', 'مبلغ (ریال)', 'وضعیت'];
+    exportDataToExcel(headers, rows, 'فهرست اسناد حسابداری', filename || 'فهرست-اسناد', 'اسناد');
 }
 
 function closeVoucherPreview() {
@@ -425,9 +502,21 @@ function openVoucherForEditById(vid) {
 }
 
 function bindVoucherListFilters() {
-    var vpf = document.getElementById('vl-period-filter'); if (vpf && !vpf.dataset.bound) { vpf.dataset.bound = '1'; vpf.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
-    var vsrch = document.getElementById('vlist-search'); if (vsrch && !vsrch.dataset.bound) { vsrch.dataset.bound = '1'; vsrch.addEventListener('input', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
-    var vstatus = document.getElementById('vlist-status-filter'); if (vstatus && !vstatus.dataset.bound) { vstatus.dataset.bound = '1'; vstatus.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); }); }
+    var vpf = document.getElementById('vl-period-filter');
+    if (vpf && !vpf.dataset.bound) {
+        vpf.dataset.bound = '1';
+        vpf.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); });
+    }
+    var vsrch = document.getElementById('vlist-search');
+    if (vsrch && !vsrch.dataset.bound) {
+        vsrch.dataset.bound = '1';
+        vsrch.addEventListener('input', function () { window._vlistPg.page = 1; renderVoucherList(); });
+    }
+    var vstatus = document.getElementById('vlist-status-filter');
+    if (vstatus && !vstatus.dataset.bound) {
+        vstatus.dataset.bound = '1';
+        vstatus.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); });
+    }
 }
 
 (function patchGoToPageForVoucherList() {
@@ -456,7 +545,6 @@ function bindVoucherListFilters() {
     }, 3000);
 })();
 
-/* ✅ Bind دکمه اکسل هنگام لود */
 document.addEventListener('click', function (e) {
     if (e.target.closest('#vpreview-export')) {
         if (typeof exportVoucherPreviewToExcel === 'function') exportVoucherPreviewToExcel();
@@ -470,7 +558,9 @@ window.openVoucherPreview = openVoucherPreview;
 window.closeVoucherPreview = closeVoucherPreview;
 window.printVoucherPreview = printVoucherPreview;
 window.exportVoucherPreviewToExcel = exportVoucherPreviewToExcel;
+window.exportVoucherListToExcel = exportVoucherListToExcel;
 window.openVoucherForEditById = openVoucherForEditById;
 window.bindVoucherListFilters = bindVoucherListFilters;
+window._computeFilteredVouchers = _computeFilteredVouchers;
 
-console.log('✅ [modules/vouchers/list.js] loaded — print + standard excel');
+console.log('✅ [modules/vouchers/list.js] loaded — global filter + standard excel');
