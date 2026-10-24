@@ -74,7 +74,6 @@ function injectCfCollapseStyle() {
     var s = document.createElement('style');
     s.id = 'cf-collapse-style';
     s.textContent = ''
-    /* دکمه‌ی toggle: در جریان عادی، به‌صورت هدر کوچک بالای کارت */
     + '.cf-filter-toggle {'
     +   'display:inline-flex !important;'
     +   'align-items:center;'
@@ -105,7 +104,6 @@ function injectCfCollapseStyle() {
     +   'line-height:1;'
     +   'font-size:0.8rem;'
     + '}'
-    /* کلاس اختصاصی cf-collapsed — تداخلی با .card.collapsed ندارد */
     + '.cf-filter-card.cf-collapsed .cf-toggle-icon {'
     +   'transform:rotate(-90deg);'
     + '}'
@@ -115,7 +113,6 @@ function injectCfCollapseStyle() {
     + '.cf-filter-card.cf-collapsed .cf-filter-toggle {'
     +   'margin-bottom:0 !important;'
     + '}'
-    /* اطمینان مضاعف: حتی اگر کلاس قدیمی collapsed چسبیده باشد، دکمه دیده شود */
     + '.cf-filter-card.collapsed .cf-filter-toggle {'
     +   'display:inline-flex !important;'
     +   'visibility:visible !important;'
@@ -126,7 +123,6 @@ function injectCfCollapseStyle() {
 
 /* ============================================================
    ✅ Global Delegation — روی کل سند (یک‌بار، capture phase)
-   تضمین می‌کند کلیک روی دکمه در هر clone/تب/دوباره‌سازی کار کند
    ============================================================ */
 (function installCfToggleDelegation() {
     if (window._cfToggleDelegated) return;
@@ -141,25 +137,29 @@ function injectCfCollapseStyle() {
         var card = btn.closest('.cf-filter-card');
         if (!card) return;
 
-        /* استفاده از cf-collapsed به جای collapsed */
         var isCollapsed = card.classList.toggle('cf-collapsed');
-        try { DB.save('cf.filterCollapsed', isCollapsed); } catch (er) {}
+        var key = card.id === 'cfd-filter-card' ? 'cfd.filterCollapsed' : 'cf.filterCollapsed';
+        try { DB.save(key, isCollapsed); } catch (er) {}
     }, true);
 })();
 
-/* ============================================================
-   ✅ فقط sync state — bind نمی‌کند (Delegation انجام می‌دهد)
-   ============================================================ */
 function initCfFilterCollapse() {
     injectCfCollapseStyle();
 
-    var collapsed = false;
-    try { collapsed = DB.load('cf.filterCollapsed', false); } catch (e) {}
+    var cfCollapsed = false;
+    try { cfCollapsed = DB.load('cf.filterCollapsed', false); } catch (e) {}
+    var cfCards = document.querySelectorAll('#cf-filter-card');
+    for (var i = 0; i < cfCards.length; i++) {
+        if (cfCollapsed) cfCards[i].classList.add('cf-collapsed');
+        else cfCards[i].classList.remove('cf-collapsed');
+    }
 
-    var cards = document.querySelectorAll('.cf-filter-card');
-    for (var i = 0; i < cards.length; i++) {
-        if (collapsed) cards[i].classList.add('cf-collapsed');
-        else cards[i].classList.remove('cf-collapsed');
+    var cfdCollapsed = false;
+    try { cfdCollapsed = DB.load('cfd.filterCollapsed', false); } catch (e) {}
+    var cfdCards = document.querySelectorAll('#cfd-filter-card');
+    for (var j = 0; j < cfdCards.length; j++) {
+        if (cfdCollapsed) cfdCards[j].classList.add('cf-collapsed');
+        else cfdCards[j].classList.remove('cf-collapsed');
     }
 }
 
@@ -314,7 +314,6 @@ function runCashFlowReport() {
              +  '</tr>';
     });
 
-    /* tfoot حذف شد — این گزارش نیازی به جمع ندارد */
     html += '</tbody>';
     html += '</table></div></div>';
 
@@ -365,9 +364,10 @@ function runCashFlowReport() {
 })();
 
 function runCashFlowByDescReport() {
-    if (typeof makeFilterPanelCollapsible === 'function') {
-        makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
-    }
+    injectCfCollapseStyle();
+    initCfFilterCollapse();
+
+    /* ✅ حذف شد: makeFilterPanelCollapsible برای این صفحه */
 
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
     var toD   = normalizeDigits((document.getElementById('cfd-to').value || '').trim());
@@ -780,7 +780,7 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* ============================================================
-   ✅ bind دکمه‌ها (بدون bind کردن toggle — Delegation انجام می‌دهد)
+   ✅ bind دکمه‌ها
    ============================================================ */
 function bindCashFlowReportButtons() {
     injectCfCollapseStyle();
@@ -869,12 +869,6 @@ function bindCashFlowReportButtons() {
         onlyBal.dataset.bound = '1';
         onlyBal.addEventListener('change', runCashFlowByDescReport);
     }
-
-    setTimeout(function () {
-        if (typeof makeFilterPanelCollapsible === 'function') {
-            makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
-        }
-    }, 500);
 }
 
 window.moneyHtml                       = moneyHtml;
@@ -893,4 +887,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — collapse fixed (cf-collapsed + inline button + delegation)');
+console.log('✅ [modules/reports/cashflow.js] loaded — CFD title + top buttons + collapse');
