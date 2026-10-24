@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — جستجوی حساب‌ها، چاپ، CSV (نسخه نهایی چاپ گزارش‌ها)
+   پارسیس — جستجوی حساب‌ها، چاپ، CSV (نسخه نهایی)
    مسیر: js/core/lookups.js
    ============================================================ */
 'use strict';
@@ -133,14 +133,56 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   تابع چاپ هوشمند و استاندارد (با حذف آیکن‌ها و محاسبه مجدد جمع)
+   ✅ Helper: تبدیل ارقام فارسی/عربی و حذف جداکننده‌ها
+   ============================================================ */
+function _faDigitsToLatin(s) {
+    if (s === undefined || s === null) return '';
+    var t = String(s);
+    t = t.replace(/[\u06F0-\u06F9]/g, function (d) {
+        return String(d.charCodeAt(0) - 0x06F0);
+    });
+    t = t.replace(/[\u0660-\u0669]/g, function (d) {
+        return String(d.charCodeAt(0) - 0x0660);
+    });
+    return t;
+}
+
+/* تشخیص اینکه یک سلول یک عدد خالص است یا متن */
+function tryParseNumericCell(text) {
+    if (text === null || text === undefined) return null;
+    var s = String(text).trim();
+    if (!s) return null;
+
+    /* پرانتز = منفی */
+    var isNeg = false;
+    if (/^\(.+\)$/.test(s)) {
+        isNeg = true;
+        s = s.slice(1, -1).trim();
+    }
+
+    /* تبدیل ارقام فارسی به لاتین */
+    s = _faDigitsToLatin(s);
+
+    /* حذف جداکننده‌های هزارگان (کاما، ممیز عربی، فاصله) */
+    s = s.replace(/[,٬\s]/g, '');
+
+    /* باید یک عدد خالص باشد */
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+
+    var v = parseFloat(s);
+    if (isNaN(v) || !isFinite(v)) return null;
+    return isNeg ? -v : v;
+}
+
+/* ============================================================
+   تابع چاپ (نسخه اصلاح‌شده — جمع با احترام به colspan و ماهیت ستون)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
     var targetEl = activePage ? activePage.querySelector(selector) : null;
-    
+
     if (!targetEl) targetEl = document.querySelector(selector);
-    
+
     if (!targetEl) {
         alert('محتوایی برای چاپ یافت نشد.');
         return;
@@ -164,55 +206,103 @@ function printHtmlReport(selector, title) {
         fromVal = (document.getElementById('ri-from') || {}).value || '';
         toVal = (document.getElementById('ri-to') || {}).value || '';
     }
-    
+
     if (fromVal || toVal) {
         dateRange = 'از تاریخ: ' + toFa(fromVal) + (toVal ? ' | تا تاریخ: ' + toFa(toVal) : '');
     }
 
     var clone = targetEl.cloneNode(true);
 
-    // ✅ حذف تمام آیکن‌ها و دکمه‌های اضافی
+    /* حذف آیکن‌ها و دکمه‌ها */
     var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    // ✅ محاسبه مجدد جمع (فقط ردیف‌های قابل مشاهده)
-    clone.querySelectorAll('table').forEach(function(table) {
+    /* ============================================================
+       ✅ محاسبه مجدد جمع‌ها — با احترام به colspan و ماهیت ستون
+       ============================================================ */
+    clone.querySelectorAll('table').forEach(function (table) {
+        var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
         if (!tfoot || !tbody) return;
-        
-        var visibleRows = Array.from(tbody.querySelectorAll('tr')).filter(function(tr) { 
-            return tr.style.display !== 'none' && !tr.classList.contains('empty-row'); 
-        });
-        
+
         var footRow = tfoot.querySelector('tr');
         if (!footRow) return;
-        
-        Array.from(footRow.children).forEach(function(cell, idx) {
-            var txt = cell.textContent.trim();
-            if (/\d/.test(txt) && !/^[^\d]*$/.test(txt)) {
-                var sum = 0;
-                var hasNumbers = false;
-                visibleRows.forEach(function(tr) {
-                    var td = tr.children[idx];
-                    if (td) {
-                        var tdTxt = td.textContent.replace(/,/g, '').replace(/[۰-۹]/g, function(d) { return d.charCodeAt(0) - 0x06F0; }).replace(/[^\d\-\.]/g, '');
-                        var val = parseFloat(tdTxt);
-                        if (!isNaN(val)) { sum += val; hasNumbers = true; }
-                    }
+
+        /* ساخت نگاشت ستون‌های منطقی هدر */
+        var headerTexts = [];
+        if (thead) {
+            var headerRow = thead.querySelector('tr');
+            if (headerRow) {
+                Array.from(headerRow.children).forEach(function (th) {
+                    var cs = parseInt(th.getAttribute('colspan') || '1', 10);
+                    var txt = th.textContent.trim();
+                    for (var k = 0; k < cs; k++) headerTexts.push(txt);
                 });
-                if (hasNumbers) {
-                    var isNeg = sum < 0;
-                    var absSum = Math.abs(sum);
-                    var formatted = absSum.toLocaleString('fa-IR');
-                    cell.textContent = isNeg ? '(' + formatted + ')' : formatted;
-                    if (isNeg) cell.style.color = '#dc2626';
-                    else cell.style.color = '#1e40af';
+            }
+        }
+
+        /* سطرهای قابل مشاهده بدنه */
+        var bodyRows = Array.from(tbody.querySelectorAll('tr')).filter(function (tr) {
+            return tr.style.display !== 'none' && !tr.classList.contains('empty-row');
+        });
+        if (bodyRows.length === 0) return;
+
+        /* نگاشت logical column index برای tfoot */
+        var logicalCol = 0;
+        var footCells = Array.from(footRow.children);
+
+        footCells.forEach(function (cell) {
+            var cs = parseInt(cell.getAttribute('colspan') || '1', 10);
+
+            /* فقط سلول‌های تک‌ستونی قابل محاسبه هستند (سلول‌های label نباشند) */
+            if (cs === 1) {
+                var colIdx = logicalCol;
+
+                /* ستون‌های مانده (مانده در خط، مانده بدهکار، مانده بستانکار و …) را جمع نکن */
+                var header = (headerTexts[colIdx] || '');
+                var isBalanceCol = /مانده/.test(header);
+
+                if (!isBalanceCol) {
+                    /* آیا سلول پر است با یک عدد خالص؟ */
+                    var cellCleanTxt = _faDigitsToLatin(cell.textContent)
+                        .replace(/,/g, '')
+                        .replace(/[()]/g, '')
+                        .trim();
+
+                    if (/^-?\d+(\.\d+)?$/.test(cellCleanTxt)) {
+                        /* جمع ردیف‌های قابل مشاهده */
+                        var sum = 0;
+                        var hasNumbers = false;
+
+                        bodyRows.forEach(function (tr) {
+                            var td = tr.children[colIdx];
+                            if (!td) return;
+                            var val = tryParseNumericCell(td.textContent);
+                            if (val !== null) {
+                                sum += val;
+                                hasNumbers = true;
+                            }
+                        });
+
+                        if (hasNumbers) {
+                            var isNegSum = sum < 0;
+                            var absSum = Math.abs(sum);
+                            var formatted = absSum.toLocaleString('fa-IR');
+                            cell.textContent = isNegSum ? '(' + formatted + ')' : formatted;
+                            cell.style.color = isNegSum ? '#dc2626' : '#1e40af';
+                        }
+                    }
                 }
             }
+
+            logicalCol += cs;
         });
     });
 
+    /* ============================================================
+       تولید HTML نهایی چاپ
+       ============================================================ */
     var htmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="fa">
@@ -220,22 +310,78 @@ function printHtmlReport(selector, title) {
             <meta charset="UTF-8">
             <title>${esc(title)}</title>
             <style>
-                @page { 
-                    size: A4; 
-                    margin: 15mm; 
-                    @bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma, sans-serif; font-size: 10pt; color: #555; }
+                @page {
+                    size: A4;
+                    margin: 15mm 12mm 18mm 12mm;
+                    @bottom-center {
+                        content: "صفحه " counter(page) " از " counter(pages);
+                        font-family: Tahoma, sans-serif;
+                        font-size: 10pt;
+                        color: #475569;
+                        font-weight: bold;
+                    }
+                    @top-center {
+                        content: "${esc(title)}";
+                        font-family: Tahoma, sans-serif;
+                        font-size: 9pt;
+                        color: #94a3b8;
+                    }
                 }
-                body { font-family: Tahoma, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 11pt; }
-                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
-                .header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; }
-                .header .date-range { font-size: 11pt; color: #475569; font-weight: bold; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                body {
+                    font-family: Tahoma, Arial, sans-serif;
+                    direction: rtl;
+                    color: #000;
+                    margin: 0;
+                    padding: 0;
+                    font-size: 10.5pt;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 18px;
+                    padding-bottom: 12px;
+                    border-bottom: 2.5px solid #1e40af;
+                }
+                .header h1 {
+                    font-size: 17pt;
+                    margin: 0 0 8px 0;
+                    color: #1e40af;
+                    font-weight: 900;
+                    letter-spacing: -0.3px;
+                }
+                .header .date-range {
+                    font-size: 11pt;
+                    color: #475569;
+                    font-weight: bold;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 15px;
+                }
                 tr { page-break-inside: avoid !important; }
                 thead { display: table-header-group; }
-                th, td { border: 1px solid #64748b; padding: 4px 8px; text-align: center; vertical-align: middle; font-size: 10pt; }
-                th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
-                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
-                .num { direction: ltr; font-family: Arial, Tahoma, sans-serif; }
+                th, td {
+                    border: 1px solid #64748b;
+                    padding: 5px 8px;
+                    text-align: center;
+                    vertical-align: middle;
+                    font-size: 9.5pt;
+                }
+                th {
+                    background-color: #e2e8f0 !important;
+                    font-weight: bold !important;
+                    color: #1e40af;
+                }
+                tfoot td {
+                    background-color: #e2e8f0 !important;
+                    font-weight: bold !important;
+                    color: #1e40af;
+                }
+                .num {
+                    direction: ltr;
+                    font-family: Arial, Tahoma, sans-serif;
+                    font-variant-numeric: tabular-nums;
+                }
                 .dr { color: #dc2626 !important; font-weight: bold; }
                 .cr { color: #059669 !important; font-weight: bold; }
             </style>
@@ -255,18 +401,34 @@ function printHtmlReport(selector, title) {
         alert('لطفاً پاپ‌آپ (Popup) را در مرورگر خود مجاز کنید.');
         return;
     }
-    
+
     printWindow.document.open();
     printWindow.document.write(htmlContent);
     printWindow.document.close();
 
-    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+    if (typeof showToast === 'function') {
+        showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+    }
 
-    setTimeout(function() {
+    setTimeout(function () {
         printWindow.focus();
         printWindow.print();
-        printWindow.onafterprint = function() { printWindow.close(); };
+        printWindow.onafterprint = function () { printWindow.close(); };
     }, 500);
+}
+
+/* ============================================================
+   ✅ CSV Cell Helper — اعداد بدون Quote (تا Excel عددی ببیند)
+   ============================================================ */
+function _csvCell(val) {
+    if (val === null || val === undefined) return '""';
+    var num = tryParseNumericCell(val);
+    if (num !== null) {
+        /* عدد خام بدون کوتیشن → Excel به‌عنوان Number می‌بیند */
+        return String(num);
+    }
+    /* متن → داخل کوتیشن */
+    return '"' + String(val).replace(/"/g, '""') + '"';
 }
 
 function exportToCsv(key, filename) {
@@ -277,16 +439,21 @@ function exportToCsv(key, filename) {
     data.forEach(function (row) {
         Object.keys(row).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
     });
-    var lines = [keys.join(',')];
+    var lines = [keys.map(function (k) { return '"' + k.replace(/"/g, '""') + '"'; }).join(',')];
+
     data.forEach(function (row) {
         lines.push(keys.map(function (k) {
             var v = row[k];
             if (v === null || v === undefined) v = '';
             if (typeof v === 'object') v = JSON.stringify(v);
-            v = String(v).replace(/"/g, '""');
-            return '"' + v + '"';
+            /* اگر مقدار عدد خالص است → خام، وگرنه Text quoted */
+            if (typeof row[k] === 'number' && isFinite(row[k])) {
+                return String(row[k]);
+            }
+            return _csvCell(v);
         }).join(','));
     });
+
     var csv = '\uFEFF' + lines.join('\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
@@ -300,19 +467,23 @@ function exportToCsv(key, filename) {
     URL.revokeObjectURL(url);
 }
 
+/* ============================================================
+   ✅ Export Report Table — اعداد عددی، متنها متنی
+   ============================================================ */
 function exportReportTable(selector, filename) {
     var activePage = document.querySelector('.page.active');
     var el = activePage ? activePage.querySelector(selector) : null;
     if (!el) el = document.querySelector(selector);
-    
+
     if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
-    
+
     var table = el.querySelector('table');
     var detailList = el.querySelector('.rff-detail-list');
     var rows = [];
-    
+
     if (detailList) {
-        rows.push(['گزارش جامع تسهیلات — جزئیات']); rows.push([]);
+        rows.push(['گزارش جامع تسهیلات — جزئیات']);
+        rows.push([]);
         var cards = detailList.querySelectorAll('.rff-fac-card');
         for (var c = 0; c < cards.length; c++) {
             var card = cards[c];
@@ -341,13 +512,18 @@ function exportReportTable(selector, filename) {
             }
             if (row2.length > 0) rows.push(row2);
         }
-    } else { alert('ابتدا گزارش را اجرا کن.'); return; }
+    } else {
+        alert('ابتدا گزارش را اجرا کن.');
+        return;
+    }
 
     if (rows.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
+
     var lines = [];
     for (var r = 0; r < rows.length; r++) {
-        lines.push(rows[r].map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','));
+        lines.push(rows[r].map(_csvCell).join(','));
     }
+
     var csv = '\uFEFF' + lines.join('\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
@@ -355,8 +531,10 @@ function exportReportTable(selector, filename) {
     var dateStr = todayJalaliStr().replace(/\//g, '-');
     var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
     var a = document.createElement('a');
-    a.href = url; a.download = filename + '-' + dateStr + '_' + timeStr + '.csv';
-    a.click(); URL.revokeObjectURL(url);
+    a.href = url;
+    a.download = filename + '-' + dateStr + '_' + timeStr + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 window.getAccountLabel = getAccountLabel;
@@ -372,5 +550,6 @@ window.buildOptionsInto = buildOptionsInto;
 window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
+window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — Clean Print Window + Smart Totals');
+console.log('✅ [core/lookups.js] loaded — print recalc + numeric Excel export');
