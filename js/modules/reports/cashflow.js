@@ -1,7 +1,6 @@
 /* ============================================================
-   پارسیس — گزارش نقدینگی و گردش وجه نقد (نسخه اصلاح‌شده)
+   پارسیس — گزارش نقدینگی و گردش وجه نقد
    مسیر: js/modules/reports/cashflow.js
-   تغییرات: افزودن bind دکمه‌های چاپ و اکسل، حذف legend از HTML
    ============================================================ */
 'use strict';
 
@@ -68,9 +67,7 @@ function getActiveFiscalYearStart() {
 }
 
 function runCashFlowReport() {
-    if (typeof makeFilterPanelCollapsible === 'function') {
-        makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
-    }
+    /* ✅ حذف makeFilterPanelCollapsible برای این صفحه (هدر تاشو نمی‌خواهیم) */
 
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var cfFromEl = document.getElementById('cf-from');
@@ -693,7 +690,7 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* ============================================================
-   ✅ FIX: bind دکمه‌های چاپ و اکسل (قبلاً bind نشده بودند!)
+   ✅ bind دکمه‌های چاپ و اکسل
    ============================================================ */
 function bindCashFlowReportButtons() {
     /* --- پیش‌بینی روزانه نقدینگی --- */
@@ -714,7 +711,6 @@ function bindCashFlowReportButtons() {
         });
     }
 
-    /* ✅ FIX: چاپ */
     var printCf = document.getElementById('cf-print');
     if (printCf && !printCf.dataset.bound) {
         printCf.dataset.bound = '1';
@@ -727,7 +723,6 @@ function bindCashFlowReportButtons() {
         });
     }
 
-    /* ✅ FIX: اکسل */
     var exportCf = document.getElementById('cf-export');
     if (exportCf && !exportCf.dataset.bound) {
         exportCf.dataset.bound = '1';
@@ -758,7 +753,6 @@ function bindCashFlowReportButtons() {
         });
     }
 
-    /* ✅ FIX: چاپ (گردش وجه نقد) */
     var printCfd = document.getElementById('cfd-print');
     if (printCfd && !printCfd.dataset.bound) {
         printCfd.dataset.bound = '1';
@@ -769,7 +763,6 @@ function bindCashFlowReportButtons() {
         });
     }
 
-    /* ✅ FIX: اکسل (گردش وجه نقد) */
     var exportCfd = document.getElementById('cfd-export');
     if (exportCfd && !exportCfd.dataset.bound) {
         exportCfd.dataset.bound = '1';
@@ -786,9 +779,9 @@ function bindCashFlowReportButtons() {
         onlyBal.addEventListener('change', runCashFlowByDescReport);
     }
 
+    /* فقط برای گردش وجه نقد هدر تاشو نگه داشته می‌شود */
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
-            makeFilterPanelCollapsible('report-cashflow', 'filter-cf', 'فیلترهای پیش‌بینی نقدینگی', '🔍');
             makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
         }
     }, 500);
@@ -810,4 +803,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — Print/Export buttons bound');
+console.log('✅ [modules/reports/cashflow.js] loaded');
