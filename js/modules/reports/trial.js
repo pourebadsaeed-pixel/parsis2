@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای
+   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای (کاملاً مستقل)
    مسیر: js/modules/reports/trial.js
    ============================================================ */
 'use strict';
@@ -33,14 +33,14 @@ function _updateSortIndicators(container, state) {
 }
 
 /* ============================================================
-   ✅ Collapsible Logic (Fixed)
+   ✅ Collapsible Logic (کاملاً مستقل)
    ============================================================ */
 function injectRtCollapseStyle() {
     if (document.getElementById('rt-collapse-style')) return;
     var s = document.createElement('style');
     s.id = 'rt-collapse-style';
     s.textContent = ''
-    + '.cf-filter-toggle {'
+    + '.rt-filter-toggle {'
     +   'display:inline-flex !important;'
     +   'align-items:center;'
     +   'gap:8px;'
@@ -59,13 +59,13 @@ function injectRtCollapseStyle() {
     +   'user-select:none;'
     +   '-webkit-tap-highlight-color:transparent;'
     + '}'
-    + '.cf-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
-    + '.cf-filter-toggle:active { transform:scale(0.97); }'
+    + '.rt-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.rt-filter-toggle:active { transform:scale(0.97); }'
     + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
     + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
     + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
-    + '.cf-filter-card.cf-collapsed .cf-filter-toggle { margin-bottom:0 !important; }'
-    + '.cf-filter-card.collapsed .cf-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    + '.cf-filter-card.cf-collapsed .rt-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .rt-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
     document.head.appendChild(s);
 }
 
@@ -77,12 +77,12 @@ injectRtCollapseStyle();
     window._rtToggleDelegated = true;
 
     document.addEventListener('click', function (e) {
-        var btn = e.target && e.target.closest && e.target.closest('#rt-filter-toggle');
+        var btn = e.target && e.target.closest && e.target.closest('.rt-filter-toggle');
         if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
 
-        var card = btn.closest('.cf-filter-card'); // ✅ استفاده از closest
+        var card = btn.closest('.cf-filter-card'); 
         if (!card) return;
 
         var isCollapsed = card.classList.toggle('cf-collapsed');
