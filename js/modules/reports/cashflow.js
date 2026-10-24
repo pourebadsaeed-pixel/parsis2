@@ -67,7 +67,7 @@ function getActiveFiscalYearStart() {
 }
 
 /* ============================================================
-   ✅ تزریق CSS — دکمه در جریان عادی، کلاس اختصاصی cf-collapsed
+   ✅ تزریق CSS — دکمه Collapse + مخفی‌سازی در پرینت
    ============================================================ */
 function injectCfCollapseStyle() {
     if (document.getElementById('cf-collapse-style')) return;
@@ -117,6 +117,18 @@ function injectCfCollapseStyle() {
     +   'display:inline-flex !important;'
     +   'visibility:visible !important;'
     +   'opacity:1 !important;'
+    + '}'
+    /* ✅ استایل اختصاصی پرینت برای حذف لیست و فیلترها */
+    + '@media print {'
+    +   '.cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown,'
+    +   '.cf-filter-card, .cf-filter-toggle, .cf-filter-body,'
+    +   '.list-header, .tabs, .no-print, .card-collapse-btn,'
+    +   '.col-toggle-btn, .eye-toggle-btn, .share-btn, .export-btn {'
+    +     'display: none !important;'
+    +   '}'
+    +   '.cfd-details {'
+    +     'display: block !important;'
+    +   '}'
     + '}';
     document.head.appendChild(s);
 }
@@ -366,8 +378,6 @@ function runCashFlowReport() {
 function runCashFlowByDescReport() {
     injectCfCollapseStyle();
     initCfFilterCollapse();
-
-    /* ✅ حذف شد: makeFilterPanelCollapsible برای این صفحه */
 
     var fromD = normalizeDigits((document.getElementById('cfd-from').value || '').trim());
     var toD   = normalizeDigits((document.getElementById('cfd-to').value || '').trim());
@@ -887,4 +897,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — CFD title + top buttons + collapse');
+console.log('✅ [modules/reports/cashflow.js] loaded');
