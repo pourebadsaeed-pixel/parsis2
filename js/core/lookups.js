@@ -169,7 +169,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   تابع چاپ — اصلاح‌شده با حذف لیست بابت‌ها و تیتر جمع
+   تابع چاپ — حذف تصاویر + انتقال جمع به صفحه آخر
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -207,17 +207,17 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    // ✅ حذف کامل اقلام اضافی: دکمه‌ها، فیلترها، لیست بابت‌ها، هدرها
-    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
+    // ✅ حذف کامل تصاویر و اقلام اضافی
+    var toRemove = clone.querySelectorAll('img, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    // باز کردن خودکار همه جزئیات (برای پرینت کامل)
+    // باز کردن خودکار همه جزئیات
     clone.querySelectorAll('.cfd-details').forEach(function(el) {
         el.classList.add('show');
         el.style.display = 'block';
     });
 
-    // محاسبه مجدد جمع‌ها و انتقال tfoot به انتهای tbody (فقط صفحه آخر)
+    // محاسبه مجدد جمع‌ها و انتقال tfoot
     clone.querySelectorAll('table').forEach(function (table) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
@@ -227,7 +227,7 @@ function printHtmlReport(selector, title) {
         if (tfoot && tbody) {
             footRow = tfoot.querySelector('tr');
             if (footRow) {
-                // ✅ استایل‌دهی به ردیف جمع به شکل تیتر
+                // استایل‌دهی به ردیف جمع به شکل تیتر
                 footRow.style.backgroundColor = '#f1f5f9';
                 footRow.style.color = '#0f172a';
                 footRow.style.fontWeight = 'bold';
@@ -611,4 +611,4 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — Print safe & XLS structural');
+console.log('✅ [core/lookups.js] loaded');
