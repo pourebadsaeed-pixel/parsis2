@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (کاملاً مستقل)
+   پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -82,7 +82,7 @@ var _arSort = { col: 'code', dir: 'asc' };
 })();
 
 /* ============================================================
-   ✅ Collapsible Logic (کاملاً مستقل)
+   ✅ Collapsible Logic
    ============================================================ */
 function injectRaCollapseStyle() {
     if (document.getElementById('ra-collapse-style')) return;
@@ -118,7 +118,6 @@ function injectRaCollapseStyle() {
     document.head.appendChild(s);
 }
 
-// ✅ تزریق استایل در بدو ورود
 injectRaCollapseStyle();
 
 (function installRaToggleDelegation() {
@@ -146,7 +145,6 @@ function rebuildAccountFilterPanel() {
     var body = document.getElementById('ra-filter-body');
     if (!body) return;
     
-    // ✅ اصلاح شرط: اگر دکمه‌ای وجود دارد یعنی ساخته شده
     if (body.querySelector('button')) return; 
     body.innerHTML = ''; 
 
