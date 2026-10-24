@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای (کاملاً مستقل)
+   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای
    مسیر: js/modules/reports/trial.js
    ============================================================ */
 'use strict';
@@ -169,21 +169,18 @@ function initRcCollapse() {
 
 /* ============================================================
    ✅ Helper: ست کردن تاریخ‌های پیش‌فرض گزارش مقایسه‌ای
-   دوره ۱ = ماه قبل، دوره ۲ = ماه جاری
    ============================================================ */
 function setRcDefaultDates() {
     var d = new Date();
     var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
     var cy = j[0], cm = j[1];
 
-    // ماه قبل
     var pm = cm - 1, py = cy;
     if (pm < 1) { pm = 12; py--; }
 
     var from1 = py + '/' + pad2(pm) + '/01';
     var to1 = py + '/' + pad2(pm) + '/' + pad2(daysInJalaliMonth(py, pm));
 
-    // ماه جاری
     var from2 = cy + '/' + pad2(cm) + '/01';
     var to2 = cy + '/' + pad2(cm) + '/' + pad2(daysInJalaliMonth(cy, cm));
 
@@ -196,6 +193,42 @@ function setRcDefaultDates() {
     if (t1 && !t1.value) t1.value = to1;
     if (f2 && !f2.value) f2.value = from2;
     if (t2 && !t2.value) t2.value = to2;
+}
+
+/* ============================================================
+   ✅ محاسبه مجدد جمع پایانی (tfoot) بعد از فیلتر
+   ============================================================ */
+function recalcRtFooter() {
+    var table = document.getElementById('rt-table');
+    if (!table) return;
+    var tbodyRows = table.querySelectorAll('tbody tr');
+    var tD = 0, tC = 0, tMD = 0, tMC = 0;
+    
+    tbodyRows.forEach(function(tr) {
+        if (tr.style.display === 'none') return;
+        var cells = tr.children;
+        if (cells.length < 6) return;
+        var d = tryParseNumericCell(cells[2].textContent);
+        var c = tryParseNumericCell(cells[3].textContent);
+        var md = tryParseNumericCell(cells[4].textContent);
+        var mc = tryParseNumericCell(cells[5].textContent);
+        if (d !== null) tD += d;
+        if (c !== null) tC += c;
+        if (md !== null) tMD += md;
+        if (mc !== null) tMC += mc;
+    });
+
+    var hide = getHideState('rt');
+    var tfoot = table.querySelector('tfoot tr');
+    if (tfoot) {
+        var tds = tfoot.querySelectorAll('td');
+        if (tds.length === 5) {
+            tds[1].innerHTML = hide ? '—' : fmtRep(tD, 'rt');
+            tds[2].innerHTML = hide ? '—' : fmtRep(tC, 'rt');
+            tds[3].innerHTML = hide ? '—' : (tMD ? fmtRep(tMD, 'rt') : '—');
+            tds[4].innerHTML = hide ? '—' : (tMC ? fmtRep(tMC, 'rt') : '—');
+        }
+    }
 }
 
 /* ============================================================
@@ -299,6 +332,12 @@ function runTrialBalance() {
         if (typeof applyColWidths === 'function') applyColWidths('rt-table');
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
         if (typeof buildFilterRow === 'function') buildFilterRow(t);
+        
+        // ✅ اتصال رویداد برای به‌روزرسانی جمع در زمان فیلتر شدن
+        if (t) {
+            t.addEventListener('table-filtered', recalcRtFooter);
+            recalcRtFooter(); // اجرای اولیه برای همگام‌سازی
+        }
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
@@ -370,7 +409,7 @@ function runIncompleteReport() {
 }
 
 /* ============================================================
-   Comparison Report (کاملاً اصلاح‌شده با تاریخ پیش‌فرض)
+   Comparison Report
    ============================================================ */
 function runComparisonReport() {
     initRcCollapse();
@@ -473,10 +512,9 @@ function runComparisonReport() {
 }
 
 /* ============================================================
-   Bind Buttons — همه دکمه‌ها برای تراز، ناقص، مقایسه‌ای
+   Bind Buttons
    ============================================================ */
 function bindTrialReportButtons() {
-    // تراز آزمایشی
     var rtRun = document.getElementById('rt-run'); 
     if (rtRun && !rtRun.dataset.bound) { 
         rtRun.dataset.bound = '1'; 
@@ -503,14 +541,12 @@ function bindTrialReportButtons() {
         });
     }
 
-    // تراکنش‌های تکمیل نشده
     var riRun = document.getElementById('ri-run'); 
     if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') { 
         riRun.dataset.bound = '1'; 
         riRun.addEventListener('click', runIncompleteReport); 
     }
 
-    // ✅ گزارش مقایسه‌ای — همه دکمه‌ها
     var rcRun = document.getElementById('rc-run'); 
     if (rcRun && !rcRun.dataset.bound) { 
         rcRun.dataset.bound = '1'; 
@@ -523,8 +559,6 @@ function bindTrialReportButtons() {
         rcPrint.addEventListener('click', function() {
             if (typeof printHtmlReport === 'function') {
                 printHtmlReport('#rc-result', 'گزارش مقایسه‌ای دوره‌ها');
-            } else {
-                alert('تابع چاپ در دسترس نیست.');
             }
         });
     }
@@ -535,8 +569,6 @@ function bindTrialReportButtons() {
         rcExport.addEventListener('click', function() {
             if (typeof exportReportTable === 'function') {
                 exportReportTable('#rc-result', 'گزارش-مقایسه-ای');
-            } else {
-                alert('تابع اکسل در دسترس نیست.');
             }
         });
     }
@@ -546,6 +578,7 @@ window.runTrialBalance          = runTrialBalance;
 window.runIncompleteReport      = runIncompleteReport;
 window.runComparisonReport      = runComparisonReport;
 window.setRcDefaultDates        = setRcDefaultDates;
+window.recalcRtFooter           = recalcRtFooter;
 window.bindTrialReportButtons   = bindTrialReportButtons;
 
 console.log('✅ [modules/reports/trial.js] loaded');
