@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای (نسخه کامل)
+   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای
    مسیر: js/modules/reports/trial.js
    ============================================================ */
 'use strict';
@@ -32,8 +32,74 @@ function _updateSortIndicators(container, state) {
     });
 }
 
+/* ============================================================
+   ✅ Collapsible Logic for Trial Balance
+   ============================================================ */
+function injectRtCollapseStyle() {
+    if (document.getElementById('rt-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'rt-collapse-style';
+    s.textContent = ''
+    + '.cf-filter-toggle {'
+    +   'display:inline-flex !important;'
+    +   'align-items:center;'
+    +   'gap:8px;'
+    +   'padding:9px 16px;'
+    +   'margin-bottom:14px;'
+    +   'border-radius:10px;'
+    +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
+    +   'color:#fff;'
+    +   'border:none;'
+    +   'cursor:pointer;'
+    +   'font-size:0.85rem;'
+    +   'font-weight:800;'
+    +   'font-family:inherit;'
+    +   'box-shadow:0 3px 10px rgba(74,144,226,0.35);'
+    +   'transition:all 0.2s;'
+    +   'user-select:none;'
+    +   '-webkit-tap-highlight-color:transparent;'
+    + '}'
+    + '.cf-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.cf-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .cf-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    document.head.appendChild(s);
+}
+
+(function installRtToggleDelegation() {
+    if (window._rtToggleDelegated) return;
+    window._rtToggleDelegated = true;
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('#rt-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var card = document.getElementById('rt-filter-card');
+        if (!card) return;
+
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('rt.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+function initRtCollapse() {
+    injectRtCollapseStyle();
+    var collapsed = false;
+    try { collapsed = DB.load('rt.filterCollapsed', false); } catch (e) {}
+    var card = document.getElementById('rt-filter-card');
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
+}
+
 function runTrialBalance() {
-    if (typeof makeFilterPanelCollapsible === 'function') makeFilterPanelCollapsible('report-trial', 'filter-rt', 'فیلترهای تراز آزمایشی', '🔍');
+    initRtCollapse();
 
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var rtFromEl = document.getElementById('rt-from'); var rtToEl = document.getElementById('rt-to');
@@ -129,10 +195,12 @@ function runTrialBalance() {
         if (typeof applyColVisibility === 'function') applyColVisibility('rt-table');
         if (typeof applyColWidths === 'function') applyColWidths('rt-table');
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی قیف
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+
+    bindTrialReportButtons();
 }
 
 function runIncompleteReport() {
@@ -276,16 +344,50 @@ function runComparisonReport() {
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rc-table');
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی قیف
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
 function bindTrialReportButtons() {
-    var rtRun = document.getElementById('rt-run'); if (rtRun && !rtRun.dataset.bound && typeof runTrialBalance === 'function') { rtRun.dataset.bound = '1'; rtRun.addEventListener('click', runTrialBalance); }
-    var riRun = document.getElementById('ri-run'); if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') { riRun.dataset.bound = '1'; riRun.addEventListener('click', runIncompleteReport); }
-    var rcRun = document.getElementById('rc-run'); if (rcRun && !rcRun.dataset.bound && typeof runComparisonReport === 'function') { rcRun.dataset.bound = '1'; rcRun.addEventListener('click', runComparisonReport); }
+    var rtRun = document.getElementById('rt-run'); 
+    if (rtRun && !rtRun.dataset.bound) { 
+        rtRun.dataset.bound = '1'; 
+        rtRun.addEventListener('click', runTrialBalance); 
+    }
+    
+    var rtPrint = document.getElementById('rt-print');
+    if (rtPrint && !rtPrint.dataset.bound) {
+        rtPrint.dataset.bound = '1';
+        rtPrint.addEventListener('click', function() {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rt-result', 'تراز آزمایشی');
+            }
+        });
+    }
+    
+    var rtExport = document.getElementById('rt-export');
+    if (rtExport && !rtExport.dataset.bound) {
+        rtExport.dataset.bound = '1';
+        rtExport.addEventListener('click', function() {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rt-result', 'تراز-آزمایشی');
+            }
+        });
+    }
+
+    var riRun = document.getElementById('ri-run'); 
+    if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') { 
+        riRun.dataset.bound = '1'; 
+        riRun.addEventListener('click', runIncompleteReport); 
+    }
+    
+    var rcRun = document.getElementById('rc-run'); 
+    if (rcRun && !rcRun.dataset.bound && typeof runComparisonReport === 'function') { 
+        rcRun.dataset.bound = '1'; 
+        rcRun.addEventListener('click', runComparisonReport); 
+    }
 }
 
 window.runTrialBalance          = runTrialBalance;
@@ -293,4 +395,4 @@ window.runIncompleteReport      = runIncompleteReport;
 window.runComparisonReport      = runComparisonReport;
 window.bindTrialReportButtons   = bindTrialReportButtons;
 
-console.log('✅ [modules/reports/trial.js] loaded — Complete');
+console.log('✅ [modules/reports/trial.js] loaded');
