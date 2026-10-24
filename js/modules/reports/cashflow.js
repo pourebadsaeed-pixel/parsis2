@@ -1,6 +1,7 @@
 /* ============================================================
-   پارسیس — گزارش نقدینگی و گردش وجه نقد (نسخه سازگار با فیلتر قیفی)
+   پارسیس — گزارش نقدینگی و گردش وجه نقد (نسخه اصلاح‌شده)
    مسیر: js/modules/reports/cashflow.js
+   تغییرات: افزودن bind دکمه‌های چاپ و اکسل، حذف legend از HTML
    ============================================================ */
 'use strict';
 
@@ -691,7 +692,11 @@ function buildCashFlowDescSummaryForDash() {
     }).slice(0, 8);
 }
 
+/* ============================================================
+   ✅ FIX: bind دکمه‌های چاپ و اکسل (قبلاً bind نشده بودند!)
+   ============================================================ */
 function bindCashFlowReportButtons() {
+    /* --- پیش‌بینی روزانه نقدینگی --- */
     var runCf = document.getElementById('cf-run');
     if (runCf && !runCf.dataset.bound) {
         runCf.dataset.bound = '1';
@@ -709,6 +714,33 @@ function bindCashFlowReportButtons() {
         });
     }
 
+    /* ✅ FIX: چاپ */
+    var printCf = document.getElementById('cf-print');
+    if (printCf && !printCf.dataset.bound) {
+        printCf.dataset.bound = '1';
+        printCf.addEventListener('click', function () {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#cf-result', 'پیش‌بینی روزانه نقدینگی');
+            } else {
+                alert('تابع چاپ در دسترس نیست.');
+            }
+        });
+    }
+
+    /* ✅ FIX: اکسل */
+    var exportCf = document.getElementById('cf-export');
+    if (exportCf && !exportCf.dataset.bound) {
+        exportCf.dataset.bound = '1';
+        exportCf.addEventListener('click', function () {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#cf-result', 'cashflow-forecast');
+            } else {
+                alert('تابع اکسل در دسترس نیست.');
+            }
+        });
+    }
+
+    /* --- گردش وجه نقد --- */
     var runCfd = document.getElementById('cfd-run');
     if (runCfd && !runCfd.dataset.bound) {
         runCfd.dataset.bound = '1';
@@ -723,6 +755,28 @@ function bindCashFlowReportButtons() {
             document.getElementById('cfd-from').value = t;
             document.getElementById('cfd-to').value = addJalaliDays(t, 30);
             runCashFlowByDescReport();
+        });
+    }
+
+    /* ✅ FIX: چاپ (گردش وجه نقد) */
+    var printCfd = document.getElementById('cfd-print');
+    if (printCfd && !printCfd.dataset.bound) {
+        printCfd.dataset.bound = '1';
+        printCfd.addEventListener('click', function () {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#cfd-result', 'گردش وجه نقد');
+            }
+        });
+    }
+
+    /* ✅ FIX: اکسل (گردش وجه نقد) */
+    var exportCfd = document.getElementById('cfd-export');
+    if (exportCfd && !exportCfd.dataset.bound) {
+        exportCfd.dataset.bound = '1';
+        exportCfd.addEventListener('click', function () {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#cfd-result', 'cashflow-desc');
+            }
         });
     }
 
@@ -756,4 +810,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — Cleaned & ready for funnel filter');
+console.log('✅ [modules/reports/cashflow.js] loaded — Print/Export buttons bound');
