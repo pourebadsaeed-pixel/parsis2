@@ -26,7 +26,6 @@
 
 <!-- ============ LOGIN OVERLAY ============ -->
 <div id="login-overlay" style="position:fixed; inset:0; background:var(--bg-grad); z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
-    <!-- ✅ رفع لگ: افکت شیشه‌ای حذف شد تا کلیک‌ها سریع ثبت شوند -->
     <div class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;">
         <h2 style="color:var(--primary-dark); margin-bottom:20px;">ورود به پارسیس</h2>
         <div class="field" style="text-align:right;">
@@ -59,7 +58,6 @@
     <div class="sidebar-search"><input type="text" id="sidebar-search-input" placeholder="🔍 جستجوی فرم یا گزارش..."></div>
     <div class="sidebar-actions"><button id="side-expand" class="mini-btn">باز کردن همه</button><button id="side-collapse" class="mini-btn">بستن همه</button></div>
     <nav class="sidebar-nav" id="sidebar-nav">
-        <!-- ✅ منوی پرکاربرد به صورت پیش‌فرض بسته است -->
         <div class="nav-group nav-frequent collapsed" id="nav-frequent-group" style="display:none">
             <button class="nav-group-title"><span>⭐ پرکاربرد</span><span class="caret">▾</span></button>
             <div class="nav-group-items" id="nav-frequent-items"></div>
@@ -191,7 +189,6 @@
             <div id="home-live-rates"><div class="widget-empty">در حال دریافت...</div></div>
             <div id="live-rates-meta" style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);text-align:center"></div>
         </div>
-        
         <div class="card widget-card widget-wide" data-widget="tgjuRates">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h3 style="color:var(--primary-dark);font-size:0.95rem;margin:0">💱 نرخ لحظه‌ای ارز و طلا (TGJU)</h3>
@@ -977,21 +974,21 @@
 <!-- ============ REPORT CASHFLOW ============ -->
 <section id="page-report-cashflow" class="page">
     <div class="card">
-        <div class="grid-2">
-            <div class="field"><label>از تاریخ</label><input type="text" id="cf-from" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>تا تاریخ</label><input type="text" id="cf-to" class="date-picker" dir="ltr"></div>
-        </div>
-        <div class="form-buttons">
-            <button id="cf-run" class="btn-primary">🔍 اجرا</button>
-            <button id="cf-today" class="btn-secondary">امروز تا یک ماه</button>
-            <button id="cf-print" class="btn-secondary">🖨 چاپ</button>
-            <button id="cf-export" class="btn-secondary">📊 اکسل</button>
-        </div>
-        <div class="cf-legend">
-            <div class="lg bank"><span class="dot"></span> مانده بانک</div>
-            <div class="lg source"><span class="dot"></span> دریافتنی</div>
-            <div class="lg fac"><span class="dot"></span> تسهیلات/اقساط</div>
-            <div class="lg est"><span class="dot"></span> برآورد هزینه</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
+            <div class="field" style="flex:1 1 150px; margin-bottom:0; min-width:120px">
+                <label>از تاریخ</label>
+                <input type="text" id="cf-from" class="date-picker" dir="ltr">
+            </div>
+            <div class="field" style="flex:1 1 150px; margin-bottom:0; min-width:120px">
+                <label>تا تاریخ</label>
+                <input type="text" id="cf-to" class="date-picker" dir="ltr">
+            </div>
+            <div class="form-buttons" style="margin:0; flex-wrap:wrap">
+                <button id="cf-run" class="btn-primary">🔍 اجرا</button>
+                <button id="cf-today" class="btn-secondary">امروز تا یک ماه</button>
+                <button id="cf-print" class="btn-secondary">🖨 چاپ</button>
+                <button id="cf-export" class="btn-secondary">📊 اکسل</button>
+            </div>
         </div>
     </div>
     <div class="card">
@@ -1608,7 +1605,7 @@
                 s.onload = resolve;
                 s.onerror = function () { 
                     console.warn('Failed to load: ' + modules[i]); 
-                    resolve(); // ✅ حتی اگر فایل لود نشد، بقیه لود شوند
+                    resolve();
                 };
                 document.body.appendChild(s);
             });
