@@ -1261,52 +1261,58 @@
 <!-- ============ REPORT COMPARE ============ -->
 <section id="page-report-compare" class="page">
     <h2>📊 گزارش مقایسه‌ای دوره‌ها</h2>
-    <div class="card">
-        <div class="grid-4">
-            <div class="field"><label>از تاریخ — دوره ۱</label><input type="text" id="rc-from1" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>تا تاریخ — دوره ۱</label><input type="text" id="rc-to1" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>از تاریخ — دوره ۲</label><input type="text" id="rc-from2" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>تا تاریخ — دوره ۲</label><input type="text" id="rc-to2" class="date-picker" dir="ltr"></div>
-        </div>
-        <div class="grid-4">
-            <div class="field"><label>نوع</label>
-                <select id="rc-cat">
-                    <option value="">همه</option>
-                    <option value="permanent">دائمی</option>
-                    <option value="temporary" selected>موقت</option>
-                    <option value="none">مهم نیست</option>
-                </select>
+    <div class="card cf-filter-card" id="rc-filter-card">
+        <button type="button" class="rc-filter-toggle" id="rc-filter-toggle" title="باز/بستن فیلترها">
+            <span class="cf-toggle-icon">▼</span>
+            <span class="cf-toggle-label">فیلترها</span>
+        </button>
+        <div class="cf-filter-body" id="rc-filter-body">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+                <button id="rc-run" class="btn-primary">🔍 اجرا</button>
+                <button id="rc-print" class="btn-secondary">🖨 چاپ</button>
+                <button id="rc-export" class="btn-secondary">📊 اکسل</button>
             </div>
-            <div class="field"><label>ماهیت</label>
-                <select id="rc-nature">
-                    <option value="">همه</option>
-                    <option value="debit">بدهکار</option>
-                    <option value="credit">بستانکار</option>
-                    <option value="none">مهم نیست</option>
-                </select>
+            <div class="grid-4">
+                <div class="field"><label>از تاریخ — دوره ۱</label><input type="text" id="rc-from1" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>تا تاریخ — دوره ۱</label><input type="text" id="rc-to1" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>از تاریخ — دوره ۲</label><input type="text" id="rc-from2" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>تا تاریخ — دوره ۲</label><input type="text" id="rc-to2" class="date-picker" dir="ltr"></div>
             </div>
-            <div class="field"><label>نوع سند</label>
-                <select id="rc-vtype">
-                    <option value="general" selected>عمومی</option>
-                    <option value="">همه اسناد</option>
-                    <option value="opening">افتتاحیه</option>
-                    <option value="establishment">افتتاحیه استقرار</option>
-                    <option value="closing">بستن حساب</option>
-                    <option value="final">اختتامیه</option>
-                </select>
+            <div class="grid-4">
+                <div class="field"><label>نوع</label>
+                    <select id="rc-cat">
+                        <option value="">همه</option>
+                        <option value="permanent">دائمی</option>
+                        <option value="temporary" selected>موقت</option>
+                        <option value="none">مهم نیست</option>
+                    </select>
+                </div>
+                <div class="field"><label>ماهیت</label>
+                    <select id="rc-nature">
+                        <option value="">همه</option>
+                        <option value="debit">بدهکار</option>
+                        <option value="credit">بستانکار</option>
+                        <option value="none">مهم نیست</option>
+                    </select>
+                </div>
+                <div class="field"><label>نوع سند</label>
+                    <select id="rc-vtype">
+                        <option value="general" selected>عمومی</option>
+                        <option value="">همه اسناد</option>
+                        <option value="opening">افتتاحیه</option>
+                        <option value="establishment">افتتاحیه استقرار</option>
+                        <option value="closing">بستن حساب</option>
+                        <option value="final">اختتامیه</option>
+                    </select>
+                </div>
+                <div class="field"><label>سطح</label>
+                    <select id="rc-level">
+                        <option value="1">گروه</option>
+                        <option value="2" selected>کل</option>
+                        <option value="3">معین</option>
+                    </select>
+                </div>
             </div>
-            <div class="field"><label>سطح</label>
-                <select id="rc-level">
-                    <option value="1">گروه</option>
-                    <option value="2" selected>کل</option>
-                    <option value="3">معین</option>
-                </select>
-            </div>
-        </div>
-        <div class="form-buttons">
-            <button id="rc-run" class="btn-primary">🔍 اجرا</button>
-            <button id="rc-print" class="btn-secondary">🖨 چاپ</button>
-            <button id="rc-export" class="btn-secondary">📊 اکسل</button>
         </div>
     </div>
     <div class="card">
