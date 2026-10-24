@@ -66,8 +66,66 @@ function getActiveFiscalYearStart() {
     return parts[0] + '/01/01';
 }
 
+/* ============================================================
+   ✅ تزریق CSS فلش collapse (یک‌بار)
+   ============================================================ */
+function injectCfCollapseStyle() {
+    if (document.getElementById('cf-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'cf-collapse-style';
+    s.textContent = ''
+    + '.cf-filter-card { position:relative !important; padding-top:14px !important; }'
+    + '.cf-filter-toggle {'
+    +   'position:absolute; top:8px; left:8px;'
+    +   'width:30px; height:30px;'
+    +   'border-radius:8px;'
+    +   'background:var(--primary-soft);'
+    +   'color:var(--primary-dark);'
+    +   'border:1px solid var(--primary-light);'
+    +   'cursor:pointer;'
+    +   'font-size:0.85rem;'
+    +   'display:flex; align-items:center; justify-content:center;'
+    +   'z-index:10; padding:0;'
+    +   'transition:all 0.2s; font-family:inherit;'
+    + '}'
+    + '.cf-filter-toggle:hover { background:var(--primary); color:#fff; }'
+    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; }'
+    + '.cf-filter-card.collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.collapsed .cf-filter-body { display:none; }'
+    + '.cf-filter-card.collapsed { padding-bottom:10px !important; }';
+    document.head.appendChild(s);
+}
+
+/* ============================================================
+   ✅ init فلش collapse (idempotent — هم state sync هم bind)
+   ============================================================ */
+function initCfFilterCollapse() {
+    var card = document.getElementById('cf-filter-card');
+    if (!card) return;
+    var btn = document.getElementById('cf-filter-toggle');
+    if (!btn) return;
+
+    /* همیشه state را با DB همگام کن (چه در clone چه original) */
+    var collapsed = DB.load('cf.filterCollapsed', false);
+    if (collapsed) card.classList.add('collapsed');
+    else card.classList.remove('collapsed');
+
+    /* bind فقط یک‌بار */
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        card.classList.toggle('collapsed');
+        DB.save('cf.filterCollapsed', card.classList.contains('collapsed'));
+    });
+}
+
 function runCashFlowReport() {
-    /* ✅ حذف makeFilterPanelCollapsible برای این صفحه (هدر تاشو نمی‌خواهیم) */
+    /* ✅ فلش collapse */
+    injectCfCollapseStyle();
+    initCfFilterCollapse();
 
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var cfFromEl = document.getElementById('cf-from');
@@ -216,16 +274,8 @@ function runCashFlowReport() {
              +  '</tr>';
     });
 
+    /* ✅ tfoot (مانده نهایی) به‌طور کامل حذف شد */
     html += '</tbody>';
-
-    var finalCls = running < 0 ? 'cf-neg' : '';
-    var finalText = hide ? '—'
-        : (running < 0 ? '(' + formatMoney(Math.abs(running)) + ')' : formatMoney(running));
-
-    html += '<tfoot><tr><td colspan="2" style="text-align:left">مانده نهایی</td>'
-         +  '<td class="num"></td>'
-         +  '<td class="num ' + finalCls + '">' + finalText + '</td></tr></tfoot>';
-
     html += '</table></div></div>';
 
     document.getElementById('cf-result').innerHTML = html;
@@ -690,9 +740,13 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* ============================================================
-   ✅ bind دکمه‌های چاپ و اکسل
+   ✅ bind دکمه‌های چاپ و اکسل + فلش collapse
    ============================================================ */
 function bindCashFlowReportButtons() {
+    /* ✅ فلش collapse — قبل از هر چیز */
+    injectCfCollapseStyle();
+    initCfFilterCollapse();
+
     /* --- پیش‌بینی روزانه نقدینگی --- */
     var runCf = document.getElementById('cf-run');
     if (runCf && !runCf.dataset.bound) {
@@ -728,7 +782,7 @@ function bindCashFlowReportButtons() {
         exportCf.dataset.bound = '1';
         exportCf.addEventListener('click', function () {
             if (typeof exportReportTable === 'function') {
-                exportReportTable('#cf-result', 'cashflow-forecast');
+                exportReportTable('#cf-result', 'پیش‌بینی-روزانه-نقدینگی');
             } else {
                 alert('تابع اکسل در دسترس نیست.');
             }
@@ -768,7 +822,7 @@ function bindCashFlowReportButtons() {
         exportCfd.dataset.bound = '1';
         exportCfd.addEventListener('click', function () {
             if (typeof exportReportTable === 'function') {
-                exportReportTable('#cfd-result', 'cashflow-desc');
+                exportReportTable('#cfd-result', 'گردش-وجه-نقد');
             }
         });
     }
@@ -803,4 +857,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded');
+console.log('✅ [modules/reports/cashflow.js] loaded — tfoot removed, collapse toggle added');
