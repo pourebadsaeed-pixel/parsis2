@@ -1059,7 +1059,15 @@
 <!-- ============ REPORT ACCOUNT ============ -->
 <section id="page-report-account" class="page">
     <h2>📒 مرور حساب‌ها</h2>
-    <div class="card"></div>
+    <div class="card cf-filter-card" id="ra-filter-card">
+        <button type="button" class="cf-filter-toggle" id="ra-filter-toggle" title="باز/بستن فیلترها">
+            <span class="cf-toggle-icon">▼</span>
+            <span class="cf-toggle-label">فیلترها</span>
+        </button>
+        <div class="cf-filter-body" id="ra-filter-body">
+            <!-- محتویات به صورت داینامیک توسط account.js ساخته می‌شود -->
+        </div>
+    </div>
     <div class="card">
         <div class="list-header" data-col-table="ra-acc-table" data-hide-key="ra">
             <span class="count-badge" id="ra-count">۰</span>
@@ -1072,52 +1080,58 @@
 <!-- ============ REPORT TRIAL ============ -->
 <section id="page-report-trial" class="page">
     <h2>⚖️ تراز آزمایشی</h2>
-    <div class="card">
-        <div class="grid-4">
-            <div class="field"><label>از</label><input type="text" id="rt-from" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>تا</label><input type="text" id="rt-to" class="date-picker" dir="ltr"></div>
-            <div class="field"><label>نوع</label>
-                <select id="rt-cat">
-                    <option value="">همه</option>
-                    <option value="permanent">دائمی</option>
-                    <option value="temporary">موقت</option>
-                    <option value="none">مهم نیست</option>
-                </select>
+    <div class="card cf-filter-card" id="rt-filter-card">
+        <button type="button" class="cf-filter-toggle" id="rt-filter-toggle" title="باز/بستن فیلترها">
+            <span class="cf-toggle-icon">▼</span>
+            <span class="cf-toggle-label">فیلترها</span>
+        </button>
+        <div class="cf-filter-body" id="rt-filter-body">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+                <button id="rt-run" class="btn-primary">🔍 اجرا</button>
+                <button id="rt-print" class="btn-secondary">🖨 چاپ</button>
+                <button id="rt-export" class="btn-secondary">📊 اکسل</button>
             </div>
-            <div class="field"><label>ماهیت</label>
-                <select id="rt-nature">
-                    <option value="">همه</option>
-                    <option value="debit">بدهکار</option>
-                    <option value="credit">بستانکار</option>
-                    <option value="none">مهم نیست</option>
-                </select>
+            <div class="grid-4">
+                <div class="field"><label>از</label><input type="text" id="rt-from" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>تا</label><input type="text" id="rt-to" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>نوع</label>
+                    <select id="rt-cat">
+                        <option value="">همه</option>
+                        <option value="permanent">دائمی</option>
+                        <option value="temporary">موقت</option>
+                        <option value="none">مهم نیست</option>
+                    </select>
+                </div>
+                <div class="field"><label>ماهیت</label>
+                    <select id="rt-nature">
+                        <option value="">همه</option>
+                        <option value="debit">بدهکار</option>
+                        <option value="credit">بستانکار</option>
+                        <option value="none">مهم نیست</option>
+                    </select>
+                </div>
             </div>
-        </div>
-        <div class="grid-3">
-            <div class="field"><label>نوع سند</label>
-                <select id="rt-vtype">
-                    <option value="">همه</option>
-                    <option value="general">عمومی</option>
-                    <option value="opening">افتتاحیه</option>
-                    <option value="establishment">افتتاحیه استقرار</option>
-                    <option value="closing">بستن حساب</option>
-                    <option value="final">اختتامیه</option>
-                </select>
+            <div class="grid-3">
+                <div class="field"><label>نوع سند</label>
+                    <select id="rt-vtype">
+                        <option value="">همه</option>
+                        <option value="general">عمومی</option>
+                        <option value="opening">افتتاحیه</option>
+                        <option value="establishment">افتتاحیه استقرار</option>
+                        <option value="closing">بستن حساب</option>
+                        <option value="final">اختتامیه</option>
+                    </select>
+                </div>
+                <div class="field"><label>دوره</label><select id="rt-period"><option value="">همه</option></select></div>
+                <div class="field"><label>سطح</label>
+                    <select id="rt-level">
+                        <option value="1">گروه</option>
+                        <option value="2">کل</option>
+                        <option value="3" selected>معین</option>
+                        <option value="4">تفصیلی</option>
+                    </select>
+                </div>
             </div>
-            <div class="field"><label>دوره</label><select id="rt-period"><option value="">همه</option></select></div>
-            <div class="field"><label>سطح</label>
-                <select id="rt-level">
-                    <option value="1">گروه</option>
-                    <option value="2">کل</option>
-                    <option value="3" selected>معین</option>
-                    <option value="4">تفصیلی</option>
-                </select>
-            </div>
-        </div>
-        <div class="form-buttons">
-            <button id="rt-run" class="btn-primary">🔍 اجرا</button>
-            <button id="rt-print" class="btn-secondary">🖨 چاپ</button>
-            <button id="rt-export" class="btn-secondary">📊 اکسل</button>
         </div>
     </div>
     <div class="card">
