@@ -169,7 +169,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   تابع چاپ — حذف تصاویر + انتقال جمع به صفحه آخر
+   تابع چاپ — حذف سایدبار سطوح حساب + انتقال جمع به صفحه آخر
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -199,6 +199,9 @@ function printHtmlReport(selector, title) {
     } else if (selector === '#ri-result') {
         fromVal = (document.getElementById('ri-from') || {}).value || '';
         toVal = (document.getElementById('ri-to') || {}).value || '';
+    } else if (selector === '#rc-result') {
+        fromVal = (document.getElementById('rc-from1') || {}).value || '';
+        toVal = (document.getElementById('rc-to2') || {}).value || '';
     }
 
     if (fromVal || toVal) {
@@ -207,11 +210,11 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    // ✅ حذف کامل تصاویر و اقلام اضافی
-    var toRemove = clone.querySelectorAll('img, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
+    // ✅ حذف کامل تصاویر، سایدبار سطوح حساب (.ar-side) و اقلام اضافی
+    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    // باز کردن خودکار همه جزئیات
+    // باز کردن خودکار همه جزئیات (برای پرینت کامل)
     clone.querySelectorAll('.cfd-details').forEach(function(el) {
         el.classList.add('show');
         el.style.display = 'block';
@@ -227,7 +230,6 @@ function printHtmlReport(selector, title) {
         if (tfoot && tbody) {
             footRow = tfoot.querySelector('tr');
             if (footRow) {
-                // استایل‌دهی به ردیف جمع به شکل تیتر
                 footRow.style.backgroundColor = '#f1f5f9';
                 footRow.style.color = '#0f172a';
                 footRow.style.fontWeight = 'bold';
@@ -239,7 +241,6 @@ function printHtmlReport(selector, title) {
                     tds[i].style.borderBottom = '2px solid #1e40af';
                     tds[i].style.padding = '10px 5px';
                 }
-                // انتقال به انتهای tbody
                 tbody.appendChild(footRow);
             }
             tfoot.remove();
@@ -247,7 +248,6 @@ function printHtmlReport(selector, title) {
 
         if (!tbody || !footRow) return;
 
-        // محاسبه جمع (بدون ستون‌های مانده)
         var headerTexts = [];
         if (thead) {
             var headerRow = thead.querySelector('tr');
@@ -403,6 +403,16 @@ function printHtmlReport(selector, title) {
                 .cfd-details {
                     display: block !important;
                 }
+                /* ✅ استایل‌های اختصاصی برای چاپ بهتر گزارش مرور حساب‌ها */
+                .ar-main { display: block !important; }
+                .ar-body { width: 100% !important; }
+                .ar-tb { margin-bottom: 15px !important; background: transparent !important; border: none !important; padding: 0 !important; }
+                .ar-tb-bc { font-size: 12pt !important; font-weight: bold !important; color: #1e40af !important; }
+                .ar-tb-bc a { text-decoration: none !important; border-bottom: none !important; color: #1e40af !important; }
+                .ar-tbl { table-layout: auto !important; width: 100% !important; }
+                .ar-tbl thead th { background-color: #e2e8f0 !important; color: #1e40af !important; border: 1px solid #64748b !important; }
+                .ar-tbl tbody td { border: 1px solid #64748b !important; }
+                .ar-tbl tfoot td { background-color: #e2e8f0 !important; color: #1e40af !important; border: 1px solid #64748b !important; }
             </style>
         </head>
         <body>
@@ -611,4 +621,4 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded');
+console.log('✅ [core/lookups.js] loaded — .ar-side removed from print');
