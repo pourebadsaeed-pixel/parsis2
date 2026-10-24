@@ -33,7 +33,7 @@ function _updateSortIndicators(container, state) {
 }
 
 /* ============================================================
-   ✅ Collapsible Logic (کاملاً مستقل)
+   ✅ Collapsible Logic for Trial Balance
    ============================================================ */
 function injectRtCollapseStyle() {
     if (document.getElementById('rt-collapse-style')) return;
@@ -69,7 +69,6 @@ function injectRtCollapseStyle() {
     document.head.appendChild(s);
 }
 
-// ✅ تزریق استایل در بدو ورود
 injectRtCollapseStyle();
 
 (function installRtToggleDelegation() {
@@ -101,6 +100,107 @@ function initRtCollapse() {
     }
 }
 
+/* ============================================================
+   ✅ Collapsible Logic for Comparison Report
+   ============================================================ */
+function injectRcCollapseStyle() {
+    if (document.getElementById('rc-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'rc-collapse-style';
+    s.textContent = ''
+    + '.rc-filter-toggle {'
+    +   'display:inline-flex !important;'
+    +   'align-items:center;'
+    +   'gap:8px;'
+    +   'padding:9px 16px;'
+    +   'margin-bottom:14px;'
+    +   'border-radius:10px;'
+    +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
+    +   'color:#fff;'
+    +   'border:none;'
+    +   'cursor:pointer;'
+    +   'font-size:0.85rem;'
+    +   'font-weight:800;'
+    +   'font-family:inherit;'
+    +   'box-shadow:0 3px 10px rgba(74,144,226,0.35);'
+    +   'transition:all 0.2s;'
+    +   'user-select:none;'
+    +   '-webkit-tap-highlight-color:transparent;'
+    + '}'
+    + '.rc-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.rc-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.cf-collapsed .rc-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .rc-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    document.head.appendChild(s);
+}
+
+injectRcCollapseStyle();
+
+(function installRcToggleDelegation() {
+    if (window._rcToggleDelegated) return;
+    window._rcToggleDelegated = true;
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.rc-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var card = btn.closest('.cf-filter-card'); 
+        if (!card) return;
+
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('rc.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+function initRcCollapse() {
+    injectRcCollapseStyle();
+    var collapsed = false;
+    try { collapsed = DB.load('rc.filterCollapsed', false); } catch (e) {}
+    var card = document.getElementById('rc-filter-card');
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
+}
+
+/* ============================================================
+   ✅ Helper: ست کردن تاریخ‌های پیش‌فرض گزارش مقایسه‌ای
+   دوره ۱ = ماه قبل، دوره ۲ = ماه جاری
+   ============================================================ */
+function setRcDefaultDates() {
+    var d = new Date();
+    var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    var cy = j[0], cm = j[1];
+
+    // ماه قبل
+    var pm = cm - 1, py = cy;
+    if (pm < 1) { pm = 12; py--; }
+
+    var from1 = py + '/' + pad2(pm) + '/01';
+    var to1 = py + '/' + pad2(pm) + '/' + pad2(daysInJalaliMonth(py, pm));
+
+    // ماه جاری
+    var from2 = cy + '/' + pad2(cm) + '/01';
+    var to2 = cy + '/' + pad2(cm) + '/' + pad2(daysInJalaliMonth(cy, cm));
+
+    var f1 = document.getElementById('rc-from1');
+    var t1 = document.getElementById('rc-to1');
+    var f2 = document.getElementById('rc-from2');
+    var t2 = document.getElementById('rc-to2');
+
+    if (f1 && !f1.value) f1.value = from1;
+    if (t1 && !t1.value) t1.value = to1;
+    if (f2 && !f2.value) f2.value = from2;
+    if (t2 && !t2.value) t2.value = to2;
+}
+
+/* ============================================================
+   Trial Balance
+   ============================================================ */
 function runTrialBalance() {
     initRtCollapse();
 
@@ -269,11 +369,21 @@ function runIncompleteReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
+/* ============================================================
+   Comparison Report (کاملاً اصلاح‌شده با تاریخ پیش‌فرض)
+   ============================================================ */
 function runComparisonReport() {
-    if (typeof makeFilterPanelCollapsible === 'function') makeFilterPanelCollapsible('report-compare', 'filter-rc', 'فیلترهای گزارش مقایسه‌ای', '🔍');
+    initRcCollapse();
+    setRcDefaultDates();
 
-    var p1 = { from: normalizeDigits((document.getElementById('rc-from1') || {}).value || '').trim(), to: normalizeDigits((document.getElementById('rc-to1') || {}).value || '').trim() };
-    var p2 = { from: normalizeDigits((document.getElementById('rc-from2') || {}).value || '').trim(), to: normalizeDigits((document.getElementById('rc-to2') || {}).value || '').trim() };
+    var p1 = { 
+        from: normalizeDigits((document.getElementById('rc-from1') || {}).value || '').trim(), 
+        to: normalizeDigits((document.getElementById('rc-to1') || {}).value || '').trim() 
+    };
+    var p2 = { 
+        from: normalizeDigits((document.getElementById('rc-from2') || {}).value || '').trim(), 
+        to: normalizeDigits((document.getElementById('rc-to2') || {}).value || '').trim() 
+    };
     var vtype = (document.getElementById('rc-vtype') || {}).value || '';
     var cat = (document.getElementById('rc-cat') || {}).value || '';
     var nature = (document.getElementById('rc-nature') || {}).value || '';
@@ -284,7 +394,9 @@ function runComparisonReport() {
     if (p1.from > p1.to || p2.from > p2.to) { alert('بازه نامعتبر.'); return; }
 
     var accounts = DB.load('accounts', []);
-    function computeBalances(f, t) { return rollupBalances(accounts, computeAccountBalances({ from: f, to: t, vtype: vtype, cat: cat, nature: nature, level: level }).balances); }
+    function computeBalances(f, t) { 
+        return rollupBalances(accounts, computeAccountBalances({ from: f, to: t, vtype: vtype, cat: cat, nature: nature, level: level }).balances); 
+    }
     var bal1 = computeBalances(p1.from, p1.to); var bal2 = computeBalances(p2.from, p2.to);
 
     var rows = [];
@@ -295,13 +407,20 @@ function runComparisonReport() {
             if (lvl === 1 || b1.debit || b1.credit || b2.debit || b2.credit) rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
             return;
         }
-        if (lvl < level) { var chs = accounts.filter(function (a) { return a.parent === node.id; }); for (var i = 0; i < chs.length; i++) walk(chs[i], lvl + 1); }
+        if (lvl < level) { 
+            var chs = accounts.filter(function (a) { return a.parent === node.id; }); 
+            for (var i = 0; i < chs.length; i++) walk(chs[i], lvl + 1); 
+        }
     }
-    var roots = accounts.filter(function (a) { return !a.parent; }); for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
+    var roots = accounts.filter(function (a) { return !a.parent; }); 
+    for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
 
     rows.forEach(function (row) { row.diff = row.net2 - row.net1; row.pct = row.net1 !== 0 ? (row.diff / Math.abs(row.net1) * 100) : (row.net2 !== 0 ? 100 : 0); });
     var sortState = window._rcSort; var sortKeyMap = { 'name': 'name', 'level': 'level', 'net1': 'net1', 'net2': 'net2', 'pct': 'pct' };
-    if (sortState && sortState.col) { var key = sortKeyMap[sortState.col] || sortState.col; rows = rows.slice().sort(function (a, b) { return _reportSortCompare(a, b, key, sortState.dir); }); }
+    if (sortState && sortState.col) { 
+        var key = sortKeyMap[sortState.col] || sortState.col; 
+        rows = rows.slice().sort(function (a, b) { return _reportSortCompare(a, b, key, sortState.dir); }); 
+    }
 
     var html = '<div class="table-wrap"><table class="report-table" id="rc-table"><thead><tr>'
         + '<th data-sort-col="name" style="cursor:pointer;user-select:none">عنوان<span class="rt-sort-ind"> ⇅</span></th>'
@@ -353,7 +472,11 @@ function runComparisonReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
+/* ============================================================
+   Bind Buttons — همه دکمه‌ها برای تراز، ناقص، مقایسه‌ای
+   ============================================================ */
 function bindTrialReportButtons() {
+    // تراز آزمایشی
     var rtRun = document.getElementById('rt-run'); 
     if (rtRun && !rtRun.dataset.bound) { 
         rtRun.dataset.bound = '1'; 
@@ -380,22 +503,49 @@ function bindTrialReportButtons() {
         });
     }
 
+    // تراکنش‌های تکمیل نشده
     var riRun = document.getElementById('ri-run'); 
     if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') { 
         riRun.dataset.bound = '1'; 
         riRun.addEventListener('click', runIncompleteReport); 
     }
-    
+
+    // ✅ گزارش مقایسه‌ای — همه دکمه‌ها
     var rcRun = document.getElementById('rc-run'); 
-    if (rcRun && !rcRun.dataset.bound && typeof runComparisonReport === 'function') { 
+    if (rcRun && !rcRun.dataset.bound) { 
         rcRun.dataset.bound = '1'; 
         rcRun.addEventListener('click', runComparisonReport); 
+    }
+    
+    var rcPrint = document.getElementById('rc-print');
+    if (rcPrint && !rcPrint.dataset.bound) {
+        rcPrint.dataset.bound = '1';
+        rcPrint.addEventListener('click', function() {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rc-result', 'گزارش مقایسه‌ای دوره‌ها');
+            } else {
+                alert('تابع چاپ در دسترس نیست.');
+            }
+        });
+    }
+    
+    var rcExport = document.getElementById('rc-export');
+    if (rcExport && !rcExport.dataset.bound) {
+        rcExport.dataset.bound = '1';
+        rcExport.addEventListener('click', function() {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rc-result', 'گزارش-مقایسه-ای');
+            } else {
+                alert('تابع اکسل در دسترس نیست.');
+            }
+        });
     }
 }
 
 window.runTrialBalance          = runTrialBalance;
 window.runIncompleteReport      = runIncompleteReport;
 window.runComparisonReport      = runComparisonReport;
+window.setRcDefaultDates        = setRcDefaultDates;
 window.bindTrialReportButtons   = bindTrialReportButtons;
 
 console.log('✅ [modules/reports/trial.js] loaded');
