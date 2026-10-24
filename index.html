@@ -658,6 +658,44 @@
 <!-- ============ CHART DEFINE ============ -->
 <section id="page-chart-define" class="page">
     <h2>✏️ تعریف حساب‌ها</h2>
+
+    <!-- ✅ فیلتر پیشرفته -->
+    <div class="card" id="chart-filter-card">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
+            <div class="field" style="flex:1;min-width:140px;margin:0">
+                <label>نوع حساب</label>
+                <select id="chart-filter-cat">
+                    <option value="">همه</option>
+                    <option value="permanent">دائمی</option>
+                    <option value="temporary">موقت</option>
+                    <option value="none">مهم نیست</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1;min-width:140px;margin:0">
+                <label>ماهیت حساب</label>
+                <select id="chart-filter-nature">
+                    <option value="">همه</option>
+                    <option value="debit">بدهکار</option>
+                    <option value="credit">بستانکار</option>
+                    <option value="none">مهم نیست</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1;min-width:140px;margin:0">
+                <label>طبقه حساب</label>
+                <select id="chart-filter-level">
+                    <option value="">همه</option>
+                    <option value="1">گروه</option>
+                    <option value="2">کل</option>
+                    <option value="3">معین</option>
+                </select>
+            </div>
+            <div class="field" style="flex:0 0 auto;margin:0">
+                <button id="chart-filter-clear" class="btn-secondary" style="padding:11px 16px">✕ پاک کردن</button>
+            </div>
+        </div>
+        <div id="chart-filter-status" style="display:none;margin-top:10px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;font-size:0.82rem;color:#92400e;font-weight:700"></div>
+    </div>
+
     <div class="card">
         <div class="form-buttons" style="margin-bottom:12px">
             <button id="load-default-chart" class="btn-secondary btn-mini">📥 بارگذاری</button>
@@ -1065,7 +1103,6 @@
             <span class="cf-toggle-label">فیلترها</span>
         </button>
         <div class="cf-filter-body" id="ra-filter-body">
-            <!-- محتویات به صورت داینامیک توسط account.js ساخته می‌شود -->
         </div>
     </div>
     <div class="card">
