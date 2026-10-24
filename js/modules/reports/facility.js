@@ -1,9 +1,12 @@
 /* ============================================================
-   پارسیس — گزارش‌های تسهیلات (نسخه کامل و اصلاح‌شده)
+   پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
    ============================================================ */
 'use strict';
 
+/* ============================================================
+   گزارش خلاصه تسهیلات (rf)
+   ============================================================ */
 function runFacilityReport() {
     if (typeof makeFilterPanelCollapsible === 'function') makeFilterPanelCollapsible('report-facility', 'filter-rf', 'فیلترهای خلاصه تسهیلات', '🔍');
 
@@ -67,10 +70,11 @@ function runFacilityReport() {
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rf-table');
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی قیف
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
     }, 30);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+    bindFacilityReportButtons();
 }
 
 function setupRfSorting() {
@@ -188,6 +192,7 @@ function runFacilityFullReport() {
     else renderFacilityFullSummary(rows);
 
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+    bindFacilityReportButtons();
 }
 
 function renderFacilityFullSummary(rows) {
@@ -231,6 +236,7 @@ function renderFacilityFullSummary(rows) {
     html += '</table></div>';
 
     document.getElementById('rff-result').innerHTML = html;
+    document.getElementById('rff-result').setAttribute('data-view', 'summary');
     document.getElementById('rff-count').textContent = toFa(rows.length);
     var unitEl = document.getElementById('rff-unit'); if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
@@ -253,7 +259,7 @@ function renderFacilityFullSummary(rows) {
         if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
         if (typeof applyColVisibility === 'function') applyColVisibility('rff-table');
         if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
-        if (typeof buildFilterRow === 'function') buildFilterRow(t); // ✅ فعال‌سازی قیف
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
     }, 30);
 }
 
@@ -301,31 +307,159 @@ function renderFacilityFullDetail(rows) {
     html += '</div>';
 
     document.getElementById('rff-result').innerHTML = html;
+    document.getElementById('rff-result').setAttribute('data-view', 'detail');
     document.getElementById('rff-count').textContent = toFa(rows.length);
     var unitEl = document.getElementById('rff-unit'); if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 }
 
-function bindFacilityReportButtons() {
-    var rfRun = document.getElementById('rf-run'); if (rfRun && !rfRun.dataset.bound && typeof runFacilityReport === 'function') { rfRun.dataset.bound = '1'; rfRun.addEventListener('click', runFacilityReport); }
-    var rffRun = document.getElementById('rff-run'); if (rffRun && !rffRun.dataset.bound && typeof runFacilityFullReport === 'function') { rffRun.dataset.bound = '1'; rffRun.addEventListener('click', runFacilityFullReport); }
+/* ============================================================
+   ✅ Flatten helpers — تبدیل کارت‌های جزئیات به جدول/داده یکپارچه
+   ============================================================ */
+function _flattenRffDetailToTableData(containerEl) {
+    var headers = ['#', 'تسهیلات', 'دسته', 'بانک', 'تاریخ قسط', 'مبلغ قسط', 'وضعیت'];
+    var rows = [];
+    var idx = 0;
+    var cards = containerEl.querySelectorAll('.rff-fac-card');
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var facTitle = card.querySelector('.rff-fac-title');
+        var facName = facTitle ? facTitle.textContent.trim() : '—';
+        var metaChips = card.querySelectorAll('.rff-fac-meta .chip-m');
+        var category = metaChips[0] ? metaChips[0].textContent.trim() : '—';
+        var bank = metaChips[1] ? metaChips[1].textContent.trim() : '—';
+        var tbl = card.querySelector('.rff-inst-table');
+        if (!tbl) {
+            idx++;
+            rows.push([String(idx), facName, category, bank, '—', '—', '—']);
+            continue;
+        }
+        var trs = tbl.querySelectorAll('tbody tr');
+        if (trs.length === 0) {
+            idx++;
+            rows.push([String(idx), facName, category, bank, '—', '—', '—']);
+            continue;
+        }
+        for (var j = 0; j < trs.length; j++) {
+            var tds = trs[j].querySelectorAll('td');
+            if (tds.length < 4) continue;
+            idx++;
+            rows.push([
+                String(idx),
+                facName,
+                category,
+                bank,
+                (tds[1] ? tds[1].textContent.trim() : ''),
+                (tds[2] ? tds[2].textContent.trim() : ''),
+                (tds[3] ? tds[3].textContent.trim() : '')
+            ]);
+        }
+    }
+    return { headers: headers, rows: rows };
+}
 
-    var rfCat = document.getElementById('rf-category'); if (rfCat && !rfCat.dataset.bound) { rfCat.dataset.bound = '1'; rfCat.addEventListener('change', runFacilityReport); }
-    var rfStatus = document.getElementById('rf-status'); if (rfStatus && !rfStatus.dataset.bound) { rfStatus.dataset.bound = '1'; rfStatus.addEventListener('change', runFacilityReport); }
-    var rffCat = document.getElementById('rff-category'); if (rffCat && !rffCat.dataset.bound) { rffCat.dataset.bound = '1'; rffCat.addEventListener('change', runFacilityFullReport); }
-    var rffStatus = document.getElementById('rff-status'); if (rffStatus && !rffStatus.dataset.bound) { rffStatus.dataset.bound = '1'; rffStatus.addEventListener('change', runFacilityFullReport); }
-    var rffInstStatus = document.getElementById('rff-inst-status'); if (rffInstStatus && !rffInstStatus.dataset.bound) { rffInstStatus.dataset.bound = '1'; rffInstStatus.addEventListener('change', runFacilityFullReport); }
-    var rffBank = document.getElementById('rff-bank'); if (rffBank && !rffBank.dataset.bound) { rffBank.dataset.bound = '1'; rffBank.addEventListener('change', runFacilityFullReport); }
-    var rffSearch = document.getElementById('rff-search'); if (rffSearch && !rffSearch.dataset.bound) { rffSearch.dataset.bound = '1'; rffSearch.addEventListener('input', runFacilityFullReport); }
+function _flattenRffDetailToTableHtml(containerEl) {
+    var flat = _flattenRffDetailToTableData(containerEl);
+    var html = '<div class="table-wrap"><table class="report-table" id="rff-flat-table"><thead><tr>';
+    flat.headers.forEach(function (h) { html += '<th>' + esc(h) + '</th>'; });
+    html += '</tr></thead><tbody>';
+    flat.rows.forEach(function (r) {
+        html += '<tr>';
+        r.forEach(function (c, i) {
+            html += '<td' + (i === 5 ? ' class="num"' : '') + '>' + esc(c) + '</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+}
+
+/* ============================================================
+   ✅ Bind دکمه‌های چاپ و اکسل گزارش‌های تسهیلات
+   ============================================================ */
+function bindFacilityReportButtons() {
+    /* خلاصه تسهیلات */
+    var rfRun = document.getElementById('rf-run');
+    if (rfRun && !rfRun.dataset.bound) {
+        rfRun.dataset.bound = '1';
+        rfRun.addEventListener('click', runFacilityReport);
+    }
+
+    var rfPrint = document.getElementById('rf-print');
+    if (rfPrint && !rfPrint.dataset.bound) {
+        rfPrint.dataset.bound = '1';
+        rfPrint.addEventListener('click', function () {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rf-result', 'خلاصه تسهیلات');
+            }
+        });
+    }
+
+    var rfExport = document.getElementById('rf-export');
+    if (rfExport && !rfExport.dataset.bound) {
+        rfExport.dataset.bound = '1';
+        rfExport.addEventListener('click', function () {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rf-result', 'خلاصه-تسهیلات');
+            }
+        });
+    }
+
+    /* جامع تسهیلات */
+    var rffRun = document.getElementById('rff-run');
+    if (rffRun && !rffRun.dataset.bound) {
+        rffRun.dataset.bound = '1';
+        rffRun.addEventListener('click', runFacilityFullReport);
+    }
+
+    var rffPrint = document.getElementById('rff-print');
+    if (rffPrint && !rffPrint.dataset.bound) {
+        rffPrint.dataset.bound = '1';
+        rffPrint.addEventListener('click', function () {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rff-result', 'گزارش جامع تسهیلات');
+            }
+        });
+    }
+
+    var rffExport = document.getElementById('rff-export');
+    if (rffExport && !rffExport.dataset.bound) {
+        rffExport.dataset.bound = '1';
+        rffExport.addEventListener('click', function () {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rff-result', 'گزارش-جامع-تسهیلات');
+            }
+        });
+    }
+
+    /* فیلترها */
+    var rfCat = document.getElementById('rf-category');
+    if (rfCat && !rfCat.dataset.bound) { rfCat.dataset.bound = '1'; rfCat.addEventListener('change', runFacilityReport); }
+    var rfStatus = document.getElementById('rf-status');
+    if (rfStatus && !rfStatus.dataset.bound) { rfStatus.dataset.bound = '1'; rfStatus.addEventListener('change', runFacilityReport); }
+    var rffCat = document.getElementById('rff-category');
+    if (rffCat && !rffCat.dataset.bound) { rffCat.dataset.bound = '1'; rffCat.addEventListener('change', runFacilityFullReport); }
+    var rffStatus = document.getElementById('rff-status');
+    if (rffStatus && !rffStatus.dataset.bound) { rffStatus.dataset.bound = '1'; rffStatus.addEventListener('change', runFacilityFullReport); }
+    var rffInstStatus = document.getElementById('rff-inst-status');
+    if (rffInstStatus && !rffInstStatus.dataset.bound) { rffInstStatus.dataset.bound = '1'; rffInstStatus.addEventListener('change', runFacilityFullReport); }
+    var rffBank = document.getElementById('rff-bank');
+    if (rffBank && !rffBank.dataset.bound) { rffBank.dataset.bound = '1'; rffBank.addEventListener('change', runFacilityFullReport); }
+    var rffSearch = document.getElementById('rff-search');
+    if (rffSearch && !rffSearch.dataset.bound) { rffSearch.dataset.bound = '1'; rffSearch.addEventListener('input', runFacilityFullReport); }
 
     ['rff-from', 'rff-to'].forEach(function (id) {
-        var el = document.getElementById(id); if (el && !el.dataset.bound) { el.dataset.bound = '1'; el.addEventListener('input', runFacilityFullReport); }
+        var el = document.getElementById(id);
+        if (el && !el.dataset.bound) { el.dataset.bound = '1'; el.addEventListener('input', runFacilityFullReport); }
     });
 
     var rffTabs = document.querySelectorAll('[data-rff-view]');
     for (var ti = 0; ti < rffTabs.length; ti++) {
-        if (rffTabs[ti].dataset.bound) continue; rffTabs[ti].dataset.bound = '1';
+        if (rffTabs[ti].dataset.bound) continue;
+        rffTabs[ti].dataset.bound = '1';
         rffTabs[ti].addEventListener('click', function () {
-            var v = this.getAttribute('data-rff-view'); state.rffView = v; saveState(LS_KEYS.RFF_VIEW);
+            var v = this.getAttribute('data-rff-view');
+            state.rffView = v;
+            saveState(LS_KEYS.RFF_VIEW);
             for (var z = 0; z < rffTabs.length; z++) rffTabs[z].classList.toggle('active', rffTabs[z].getAttribute('data-rff-view') === v);
             runFacilityFullReport();
         });
@@ -333,13 +467,15 @@ function bindFacilityReportButtons() {
     }
 }
 
-window.runFacilityReport            = runFacilityReport;
-window.setupRfSorting               = setupRfSorting;
-window.setupRffSorting              = setupRffSorting;
-window.computeFacilityRows          = computeFacilityRows;
-window.runFacilityFullReport        = runFacilityFullReport;
-window.renderFacilityFullSummary    = renderFacilityFullSummary;
-window.renderFacilityFullDetail     = renderFacilityFullDetail;
-window.bindFacilityReportButtons    = bindFacilityReportButtons;
+window.runFacilityReport             = runFacilityReport;
+window.setupRfSorting                = setupRfSorting;
+window.setupRffSorting               = setupRffSorting;
+window.computeFacilityRows           = computeFacilityRows;
+window.runFacilityFullReport         = runFacilityFullReport;
+window.renderFacilityFullSummary     = renderFacilityFullSummary;
+window.renderFacilityFullDetail      = renderFacilityFullDetail;
+window.bindFacilityReportButtons     = bindFacilityReportButtons;
+window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
+window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 
-console.log('✅ [modules/reports/facility.js] loaded — Complete');
+console.log('✅ [modules/reports/facility.js] loaded — buttons + flatten');
