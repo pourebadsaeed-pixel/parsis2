@@ -67,7 +67,7 @@ function getActiveFiscalYearStart() {
 }
 
 /* ============================================================
-   ✅ تزریق CSS فلش collapse (یک‌بار)
+   ✅ تزریق CSS (اصلاح‌شده: min-height + z-index روی دکمه)
    ============================================================ */
 function injectCfCollapseStyle() {
     if (document.getElementById('cf-collapse-style')) return;
@@ -77,53 +77,83 @@ function injectCfCollapseStyle() {
     + '.cf-filter-card { position:relative !important; padding-top:14px !important; }'
     + '.cf-filter-toggle {'
     +   'position:absolute; top:8px; left:8px;'
-    +   'width:30px; height:30px;'
-    +   'border-radius:8px;'
-    +   'background:var(--primary-soft);'
-    +   'color:var(--primary-dark);'
-    +   'border:1px solid var(--primary-light);'
+    +   'width:34px; height:34px;'
+    +   'border-radius:10px;'
+    +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
+    +   'color:#fff;'
+    +   'border:none;'
     +   'cursor:pointer;'
-    +   'font-size:0.85rem;'
+    +   'font-size:0.9rem;'
     +   'display:flex; align-items:center; justify-content:center;'
-    +   'z-index:10; padding:0;'
-    +   'transition:all 0.2s; font-family:inherit;'
+    +   'z-index:9999;'
+    +   'padding:0;'
+    +   'transition:all 0.2s;'
+    +   'font-family:inherit;'
+    +   'box-shadow: 0 3px 10px rgba(74,144,226,0.4);'
+    +   'user-select:none;'
+    +   '-webkit-tap-highlight-color:transparent;'
     + '}'
-    + '.cf-filter-toggle:hover { background:var(--primary); color:#fff; }'
+    + '.cf-filter-toggle:hover { transform:scale(1.1); box-shadow:0 5px 14px rgba(74,144,226,0.55); }'
+    + '.cf-filter-toggle:active { transform:scale(0.95); }'
     + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; }'
     + '.cf-filter-card.collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
-    + '.cf-filter-card.collapsed .cf-filter-body { display:none; }'
-    + '.cf-filter-card.collapsed { padding-bottom:10px !important; }';
+    + '.cf-filter-card.collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.collapsed {'
+    +   'min-height:56px !important;'
+    +   'padding-bottom:10px !important;'
+    + '}'
+    + '.cf-filter-card.collapsed::after {'
+    +   'content:"🔍 فیلترها (بسته) — برای باز کردن ▼ را بزنید";'
+    +   'display:block;'
+    +   'padding:8px 54px 4px 16px;'
+    +   'font-size:0.8rem;'
+    +   'color:var(--text-muted);'
+    +   'font-weight:700;'
+    +   'text-align:right;'
+    +   'line-height:1.6;'
+    + '}';
     document.head.appendChild(s);
 }
 
 /* ============================================================
-   ✅ init فلش collapse (idempotent — هم state sync هم bind)
+   ✅ Global Delegation — روی کل سند (یک‌بار)
+   این تضمین می‌کند کلیک روی دکمه‌ی ▼ در هر clone/تب/دوباره‌سازی کار کند
    ============================================================ */
-function initCfFilterCollapse() {
-    var card = document.getElementById('cf-filter-card');
-    if (!card) return;
-    var btn = document.getElementById('cf-filter-toggle');
-    if (!btn) return;
+(function installCfToggleDelegation() {
+    if (window._cfToggleDelegated) return;
+    window._cfToggleDelegated = true;
 
-    /* همیشه state را با DB همگام کن (چه در clone چه original) */
-    var collapsed = DB.load('cf.filterCollapsed', false);
-    if (collapsed) card.classList.add('collapsed');
-    else card.classList.remove('collapsed');
-
-    /* bind فقط یک‌بار */
-    if (btn.dataset.bound === '1') return;
-    btn.dataset.bound = '1';
-
-    btn.addEventListener('click', function (e) {
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.cf-filter-toggle');
+        if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
-        card.classList.toggle('collapsed');
-        DB.save('cf.filterCollapsed', card.classList.contains('collapsed'));
-    });
+
+        var card = btn.closest('.cf-filter-card');
+        if (!card) return;
+
+        var isCollapsed = card.classList.toggle('collapsed');
+        try { DB.save('cf.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true); /* capture phase — قبل از هر handler دیگری */
+})();
+
+/* ============================================================
+   ✅ فقط sync state (دیگر bind نمی‌کند — Delegation انجام می‌دهد)
+   ============================================================ */
+function initCfFilterCollapse() {
+    injectCfCollapseStyle();
+
+    var collapsed = false;
+    try { collapsed = DB.load('cf.filterCollapsed', false); } catch (e) {}
+
+    var cards = document.querySelectorAll('.cf-filter-card');
+    for (var i = 0; i < cards.length; i++) {
+        if (collapsed) cards[i].classList.add('collapsed');
+        else cards[i].classList.remove('collapsed');
+    }
 }
 
 function runCashFlowReport() {
-    /* ✅ فلش collapse */
     injectCfCollapseStyle();
     initCfFilterCollapse();
 
@@ -274,7 +304,6 @@ function runCashFlowReport() {
              +  '</tr>';
     });
 
-    /* ✅ tfoot (مانده نهایی) به‌طور کامل حذف شد */
     html += '</tbody>';
     html += '</table></div></div>';
 
@@ -740,14 +769,12 @@ function buildCashFlowDescSummaryForDash() {
 }
 
 /* ============================================================
-   ✅ bind دکمه‌های چاپ و اکسل + فلش collapse
+   ✅ bind دکمه‌ها (بدون bind کردن toggle — Delegation انجام می‌دهد)
    ============================================================ */
 function bindCashFlowReportButtons() {
-    /* ✅ فلش collapse — قبل از هر چیز */
     injectCfCollapseStyle();
     initCfFilterCollapse();
 
-    /* --- پیش‌بینی روزانه نقدینگی --- */
     var runCf = document.getElementById('cf-run');
     if (runCf && !runCf.dataset.bound) {
         runCf.dataset.bound = '1';
@@ -789,7 +816,6 @@ function bindCashFlowReportButtons() {
         });
     }
 
-    /* --- گردش وجه نقد --- */
     var runCfd = document.getElementById('cfd-run');
     if (runCfd && !runCfd.dataset.bound) {
         runCfd.dataset.bound = '1';
@@ -833,7 +859,6 @@ function bindCashFlowReportButtons() {
         onlyBal.addEventListener('change', runCashFlowByDescReport);
     }
 
-    /* فقط برای گردش وجه نقد هدر تاشو نگه داشته می‌شود */
     setTimeout(function () {
         if (typeof makeFilterPanelCollapsible === 'function') {
             makeFilterPanelCollapsible('report-cashflow-desc', 'filter-cfd', 'فیلترهای گردش وجه نقد', '🔍');
@@ -857,4 +882,4 @@ window.runCashFlowByDescReport         = runCashFlowByDescReport;
 window.buildCashFlowDescSummaryForDash = buildCashFlowDescSummaryForDash;
 window.bindCashFlowReportButtons       = bindCashFlowReportButtons;
 
-console.log('✅ [modules/reports/cashflow.js] loaded — tfoot removed, collapse toggle added');
+console.log('✅ [modules/reports/cashflow.js] loaded — collapse/expand fixed via delegation + min-height + z-index');
