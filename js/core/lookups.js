@@ -147,7 +147,6 @@ function _faDigitsToLatin(s) {
     return t;
 }
 
-/* تلاش برای تبدیل یک سلول به عدد خالص (منفی در پرانتز، جداکننده‌دار) */
 function tryParseNumericCell(text) {
     if (text === null || text === undefined) return null;
     var s = String(text).trim();
@@ -170,7 +169,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   تابع چاپ (بدون تغییر نسبت به نسخه قبل — فقط برای استفاده عمومی)
+   تابع چاپ (اصلاح‌شده — انتقال جمع به صفحه آخر)
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -208,18 +207,39 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle');
+    // حذف دکمه‌ها، ستون‌های اضافی و **منوی انتخاب بابت‌ها**
+    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    /* محاسبه مجدد جمع‌ها — با احترام به colspan و ماهیت ستون */
+    // باز کردن خودکار همه جزئیات (برای پرینت کامل)
+    clone.querySelectorAll('.cfd-details').forEach(function(el) {
+        el.classList.add('show');
+    });
+
+    // محاسبه مجدد جمع‌ها و انتقال tfoot به انتهای جدول (فقط در صفحه آخر چاپ شود)
     clone.querySelectorAll('table').forEach(function (table) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
-        if (!tfoot || !tbody) return;
+        
+        var footRow = null;
+        if (tfoot && tbody) {
+            footRow = tfoot.querySelector('tr');
+            if (footRow) {
+                // استایل دهی به ردیف جمع
+                footRow.style.backgroundColor = '#e2e8f0';
+                footRow.style.fontWeight = 'bold';
+                footRow.style.color = '#1e40af';
+                footRow.style.pageBreakInside = 'avoid';
+                var tds = footRow.querySelectorAll('td');
+                for (var i=0; i<tds.length; i++) { tds[i].style.borderTop = '2px solid #1e40af'; }
+                // انتقال به tbody
+                tbody.appendChild(footRow);
+            }
+            tfoot.remove();
+        }
 
-        var footRow = tfoot.querySelector('tr');
-        if (!footRow) return;
+        if (!tbody || !footRow) return;
 
         var headerTexts = [];
         if (thead) {
@@ -234,7 +254,7 @@ function printHtmlReport(selector, title) {
         }
 
         var bodyRows = Array.from(tbody.querySelectorAll('tr')).filter(function (tr) {
-            return tr.style.display !== 'none' && !tr.classList.contains('empty-row');
+            return tr !== footRow && tr.style.display !== 'none' && !tr.classList.contains('empty-row');
         });
         if (bodyRows.length === 0) return;
 
@@ -353,11 +373,6 @@ function printHtmlReport(selector, title) {
                     font-weight: bold !important;
                     color: #1e40af;
                 }
-                tfoot td {
-                    background-color: #e2e8f0 !important;
-                    font-weight: bold !important;
-                    color: #1e40af;
-                }
                 .num {
                     direction: ltr;
                     font-family: Arial, Tahoma, sans-serif;
@@ -365,6 +380,26 @@ function printHtmlReport(selector, title) {
                 }
                 .dr { color: #dc2626 !important; font-weight: bold; }
                 .cr { color: #059669 !important; font-weight: bold; }
+                .cfd-group {
+                    margin-bottom: 20px;
+                    page-break-inside: avoid;
+                }
+                .cfd-section-title {
+                    font-size: 14pt;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 15px 0 10px;
+                    color: #1e40af;
+                }
+                .cfd-head {
+                    background-color: #e2e8f0 !important;
+                    padding: 8px;
+                    font-weight: bold;
+                    border: 1px solid #64748b;
+                }
+                .cfd-details {
+                    display: block !important; /* باز کردن اجباری تمام جزئیات برای پرینت */
+                }
             </style>
         </head>
         <body>
@@ -419,7 +454,6 @@ function _buildExcelCell(txt, isHeader, colspan, rowspan) {
 
     var num = tryParseNumericCell(trimmed);
     if (num !== null) {
-        /* ✅ عدد خالص → Excel به‌عنوان Number (قابل جمع) */
         return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'#,##0\';direction:ltr">' + num + '</td>';
     }
 
@@ -483,7 +517,6 @@ function exportToCsv(key, filename) {
 
     var trs = [];
 
-    /* هدر */
     var headerRow = '<tr>';
     keys.forEach(function (k) {
         headerRow += _buildExcelCell(k, true, 0, 0);
@@ -491,7 +524,6 @@ function exportToCsv(key, filename) {
     headerRow += '</tr>';
     trs.push(headerRow);
 
-    /* داده‌ها */
     data.forEach(function (row) {
         var tr = '<tr>';
         keys.forEach(function (k) {
@@ -523,13 +555,11 @@ function exportReportTable(selector, filename) {
     var table = el.querySelector('table');
     if (!table) { alert('جدولی برای خروجی نیست.'); return; }
 
-    /* کلون و پاکسازی */
     var clone = table.cloneNode(true);
     clone.querySelectorAll('.row-actions, .col-filter-btn, .col-resizer, button, .no-print, .ar-turnover-btn, .ar-col-toggle, .share-btn, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn').forEach(function (n) {
         n.remove();
     });
 
-    /* حذف سلول‌های مخفی */
     clone.querySelectorAll('tr').forEach(function (tr) {
         Array.from(tr.children).forEach(function (cell) {
             if (cell.style.display === 'none') cell.remove();
@@ -549,8 +579,6 @@ function exportReportTable(selector, filename) {
             var txt = cell.textContent.trim();
             var cs = cell.getAttribute('colspan') || '1';
             var rs = cell.getAttribute('rowspan') || '1';
-
-            /* اگر ردیف خالی (مثلاً بین دو جدول) بود، سلول‌های خالی */
             rowHtml += _buildExcelCell(txt, isHeader, cs, rs);
         });
         rowHtml += '</tr>';
@@ -580,4 +608,4 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — Structural XLS export (column-safe + numeric)');
+console.log('✅ [core/lookups.js] loaded — Structural XLS + Print fixes (last page total only)');
