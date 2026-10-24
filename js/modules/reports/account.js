@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — گزارش مرور حساب‌ها (نسخه کامل و نهایی)
+   پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
    ============================================================ */
 'use strict';
@@ -72,14 +72,7 @@ var _arSort = { col: 'code', dir: 'asc' };
             .ar-levels { flex-direction:row; flex-wrap:wrap; padding:8px; gap:6px }
             .ar-lvl { flex:1; min-width:80px; padding:9px 8px; font-size:.78rem }
         }
-        #ra-clean-panel { margin-bottom:12px; background:var(--card-solid); border:1px solid var(--border); border-radius:14px; overflow:hidden }
-        #ra-clean-head { display:flex; align-items:center; gap:10px; padding:12px 16px; background:linear-gradient(180deg,#e8f0fb,#f4f8fd); cursor:pointer; user-select:none }
-        #ra-clean-head .rch-icon { font-size:1rem }
-        #ra-clean-head .rch-title { flex:1; font-weight:900; color:#1e40af; font-size:.9rem }
-        #ra-clean-head .rch-arrow { font-size:.75rem; color:#1e40af; transition:transform .25s }
-        #ra-clean-head.open .rch-arrow { transform:rotate(180deg) }
-        #ra-clean-body { padding:14px 16px; border-top:1px solid var(--border) }
-        #ra-clean-body.hidden { display:none }
+        #ra-clean-panel { margin-bottom:0; background:transparent; border:none; overflow:visible }
         .ar-turnover-actions { display:flex; gap:4px; justify-content:center }
         .ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }
         .ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }
@@ -89,105 +82,155 @@ var _arSort = { col: 'code', dir: 'asc' };
     document.head.appendChild(s);
 })();
 
-function rebuildAccountFilterPanel() {
-    var page = document.querySelector('.page.active');
-    if (!page || page.id.indexOf('page-report-account') === -1) {
-        page = document.getElementById('page-report-account');
-    }
-    if (!page) return;
-    if (page.querySelector('#ra-clean-panel')) return;
+/* ============================================================
+   ✅ Collapsible Logic
+   ============================================================ */
+function injectRaCollapseStyle() {
+    if (document.getElementById('ra-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'ra-collapse-style';
+    s.textContent = ''
+    + '.cf-filter-toggle {'
+    +   'display:inline-flex !important;'
+    +   'align-items:center;'
+    +   'gap:8px;'
+    +   'padding:9px 16px;'
+    +   'margin-bottom:14px;'
+    +   'border-radius:10px;'
+    +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
+    +   'color:#fff;'
+    +   'border:none;'
+    +   'cursor:pointer;'
+    +   'font-size:0.85rem;'
+    +   'font-weight:800;'
+    +   'font-family:inherit;'
+    +   'box-shadow:0 3px 10px rgba(74,144,226,0.35);'
+    +   'transition:all 0.2s;'
+    +   'user-select:none;'
+    +   '-webkit-tap-highlight-color:transparent;'
+    + '}'
+    + '.cf-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.cf-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .cf-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    document.head.appendChild(s);
+}
 
-    var firstCard = page.querySelector('.card');
-    if (!firstCard) return;
+(function installRaToggleDelegation() {
+    if (window._raToggleDelegated) return;
+    window._raToggleDelegated = true;
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('#ra-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var card = document.getElementById('ra-filter-card');
+        if (!card) return;
+
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('ra.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+/* ============================================================
+   Filter Panel Builder
+   ============================================================ */
+function rebuildAccountFilterPanel() {
+    var body = document.getElementById('ra-filter-body');
+    if (!body) return;
+    if (body.innerHTML.trim() !== '') return; // already built
+
+    injectRaCollapseStyle();
+
+    var collapsed = false;
+    try { collapsed = DB.load('ra.filterCollapsed', false); } catch (e) {}
+    var card = document.getElementById('ra-filter-card');
+    if (collapsed && card) card.classList.add('cf-collapsed');
 
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var defFrom = activePeriod ? activePeriod.from : '';
     var defTo = activePeriod ? activePeriod.to : '';
+    var onlyBalVal = DB.load('ra.onlyBal', true);
 
-    var oldV = {
-        from:   (document.getElementById('ra-from') || {}).value || defFrom,
-        to:     (document.getElementById('ra-to') || {}).value || defTo,
-        vtype:  (document.getElementById('ra-vtype') || {}).value || '',
-        cat:    (document.getElementById('ra-cat') || {}).value || '',
-        nature: (document.getElementById('ra-nature') || {}).value || '',
-        onlyBal: (document.getElementById('ra-only-balance') || {}).checked || false
-    };
-
-    firstCard.innerHTML = '';
-
-    if (!document.getElementById('ra-period')) {
-        var hp = document.createElement('input');
-        hp.type = 'hidden'; hp.id = 'ra-period'; hp.value = '';
-        document.body.appendChild(hp);
-    }
-
-    var panel = document.createElement('div');
-    panel.id = 'ra-clean-panel';
-    panel.innerHTML = ''
-        + '<div id="ra-clean-head" class="open">'
-        +   '<span class="rch-icon">🔍</span>'
-        +   '<span class="rch-title">فیلترها</span>'
-        +   '<span class="rch-arrow">▼</span>'
+    var html = ''
+        + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">'
+        +   '<button id="ra-run" class="btn-primary">🔍 اجرا</button>'
+        +   '<button id="ra-print" class="btn-secondary">🖨 چاپ</button>'
+        +   '<button id="ra-export" class="btn-secondary">📊 اکسل</button>'
         + '</div>'
-        + '<div id="ra-clean-body">'
-        +   '<div class="grid-2">'
-        +     '<div class="field"><label>از تاریخ</label><input type="text" id="ra-from" class="date-picker" dir="ltr" value="' + esc(oldV.from) + '"></div>'
-        +     '<div class="field"><label>تا تاریخ</label><input type="text" id="ra-to" class="date-picker" dir="ltr" value="' + esc(oldV.to) + '"></div>'
-        +   '</div>'
-        +   '<div class="grid-2">'
-        +     '<div class="field"><label>نوع حساب</label><select id="ra-cat">'
-        +       '<option value="">همه</option>'
-        +       '<option value="permanent"' + (oldV.cat === 'permanent' ? ' selected' : '') + '>دائمی</option>'
-        +       '<option value="temporary"' + (oldV.cat === 'temporary' ? ' selected' : '') + '>موقت</option>'
-        +     '</select></div>'
-        +     '<div class="field"><label>ماهیت</label><select id="ra-nature">'
-        +       '<option value="">همه</option>'
-        +       '<option value="debit"' + (oldV.nature === 'debit' ? ' selected' : '') + '>بدهکار</option>'
-        +       '<option value="credit"' + (oldV.nature === 'credit' ? ' selected' : '') + '>بستانکار</option>'
-        +     '</select></div>'
-        +   '</div>'
-        +   '<div class="grid-2">'
-        +     '<div class="field"><label>نوع سند</label><select id="ra-vtype">'
-        +       '<option value="">همه</option>'
-        +       '<option value="general"' + (oldV.vtype === 'general' ? ' selected' : '') + '>عمومی</option>'
-        +       '<option value="opening"' + (oldV.vtype === 'opening' ? ' selected' : '') + '>افتتاحیه</option>'
-        +       '<option value="establishment"' + (oldV.vtype === 'establishment' ? ' selected' : '') + '>افتتاحیه استقرار</option>'
-        +       '<option value="closing"' + (oldV.vtype === 'closing' ? ' selected' : '') + '>بستن حساب</option>'
-        +       '<option value="final"' + (oldV.vtype === 'final' ? ' selected' : '') + '>اختتامیه</option>'
-        +     '</select></div>'
-        +     '<div class="field" style="display:flex; align-items:flex-end">'
-        +       '<label class="checkbox-item" style="margin:0; padding:11px 14px; background:#eaf4fd; border:1.5px solid #93c5fd; border-radius:12px; width:100%">'
-        +         '<input type="checkbox" id="ra-only-balance"' + (oldV.onlyBal ? ' checked' : '') + '> '
-        +         '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
-        +       '</label>'
-        +     '</div>'
-        +   '</div>'
-        +   '<div class="form-buttons" style="margin-top:14px">'
-        +     '<button id="ra-run" class="btn-primary">🔍 اجرا</button>'
-        +     '<button id="ra-print" class="btn-secondary">🖨 چاپ</button>'
-        +     '<button id="ra-export" class="btn-secondary">📊 اکسل</button>'
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>از تاریخ</label><input type="text" id="ra-from" class="date-picker" dir="ltr" value="' + esc(defFrom) + '"></div>'
+        +   '<div class="field"><label>تا تاریخ</label><input type="text" id="ra-to" class="date-picker" dir="ltr" value="' + esc(defTo) + '"></div>'
+        + '</div>'
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>نوع حساب</label><select id="ra-cat">'
+        +     '<option value="">همه</option>'
+        +     '<option value="permanent">دائمی</option>'
+        +     '<option value="temporary">موقت</option>'
+        +   '</select></div>'
+        +   '<div class="field"><label>ماهیت</label><select id="ra-nature">'
+        +     '<option value="">همه</option>'
+        +     '<option value="debit">بدهکار</option>'
+        +     '<option value="credit">بستانکار</option>'
+        +   '</select></div>'
+        + '</div>'
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>نوع سند</label><select id="ra-vtype">'
+        +     '<option value="">همه</option>'
+        +     '<option value="general">عمومی</option>'
+        +     '<option value="opening">افتتاحیه</option>'
+        +     '<option value="establishment">افتتاحیه استقرار</option>'
+        +     '<option value="closing">بستن حساب</option>'
+        +     '<option value="final">اختتامیه</option>'
+        +   '</select></div>'
+        +   '<div class="field" style="display:flex; align-items:flex-end">'
+        +     '<label class="checkbox-item" style="margin:0; padding:11px 14px; background:#eaf4fd; border:1.5px solid #93c5fd; border-radius:12px; width:100%; cursor:pointer">'
+        +       '<input type="checkbox" id="ra-only-balance"' + (onlyBalVal ? ' checked' : '') + '> '
+        +       '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
+        +     '</label>'
         +   '</div>'
         + '</div>';
-    firstCard.appendChild(panel);
 
-    document.getElementById('ra-clean-head').addEventListener('click', function () {
-        var body = document.getElementById('ra-clean-body');
-        var isHidden = body.classList.toggle('hidden');
-        this.classList.toggle('open', !isHidden);
-    });
-    document.getElementById('ra-run').addEventListener('click', function () {
-        _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
-        renderAccountReview();
-    });
-    document.getElementById('ra-print').addEventListener('click', function () {
-        if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
-    });
-    document.getElementById('ra-export').addEventListener('click', function () {
-        if (typeof exportReportTable === 'function') exportReportTable('#ra-result', 'account-report');
-    });
-    document.getElementById('ra-only-balance').addEventListener('change', function () {
-        renderAccountReview();
-    });
+    body.innerHTML = html;
+
+    var elOnly = document.getElementById('ra-only-balance');
+    if (elOnly) {
+        elOnly.addEventListener('change', function() {
+            DB.save('ra.onlyBal', this.checked);
+            renderAccountReview();
+        });
+    }
+
+    var runBtn = document.getElementById('ra-run');
+    if (runBtn) {
+        runBtn.addEventListener('click', function () {
+            _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
+            renderAccountReview();
+        });
+    }
+
+    var printBtn = document.getElementById('ra-print');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#ra-result', 'مرور حساب‌ها');
+            }
+        });
+    }
+
+    var exportBtn = document.getElementById('ra-export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function () {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#ra-result', 'مرور-حساب-ها');
+            }
+        });
+    }
 
     if (typeof attachDatePickers === 'function') attachDatePickers();
 }
@@ -358,6 +401,8 @@ function renderAccountReview() {
     var box = document.getElementById('ra-result');
     if (!box) return;
 
+    rebuildAccountFilterPanel();
+
     var accounts = DB.load('accounts', []);
     var opts = {
         from:     (document.getElementById('ra-from') || {}).value || '',
@@ -513,8 +558,8 @@ function renderAccountReview() {
 
     var html = '<div class="ar-wrap">';
 
+    /* ✅ حذف ar-tb-title */
     html += '<div class="ar-tb">';
-    html += '<div class="ar-tb-title">گزارش مرور حساب‌ها</div>';
     html += '<div class="ar-tb-bc">' + _arBreadcrumb(_AR.path, accounts) + '</div>';
     html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
     html += '</div>';
@@ -918,7 +963,7 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-// ✅ اتصال مستقیم دکمه‌های چاپ و بستن مودال‌ها برای اطمینان ۱۰۰٪
+// اتصال مستقیم دکمه‌های چاپ و بستن مودال‌ها
 document.addEventListener('click', function(e) {
     if (e.target.closest('#close-vpreview') || e.target.closest('#vpreview-close-btn') || e.target.closest('#vpreview-overlay')) {
         if (typeof closeVoucherPreview === 'function') closeVoucherPreview();
@@ -948,4 +993,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — Complete');
+console.log('✅ [modules/reports/account.js] loaded');
