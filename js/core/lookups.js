@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — جستجوی حساب‌ها، چاپ، اکسل (نسخه نهایی — XLS ساختاری)
+   پارسیس — جستجوی حساب‌ها، چاپ، اکسل
    مسیر: js/core/lookups.js
    ============================================================ */
 'use strict';
@@ -133,7 +133,7 @@ function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
 }
 
 /* ============================================================
-   ✅ Helper: تبدیل ارقام فارسی → لاتین
+   Helper: تبدیل ارقام فارسی → لاتین
    ============================================================ */
 function _faDigitsToLatin(s) {
     if (s === undefined || s === null) return '';
@@ -169,7 +169,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   تابع چاپ (اصلاح‌شده — انتقال جمع به صفحه آخر)
+   تابع چاپ — اصلاح‌شده با حذف لیست بابت‌ها و تیتر جمع
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -207,16 +207,17 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    // حذف دکمه‌ها، ستون‌های اضافی و **منوی انتخاب بابت‌ها**
-    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap');
+    // ✅ حذف کامل اقلام اضافی: دکمه‌ها، فیلترها، لیست بابت‌ها، هدرها
+    var toRemove = clone.querySelectorAll('.share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
     // باز کردن خودکار همه جزئیات (برای پرینت کامل)
     clone.querySelectorAll('.cfd-details').forEach(function(el) {
         el.classList.add('show');
+        el.style.display = 'block';
     });
 
-    // محاسبه مجدد جمع‌ها و انتقال tfoot به انتهای جدول (فقط در صفحه آخر چاپ شود)
+    // محاسبه مجدد جمع‌ها و انتقال tfoot به انتهای tbody (فقط صفحه آخر)
     clone.querySelectorAll('table').forEach(function (table) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
@@ -226,14 +227,19 @@ function printHtmlReport(selector, title) {
         if (tfoot && tbody) {
             footRow = tfoot.querySelector('tr');
             if (footRow) {
-                // استایل دهی به ردیف جمع
-                footRow.style.backgroundColor = '#e2e8f0';
+                // ✅ استایل‌دهی به ردیف جمع به شکل تیتر
+                footRow.style.backgroundColor = '#f1f5f9';
+                footRow.style.color = '#0f172a';
                 footRow.style.fontWeight = 'bold';
-                footRow.style.color = '#1e40af';
+                footRow.style.fontSize = '11pt';
                 footRow.style.pageBreakInside = 'avoid';
                 var tds = footRow.querySelectorAll('td');
-                for (var i=0; i<tds.length; i++) { tds[i].style.borderTop = '2px solid #1e40af'; }
-                // انتقال به tbody
+                for (var i=0; i<tds.length; i++) {
+                    tds[i].style.borderTop = '2px solid #1e40af';
+                    tds[i].style.borderBottom = '2px solid #1e40af';
+                    tds[i].style.padding = '10px 5px';
+                }
+                // انتقال به انتهای tbody
                 tbody.appendChild(footRow);
             }
             tfoot.remove();
@@ -241,6 +247,7 @@ function printHtmlReport(selector, title) {
 
         if (!tbody || !footRow) return;
 
+        // محاسبه جمع (بدون ستون‌های مانده)
         var headerTexts = [];
         if (thead) {
             var headerRow = thead.querySelector('tr');
@@ -380,10 +387,6 @@ function printHtmlReport(selector, title) {
                 }
                 .dr { color: #dc2626 !important; font-weight: bold; }
                 .cr { color: #059669 !important; font-weight: bold; }
-                .cfd-group {
-                    margin-bottom: 20px;
-                    page-break-inside: avoid;
-                }
                 .cfd-section-title {
                     font-size: 14pt;
                     font-weight: bold;
@@ -398,7 +401,7 @@ function printHtmlReport(selector, title) {
                     border: 1px solid #64748b;
                 }
                 .cfd-details {
-                    display: block !important; /* باز کردن اجباری تمام جزئیات برای پرینت */
+                    display: block !important;
                 }
             </style>
         </head>
@@ -434,7 +437,7 @@ function printHtmlReport(selector, title) {
 }
 
 /* ============================================================
-   ✅ ابزار کمکی: ساخت HTML XLS از جدول سلولی
+   ابزار کمکی: ساخت HTML XLS از جدول سلولی
    ============================================================ */
 function _buildExcelCell(txt, isHeader, colspan, rowspan) {
     var attrs = '';
@@ -503,7 +506,7 @@ function _triggerXlsDownload(htmlString, filename) {
 }
 
 /* ============================================================
-   ✅ exportToCsv → خروجی XLS ساختاری (برای list pages)
+   خروجی XLS ساختاری (برای list pages)
    ============================================================ */
 function exportToCsv(key, filename) {
     var data = DB.load(key, []);
@@ -543,7 +546,7 @@ function exportToCsv(key, filename) {
 }
 
 /* ============================================================
-   ✅ exportReportTable → خروجی XLS ساختاری از یک جدول HTML
+   خروجی XLS ساختاری از یک جدول HTML
    ============================================================ */
 function exportReportTable(selector, filename) {
     var activePage = document.querySelector('.page.active');
@@ -608,4 +611,4 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — Structural XLS + Print fixes (last page total only)');
+console.log('✅ [core/lookups.js] loaded — Print safe & XLS structural');
