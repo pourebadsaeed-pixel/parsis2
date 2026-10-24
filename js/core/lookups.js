@@ -169,7 +169,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   تابع چاپ — حذف سایدبار سطوح حساب + انتقال جمع به صفحه آخر
+   تابع چاپ — حذف سایدبار + انتقال جمع به صفحه آخر + flatten جزئیات تسهیلات
    ============================================================ */
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -202,6 +202,9 @@ function printHtmlReport(selector, title) {
     } else if (selector === '#rc-result') {
         fromVal = (document.getElementById('rc-from1') || {}).value || '';
         toVal = (document.getElementById('rc-to2') || {}).value || '';
+    } else if (selector === '#rff-result') {
+        fromVal = (document.getElementById('rff-from') || {}).value || '';
+        toVal = (document.getElementById('rff-to') || {}).value || '';
     }
 
     if (fromVal || toVal) {
@@ -210,17 +213,23 @@ function printHtmlReport(selector, title) {
 
     var clone = targetEl.cloneNode(true);
 
-    // ✅ حذف کامل تصاویر، سایدبار سطوح حساب (.ar-side) و اقلام اضافی
-    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs');
+    /* ✅ اگر حالت جزئیات گزارش جامع تسهیلات است، کارت‌ها را به جدول یکپارچه تبدیل کن */
+    var detailList = clone.querySelector('.rff-detail-list');
+    if (detailList && typeof window._flattenRffDetailToTableHtml === 'function') {
+        var flatHtml = window._flattenRffDetailToTableHtml(detailList);
+        var wrapper = document.createElement('div');
+        wrapper.innerHTML = flatHtml;
+        detailList.parentNode.replaceChild(wrapper, detailList);
+    }
+
+    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
-    // باز کردن خودکار همه جزئیات (برای پرینت کامل)
     clone.querySelectorAll('.cfd-details').forEach(function(el) {
         el.classList.add('show');
         el.style.display = 'block';
     });
 
-    // محاسبه مجدد جمع‌ها و انتقال tfoot
     clone.querySelectorAll('table').forEach(function (table) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
@@ -403,7 +412,6 @@ function printHtmlReport(selector, title) {
                 .cfd-details {
                     display: block !important;
                 }
-                /* ✅ استایل‌های اختصاصی برای چاپ بهتر گزارش مرور حساب‌ها */
                 .ar-main { display: block !important; }
                 .ar-body { width: 100% !important; }
                 .ar-tb { margin-bottom: 15px !important; background: transparent !important; border: none !important; padding: 0 !important; }
@@ -516,6 +524,56 @@ function _triggerXlsDownload(htmlString, filename) {
 }
 
 /* ============================================================
+   ✅ Helper: یک سلول را به HTML اکسل تبدیل می‌کند (باهوش)
+   ============================================================ */
+function _excelCellFromRaw(val) {
+    if (val === null || val === undefined) {
+        return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'"></td>';
+    }
+    var num = null;
+    if (typeof val === 'number') num = val;
+    else num = tryParseNumericCell(val);
+    if (num !== null && isFinite(num)) {
+        return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'#,##0\';direction:ltr">' + num + '</td>';
+    }
+    return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'">' + esc(String(val)) + '</td>';
+}
+
+/* ============================================================
+   ✅ خروجی اکسل از یک آرایه دو بعدی (استاندارد)
+   headers: ['ستون ۱', 'ستون ۲', ...]
+   rows: [['مقدار', 123, ...], [...]]
+   ============================================================ */
+function exportDataToExcel(headers, rows, title, filename, sheetName) {
+    var trs = [];
+
+    if (title) {
+        trs.push('<tr><td colspan="' + (headers ? headers.length : 1) + '" style="font-weight:bold;font-size:14pt;text-align:center;background:#e2e8f0;color:#1e40af;padding:10px;border:1px solid #64748b">' + esc(title) + '</td></tr>');
+    }
+
+    if (headers && headers.length > 0) {
+        trs.push('<tr>');
+        headers.forEach(function (h) {
+            trs.push('<th style="border:1px solid #64748b;padding:8px;background:#e2e8f0;color:#1e40af;font-weight:bold;text-align:center;mso-number-format:\'\\@\'">' + esc(h) + '</th>');
+        });
+        trs.push('</tr>');
+    }
+
+    (rows || []).forEach(function (row) {
+        trs.push('<tr>');
+        (row || []).forEach(function (cell) {
+            trs.push(_excelCellFromRaw(cell));
+        });
+        trs.push('</tr>');
+    });
+
+    var html = _wrapExcelHtml(trs.join(''), sheetName || filename || 'report');
+    _triggerXlsDownload(html, filename || 'report');
+
+    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+}
+
+/* ============================================================
    خروجی XLS ساختاری (برای list pages)
    ============================================================ */
 function exportToCsv(key, filename) {
@@ -556,7 +614,7 @@ function exportToCsv(key, filename) {
 }
 
 /* ============================================================
-   خروجی XLS ساختاری از یک جدول HTML
+   خروجی XLS ساختاری از یک جدول HTML (با پشتیبانی از detail list)
    ============================================================ */
 function exportReportTable(selector, filename) {
     var activePage = document.querySelector('.page.active');
@@ -564,6 +622,27 @@ function exportReportTable(selector, filename) {
     if (!el) el = document.querySelector(selector);
 
     if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
+
+    /* ✅ تشخیص حالت جزئیات گزارش جامع تسهیلات */
+    var detailList = el.querySelector('.rff-detail-list');
+    if (detailList && typeof window._flattenRffDetailToTableData === 'function') {
+        var flat = window._flattenRffDetailToTableData(detailList);
+        var trs = [];
+        trs.push('<tr>');
+        flat.headers.forEach(function (h) {
+            trs.push('<th style="border:1px solid #64748b;padding:8px;background:#e2e8f0;color:#1e40af;font-weight:bold;text-align:center;mso-number-format:\'\\@\'">' + esc(h) + '</th>');
+        });
+        trs.push('</tr>');
+        flat.rows.forEach(function (row) {
+            trs.push('<tr>');
+            row.forEach(function (cell) { trs.push(_excelCellFromRaw(cell)); });
+            trs.push('</tr>');
+        });
+        var htmlFlat = _wrapExcelHtml(trs.join(''), filename || 'report');
+        _triggerXlsDownload(htmlFlat, filename || 'report');
+        if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+        return;
+    }
 
     var table = el.querySelector('table');
     if (!table) { alert('جدولی برای خروجی نیست.'); return; }
@@ -579,7 +658,7 @@ function exportReportTable(selector, filename) {
         });
     });
 
-    var trs = [];
+    var trs2 = [];
     var allTrs = clone.querySelectorAll('tr');
     for (var i = 0; i < allTrs.length; i++) {
         var tr = allTrs[i];
@@ -595,12 +674,12 @@ function exportReportTable(selector, filename) {
             rowHtml += _buildExcelCell(txt, isHeader, cs, rs);
         });
         rowHtml += '</tr>';
-        trs.push(rowHtml);
+        trs2.push(rowHtml);
     }
 
-    if (trs.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
+    if (trs2.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
 
-    var html = _wrapExcelHtml(trs.join(''), filename || 'report');
+    var html = _wrapExcelHtml(trs2.join(''), filename || 'report');
     _triggerXlsDownload(html, filename || 'report');
 
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد (ستون‌ها تفکیک‌شده، اعداد قابل جمع).');
@@ -619,6 +698,7 @@ window.buildOptionsInto = buildOptionsInto;
 window.printHtmlReport = printHtmlReport;
 window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
+window.exportDataToExcel = exportDataToExcel;
 window.tryParseNumericCell = tryParseNumericCell;
 
-console.log('✅ [core/lookups.js] loaded — .ar-side removed from print');
+console.log('✅ [core/lookups.js] loaded — flatten + standard export');
