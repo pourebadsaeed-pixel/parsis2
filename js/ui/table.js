@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
-   مسیر: js/ui/table.js (نسخه کامل و نهایی)
+   مسیر: js/ui/table.js
    ============================================================ */
 'use strict';
 
@@ -44,7 +44,7 @@ function testFilter(cellText, filter) {
     var numTxt = cellToNumber(cellText); var numVal = cellToNumber(filter.val || '');
     switch (filter.op) {
         case 'contains': return txt.indexOf(val) !== -1;
-        case 'notContains': return txt.indexOf(val) === -1; // ✅ اضافه شد
+        case 'notContains': return txt.indexOf(val) === -1;
         case 'eq': return txt === val;
         case 'neq': return txt !== val;
         case 'gt': return numTxt !== null && numVal !== null && numTxt > numVal;
@@ -63,7 +63,6 @@ function ensureFixedLayout(table) {
     if (!table) return;
     table.classList.add('w-col-resized');
     table.style.setProperty('table-layout', 'fixed', 'important');
-    
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.setProperty('overflow', 'hidden', 'important');
@@ -78,7 +77,6 @@ function removeFixedLayout(table) {
     table.style.removeProperty('table-layout');
     table.style.removeProperty('width');
     table.style.removeProperty('min-width');
-    
     var allCells = table.querySelectorAll('th, td');
     for (var k = 0; k < allCells.length; k++) {
         allCells[k].style.removeProperty('overflow');
@@ -94,10 +92,8 @@ function applyColWidths(tableId) {
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (!headerRow) return;
     var ths = headerRow.querySelectorAll('th');
-    
     var totalW = 0;
     var hasWidth = false;
-    
     for (var i = 0; i < ths.length; i++) {
         var oi = ths[i].getAttribute('data-orig-index');
         var idx = oi !== null ? parseInt(oi, 10) : i;
@@ -113,7 +109,6 @@ function applyColWidths(tableId) {
             ths[i].style.removeProperty('max-width');
         }
     }
-    
     if (hasWidth) {
         ensureFixedLayout(table);
         table.style.setProperty('width', totalW + 'px', 'important');
@@ -179,7 +174,6 @@ function makeTableResizable(table) {
                 document.body.style.userSelect = 'none';
                 document.body.classList.add('resizing-cols');
                 ensureFixedLayout(table);
-
                 var curHdr = table.querySelector('thead tr:not(.column-filter-row)');
                 var allThs = curHdr ? curHdr.querySelectorAll('th') : [];
                 var totalW = 0;
@@ -235,26 +229,13 @@ function makeTableResizable(table) {
                 saveColWidths();
             }
 
-            res.addEventListener('dblclick', function (e) {
-                e.preventDefault(); e.stopPropagation();
-                resetColumnWidths(tableId);
-            });
-
-            res.addEventListener('mousedown', function (e) {
-                e.preventDefault(); e.stopPropagation();
-                start(e);
-            });
-
-            res.addEventListener('touchstart', function (e) {
-                e.preventDefault(); e.stopPropagation();
-                start(e);
-            }, { passive: false });
+            res.addEventListener('dblclick', function (e) { e.preventDefault(); e.stopPropagation(); resetColumnWidths(tableId); });
+            res.addEventListener('mousedown', function (e) { e.preventDefault(); e.stopPropagation(); start(e); });
+            res.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); start(e); }, { passive: false });
 
             document.addEventListener('mousemove', move);
             document.addEventListener('mouseup', end);
-            document.addEventListener('touchmove', function (e) {
-                if (isDragging) { move(e); e.preventDefault(); }
-            }, { passive: false });
+            document.addEventListener('touchmove', function (e) { if (isDragging) { move(e); e.preventDefault(); } }, { passive: false });
             document.addEventListener('touchend', end);
         })(ths[j], j);
     }
@@ -267,12 +248,9 @@ function resetColumnWidths(tableId) {
     if (!tableId) return;
     delete colWidths[tableId];
     saveColWidths();
-
     var table = document.getElementById(tableId);
     if (!table) return;
-    
     removeFixedLayout(table);
-
     var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
     if (headerRow) {
         var ths = headerRow.querySelectorAll('th');
@@ -282,7 +260,7 @@ function resetColumnWidths(tableId) {
             ths[i].style.removeProperty('max-width');
         }
     }
-    if (typeof showToast === 'function') showToast('↔ عرض ستون‌ها به حالت پیش‌فرض (fit محتوا) برگشت.');
+    if (typeof showToast === 'function') showToast('↔ عرض ستون‌ها به حالت پیش‌فرض برگشت.');
 }
 
 function resetAllColumnWidths() {
@@ -435,11 +413,8 @@ function syncBodyOrigIndices(table, headerRow) {
         if (cells.length <= 1) continue;
         for (var c = 0; c < cells.length; c++) {
             if (cells[c].getAttribute('data-orig-index') === null) {
-                if (c < origIndices.length) {
-                    cells[c].setAttribute('data-orig-index', origIndices[c]);
-                } else {
-                    cells[c].setAttribute('data-orig-index', String(c));
-                }
+                if (c < origIndices.length) cells[c].setAttribute('data-orig-index', origIndices[c]);
+                else cells[c].setAttribute('data-orig-index', String(c));
             }
         }
     }
@@ -712,7 +687,27 @@ function applyTableSort(tableId, rows, keyFn) {
 
 var COLUMN_FILTERS = {};
 
+/* ============================================================
+   ✅ اعمال فیلتر ستون‌ها
+   برای voucher-table-list به‌جای hide DOM، کل لیست را دوباره رندر می‌کند
+   تا فیلتر روی همه صفحات اعمال شود
+   ============================================================ */
 function applyColumnFiltersToTable(tableId) {
+    /* --- مسیر اختصاصی فهرست اسناد (چون paginate می‌شود) --- */
+    if (tableId === 'voucher-table-list') {
+        if (window._voucherListRendering) return;
+        var key = JSON.stringify(COLUMN_FILTERS['voucher-table-list'] || {});
+        if (window._lastVoucherFilterKey === key && window._voucherListRendered) return;
+        window._lastVoucherFilterKey = key;
+        if (typeof window.renderVoucherList === 'function') {
+            window._voucherListRendered = false;
+            window.renderVoucherList();
+            window._voucherListRendered = true;
+        }
+        return;
+    }
+
+    /* --- مسیر عادی: hide DOM برای جداول بدون pagination --- */
     var table = document.getElementById(tableId);
     if (!table) return;
     var filters = COLUMN_FILTERS[tableId] || {};
@@ -722,7 +717,6 @@ function applyColumnFiltersToTable(tableId) {
     var rows = tbody.querySelectorAll('tr');
     if (!hasAny) {
         for (var r0 = 0; r0 < rows.length; r0++) rows[r0].style.display = '';
-        // ✅ ارسال رویداد پس از پایان فیلتر
         table.dispatchEvent(new CustomEvent('table-filtered'));
         return;
     }
@@ -731,9 +725,9 @@ function applyColumnFiltersToTable(tableId) {
         var tds = tr.children;
         if (tds.length === 1 && tds[0].hasAttribute('colspan')) { tr.style.display = 'none'; continue; }
         var show = true;
-        for (var key in filters) {
-            var origIdx = Number(key);
-            var f = filters[key];
+        for (var key2 in filters) {
+            var origIdx = Number(key2);
+            var f = filters[key2];
             if (!f || !f.op) continue;
             var cell = null;
             for (var c = 0; c < tds.length; c++) {
@@ -745,7 +739,6 @@ function applyColumnFiltersToTable(tableId) {
         }
         tr.style.display = show ? '' : 'none';
     }
-    // ✅ ارسال رویداد پس از پایان فیلتر
     table.dispatchEvent(new CustomEvent('table-filtered'));
 }
 
@@ -775,7 +768,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
     var ops = [
         ['', '— انتخاب کنید —'],
         ['contains', 'شامل'],
-        ['notContains', 'نیست شبیه / شامل نباشد'], // ✅ اضافه شد
+        ['notContains', 'نیست شبیه / شامل نباشد'],
         ['eq', 'مساوی'],
         ['neq', 'نامساوی'],
         ['gt', 'بزرگتر از'],
@@ -1074,4 +1067,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — Fully restored & syntax-fixed');
+console.log('✅ [ui/table.js] loaded — voucher-list filters now apply to all pages');
