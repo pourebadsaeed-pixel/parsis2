@@ -83,7 +83,7 @@ var _arSort = { col: 'code', dir: 'asc' };
 })();
 
 /* ============================================================
-   ✅ Collapsible Logic
+   ✅ Collapsible Logic (Fixed)
    ============================================================ */
 function injectRaCollapseStyle() {
     if (document.getElementById('ra-collapse-style')) return;
@@ -119,6 +119,9 @@ function injectRaCollapseStyle() {
     document.head.appendChild(s);
 }
 
+// ✅ تزریق استایل در بدو ورود
+injectRaCollapseStyle();
+
 (function installRaToggleDelegation() {
     if (window._raToggleDelegated) return;
     window._raToggleDelegated = true;
@@ -129,7 +132,7 @@ function injectRaCollapseStyle() {
         e.preventDefault();
         e.stopPropagation();
 
-        var card = document.getElementById('ra-filter-card');
+        var card = btn.closest('.cf-filter-card'); // ✅ استفاده از closest
         if (!card) return;
 
         var isCollapsed = card.classList.toggle('cf-collapsed');
@@ -138,19 +141,23 @@ function injectRaCollapseStyle() {
 })();
 
 /* ============================================================
-   Filter Panel Builder
+   Filter Panel Builder (Fixed)
    ============================================================ */
 function rebuildAccountFilterPanel() {
     var body = document.getElementById('ra-filter-body');
     if (!body) return;
-    if (body.innerHTML.trim() !== '') return; // already built
-
-    injectRaCollapseStyle();
+    
+    // ✅ اصلاح شرط: اگر دکمه‌ای وجود دارد یعنی ساخته شده
+    if (body.querySelector('button')) return; 
+    body.innerHTML = ''; // پاک کردن کامنت‌های اولیه
 
     var collapsed = false;
     try { collapsed = DB.load('ra.filterCollapsed', false); } catch (e) {}
     var card = document.getElementById('ra-filter-card');
-    if (collapsed && card) card.classList.add('cf-collapsed');
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
 
     var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
     var defFrom = activePeriod ? activePeriod.from : '';
@@ -558,7 +565,6 @@ function renderAccountReview() {
 
     var html = '<div class="ar-wrap">';
 
-    /* ✅ حذف ar-tb-title */
     html += '<div class="ar-tb">';
     html += '<div class="ar-tb-bc">' + _arBreadcrumb(_AR.path, accounts) + '</div>';
     html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
@@ -963,7 +969,6 @@ function closeTurnover() {
     document.body.classList.remove('vpreview-elevated');
 }
 
-// اتصال مستقیم دکمه‌های چاپ و بستن مودال‌ها
 document.addEventListener('click', function(e) {
     if (e.target.closest('#close-vpreview') || e.target.closest('#vpreview-close-btn') || e.target.closest('#vpreview-overlay')) {
         if (typeof closeVoucherPreview === 'function') closeVoucherPreview();
