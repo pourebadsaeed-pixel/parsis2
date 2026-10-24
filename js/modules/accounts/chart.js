@@ -1,18 +1,85 @@
 /* ============================================================
    پارسیس — چارت حساب‌ها (درخت)
    مسیر: js/modules/accounts/chart.js
-   وابستگی: core/* + ui/*
+   نسخه با مرتب‌سازی بر اساس کد + فیلتر پیشرفته
    ============================================================ */
 'use strict';
 
 /* ============================================================
-   بخش ۱ — رندر درخت
+   State فیلتر
+   ============================================================ */
+var _chartFilter = {
+    cat: '',
+    nature: '',
+    level: ''
+};
+var _chartFilterExpanded = {};
+
+/* ============================================================
+   Helper: مرتب‌سازی کد (عددی-سلسله‌مراتبی)
+   ============================================================ */
+function _chartSortByCode(arr) {
+    if (!arr || arr.length <= 1) return arr ? arr.slice() : [];
+    return arr.slice().sort(function (a, b) {
+        var ca = String(a.code || '').replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+        var cb = String(b.code || '').replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+        var pa = ca.split(/[-._\/]/).map(function (x) { return parseInt(x, 10) || 0; });
+        var pb = cb.split(/[-._\/]/).map(function (x) { return parseInt(x, 10) || 0; });
+        var n = Math.max(pa.length, pb.length);
+        for (var i = 0; i < n; i++) {
+            var va = pa[i] || 0;
+            var vb = pb[i] || 0;
+            if (va !== vb) return va - vb;
+        }
+        return ca.localeCompare(cb, 'fa');
+    });
+}
+
+/* ============================================================
+   Helper: سطح حساب (1=گروه، 2=کل، 3=معین)
+   ============================================================ */
+function _chartComputeLevel(acc, all) {
+    if (!acc) return 1;
+    var lvl = 1;
+    var cur = acc;
+    var safety = 0;
+    while (cur && cur.parent && safety < 20) {
+        lvl++;
+        cur = all.find(function (x) { return x.id === cur.parent; });
+        safety++;
+    }
+    return lvl;
+}
+
+/* ============================================================
+   Helper: تطبیق با فیلتر
+   ============================================================ */
+function _chartMatchFilter(acc, all) {
+    if (_chartFilter.cat && (acc.cat || 'permanent') !== _chartFilter.cat) return false;
+    if (_chartFilter.nature && (acc.nature || 'debit') !== _chartFilter.nature) return false;
+    if (_chartFilter.level) {
+        var lvl = _chartComputeLevel(acc, all);
+        if (String(lvl) !== String(_chartFilter.level)) return false;
+    }
+    return true;
+}
+
+function _chartHasActiveFilter() {
+    return !!(_chartFilter.cat || _chartFilter.nature || _chartFilter.level);
+}
+
+/* ============================================================
+   رندر درخت
    ============================================================ */
 function renderChartTree(cid, editable) {
     var box = document.getElementById(cid);
     if (!box) return;
     var accounts = DB.load('accounts', []);
+    if (!Array.isArray(accounts)) accounts = [];
     box.innerHTML = '';
+
+    /* نوار وضعیت فیلتر */
+    _chartUpdateFilterStatus();
 
     if (accounts.length === 0) {
         box.innerHTML = '<p class="muted" style="text-align:center;padding:20px">حسابی تعریف نشده.</p>';
@@ -21,54 +88,141 @@ function renderChartTree(cid, editable) {
 
     var sI = document.getElementById('charttree-search');
     var q = (sI && sI.value || '').trim().toLowerCase();
+    var hasFilter = _chartHasActiveFilter();
 
+    /* ---------- حالت جستجو (flat) ---------- */
     if (q) {
-        /* حالت جستجو */
         var results = accounts.filter(function (a) {
-            return (a.code || '').toLowerCase().indexOf(q) !== -1
-                || (a.name || '').toLowerCase().indexOf(q) !== -1;
+            var match = (a.code || '').toLowerCase().indexOf(q) !== -1
+                      || (a.name || '').toLowerCase().indexOf(q) !== -1;
+            if (!match) return false;
+            if (hasFilter && !_chartMatchFilter(a, accounts)) return false;
+            return true;
         });
+
+        results = _chartSortByCode(results);
+
+        if (results.length === 0) {
+            box.innerHTML = '<p class="muted" style="text-align:center;padding:20px">نتیجه‌ای یافت نشد.</p>';
+            return;
+        }
+
         for (var r = 0; r < results.length; r++) {
             (function (node) {
+                var lvl = _chartComputeLevel(node, accounts);
+                var lvlName = lvl === 1 ? 'گروه' : (lvl === 2 ? 'کل' : 'معین');
+                var icon = lvl === 1 ? '📁' : (lvl === 2 ? '📂' : '📄');
+
+                var extra = '';
+                if (node.links && node.links.length > 0) {
+                    extra += '<span class="tn-link">' + node.links.map(linkTypeName).join('، ') + '</span>';
+                }
+                if (node.cfEffect) extra += '<span class="tn-cf">💸</span>';
+                if (node.active === false) extra += '<span class="tn-cf" style="background:#fee2e2;color:#991b1b">غیرفعال</span>';
+
                 var div = document.createElement('div');
                 div.className = 'tree-node';
-                div.innerHTML = '<span class="tn-code">' + esc(node.code) + '</span>'
-                    + '<span class="tn-name">' + esc(node.name) + '</span>';
-                div.addEventListener('click', function () {
-                    if (editable) openChartForm(node.id, computeLevelIn(node.id), null);
+                div.innerHTML = '<span class="tn-icon">' + icon + '</span>'
+                    + '<span class="tn-code">' + esc(node.code) + '</span>'
+                    + '<span class="tn-name">' + esc(node.name) + '</span>'
+                    + '<span class="tn-level">' + lvlName + '</span>'
+                    + extra;
+
+                div.addEventListener('click', function (e) {
+                    if (e.target.closest && e.target.closest('.tree-add-btn')) return;
+                    if (e.target.closest && e.target.closest('.tree-del-btn')) return;
+                    if (editable) openChartForm(node.id, lvl, null);
                 });
                 box.appendChild(div);
             })(results[r]);
         }
-    } else {
-        /* حالت درخت */
-        var roots = accounts.filter(function (a) { return !a.parent; });
-        for (var i = 0; i < roots.length; i++) {
-            box.appendChild(buildNode(roots[i], accounts, 1, editable));
+        return;
+    }
+
+    /* ---------- حالت فیلتر (درختی با حفظ والدها) ---------- */
+    if (hasFilter) {
+        var visibleIds = {};
+        accounts.forEach(function (a) {
+            if (_chartMatchFilter(a, accounts)) {
+                visibleIds[a.id] = { self: true };
+                var cur = a;
+                var safety = 0;
+                while (cur && cur.parent && safety < 20) {
+                    safety++;
+                    if (!visibleIds[cur.parent]) visibleIds[cur.parent] = { self: false };
+                    cur = accounts.find(function (x) { return x.id === cur.parent; });
+                }
+            }
+        });
+
+        if (Object.keys(visibleIds).length === 0) {
+            box.innerHTML = '<p class="muted" style="text-align:center;padding:20px">هیچ حسابی با این فیلترها یافت نشد.</p>';
+            return;
         }
+
+        /* خودکار باز کردن گره‌های جدید (فقط اگه قبلاً باز/بسته نشده) */
+        Object.keys(visibleIds).forEach(function (id) {
+            if (typeof _chartFilterExpanded[id] === 'undefined') _chartFilterExpanded[id] = true;
+        });
+
+        var roots = _chartSortByCode(accounts.filter(function (a) { return !a.parent; }));
+        var anyShown = false;
+        roots.forEach(function (root) {
+            if (!visibleIds[root.id]) return;
+            anyShown = true;
+            box.appendChild(_chartBuildNodeFiltered(root, accounts, 1, editable, visibleIds));
+        });
+
+        if (!anyShown) {
+            box.innerHTML = '<p class="muted" style="text-align:center;padding:20px">هیچ حسابی با این فیلترها یافت نشد.</p>';
+        }
+        return;
+    }
+
+    /* ---------- حالت عادی (درخت مرتب‌شده) ---------- */
+    var normalRoots = _chartSortByCode(accounts.filter(function (a) { return !a.parent; }));
+    for (var i = 0; i < normalRoots.length; i++) {
+        box.appendChild(_chartBuildNode(normalRoots[i], accounts, 1, editable));
     }
 }
 
 /* ============================================================
-   بخش ۲ — ساخت یک گره درخت
+   به‌روزرسانی وضعیت فیلتر (نوار زرد)
    ============================================================ */
-function computeLevelIn(id) {
-    var accounts = DB.load('accounts', []);
-    var lvl = 1;
-    var cur = accounts.find(function (a) { return a.id === id; });
-    while (cur && cur.parent) {
-        lvl++;
-        cur = accounts.find(function (a) { return a.id === cur.parent; });
+function _chartUpdateFilterStatus() {
+    var st = document.getElementById('chart-filter-status');
+    if (!st) return;
+    if (!_chartHasActiveFilter()) {
+        st.style.display = 'none';
+        st.innerHTML = '';
+        return;
     }
-    return lvl;
+    var parts = [];
+    if (_chartFilter.cat) {
+        var catLbl = _chartFilter.cat === 'permanent' ? 'دائمی' : (_chartFilter.cat === 'temporary' ? 'موقت' : 'مهم نیست');
+        parts.push('نوع: ' + catLbl);
+    }
+    if (_chartFilter.nature) {
+        var natLbl = _chartFilter.nature === 'debit' ? 'بدهکار' : (_chartFilter.nature === 'credit' ? 'بستانکار' : 'مهم نیست');
+        parts.push('ماهیت: ' + natLbl);
+    }
+    if (_chartFilter.level) {
+        var lvlLbl = _chartFilter.level === '1' ? 'گروه' : (_chartFilter.level === '2' ? 'کل' : 'معین');
+        parts.push('طبقه: ' + lvlLbl);
+    }
+    st.style.display = 'block';
+    st.innerHTML = '🔍 فیلتر فعال: ' + parts.join(' • ') + ' — گره‌های زردرنگ با فیلتر مطابق‌اند';
 }
 
-function buildNode(node, all, level, editable) {
+/* ============================================================
+   ساخت گره (حالت عادی) — فرزندان بر اساس کد مرتب می‌شوند
+   ============================================================ */
+function _chartBuildNode(node, all, level, editable) {
     var wrap = document.createElement('div');
     var div = document.createElement('div');
     div.className = 'tree-node';
 
-    var children = all.filter(function (a) { return a.parent === node.id; });
+    var children = _chartSortByCode(all.filter(function (a) { return a.parent === node.id; }));
     var hasC = children.length > 0;
     var exp = state.expandedNodes[node.id] === true;
 
@@ -85,7 +239,7 @@ function buildNode(node, all, level, editable) {
     div.appendChild(tog);
 
     var icon = level === 1 ? '📁' : (level === 2 ? '📂' : '📄');
-    var lN = level === 1 ? 'گروه' : (level === 2 ? 'کل' : (level === 3 ? 'معین' : 'تفصیلی'));
+    var lN = level === 1 ? 'گروه' : (level === 2 ? 'کل' : 'معین');
 
     var html = '<span class="tn-icon">' + icon + '</span>'
         + '<span class="tn-code">' + esc(node.code) + '</span>'
@@ -98,6 +252,9 @@ function buildNode(node, all, level, editable) {
     if (node.cfEffect) {
         html += '<span class="tn-cf">💸 گردش وجه نقد</span>';
     }
+    if (node.active === false) {
+        html += '<span class="tn-cf" style="background:#fee2e2;color:#991b1b">غیرفعال</span>';
+    }
     div.insertAdjacentHTML('beforeend', html);
 
     if (editable) {
@@ -105,6 +262,7 @@ function buildNode(node, all, level, editable) {
             var aB = document.createElement('button');
             aB.className = 'tree-add-btn';
             aB.textContent = '+';
+            aB.title = 'افزودن زیرمجموعه';
             aB.addEventListener('click', function (e) {
                 e.stopPropagation();
                 state.expandedNodes[node.id] = true;
@@ -113,25 +271,13 @@ function buildNode(node, all, level, editable) {
             });
             div.appendChild(aB);
         }
-
         var dB = document.createElement('button');
         dB.className = 'tree-del-btn';
         dB.textContent = '×';
+        dB.title = 'حذف';
         dB.addEventListener('click', function (e) {
             e.stopPropagation();
-            if (!confirm('حذف شود؟')) return;
-            var accs = DB.load('accounts', []);
-            var toDel = {};
-            function collect(id) {
-                toDel[id] = true;
-                accs.forEach(function (a) {
-                    if (a.parent === id) collect(a.id);
-                });
-            }
-            collect(node.id);
-            var nl = accs.filter(function (a) { return !toDel[a.id]; });
-            DB.save('accounts', nl);
-            renderChartTree('chart-tree', true);
+            _chartDeleteNode(node.id);
         });
         div.appendChild(dB);
     }
@@ -148,7 +294,7 @@ function buildNode(node, all, level, editable) {
         var cb = document.createElement('div');
         cb.className = 'tree-children';
         for (var i = 0; i < children.length; i++) {
-            cb.appendChild(buildNode(children[i], all, level + 1, editable));
+            cb.appendChild(_chartBuildNode(children[i], all, level + 1, editable));
         }
         wrap.appendChild(cb);
     }
@@ -156,14 +302,142 @@ function buildNode(node, all, level, editable) {
 }
 
 /* ============================================================
-   بخش ۳ — باز/بسته کردن همه
+   ساخت گره (حالت فیلتر)
+   ============================================================ */
+function _chartBuildNodeFiltered(node, all, level, editable, visibleIds) {
+    var wrap = document.createElement('div');
+    var div = document.createElement('div');
+    div.className = 'tree-node';
+
+    var children = _chartSortByCode(all.filter(function (a) {
+        return a.parent === node.id && visibleIds[a.id];
+    }));
+    var hasC = children.length > 0;
+    var exp = _chartFilterExpanded[node.id] === true;
+    var isMatch = visibleIds[node.id] && visibleIds[node.id].self;
+
+    if (isMatch) {
+        div.style.background = 'linear-gradient(90deg, #fef3c7, #fde68a)';
+        div.style.borderRight = '4px solid #f59e0b';
+    } else {
+        div.style.opacity = '0.7';
+    }
+
+    var tog = document.createElement('span');
+    tog.className = 'tree-toggle';
+    tog.textContent = hasC ? (exp ? '▼' : '◀') : '•';
+    if (!hasC) tog.style.visibility = 'hidden';
+    tog.addEventListener('click', function (e) {
+        e.stopPropagation();
+        _chartFilterExpanded[node.id] = !exp;
+        renderChartTree('chart-tree', editable);
+    });
+    div.appendChild(tog);
+
+    var icon = level === 1 ? '📁' : (level === 2 ? '📂' : '📄');
+    var lN = level === 1 ? 'گروه' : (level === 2 ? 'کل' : 'معین');
+
+    var html = '<span class="tn-icon">' + icon + '</span>'
+        + '<span class="tn-code">' + esc(node.code) + '</span>'
+        + '<span class="tn-name">' + esc(node.name) + '</span>'
+        + '<span class="tn-level">' + lN + '</span>';
+
+    if (node.links && node.links.length > 0) {
+        html += '<span class="tn-link">' + node.links.map(linkTypeName).join('، ') + '</span>';
+    }
+    if (node.cfEffect) {
+        html += '<span class="tn-cf">💸</span>';
+    }
+    if (node.active === false) {
+        html += '<span class="tn-cf" style="background:#fee2e2;color:#991b1b">غیرفعال</span>';
+    }
+    if (isMatch) {
+        html += '<span class="tn-cf" style="background:#f59e0b;color:#fff;font-weight:800">✓ مطابق</span>';
+    }
+    div.insertAdjacentHTML('beforeend', html);
+
+    if (editable) {
+        if (level < 3) {
+            var aB = document.createElement('button');
+            aB.className = 'tree-add-btn';
+            aB.textContent = '+';
+            aB.title = 'افزودن زیرمجموعه';
+            aB.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _chartFilterExpanded[node.id] = true;
+                openChartForm(null, level + 1, node.id);
+            });
+            div.appendChild(aB);
+        }
+        var dB = document.createElement('button');
+        dB.className = 'tree-del-btn';
+        dB.textContent = '×';
+        dB.title = 'حذف';
+        dB.addEventListener('click', function (e) {
+            e.stopPropagation();
+            _chartDeleteNode(node.id);
+        });
+        div.appendChild(dB);
+    }
+
+    div.addEventListener('click', function (e) {
+        if (e.target.classList.contains('tree-toggle')) return;
+        if (e.target.classList.contains('tree-add-btn')) return;
+        if (e.target.classList.contains('tree-del-btn')) return;
+        if (editable) openChartForm(node.id, level, null);
+    });
+    wrap.appendChild(div);
+
+    if (hasC && exp) {
+        var cb = document.createElement('div');
+        cb.className = 'tree-children';
+        for (var i = 0; i < children.length; i++) {
+            cb.appendChild(_chartBuildNodeFiltered(children[i], all, level + 1, editable, visibleIds));
+        }
+        wrap.appendChild(cb);
+    }
+    return wrap;
+}
+
+/* ============================================================
+   حذف گره و زیرمجموعه‌ها
+   ============================================================ */
+function _chartDeleteNode(nodeId) {
+    if (!confirm('حذف شود؟ (تمام زیرمجموعه‌ها هم حذف می‌شوند)')) return;
+    var accs = DB.load('accounts', []);
+    var toDel = {};
+    function collect(id) {
+        toDel[id] = true;
+        accs.forEach(function (a) {
+            if (a.parent === id) collect(a.id);
+        });
+    }
+    collect(nodeId);
+    var nl = accs.filter(function (a) { return !toDel[a.id]; });
+    DB.save('accounts', nl);
+    renderChartTree('chart-tree', true);
+    if (typeof showToast === 'function') showToast('🗑 حساب حذف شد');
+}
+
+/* ============================================================
+   Level در سطح ID (سازگاری با قبل)
+   ============================================================ */
+function computeLevelIn(id) {
+    var accounts = DB.load('accounts', []);
+    return _chartComputeLevel(accounts.find(function (a) { return a.id === id; }), accounts);
+}
+
+/* ============================================================
+   باز/بسته کردن همه
    ============================================================ */
 function setAllExpanded(val) {
     var accounts = DB.load('accounts', []);
     state.expandedNodes = {};
+    _chartFilterExpanded = {};
     if (val) {
         for (var i = 0; i < accounts.length; i++) {
             state.expandedNodes[accounts[i].id] = true;
+            _chartFilterExpanded[accounts[i].id] = true;
         }
     }
     saveState(LS_KEYS.EXPANDED_NODES);
@@ -171,10 +445,11 @@ function setAllExpanded(val) {
 }
 
 /* ============================================================
-   بخش ۴ — فرم تعریف/ویرایش حساب
+   فرم تعریف/ویرایش حساب
    ============================================================ */
 function openChartForm(id, level, parentId) {
     var card = document.getElementById('chart-form-card');
+    if (!card) return;
     var accounts = DB.load('accounts', []);
     var node = id ? accounts.find(function (a) { return a.id === id; }) : null;
 
@@ -202,7 +477,8 @@ function openChartForm(id, level, parentId) {
                 var w = level === 2 ? 2 : 3;
                 var mx = 0;
                 sib.forEach(function (s) {
-                    var n = parseInt(s.code.split('-').pop()) || 0;
+                    var parts = String(s.code || '').split('-');
+                    var n = parseInt(parts[parts.length - 1], 10) || 0;
                     if (n > mx) mx = n;
                 });
                 sc = par.code + '-' + String(mx + 1).padStart(w, '0');
@@ -211,7 +487,7 @@ function openChartForm(id, level, parentId) {
             var roots = accounts.filter(function (a) { return !a.parent; });
             var m = 0;
             roots.forEach(function (r) {
-                var n = parseInt(r.code) || 0;
+                var n = parseInt(String(r.code || '').split('-')[0], 10) || 0;
                 if (n > m) m = n;
             });
             sc = String(m + 1);
@@ -238,7 +514,7 @@ function openChartForm(id, level, parentId) {
 }
 
 /* ============================================================
-   بخش ۵ — بارگذاری چارت پیش‌فرض
+   بارگذاری چارت پیش‌فرض
    ============================================================ */
 function loadDefaultChart() {
     var existing = DB.load('accounts', []);
@@ -295,6 +571,7 @@ function loadDefaultChart() {
     DB.save('accounts', accounts);
     showToast('✅ چارت پیش‌فرض بارگذاری شد.');
     state.expandedNodes = {};
+    _chartFilterExpanded = {};
     saveState(LS_KEYS.EXPANDED_NODES);
     renderChartTree('chart-tree', true);
 
@@ -305,83 +582,179 @@ function loadDefaultChart() {
 }
 
 /* ============================================================
-   بخش ۶ — اتصال دکمه‌ها
+   اتصال دکمه‌ها (فرم + فیلتر)
    ============================================================ */
 function bindChartForm() {
     var loadBtn = document.getElementById('load-default-chart');
-    if (loadBtn) loadBtn.addEventListener('click', loadDefaultChart);
+    if (loadBtn && !loadBtn.dataset.bound) {
+        loadBtn.dataset.bound = '1';
+        loadBtn.addEventListener('click', loadDefaultChart);
+    }
 
     var addGroupBtn = document.getElementById('add-group');
-    if (addGroupBtn) addGroupBtn.addEventListener('click', function () {
-        openChartForm(null, 1, null);
-    });
+    if (addGroupBtn && !addGroupBtn.dataset.bound) {
+        addGroupBtn.dataset.bound = '1';
+        addGroupBtn.addEventListener('click', function () {
+            openChartForm(null, 1, null);
+        });
+    }
 
     var saveBtn = document.getElementById('save-chart');
-    if (saveBtn) saveBtn.addEventListener('click', function () {
-        var id = document.getElementById('ch-id').value;
-        var level = Number(document.getElementById('ch-level').value) || 1;
-        var code = normalizeDigits(document.getElementById('ch-code').value.trim());
-        var name = document.getElementById('ch-name').value.trim();
-        if (!code || !name) { alert('کد و عنوان اجباری.'); return; }
+    if (saveBtn && !saveBtn.dataset.bound) {
+        saveBtn.dataset.bound = '1';
+        saveBtn.addEventListener('click', function () {
+            var id = document.getElementById('ch-id').value;
+            var level = Number(document.getElementById('ch-level').value) || 1;
+            var code = normalizeDigits(document.getElementById('ch-code').value.trim());
+            var name = document.getElementById('ch-name').value.trim();
+            if (!code || !name) { alert('کد و عنوان اجباری.'); return; }
 
-        var links = [];
-        var cbs = document.querySelectorAll('#ch-links-box input[type=checkbox]:checked');
-        for (var li = 0; li < cbs.length; li++) links.push(cbs[li].value);
-
-        var o = {
-            id: id || uid(),
-            code: code,
-            name: name,
-            parent: document.getElementById('ch-parent').value || '',
-            level: level,
-            cat: document.getElementById('ch-cat').value,
-            nature: document.getElementById('ch-nature').value,
-            links: (level === 3) ? links : [],
-            cfEffect: (level === 3) ? document.getElementById('ch-cf-effect').checked : false,
-            active: document.getElementById('ch-active').checked
-        };
-
-        var l = DB.load('accounts', []);
-        if (id) {
-            for (var i = 0; i < l.length; i++) {
-                if (l[i].id === id) l[i] = o;
+            var allAcc = DB.load('accounts', []);
+            /* چک یکتایی کد */
+            var dup = allAcc.filter(function (x) {
+                return x.id !== id && String(x.code) === code;
+            });
+            if (dup.length > 0) {
+                alert('⚠️ کد «' + code + '» قبلاً برای حساب «' + dup[0].name + '» استفاده شده است.');
+                return;
             }
-        } else {
-            l.push(o);
-        }
-        DB.save('accounts', l);
-        showToast('✅ ذخیره شد');
-        document.getElementById('chart-form-card').style.display = 'none';
-        renderChartTree('chart-tree', true);
-        if (loadBtn) loadBtn.disabled = true;
-        if (typeof refreshTemplateSelect === 'function') refreshTemplateSelect();
-    });
+
+            var links = [];
+            var cbs = document.querySelectorAll('#ch-links-box input[type=checkbox]:checked');
+            for (var li = 0; li < cbs.length; li++) links.push(cbs[li].value);
+
+            var o = {
+                id: id || uid(),
+                code: code,
+                name: name,
+                parent: document.getElementById('ch-parent').value || '',
+                level: level,
+                cat: document.getElementById('ch-cat').value,
+                nature: document.getElementById('ch-nature').value,
+                links: (level === 3) ? links : [],
+                cfEffect: (level === 3) ? document.getElementById('ch-cf-effect').checked : false,
+                active: document.getElementById('ch-active').checked
+            };
+
+            var l = DB.load('accounts', []);
+            if (id) {
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i].id === id) l[i] = o;
+                }
+            } else {
+                l.push(o);
+            }
+            DB.save('accounts', l);
+            document.getElementById('chart-form-card').style.display = 'none';
+            renderChartTree('chart-tree', true);
+            if (loadBtn) loadBtn.disabled = true;
+            if (typeof refreshTemplateSelect === 'function') refreshTemplateSelect();
+
+            /* پیام موفقیت - اگر بعد از فیلتر پنهان شد، اطلاع بده */
+            if (_chartHasActiveFilter()) {
+                var all2 = DB.load('accounts', []);
+                var saved = all2.find(function (x) { return x.id === o.id; });
+                if (saved && !_chartMatchFilter(saved, all2)) {
+                    if (typeof showToast === 'function') showToast('✅ ذخیره شد — اما با فیلتر فعلی هم‌خوان نیست و از دید پنهان شد');
+                    return;
+                }
+            }
+            if (typeof showToast === 'function') showToast('✅ ذخیره شد');
+        });
+    }
 
     var cancelBtn = document.getElementById('cancel-chart');
-    if (cancelBtn) cancelBtn.addEventListener('click', function () {
-        document.getElementById('chart-form-card').style.display = 'none';
-    });
+    if (cancelBtn && !cancelBtn.dataset.bound) {
+        cancelBtn.dataset.bound = '1';
+        cancelBtn.addEventListener('click', function () {
+            document.getElementById('chart-form-card').style.display = 'none';
+        });
+    }
 
     var expBtn = document.getElementById('cd-expand');
-    if (expBtn) expBtn.addEventListener('click', function () { setAllExpanded(true); });
+    if (expBtn && !expBtn.dataset.bound) {
+        expBtn.dataset.bound = '1';
+        expBtn.addEventListener('click', function () { setAllExpanded(true); });
+    }
 
     var colBtn = document.getElementById('cd-collapse');
-    if (colBtn) colBtn.addEventListener('click', function () { setAllExpanded(false); });
+    if (colBtn && !colBtn.dataset.bound) {
+        colBtn.dataset.bound = '1';
+        colBtn.addEventListener('click', function () { setAllExpanded(false); });
+    }
 
     var searchEl = document.getElementById('charttree-search');
-    if (searchEl) searchEl.addEventListener('input', function () {
-        renderChartTree('chart-tree', true);
-    });
+    if (searchEl && !searchEl.dataset.bound) {
+        searchEl.dataset.bound = '1';
+        searchEl.addEventListener('input', function () {
+            renderChartTree('chart-tree', true);
+        });
+    }
+
+    /* ============ فیلتر پیشرفته ============ */
+    var fCat = document.getElementById('chart-filter-cat');
+    if (fCat) {
+        fCat.value = _chartFilter.cat;
+        if (!fCat.dataset.bound) {
+            fCat.dataset.bound = '1';
+            fCat.addEventListener('change', function () {
+                _chartFilter.cat = this.value;
+                _chartFilterExpanded = {};
+                renderChartTree('chart-tree', true);
+            });
+        }
+    }
+
+    var fNat = document.getElementById('chart-filter-nature');
+    if (fNat) {
+        fNat.value = _chartFilter.nature;
+        if (!fNat.dataset.bound) {
+            fNat.dataset.bound = '1';
+            fNat.addEventListener('change', function () {
+                _chartFilter.nature = this.value;
+                _chartFilterExpanded = {};
+                renderChartTree('chart-tree', true);
+            });
+        }
+    }
+
+    var fLvl = document.getElementById('chart-filter-level');
+    if (fLvl) {
+        fLvl.value = _chartFilter.level;
+        if (!fLvl.dataset.bound) {
+            fLvl.dataset.bound = '1';
+            fLvl.addEventListener('change', function () {
+                _chartFilter.level = this.value;
+                _chartFilterExpanded = {};
+                renderChartTree('chart-tree', true);
+            });
+        }
+    }
+
+    var fClear = document.getElementById('chart-filter-clear');
+    if (fClear && !fClear.dataset.bound) {
+        fClear.dataset.bound = '1';
+        fClear.addEventListener('click', function () {
+            _chartFilter = { cat: '', nature: '', level: '' };
+            _chartFilterExpanded = {};
+            if (fCat) fCat.value = '';
+            if (fNat) fNat.value = '';
+            if (fLvl) fLvl.value = '';
+            renderChartTree('chart-tree', true);
+        });
+    }
 }
 
 /* ============================================================
    صادرسازی
    ============================================================ */
-window.renderChartTree  = renderChartTree;
-window.computeLevelIn   = computeLevelIn;
-window.setAllExpanded   = setAllExpanded;
-window.openChartForm    = openChartForm;
-window.loadDefaultChart = loadDefaultChart;
-window.bindChartForm    = bindChartForm;
+window.renderChartTree        = renderChartTree;
+window.computeLevelIn         = computeLevelIn;
+window.setAllExpanded         = setAllExpanded;
+window.openChartForm          = openChartForm;
+window.loadDefaultChart       = loadDefaultChart;
+window.bindChartForm          = bindChartForm;
+window._chartFilter           = _chartFilter;
+window._chartSortByCode       = _chartSortByCode;
 
-console.log('✅ [modules/accounts/chart.js] loaded');
+console.log('✅ [modules/accounts/chart.js] loaded — sorted + filter');
