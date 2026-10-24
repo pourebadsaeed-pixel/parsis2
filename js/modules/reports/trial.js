@@ -33,7 +33,7 @@ function _updateSortIndicators(container, state) {
 }
 
 /* ============================================================
-   ✅ Collapsible Logic for Trial Balance
+   ✅ Collapsible Logic (Fixed)
    ============================================================ */
 function injectRtCollapseStyle() {
     if (document.getElementById('rt-collapse-style')) return;
@@ -69,6 +69,9 @@ function injectRtCollapseStyle() {
     document.head.appendChild(s);
 }
 
+// ✅ تزریق استایل در بدو ورود
+injectRtCollapseStyle();
+
 (function installRtToggleDelegation() {
     if (window._rtToggleDelegated) return;
     window._rtToggleDelegated = true;
@@ -79,7 +82,7 @@ function injectRtCollapseStyle() {
         e.preventDefault();
         e.stopPropagation();
 
-        var card = document.getElementById('rt-filter-card');
+        var card = btn.closest('.cf-filter-card'); // ✅ استفاده از closest
         if (!card) return;
 
         var isCollapsed = card.classList.toggle('cf-collapsed');
