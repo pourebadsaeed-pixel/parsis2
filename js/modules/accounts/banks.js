@@ -16,6 +16,15 @@ function refreshBankTypeSelect() {
     }
 }
 
+/* ============================================================
+   ✅ helper: نمایش مبلغ با پرانتز برای منفی
+   ============================================================ */
+function _fmtMoneyParen(n) {
+    n = Number(n) || 0;
+    if (n < 0) return '(' + formatMoney(Math.abs(n)) + ')';
+    return formatMoney(n);
+}
+
 function renderBankAccountsList() {
     var list = DB.load('bankAccounts', []);
     if (!Array.isArray(list)) list = [];
@@ -40,7 +49,7 @@ function renderBankAccountsList() {
         return true;
     });
 
-    /* ✅ Pre-compute balances (برای مرتب‌سازی و رندر بدون محاسبه تکراری) */
+    /* Pre-compute balances */
     var balanceCache = {};
     var balFn = (typeof getBankBalance === 'function') ? getBankBalance : function() { return 0; };
     filtered.forEach(function(b) { balanceCache[b.id] = balFn(b.id); });
@@ -65,9 +74,10 @@ function renderBankAccountsList() {
         var bal = balanceCache[b.id] || 0;
         var diff = bal - minBal;
 
+        /* ✅ مبلغ‌ها با فرمت پرانتز برای منفی */
         var mbText = hide ? '—' : (minBal ? formatMoney(minBal) + ' ' + currencyLabel() : '—');
-        var balText = hide ? '—' : (formatMoney(bal) + ' ' + currencyLabel());
-        var diffText = hide ? '—' : (minBal ? formatMoney(diff) + ' ' + currencyLabel() : '—');
+        var balText = hide ? '—' : (_fmtMoneyParen(bal) + ' ' + currencyLabel());
+        var diffText = hide ? '—' : (minBal ? (_fmtMoneyParen(diff) + ' ' + currencyLabel()) : '—');
 
         var balColor = bal >= 0 ? '#1e9e6a' : '#dc2626';
         var diffColor = (minBal && diff < 0) ? '#dc2626' : '#1e9e6a';
@@ -176,5 +186,6 @@ window.refreshBankTypeSelect  = refreshBankTypeSelect;
 window.renderBankAccountsList = renderBankAccountsList;
 window.clearBAForm            = clearBAForm;
 window.bindBanksForm          = bindBanksForm;
+window._fmtMoneyParen         = _fmtMoneyParen;
 
-console.log('✅ [modules/accounts/banks.js] loaded — extra columns');
+console.log('✅ [modules/accounts/banks.js] loaded — negative balance in parentheses');
