@@ -4,9 +4,6 @@
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۰ — CSS ویجت چک‌لیست
-   ============================================================ */
 (function injectChecklistWidgetCss() {
     if (document.getElementById('cl-widget-style')) return;
     var s = document.createElement('style');
@@ -30,9 +27,6 @@
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   بخش ۱ — نمای ویجت‌ها
-   ============================================================ */
 function applyWidgetVisibility() {
     var cards = document.querySelectorAll('.widget-card');
     for (var i = 0; i < cards.length; i++) {
@@ -62,9 +56,6 @@ function applyWidgetOrder() {
     });
 }
 
-/* ============================================================
-   بخش ۲ — UI ترتیب ویجت‌ها
-   ============================================================ */
 function renderWidgetOrderUI() {
     var box = document.getElementById('widget-order-list');
     if (!box) return;
@@ -78,7 +69,7 @@ function renderWidgetOrderUI() {
         todayChecklistFamily: '🏠 چک‌لیست خانواده',
         todayChecklistWork: '💼 چک‌لیست شغلی',
         bankTotal: '🏦 مانده کل بانک',
-        bankBalances: '🏦 مانده حساب‌ها',
+        bankBalances: '🏦 مانده حساب های بانکی',
         cashBalances: '💰 صندوق‌ها',
         upcomingInstallments: '⏰ اقساط ۳ روز آینده',
         birthdays: '🎂 تولدها',
@@ -154,9 +145,6 @@ function renderWidgetOrderUI() {
     });
 }
 
-/* ============================================================
-   بخش ۳ — محاسبه مانده بانک و صندوق
-   ============================================================ */
 function getBankBalance(bankId) {
     var vouchers = DB.load('vouchers', []);
     var total = 0;
@@ -183,18 +171,12 @@ function getCashBoxBalance(cbId) {
     return total;
 }
 
-/* ============================================================
-   بخش ۴ — بررسی نمایش در ویجت
-   ============================================================ */
 function isVisibleInDash(item) {
     if (!item) return false;
     if (typeof item.showInDash === 'undefined') return true;
     return item.showInDash !== false;
 }
 
-/* ============================================================
-   بخش ۵ — محاسبه تولد
-   ============================================================ */
 function getBirthdayInfo(birthStr) {
     if (!birthStr) return null;
     var parts = normalizeDigits(birthStr).split('/').map(Number);
@@ -233,9 +215,6 @@ function getBirthdayInfo(birthStr) {
     };
 }
 
-/* ============================================================
-   بخش ۶ — ویجت مانده کل بانک
-   ============================================================ */
 function updateHomeBankTotal() {
     var el = document.getElementById('home-bank-total');
     if (!el) return;
@@ -252,7 +231,7 @@ function updateHomeBankTotal() {
 }
 
 /* ============================================================
-   بخش ۷ — ویجت مانده بانک‌ها (تفکیکی)
+   ✅ ویجت مانده حساب‌های بانکی — نمایش شبا به‌جای شماره حساب
    ============================================================ */
 function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
@@ -292,7 +271,7 @@ function renderBankBalancesWidget() {
              +    '<div class="name">' + esc(b.bank || '—') + '</div>'
              +    '<div class="meta">'
              +      (b.branchName ? esc(b.branchName) + ' — ' : '')
-             +      toFa(esc(b.account || '—'))
+             +      toFa(esc(b.iban || '—'))
              +    '</div>'
              +  '</div>'
              +  '<div class="amounts-grid">'
@@ -319,9 +298,6 @@ function renderBankBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۸ — ویجت مانده صندوق‌ها
-   ============================================================ */
 function renderCashBalancesWidget() {
     var el = document.getElementById('home-cash-balances');
     if (!el) return;
@@ -375,9 +351,6 @@ function renderCashBalancesWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۹ — ویجت تولدها
-   ============================================================ */
 function renderBirthdaysWidget() {
     var el = document.getElementById('home-birthdays');
     if (!el) return;
@@ -428,9 +401,6 @@ function renderBirthdaysWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۱۰ — ویجت تقویم هفتگی
-   ============================================================ */
 function renderCalendarWidget() {
     var el = document.getElementById('home-cal-widget');
     if (!el) return;
@@ -465,9 +435,6 @@ function renderCalendarWidget() {
     el.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۱۱ — ویجت اقساط ۳ روز آینده
-   ============================================================ */
 function updateHomeUpcomingInstallments() {
     var el = document.getElementById('home-upcoming-installments');
     if (!el) return;
@@ -564,9 +531,6 @@ function updateHomeUpcomingInstallments() {
     }
 }
 
-/* ============================================================
-   بخش ۱۲ — ویجت نرخ لحظه‌ای ارز و طلا (منبع به‌روز TGJU)
-   ============================================================ */
 var LIVE_RATES_CACHE = DB.load(LS_KEYS.LIVE_RATES_CACHE, {
     values: {}, ts: 0, prev: {}
 });
@@ -606,7 +570,6 @@ async function fetchAllRates() {
 
     function addItem(key, valueToman) {
         if (valueToman > 0) {
-            // تبدیل تومان به ریال (ضرب در ۱۰)
             results[key] = { value: valueToman * 10, ts: ts };
         }
     }
@@ -615,7 +578,6 @@ async function fetchAllRates() {
     addItem('eur', data.eur);
     addItem('gold_18k', data.gold_18k);
     
-    // محاسبه طلای ۲۴ عیار از روی ۱۸ عیار
     if (data.gold_18k > 0) {
         addItem('gold_24k', Math.round(data.gold_18k * 1.3333));
     }
@@ -679,7 +641,6 @@ async function fetchLiveRates(silent) {
     var finalTs = LIVE_RATES_CACHE.ts;
 
     if (anyFetched) {
-        // پیدا کردن آخرین زمان آپدیت از دیتای دریافتی
         var latestItemTs = 0;
         for (var k in newTimestamps) {
             if (newTimestamps[k] > latestItemTs) latestItemTs = newTimestamps[k];
@@ -730,11 +691,10 @@ function renderLiveRatesWidget() {
         var oldV = prev[a.key] || 0;
         var chg = val - oldV;
         
-        // تعیین رنگ مبلغ اصلی
         var amountClass = '';
         if (oldV > 0) {
-            if (chg > 0) amountClass = 'positive'; // سبز
-            else if (chg < 0) amountClass = 'negative'; // قرمز
+            if (chg > 0) amountClass = 'positive';
+            else if (chg < 0) amountClass = 'negative';
         }
 
         var chgCls = chg > 0 ? 'up' : (chg < 0 ? 'down' : 'same');
@@ -757,9 +717,6 @@ function renderLiveRatesWidget() {
     box.innerHTML = html;
 }
 
-/* ============================================================
-   بخش ۱۳ — ویجت چک‌لیست (شخصی/خانواده/شغلی)
-   ============================================================ */
 function renderTodayChecklistWidget(category) {
     var meta = null;
     if (typeof CHECKLIST_CATEGORIES !== 'undefined') {
@@ -857,17 +814,14 @@ function renderTodayChecklistWidget(category) {
     });
 }
 
-/* ============================================================
-   بخش ۱۴ — به‌روزرسانی همه ویجت‌ها
-   ============================================================ */
 function updateHomeWidgets() {
     applyWidgetOrder();
     applyWidgetVisibility();
 
     if (state.widgets.calendar)          renderCalendarWidget();
-    if (state.widgets.calendarNext3)     { /* در پیام بعد */ }
-    if (state.widgets.calendarDay)       { /* در پیام بعد */ }
-    if (state.widgets.calendarAgenda)    { /* در پیام بعد */ }
+    if (state.widgets.calendarNext3)     { }
+    if (state.widgets.calendarDay)       { }
+    if (state.widgets.calendarAgenda)    { }
 
     if (state.widgets.todayChecklistPersonal && typeof renderTodayChecklistWidget === 'function') {
         renderTodayChecklistWidget('personal');
@@ -891,9 +845,6 @@ function updateHomeWidgets() {
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 100);
 }
 
-/* ============================================================
-   بخش ۱۵ — اتصال دکمه به‌روزرسانی نرخ‌ها
-   ============================================================ */
 function bindRatesRefreshButton() {
     var btn = document.getElementById('live-rates-refresh');
     if (btn) btn.addEventListener('click', function () {
@@ -901,9 +852,6 @@ function bindRatesRefreshButton() {
     });
 }
 
-/* ============================================================
-   صادرسازی
-   ============================================================ */
 window.LIVE_RATES_CACHE                = LIVE_RATES_CACHE;
 window.fetchWithTimeout                = fetchWithTimeout;
 window.tryFetchJson                    = tryFetchJson;
@@ -927,4 +875,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — TGJU removed, liveRates fixed');
+console.log('✅ [modules/widgets.js] loaded — IBAN in bank widget');
