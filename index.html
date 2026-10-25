@@ -588,7 +588,11 @@
     </div></div>
     <div id="tab-cfs-add" class="tab-content"><div class="card">
         <input type="hidden" id="cfs-id">
-        <div class="field"><label>عنوان معین منبع *</label><select id="cfs-moein"><option value="">— ابتدا معین را انتخاب کنید —</option></select></div>
+        <div class="field">
+            <label>عنوان معین منبع *</label>
+            <div id="cfs-moein-searchable"></div>
+            <input type="hidden" id="cfs-moein" value="">
+        </div>
         <div id="cfs-details-wrap"></div>
         <div class="grid-2">
             <div class="field"><label>تاریخ احتمالی دریافت</label><input type="text" id="cfs-date" class="date-picker" dir="ltr"></div>
