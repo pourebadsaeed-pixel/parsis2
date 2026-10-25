@@ -231,7 +231,7 @@ function updateHomeBankTotal() {
 }
 
 /* ============================================================
-   ✅ ویجت مانده حساب‌های بانکی — نمایش شبا به‌جای شماره حساب
+   ویجت مانده حساب‌های بانکی — نمایش شبا + برچسب «(کسری) اضافی»
    ============================================================ */
 function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
@@ -279,7 +279,7 @@ function renderBankBalancesWidget() {
              +      '<span class="amount ' + cls + '">' + moneyHtml(bal) + ' ' + currencyLabel() + '</span></div>'
              +    '<div class="amt-cell"><span class="amt-lbl">حداقل</span>'
              +      '<span class="amount">' + (minBal ? moneyHtml(minBal) : '—') + '</span></div>'
-             +    '<div class="amt-cell"><span class="amt-lbl">کسری</span>'
+             +    '<div class="amt-cell"><span class="amt-lbl">(کسری) اضافی</span>'
              +      '<span class="amount ' + defCls + '">' + (minBal ? moneyHtml(deficit) : '—') + '</span></div>'
              +  '</div>'
              +  '</div>';
@@ -875,4 +875,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — IBAN in bank widget');
+console.log('✅ [modules/widgets.js] loaded — (کسری) اضافی label');
