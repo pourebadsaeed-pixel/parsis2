@@ -1,11 +1,22 @@
 /* ============================================================
-   پارسیس — اسکن هوشمند سند با AI
+   پارسیس — اسکن هوشمند سند (غیرفعال)
    مسیر: js/modules/scan.js
-   وابستگی: core/* + ui/* + vouchers/form.js + ai.js
+
+   ⛔️ این ماژول در تاریخ به‌روزرسانی غیرفعال شده است.
+   دلیل: درخواست کاربر برای حذف دکمه «اسکن هوشمند سند» از فرم صدور سند.
+   
+   اگر بعداً خواستید دوباره فعال کنید:
+   1. این خط را حذف کنید: `return;` (خط ۱۸)
+   2. فایل را به لیست ماژول‌های index.html اضافه کنید
+   3. فایل را به ASSETS در sw.js اضافه کنید
+   4. نسخه CACHE_NAME را در sw.js بالا ببرید
    ============================================================ */
 'use strict';
 
 (function ScanModule() {
+    /* ⛔️ غیرفعال — کد پایین اجرا نمی‌شود */
+    return;
+
     if (window._scanLoaded) return;
     window._scanLoaded = true;
 
@@ -699,52 +710,19 @@
     }
 
     /* ============================================================
-       بخش ۸ — افزودن دکمه به فرم سند
+       بخش ۸ — (قبلاً) افزودن دکمه به فرم سند — اکنون غیرفعال
        ============================================================ */
     function injectScanButton() {
-        var page = document.getElementById('page-voucher-new');
-        if (!page) return;
-        if (document.getElementById('scan-btn-v39')) return;
-
-        var headCard = page.querySelector('#voucher-head-card');
-        if (!headCard) return;
-
-        var btn = document.createElement('button');
-        btn.id = 'scan-btn-v39';
-        btn.type = 'button';
-        btn.style.cssText = [
-            'margin-top:12px',
-            'width:100%',
-            'padding:13px',
-            'background:linear-gradient(135deg,#8b5cf6,#6366f1)',
-            'color:#fff',
-            'border:none',
-            'border-radius:12px',
-            'font-family:inherit',
-            'font-weight:800',
-            'font-size:0.92rem',
-            'cursor:pointer',
-            'box-shadow:0 4px 14px rgba(99,102,241,0.35)'
-        ].join(';');
-        btn.innerHTML = '📷 اسکن هوشمند سند (فاکتور / پوز / دست‌نویس)';
-        btn.addEventListener('click', buildModal);
-
-        var headRow = headCard.querySelector('.voucher-head-row');
-        if (headRow) headRow.parentNode.insertBefore(btn, headRow.nextSibling);
-        else headCard.appendChild(btn);
+        /* ⛔️ غیرفعال: دکمه اسکن هوشمند حذف شد */
+        return;
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(injectScanButton, 3200); });
-    } else {
-        setTimeout(injectScanButton, 3200);
-    }
-    setInterval(injectScanButton, 4000);
-
-    /* صادرسازی */
+    /* ============================================================
+       صادرسازی (برای سازگاری با کدهای دیگر، حتی اگر غیرفعال باشند)
+       ============================================================ */
     window.buildScanModal = buildModal;
     window.applyScanExtracted = applyExtracted;
     window.injectScanButton = injectScanButton;
 
-    console.log('✅ [modules/scan.js] loaded');
+    console.log('⛔️ [modules/scan.js] DISABLED — smart scan button removed');
 })();
