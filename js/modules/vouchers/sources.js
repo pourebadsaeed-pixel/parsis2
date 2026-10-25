@@ -1,55 +1,163 @@
 /* ============================================================
-   پارسیس — منابع دریافتنی (نسخه کامل و اصلاح‌شده)
+   پارسیس — برآورد منابع دریافتنی (نسخه با searchable + ادغام تفصیلی)
    مسیر: js/modules/vouchers/sources.js
    ============================================================ */
 'use strict';
 
+/* متغیر نگهدارنده انتخاب تفصیلی: { linkType, id } یا null */
+var _cfsSelectedDetail = null;
+
+/* ============================================================
+   ✅ ساخت/بازسازی searchable select برای معین
+   ============================================================ */
 function refreshCfsMoeinSelect() {
-    var sel = document.getElementById('cfs-moein');
-    if (!sel) return;
-    var v = sel.value;
+    var hiddenInp = document.getElementById('cfs-moein');
+    var container = document.getElementById('cfs-moein-searchable');
+    if (!hiddenInp || !container) return;
+
     var leaves = getLeafAccountsSortedByCode();
     var accounts = DB.load('accounts', []);
-    sel.innerHTML = '<option value="">— ابتدا معین را انتخاب کنید —</option>';
-    leaves.forEach(function (a) {
-        var o = document.createElement('option');
-        o.value = a.id;
-        o.textContent = getAccountLabel(a.id, accounts);
-        sel.appendChild(o);
+    var items = leaves.map(function (a) {
+        return { value: a.id, text: getAccountLabel(a.id, accounts) };
     });
-    sel.value = v;
+
+    var currentVal = hiddenInp.value || '';
+
+    /* اطمینان از وجود تابع createSearchableSelect */
+    if (typeof createSearchableSelect !== 'function') {
+        /* Fallback: اگر تابع نبود، از <select> ساده استفاده کن */
+        container.innerHTML = '<select id="cfs-moein-fallback"></select>';
+        var sel = document.getElementById('cfs-moein-fallback');
+        sel.innerHTML = '<option value="">— انتخاب معین —</option>';
+        items.forEach(function(it) {
+            var o = document.createElement('option');
+            o.value = it.value; o.textContent = it.text;
+            if (it.value === currentVal) o.selected = true;
+            sel.appendChild(o);
+        });
+        sel.addEventListener('change', function() {
+            hiddenInp.value = this.value;
+            onCfsMoeinChange();
+        });
+        return;
+    }
+
+    /* حالت عادی: searchable select */
+    container.innerHTML = '';
+    var searchSel = createSearchableSelect(
+        items,
+        currentVal,
+        '— ابتدا معین را انتخاب کنید —',
+        function (val) {
+            hiddenInp.value = val || '';
+            onCfsMoeinChange();
+        }
+    );
+    container.appendChild(searchSel);
 }
 
-function onCfsMoeinChange() {
+/* ============================================================
+   ✅ با تغییر معین، بخش تفصیلی را با یک select ادغام‌شده می‌سازد
+   preSelectedDetailValue: اختیاری - برای پیش‌انتخاب هنگام ویرایش
+   ============================================================ */
+function onCfsMoeinChange(preSelectedDetailValue) {
     var moeinId = document.getElementById('cfs-moein').value;
     var wrap = document.getElementById('cfs-details-wrap');
     if (!wrap) return;
     wrap.innerHTML = '';
+    _cfsSelectedDetail = null;
+
     if (!moeinId) return;
 
     var accounts = DB.load('accounts', []);
     var acc = accounts.find(function (a) { return a.id === moeinId; });
     if (!acc || !acc.links || acc.links.length === 0) return;
 
-    var prev = DB.load('cfs.tmp.details', {});
-    var html = '';
-    for (var i = 0; i < acc.links.length; i++) {
-        var lt = acc.links[i];
+    /* حذف تکراری‌ها از لینک‌ها */
+    var uniqueLinks = [];
+    acc.links.forEach(function (lt) {
+        if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt);
+    });
+
+    /* ساخت لیست ادغام‌شده از همه تفصیلی‌ها */
+    var combined = [];
+    var seenTexts = {};
+    uniqueLinks.forEach(function (lt) {
         var items = getLinkedItems(lt);
-        if (items.length === 0) continue;
-        var selId = 'cfs-detail-' + lt;
-        html += '<div class="field"><label>عنوان سطح ۴ منبع (' + linkTypeName(lt) + ') *</label>'
-             +  '<select id="' + selId + '"><option value="">— انتخاب کنید —</option>';
-        for (var k = 0; k < items.length; k++) {
-            var it = items[k];
-            html += '<option value="' + it.id + '"' + (prev[lt] === it.id ? ' selected' : '') + '>'
-                 +  esc(getLinkedItemLabel(lt, it)) + '</option>';
-        }
-        html += '</select></div>';
+        items.forEach(function (it) {
+            var val = lt + '::' + it.id;
+            var lbl = getLinkedItemLabel(lt, it);
+            var txt = linkTypeName(lt) + ': ' + lbl;
+            if (!seenTexts[txt]) {
+                seenTexts[txt] = true;
+                combined.push({ value: val, text: txt });
+            }
+        });
+    });
+
+    if (combined.length === 0) {
+        wrap.innerHTML = '<div class="field" style="color:#c47c00;font-size:0.82rem;padding:8px 12px;background:#fef3c7;border-radius:10px;border:1px solid #f59e0b">'
+                       + '⚠️ برای این معین هیچ آیتم تفصیلی‌ای تعریف نشده است (می‌توانید بدون انتخاب ذخیره کنید).'
+                       + '</div>';
+        return;
     }
-    wrap.innerHTML = html;
+
+    /* بررسی اینکه آیا مقدار پیش‌انتخابی در لیست وجود دارد */
+    var initialVal = null;
+    if (preSelectedDetailValue) {
+        var exists = combined.some(function (it) { return it.value === preSelectedDetailValue; });
+        if (exists) {
+            initialVal = preSelectedDetailValue;
+            var parts = preSelectedDetailValue.split('::');
+            _cfsSelectedDetail = { linkType: parts[0], id: parts[1] };
+        }
+    }
+
+    /* ساخت فیلد با یک searchable select */
+    var wrapDiv = document.createElement('div');
+    wrapDiv.className = 'field';
+
+    var lbl = document.createElement('label');
+    lbl.textContent = 'عنوان سطح ۴ منبع (' + uniqueLinks.map(linkTypeName).join(' / ') + ') *';
+    wrapDiv.appendChild(lbl);
+
+    if (typeof createSearchableSelect === 'function') {
+        var detSel = createSearchableSelect(
+            combined,
+            initialVal,
+            '— انتخاب تفصیلی —',
+            function (val) {
+                if (!val) { _cfsSelectedDetail = null; return; }
+                var parts = val.split('::');
+                _cfsSelectedDetail = { linkType: parts[0], id: parts[1] };
+            }
+        );
+        wrapDiv.appendChild(detSel);
+    } else {
+        /* Fallback: <select> ساده */
+        var sel = document.createElement('select');
+        sel.innerHTML = '<option value="">— انتخاب تفصیلی —</option>';
+        combined.forEach(function (it) {
+            var o = document.createElement('option');
+            o.value = it.value;
+            o.textContent = it.text;
+            if (it.value === initialVal) o.selected = true;
+            sel.appendChild(o);
+        });
+        sel.addEventListener('change', function () {
+            if (!this.value) { _cfsSelectedDetail = null; return; }
+            var parts = this.value.split('::');
+            _cfsSelectedDetail = { linkType: parts[0], id: parts[1] };
+        });
+        wrapDiv.appendChild(sel);
+    }
+
+    wrap.appendChild(wrapDiv);
 }
 
+/* ============================================================
+   نمایش فهرست
+   ============================================================ */
 function renderCfsList() {
     var list = DB.load('cashFlowSources', []);
     var filterEl = document.getElementById('cfs-filter');
@@ -118,16 +226,23 @@ function renderCfsList() {
 
             if (action === 'edit') {
                 document.getElementById('cfs-id').value = s.id;
+
+                /* ۱. تنظیم مقدار hidden moein */
                 document.getElementById('cfs-moein').value = s.moeinId || '';
-                onCfsMoeinChange();
-                if (s.linkType && s.detailId) {
-                    var sel = document.getElementById('cfs-detail-' + s.linkType);
-                    if (sel) sel.value = s.detailId;
-                }
+
+                /* ۲. بازسازی searchable moein (تا نمایش درست شود) */
+                refreshCfsMoeinSelect();
+
+                /* ۳. ساخت بخش تفصیلی با پیش‌انتخاب */
+                var preSel = (s.linkType && s.detailId) ? (s.linkType + '::' + s.detailId) : null;
+                onCfsMoeinChange(preSel);
+
+                /* ۴. بقیه فیلدها */
                 document.getElementById('cfs-date').value = s.expectedDate || '';
                 document.getElementById('cfs-amount').value = s.amount ? formatRaw(s.amount) : '';
                 document.getElementById('cfs-notes').value = s.notes || '';
-                
+
+                /* ۵. سوئیچ به تب تعریف */
                 var activePage = document.querySelector('.page.active');
                 var addTab = activePage ? activePage.querySelector('[data-tab="cfs-add"]') : null;
                 if (addTab) addTab.click();
@@ -169,6 +284,9 @@ function renderCfsList() {
     if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('cfs-table'));
 }
 
+/* ============================================================
+   پاک کردن فرم
+   ============================================================ */
 function clearCfsForm() {
     var ids = ['cfs-id', 'cfs-moein', 'cfs-date', 'cfs-amount', 'cfs-notes'];
     ids.forEach(function (x) {
@@ -177,9 +295,16 @@ function clearCfsForm() {
     });
     var wrap = document.getElementById('cfs-details-wrap');
     if (wrap) wrap.innerHTML = '';
+    _cfsSelectedDetail = null;
     DB.save('cfs.tmp.details', {});
+
+    /* بازسازی moein برای پاک شدن مقدار */
+    refreshCfsMoeinSelect();
 }
 
+/* ============================================================
+   ذخیره
+   ============================================================ */
 function saveCfsSource() {
     var id = document.getElementById('cfs-id').value;
     var moeinId = document.getElementById('cfs-moein').value;
@@ -189,22 +314,22 @@ function saveCfsSource() {
     var acc = accounts.find(function (a) { return a.id === moeinId; });
     if (!acc) { alert('معین نامعتبر.'); return; }
 
+    /* بررسی نیاز به تفصیلی */
     var linkType = '';
     var detailId = '';
+
     if (acc.links && acc.links.length > 0) {
-        for (var i = 0; i < acc.links.length; i++) {
-            var lt = acc.links[i];
-            var sel = document.getElementById('cfs-detail-' + lt);
-            if (!sel) continue;
-            var items = getLinkedItems(lt);
-            if (items.length === 0) continue;
-            if (!sel.value) {
-                alert('سطح ۴ (' + linkTypeName(lt) + ') اجباری است.');
+        var hasAnyLinkItems = acc.links.some(function (lt) {
+            return getLinkedItems(lt).length > 0;
+        });
+
+        if (hasAnyLinkItems) {
+            if (!_cfsSelectedDetail) {
+                alert('لطفاً یک آیتم از لیست سطح ۴ انتخاب کنید.');
                 return;
             }
-            linkType = lt;
-            detailId = sel.value;
-            break;
+            linkType = _cfsSelectedDetail.linkType;
+            detailId = _cfsSelectedDetail.id;
         }
     }
 
@@ -235,12 +360,15 @@ function saveCfsSource() {
     showToast('✅ ذخیره شد');
     clearCfsForm();
     renderCfsList();
-    
+
     var activePage = document.querySelector('.page.active');
     var listTab = activePage ? activePage.querySelector('[data-tab="cfs-list"]') : null;
     if (listTab) listTab.click();
 }
 
+/* ============================================================
+   برچسب منبع (برای استفاده در گزارش‌ها)
+   ============================================================ */
 function getSourceLabel(s) {
     var accounts = DB.load('accounts', []);
     var moeinLabel = getAccountLabel(s.moeinId, accounts);
@@ -249,20 +377,38 @@ function getSourceLabel(s) {
     return moeinLabel + (detailLabel ? ' — ' + detailLabel : '');
 }
 
+/* ============================================================
+   اتصال فرم (idempotent — بدون تکرار listener)
+   ============================================================ */
 function bindSourcesForm() {
-    var moeinSel = document.getElementById('cfs-moein');
-    if (moeinSel) moeinSel.addEventListener('change', onCfsMoeinChange);
+    /* ۱. بازسازی searchable moein در هر بار ورود به فرم */
+    refreshCfsMoeinSelect();
 
+    /* ۲. دکمه ذخیره */
     var saveBtn = document.getElementById('save-cfs');
-    if (saveBtn) saveBtn.addEventListener('click', saveCfsSource);
+    if (saveBtn && !saveBtn.dataset.cfsBound) {
+        saveBtn.dataset.cfsBound = '1';
+        saveBtn.addEventListener('click', saveCfsSource);
+    }
 
+    /* ۳. دکمه جدید */
     var newBtn = document.getElementById('new-cfs');
-    if (newBtn) newBtn.addEventListener('click', clearCfsForm);
+    if (newBtn && !newBtn.dataset.cfsBound) {
+        newBtn.dataset.cfsBound = '1';
+        newBtn.addEventListener('click', clearCfsForm);
+    }
 
+    /* ۴. فیلتر جستجو در فهرست */
     var filterEl = document.getElementById('cfs-filter');
-    if (filterEl) filterEl.addEventListener('input', renderCfsList);
+    if (filterEl && !filterEl.dataset.cfsBound) {
+        filterEl.dataset.cfsBound = '1';
+        filterEl.addEventListener('input', renderCfsList);
+    }
 
-    attachMoneyInput(document.getElementById('cfs-amount'));
+    /* ۵. money input مبلغ */
+    if (typeof attachMoneyInput === 'function') {
+        attachMoneyInput(document.getElementById('cfs-amount'));
+    }
 }
 
 window.refreshCfsMoeinSelect = refreshCfsMoeinSelect;
@@ -273,4 +419,4 @@ window.saveCfsSource         = saveCfsSource;
 window.getSourceLabel        = getSourceLabel;
 window.bindSourcesForm       = bindSourcesForm;
 
-console.log('✅ [modules/vouchers/sources.js] loaded — Complete');
+console.log('✅ [modules/vouchers/sources.js] loaded — searchable + combined details');
