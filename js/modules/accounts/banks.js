@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — حساب‌های بانکی (نسخه ضد باگ با فیلتر قیفی)
+   پارسیس — حساب‌های بانکی (نسخه با ستون‌های اضافی + محاسبات)
    مسیر: js/modules/accounts/banks.js
    ============================================================ */
 'use strict';
@@ -29,28 +29,60 @@ function renderBankAccountsList() {
 
     var shown = 0;
     var filtered = list.filter(function (b) {
-        if (filter && ((b.bank || '') + ' ' + (b.account || '') + ' ' + (b.branchName || '')).toLowerCase().indexOf(filter) === -1) return false;
+        if (filter) {
+            var hay = ((b.bank || '') + ' '
+                     + (b.branchName || '') + ' '
+                     + (b.card || '') + ' '
+                     + (b.account || '') + ' '
+                     + (b.iban || '')).toLowerCase();
+            if (hay.indexOf(filter) === -1) return false;
+        }
         return true;
     });
+
+    /* ✅ Pre-compute balances (برای مرتب‌سازی و رندر بدون محاسبه تکراری) */
+    var balanceCache = {};
+    var balFn = (typeof getBankBalance === 'function') ? getBankBalance : function() { return 0; };
+    filtered.forEach(function(b) { balanceCache[b.id] = balFn(b.id); });
 
     try {
         filtered = applyTableSort('ba-table', filtered, function (b, k) {
             if (k === 'order') return Number(b.order) || 9999;
             if (k === 'minBalance') return Number(b.minBalance) || 0;
+            if (k === 'balance') return balanceCache[b.id] || 0;
+            if (k === 'diff') return (balanceCache[b.id] || 0) - (Number(b.minBalance) || 0);
             return b[k] || '';
         });
     } catch(e) {}
 
+    var hide = (typeof getHideState === 'function') ? getHideState('ba-list') : false;
+
     for (var i = 0; i < filtered.length; i++) {
         var b = filtered[i];
         shown++;
-        var mb = b.minBalance ? formatMoney(b.minBalance) + ' ' + currencyLabel() : '—';
+
+        var minBal = Number(b.minBalance) || 0;
+        var bal = balanceCache[b.id] || 0;
+        var diff = bal - minBal;
+
+        var mbText = hide ? '—' : (minBal ? formatMoney(minBal) + ' ' + currencyLabel() : '—');
+        var balText = hide ? '—' : (formatMoney(bal) + ' ' + currencyLabel());
+        var diffText = hide ? '—' : (minBal ? formatMoney(diff) + ' ' + currencyLabel() : '—');
+
+        var balColor = bal >= 0 ? '#1e9e6a' : '#dc2626';
+        var diffColor = (minBal && diff < 0) ? '#dc2626' : '#1e9e6a';
+        var diffWeight = minBal ? 'bold' : 'normal';
+
         var tr = document.createElement('tr');
         tr.innerHTML = '<td dir="ltr">' + (b.order != null ? toFa(esc(b.order)) : '—') + '</td>'
             + '<td>' + esc(b.bank) + '</td>'
             + '<td>' + esc(b.branchName) + '</td>'
-            + '<td dir="ltr">' + toFa(esc(b.account)) + '</td>'
-            + '<td dir="ltr">' + mb + '</td>'
+            + '<td dir="ltr">' + toFa(esc(b.card || '—')) + '</td>'
+            + '<td dir="ltr">' + toFa(esc(b.account || '—')) + '</td>'
+            + '<td dir="ltr" style="font-size:0.72rem">' + toFa(esc(b.iban || '—')) + '</td>'
+            + '<td dir="ltr">' + mbText + '</td>'
+            + '<td dir="ltr" style="color:' + balColor + ';font-weight:bold">' + balText + '</td>'
+            + '<td dir="ltr" style="color:' + diffColor + ';font-weight:' + diffWeight + '">' + diffText + '</td>'
             + '<td><div class="row-actions">'
             + '<button class="row-btn edit" data-id="' + b.id + '">✎</button>'
             + '<button class="row-btn del" data-id="' + b.id + '">×</button>'
@@ -59,7 +91,7 @@ function renderBankAccountsList() {
     }
 
     if (shown === 0) {
-        tb.innerHTML = '<tr><td colspan="6" class="empty-row">یافت نشد.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="10" class="empty-row">یافت نشد.</td></tr>';
     }
 
     var countEl = document.getElementById('ba-count');
@@ -144,3 +176,5 @@ window.refreshBankTypeSelect  = refreshBankTypeSelect;
 window.renderBankAccountsList = renderBankAccountsList;
 window.clearBAForm            = clearBAForm;
 window.bindBanksForm          = bindBanksForm;
+
+console.log('✅ [modules/accounts/banks.js] loaded — extra columns');
