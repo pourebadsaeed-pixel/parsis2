@@ -1,6 +1,7 @@
 /* ============================================================
-   پارسیس — حساب‌های بانکی (نسخه با ستون‌های اضافی + محاسبات)
+   پارسیس — حساب‌های بانکی
    مسیر: js/modules/accounts/banks.js
+   نسخه اصلاح‌شده: bind idempotent با onclick (رفع باگ ذخیره چندباره)
    ============================================================ */
 'use strict';
 
@@ -16,9 +17,7 @@ function refreshBankTypeSelect() {
     }
 }
 
-/* ============================================================
-   ✅ helper: نمایش مبلغ با پرانتز برای منفی
-   ============================================================ */
+/* helper: نمایش مبلغ با پرانتز برای منفی */
 function _fmtMoneyParen(n) {
     n = Number(n) || 0;
     if (n < 0) return '(' + formatMoney(Math.abs(n)) + ')';
@@ -74,7 +73,6 @@ function renderBankAccountsList() {
         var bal = balanceCache[b.id] || 0;
         var diff = bal - minBal;
 
-        /* ✅ مبلغ‌ها با فرمت پرانتز برای منفی */
         var mbText = hide ? '—' : (minBal ? formatMoney(minBal) + ' ' + currencyLabel() : '—');
         var balText = hide ? '—' : (_fmtMoneyParen(bal) + ' ' + currencyLabel());
         var diffText = hide ? '—' : (minBal ? (_fmtMoneyParen(diff) + ' ' + currencyLabel()) : '—');
@@ -140,46 +138,68 @@ function clearBAForm() {
     if (typeEl) typeEl.value = '';
 }
 
+/* ============================================================
+   ✅ bindBanksForm — idempotent via onclick/oninput
+   دیگر با هر بار switchToTab، لیسنر تکراری اضافه نمی‌شود
+   ============================================================ */
 function bindBanksForm() {
     var saveBtn = document.getElementById('save-ba');
-    if (saveBtn) saveBtn.addEventListener('click', function () {
-        var id = document.getElementById('ba-id').value;
-        var b = document.getElementById('ba-bank').value.trim();
-        if (!b) { alert('نام بانک اجباری.'); return; }
+    if (saveBtn) {
+        saveBtn.onclick = function () {
+            var id = document.getElementById('ba-id').value;
+            var b = document.getElementById('ba-bank').value.trim();
+            if (!b) { alert('نام بانک اجباری.'); return; }
 
-        var oR = normalizeDigits(document.getElementById('ba-order').value.trim());
-        var o = oR === '' ? null : Number(oR);
-        var mb = parseMoney(normalizeDigits(document.getElementById('ba-min-balance').value));
+            var oR = normalizeDigits(document.getElementById('ba-order').value.trim());
+            var o = oR === '' ? null : Number(oR);
+            var mb = parseMoney(normalizeDigits(document.getElementById('ba-min-balance').value));
 
-        var o2 = {
-            id: id || uid(), bank: b, type: document.getElementById('ba-type').value,
-            branchCode: normalizeDigits(document.getElementById('ba-branch-code').value.trim()),
-            branchName: document.getElementById('ba-branch-name').value.trim(),
-            account: normalizeDigits(document.getElementById('ba-account').value.trim()),
-            iban: document.getElementById('ba-iban').value.trim(),
-            card: normalizeDigits(document.getElementById('ba-card').value.trim()), order: o, minBalance: mb
+            var o2 = {
+                id: id || uid(),
+                bank: b,
+                type: document.getElementById('ba-type').value,
+                branchCode: normalizeDigits(document.getElementById('ba-branch-code').value.trim()),
+                branchName: document.getElementById('ba-branch-name').value.trim(),
+                account: normalizeDigits(document.getElementById('ba-account').value.trim()),
+                iban: document.getElementById('ba-iban').value.trim(),
+                card: normalizeDigits(document.getElementById('ba-card').value.trim()),
+                order: o,
+                minBalance: mb
+            };
+
+            var l = DB.load('bankAccounts', []);
+            if (!Array.isArray(l)) l = [];
+            if (id) {
+                for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o2; }
+            } else {
+                l.push(o2);
+            }
+            DB.save('bankAccounts', l);
+            showToast('✅ حساب بانکی ذخیره شد.');
+            clearBAForm();
+            renderBankAccountsList();
+            if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+
+            var activePage = document.querySelector('.page.active');
+            var listTab = activePage ? activePage.querySelector('[data-tab="ba-list"]') : null;
+            if (listTab) listTab.click();
         };
-
-        var l = DB.load('bankAccounts', []);
-        if (!Array.isArray(l)) l = [];
-        if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o2; } } 
-        else { l.push(o2); }
-        DB.save('bankAccounts', l);
-        showToast('✅ حساب بانکی ذخیره شد.');
-        clearBAForm();
-        renderBankAccountsList();
-        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
-        
-        var activePage = document.querySelector('.page.active');
-        var listTab = activePage ? activePage.querySelector('[data-tab="ba-list"]') : null;
-        if (listTab) listTab.click();
-    });
+    }
 
     var newBtn = document.getElementById('new-ba');
-    if (newBtn) newBtn.addEventListener('click', clearBAForm);
+    if (newBtn) {
+        newBtn.onclick = clearBAForm;
+    }
+
     var filterEl = document.getElementById('ba-filter');
-    if (filterEl) filterEl.addEventListener('input', renderBankAccountsList);
-    attachMoneyInput(document.getElementById('ba-min-balance'));
+    if (filterEl) {
+        filterEl.oninput = renderBankAccountsList;
+    }
+
+    /* attachMoneyInput از dataset.money استفاده می‌کند → idempotent */
+    if (typeof attachMoneyInput === 'function') {
+        attachMoneyInput(document.getElementById('ba-min-balance'));
+    }
 }
 
 window.refreshBankTypeSelect  = refreshBankTypeSelect;
@@ -188,4 +208,4 @@ window.clearBAForm            = clearBAForm;
 window.bindBanksForm          = bindBanksForm;
 window._fmtMoneyParen         = _fmtMoneyParen;
 
-console.log('✅ [modules/accounts/banks.js] loaded — negative balance in parentheses');
+console.log('✅ [modules/accounts/banks.js] loaded — idempotent binding (onclick)');
