@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v40-2025'; // ✅ نسخه آپدیت شد تا فایل‌های جدید لود شوند
+var CACHE_NAME = 'parsis-v41-2025-remove-scan'; // ✅ نسخه آپدیت شد — حذف scan.js
 
 var ASSETS = [
   './index.html',
@@ -49,7 +49,6 @@ var ASSETS = [
   './js/modules/notes.js',
   './js/modules/sms.js',
   './js/modules/ai.js',
-  './js/modules/scan.js',
   './js/modules/welcome.js',
   './js/modules/backup.js',
   './js/modules/fix-sidebar.js',
@@ -61,7 +60,6 @@ var ASSETS = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      // ✅ fetch با cache:'reload' = نادیده گرفتن HTTP cache و دریافت تازه از سرور
       return Promise.all(
         ASSETS.map(function (url) {
           return fetch(url, { cache: 'reload' })
@@ -74,7 +72,7 @@ self.addEventListener('install', function (event) {
         })
       );
     }).then(function () {
-      return self.skipWaiting(); // فعال‌سازی فوری SW جدید
+      return self.skipWaiting();
     })
   );
 });
@@ -90,7 +88,7 @@ self.addEventListener('activate', function (event) {
              })
       );
     }).then(function () {
-      return self.clients.claim(); // کنترل فوری همه تب‌های باز
+      return self.clients.claim();
     })
   );
 });
@@ -106,7 +104,6 @@ self.addEventListener('fetch', function (event) {
             || url.pathname === '/'
             || url.pathname.endsWith('/');
 
-  // HTML: همیشه از شبکه بگیر، کش فقط fallback
   if (isHTML) {
     event.respondWith(
       fetch(event.request).then(function (response) {
@@ -126,7 +123,6 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // سایر فایل‌ها: Cache First (برای سرعت)، اما با بررسی دوره‌ای در پس‌زمینه
   event.respondWith(
     caches.match(event.request).then(function (cached) {
       var fetchPromise = fetch(event.request).then(function (response) {
