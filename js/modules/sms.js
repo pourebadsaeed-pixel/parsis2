@@ -1,21 +1,14 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۷ — تطبیق چندلایه)
+   پارسیس — پیامک بانکی (نسخه ۸ — Card + Keywords Matching)
    مسیر: js/modules/sms.js
    
-   تغییرات نسخه ۷:
-     ✅ findMatchingSmsPattern: ۴ روش تطبیق (exact-shape / substring-shape / sig-fuzzy / fuzzy)
-     ✅ آستانه پویا: برای shape کوتاه‌تر از ۴ توکن → 0.45
-     ✅ levenshteinSim + stripToSignature + isContiguousSubsequence
-     ✅ بدون direction check
-   
-   تغییرات نسخه ۶:
-     ✅ addSmsPattern با shape key (جلوگیری از duplicate)
-   
-   تغییرات نسخه ۵:
-     ✅ tokensShapeCollapsed + shape key
-   
-   تغییرات نسخه ۴:
-     ✅ شرح خالی مجاز
+   تغییرات v8:
+     ✅ smsNormalizeForPattern: حذف کامل کاراکترهای نامرئی/کنترلی
+        (ZWJ, NBSP, BOM, bidi, ALM, ...)
+     ✅ الگوریتم جدید: شماره کارت + کلمات کلیدی
+     ✅ findMatchingSmsPattern با signatureMatch
+     ✅ ذخیره cardKey و keywords در الگو
+     ✅ Backward-compatible با الگوهای قدیمی
    ============================================================ */
 'use strict';
 
@@ -268,6 +261,8 @@ function runSmsMigrations() {
             if (typeof p.voucherDesc === 'undefined') { p.voucherDesc = p.label || 'تراکنش بانکی'; changed = true; }
             if (typeof p.lineDesc === 'undefined') { p.lineDesc = p.label || 'تراکنش بانکی'; changed = true; }
             if (typeof p.blocked === 'undefined') { p.blocked = false; changed = true; }
+            if (typeof p.cardKey === 'undefined') { p.cardKey = ''; changed = true; }
+            if (typeof p.keywords === 'undefined') { p.keywords = []; changed = true; }
         });
         if (changed) saveSmsPatterns(patterns);
     } catch (e) { console.warn('[sms migrations]', e); }
@@ -323,13 +318,19 @@ function detectSmsDirection(text) {
 }
 
 /* ============================================================
-   بخش ۶ — توکن‌سازی، shape، sig
+   ✅ بخش ۶ — نرمال‌سازی (نسخه ۸ — حذف کامل نامرئی‌ها)
    ============================================================ */
 function smsNormalizeForPattern(text) {
-    return normalizeDigits(String(text || ''))
-        .replace(/[\u200c\u200e\u200f]/g, ' ')
-        .replace(/[،,]/g, ' ')
-        .replace(/\s+/g, ' ').trim();
+    var s = normalizeDigits(String(text || ''));
+    // حذف تمام کاراکترهای نامرئی و کنترلی Unicode
+    s = s.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u061C\uFEFF\u00AD]/g, '');
+    // فاصله‌های خاص → فاصله معمولی
+    s = s.replace(/[\u00A0\u2028\u2029\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+    // ویرگول عربی/فارسی → فاصله
+    s = s.replace(/[،,]/g, ' ');
+    // فاصله‌های متوالی
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
 }
 
 function buildSmsPattern(raw) {
@@ -363,10 +364,6 @@ function buildSmsPattern(raw) {
 
 function isWild(t) { return typeof t === 'string' && t.indexOf('#') !== -1; }
 
-/* ============================================================
-   ✅ tokensShapeCollapsed
-   توکن‌های عددی متوالی → یک #
-   ============================================================ */
 function tokensShapeCollapsed(tokens) {
     var out = [], prevWild = false;
     for (var i = 0; i < tokens.length; i++) {
@@ -381,178 +378,175 @@ function tokensShapeCollapsed(tokens) {
 }
 
 /* ============================================================
-   ✅ توابع کمکی نسخه ۷
+   ✅ بخش ۷ — توابع استخراج کارت و کلمات کلیدی (نسخه ۸)
    ============================================================ */
 
-/* آیا shorter به صورت پیوسته داخل longer هست؟ */
-function isContiguousSubsequence(shorter, longer) {
-    if (!shorter || !longer) return false;
-    if (shorter.length === 0 || longer.length === 0) return false;
-    if (shorter.length > longer.length) return false;
-    for (var i = 0; i <= longer.length - shorter.length; i++) {
-        var match = true;
-        for (var j = 0; j < shorter.length; j++) {
-            if (shorter[j] !== longer[i + j]) { match = false; break; }
-        }
-        if (match) return true;
-    }
-    return false;
-}
-
-/* شباهت Levenshtein نرمال شده (0 تا 1) */
-function levenshteinSim(a, b) {
-    if (a === b) return 1;
-    if (!a.length || !b.length) return 0;
-    var matrix = [];
-    for (var i = 0; i <= b.length; i++) matrix[i] = [i];
-    for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
-    for (var ii = 1; ii <= b.length; ii++) {
-        for (var jj = 1; jj <= a.length; jj++) {
-            if (b.charAt(ii - 1) === a.charAt(jj - 1)) {
-                matrix[ii][jj] = matrix[ii - 1][jj - 1];
-            } else {
-                matrix[ii][jj] = Math.min(
-                    matrix[ii - 1][jj - 1],
-                    matrix[ii][jj - 1],
-                    matrix[ii - 1][jj]
-                ) + 1;
-            }
+/* شماره کارت = ۸ رقم آخر اولین عدد بلند (۱۰ رقم یا بیشتر با .) */
+function extractCardKey(raw) {
+    var normalized = normalizeDigits(String(raw || ''));
+    // پیدا کردن اولین توکن بلند عددی
+    var matches = normalized.match(/\d[\d.\-_]{8,}/g);
+    if (!matches || matches.length === 0) return '';
+    for (var i = 0; i < matches.length; i++) {
+        var digits = matches[i].replace(/[^\d]/g, '');
+        if (digits.length >= 8) {
+            return digits.slice(-8);
         }
     }
-    var distance = matrix[b.length][a.length];
-    var maxLen = Math.max(a.length, b.length);
-    return 1 - (distance / maxLen);
+    return '';
 }
 
-/* استخراج امضای متنی — حذف همه ارقام و علائم */
-function stripToSignature(raw) {
-    return String(raw || '')
-        .replace(/[۰-۹]/g, '')
-        .replace(/[٠-٩]/g, '')
-        .replace(/\d/g, '')
-        .replace(/[.,،\u066B\u066C\s_\/:;|\-+()\[\]{}]+/g, ' ')
+/* کلمات کلیدی = کلمات غیرعددی با طول >= 2 (بدون تکرار) */
+function extractKeywords(raw) {
+    var cleaned = smsNormalizeForPattern(raw)
+        .replace(/\d+/g, ' ')
+        .replace(/[^\u0600-\u06FF\s]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
+
+    if (!cleaned) return [];
+
+    var words = cleaned.split(' ').filter(function(w) {
+        return w.length >= 2;
+    });
+
+    var unique = [];
+    for (var i = 0; i < words.length; i++) {
+        if (unique.indexOf(words[i]) === -1) unique.push(words[i]);
+    }
+    return unique;
+}
+
+/* تعداد گروه‌های عددی متوالی */
+function countNumberGroups(tokens) {
+    var count = 0, inGroup = false;
+    for (var i = 0; i < tokens.length; i++) {
+        if (isWild(tokens[i])) {
+            if (!inGroup) { count++; inGroup = true; }
+        } else {
+            inGroup = false;
+        }
+    }
+    return count;
 }
 
 /* ============================================================
-   ✅ smsTokenSimilarity
+   ✅ بخش ۸ — تطبیق امضا (نسخه ۸)
+   معیارها:
+   ۱. شماره کارت (اگر هر دو دارن → باید دقیقاً یکی باشه)
+   ۲. کلمات کلیدی (حداقل ۵۰٪ مشترک)
+   ۳. تعداد گروه‌های عددی (تفاوت کمتر از ۲)
    ============================================================ */
-function smsTokenSimilarity(a, b) {
-    var n = Math.max(a.length, b.length);
-    if (n === 0) return 0;
-
-    var score = 0, hasSignConflict = false;
-
-    function getSign(t) {
-        if (!t) return '';
-        var c0 = t.charAt(0);
-        if (c0 === '+' || c0 === '-' || c0 === '−' || c0 === '–') return c0 === '+' ? '+' : '-';
-        var cl = t.charAt(t.length - 1);
-        if (cl === '+' || cl === '-' || cl === '−' || cl === '–') return cl === '+' ? '+' : '-';
-        return '';
+function signatureMatch(sig1, sig2) {
+    /* معیار ۱: شماره کارت */
+    var cardScore;
+    var cardReason = '';
+    if (sig1.card && sig2.card) {
+        if (sig1.card !== sig2.card) {
+            return { match: false, score: 0, reason: 'card-mismatch' };
+        }
+        cardScore = 1.0;
+        cardReason = 'card-exact';
+    } else if (!sig1.card && !sig2.card) {
+        cardScore = 0.5;
+        cardReason = 'no-cards';
+    } else {
+        cardScore = 0.3;
+        cardReason = 'one-card-missing';
     }
 
-    for (var i = 0; i < n; i++) {
-        var ta = a[i], tb = b[i];
-        if (ta === undefined || tb === undefined) { score -= 0.1; continue; }
-        if (ta === tb) { score += 1.0; continue; }
-        var wildA = isWild(ta), wildB = isWild(tb);
-        if (wildA && wildB) {
-            var signA = getSign(ta), signB = getSign(tb);
-            if (signA === signB) score += 1.0;
-            else if (!signA || !signB) score += 0.85;
-            else { hasSignConflict = true; score -= 2.0; }
-        } else if (wildA || wildB) { score += 0.4; }
-        else { score -= 0.3; }
+    /* معیار ۲: کلمات کلیدی */
+    if (sig1.keywords.length === 0 && sig2.keywords.length === 0) {
+        return {
+            match: cardScore >= 1.0,
+            score: cardScore,
+            reason: cardReason + '|no-keywords'
+        };
     }
-    if (hasSignConflict) return 0;
 
-    var denom = Math.sqrt(Math.max(1, a.length) * Math.max(1, b.length));
-    return Math.max(0, score / denom);
+    var common = 0;
+    for (var i = 0; i < sig1.keywords.length; i++) {
+        if (sig2.keywords.indexOf(sig1.keywords[i]) !== -1) common++;
+    }
+    var union = sig1.keywords.length + sig2.keywords.length - common;
+    var jaccard = union > 0 ? common / union : 0;
+
+    /* معیار ۳: تعداد گروه‌های عددی */
+    var numDiff = Math.abs((sig1.numberGroups || 0) - (sig2.numberGroups || 0));
+    var numScore = numDiff <= 1 ? 1.0 : (numDiff === 2 ? 0.5 : 0.0);
+
+    /* امتیاز نهایی */
+    var totalScore = cardScore * 0.5 + jaccard * 0.4 + numScore * 0.1;
+
+    /* تصمیم نهایی */
+    var isMatch = false;
+    if (cardScore >= 1.0) {
+        /* اگر کارت یکسانه، کلمات کلیدی حداقل ۳۰٪ */
+        isMatch = jaccard >= 0.3;
+    } else if (cardScore >= 0.5) {
+        /* هر دو کارت خالی، کلمات کلیدی حداقل ۷۰٪ */
+        isMatch = jaccard >= 0.7;
+    } else {
+        /* یکی کارت داره یکی نداره → سخت‌گیرانه */
+        isMatch = jaccard >= 0.9;
+    }
+
+    return {
+        match: isMatch,
+        score: totalScore,
+        reason: cardReason + '|kw=' + jaccard.toFixed(2) + '|ng=' + numScore
+    };
 }
 
 /* ============================================================
-   ✅ findMatchingSmsPattern — نسخه ۷ (چندلایه)
-   روش ۱: exact-shape
-   روش ۲: substring-shape
-   روش ۳: sig-fuzzy (Levenshtein بدون رقم)
-   روش ۴: fuzzy token
-   + آستانه پویا
+   ✅ findMatchingSmsPattern — نسخه ۸
    ============================================================ */
 function findMatchingSmsPattern(raw) {
     var active = loadSmsPatterns().filter(function (p) { return !p.blocked; });
     if (active.length === 0) return null;
 
     var built = buildSmsPattern(raw);
-    var liveShape = tokensShapeCollapsed(built.tokens);
-    var liveShapeKey = liveShape.join(' ');
-    var liveSig = stripToSignature(raw);
+    var liveCard = extractCardKey(raw);
+    var liveKeywords = extractKeywords(raw);
+    var liveNumGroups = countNumberGroups(built.tokens);
 
-    /* ============ روش ۱: shape دقیق ============ */
-    for (var i = 0; i < active.length; i++) {
-        var p = active[i];
-        var patShape = tokensShapeCollapsed(p.tokens || []);
-        if (patShape.join(' ') === liveShapeKey) {
-            return { pattern: p, score: 1.0, built: built, reason: 'exact-shape' };
-        }
-    }
+    var liveSig = {
+        card: liveCard,
+        keywords: liveKeywords,
+        numberGroups: liveNumGroups
+    };
 
     var best = null, bestScore = 0, bestReason = '';
 
-    /* ============ روش ۲: shape زیرمجموعه ============ */
-    for (var j = 0; j < active.length; j++) {
-        var p2 = active[j];
-        var patShape2 = tokensShapeCollapsed(p2.tokens || []);
-        if (patShape2.length === 0 || liveShape.length === 0) continue;
+    for (var i = 0; i < active.length; i++) {
+        var p = active[i];
+        var patCard = p.cardKey || extractCardKey(p.raw || '');
+        var patKeywords = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
+        var patNumGroups = countNumberGroups(p.tokens || []);
 
-        var longer = patShape2.length >= liveShape.length ? patShape2 : liveShape;
-        var shorter = patShape2.length >= liveShape.length ? liveShape : patShape2;
-        if (isContiguousSubsequence(shorter, longer)) {
-            var sc = 0.85 + (shorter.length / longer.length) * 0.15;
-            if (sc > bestScore) { bestScore = sc; best = p2; bestReason = 'substring-shape'; }
+        var patSig = {
+            card: patCard,
+            keywords: patKeywords,
+            numberGroups: patNumGroups
+        };
+
+        var res = signatureMatch(liveSig, patSig);
+        if (res.match && res.score > bestScore) {
+            bestScore = res.score;
+            best = p;
+            bestReason = res.reason;
         }
     }
 
-    /* ============ روش ۳: sig Levenshtein ============ */
-    if (liveSig.length > 3) {
-        for (var k = 0; k < active.length; k++) {
-            var p3 = active[k];
-            var patSig = stripToSignature(p3.raw || '');
-            if (!patSig) continue;
-            if (patSig === liveSig) {
-                if (0.99 > bestScore) { bestScore = 0.99; best = p3; bestReason = 'sig-exact'; }
-                continue;
-            }
-            var ls = levenshteinSim(liveSig, patSig);
-            if (ls > 0.75 && ls > bestScore) {
-                bestScore = ls; best = p3; bestReason = 'sig-fuzzy';
-            }
-        }
+    if (best) {
+        return { pattern: best, score: bestScore, built: built, reason: bestReason };
     }
 
-    /* ============ روش ۴: fuzzy token ============ */
-    for (var m = 0; m < active.length; m++) {
-        var p4 = active[m];
-        var patShape4 = tokensShapeCollapsed(p4.tokens || []);
-        var simRaw = smsTokenSimilarity(built.tokens, p4.tokens || []);
-        var simShape = smsTokenSimilarity(liveShape, patShape4);
-        var s4 = Math.max(simRaw, simShape);
-        if (s4 > bestScore) { bestScore = s4; best = p4; bestReason = 'fuzzy'; }
-    }
-
-    /* ============ آستانه پویا ============ */
-    var threshold = SMS_PATTERN_THRESHOLD;
-    if (best && tokensShapeCollapsed(best.tokens || []).length <= 3) {
-        threshold = 0.45;
-    }
-
-    return bestScore >= threshold
-        ? { pattern: best, score: bestScore, built: built, reason: bestReason }
-        : null;
+    return null;
 }
 
 /* ============================================================
-   بخش ۷ — فیلتر هوشمند
+   بخش ۹ — فیلتر هوشمند
    ============================================================ */
 function isBankSms(text) {
     if (!text) return false;
@@ -577,7 +571,7 @@ function isBankSms(text) {
 }
 
 /* ============================================================
-   بخش ۸ — پیشنهادها
+   بخش ۱۰ — پیشنهادها
    ============================================================ */
 function suggestAmount(text) {
     var t = normalizeDigits(String(text || ''));
@@ -627,21 +621,32 @@ function suggestLabel(text, bankName, dir) {
 }
 
 /* ============================================================
-   بخش ۹ — addSmsPattern (با shape key dedup)
+   بخش ۱۱ — addSmsPattern با cardKey + keywords
    ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
     var built = buildSmsPattern(opts.raw || '');
-    var key = opts.key || built.key;
-    var newShapeKey = tokensShapeCollapsed(built.tokens).join(' ');
+    var newCardKey = extractCardKey(opts.raw || '');
+    var newKeywords = extractKeywords(opts.raw || '');
+    var newNumGroups = countNumberGroups(built.tokens);
 
-    /* ۱. با key دقیق */
-    var existing = patterns.find(function (p) { return p.key === key; });
+    /* جستجو با key دقیق */
+    var existing = patterns.find(function (p) { return p.key === (opts.key || built.key); });
 
-    /* ۲. با shape key */
-    if (!existing) {
+    /* جستجو با cardKey + keywords */
+    if (!existing && newCardKey) {
         existing = patterns.find(function (p) {
-            return tokensShapeCollapsed(p.tokens || []).join(' ') === newShapeKey;
+            var pCard = p.cardKey || extractCardKey(p.raw || '');
+            var pKw = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
+            if (pCard !== newCardKey) return false;
+            // کلمات کلیدی حداقل ۵۰٪ مشترک
+            var common = 0;
+            for (var i = 0; i < newKeywords.length; i++) {
+                if (pKw.indexOf(newKeywords[i]) !== -1) common++;
+            }
+            var union = newKeywords.length + pKw.length - common;
+            var jaccard = union > 0 ? common / union : 0;
+            return jaccard >= 0.5;
         });
     }
 
@@ -654,15 +659,20 @@ function addSmsPattern(opts) {
         if (opts.slots) existing.slots = opts.slots;
         if (typeof opts.voucherDesc !== 'undefined') existing.voucherDesc = opts.voucherDesc;
         if (typeof opts.lineDesc !== 'undefined') existing.lineDesc = opts.lineDesc;
+        if (!existing.cardKey && newCardKey) existing.cardKey = newCardKey;
+        if ((!existing.keywords || existing.keywords.length === 0) && newKeywords.length > 0) {
+            existing.keywords = newKeywords;
+        }
         saveSmsPatterns(patterns);
         return existing;
     }
 
     var rec = {
-        id: 'sp_' + uid(), key: key, raw: built.raw, tokens: built.tokens,
+        id: 'sp_' + uid(), key: opts.key || built.key, raw: built.raw, tokens: built.tokens,
         mapping: opts.mapping || built.mapping, slots: opts.slots || {},
         label: opts.label || 'الگوی پیامک', direction: opts.direction || '',
         linkedAccountId: opts.linkedAccountId || '', blocked: false,
+        cardKey: newCardKey, keywords: newKeywords, numberGroups: newNumGroups,
         voucherDesc: (typeof opts.voucherDesc === 'string') ? opts.voucherDesc : (opts.label || ''),
         lineDesc:    (typeof opts.lineDesc    === 'string') ? opts.lineDesc    : (opts.label || ''),
         uses: 1, createdAt: Date.now(), lastUsed: Date.now()
@@ -686,7 +696,7 @@ function deleteSmsPattern(id) {
 }
 
 /* ============================================================
-   بخش ۱۰ — pending CRUD
+   بخش ۱۲ — pending CRUD
    ============================================================ */
 function addPendingSms(raw, source, force, extraData) {
     var text = String(raw || '').trim();
@@ -739,7 +749,7 @@ function removePendingSms(id) {
 function clearPendingSms() { savePendingSms([]); }
 
 /* ============================================================
-   بخش ۱۱ — رندر pending
+   بخش ۱۳ — رندر pending
    ============================================================ */
 function renderPendingSmsBox() {
     var box = document.getElementById('pending-sms-list');
@@ -889,7 +899,7 @@ function bindPendingEventsNew(box) {
 }
 
 /* ============================================================
-   بخش ۱۲ — ذخیره pending
+   بخش ۱۴ — ذخیره pending
    ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
@@ -1002,7 +1012,7 @@ function savePendingAsPattern(pid, withVoucher) {
 }
 
 /* ============================================================
-   بخش ۱۳ — Try Approve
+   بخش ۱۵ — Try Approve
    ============================================================ */
 function _tryCreateApprovedVoucher(voucher) {
     try {
@@ -1018,7 +1028,7 @@ function _tryCreateApprovedVoucher(voucher) {
 }
 
 /* ============================================================
-   بخش ۱۴ — _createVoucherSmart
+   بخش ۱۶ — _createVoucherSmart
    ============================================================ */
 function _createVoucherSmart(data) {
     var bankMoein = getBankMoeinId();
@@ -1065,7 +1075,7 @@ function _createVoucherSmart(data) {
 }
 
 /* ============================================================
-   بخش ۱۵ — سند ترکیبی از pending
+   بخش ۱۷ — سند ترکیبی از pending
    ============================================================ */
 function convertMultiplePendingToVoucher() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
@@ -1176,7 +1186,7 @@ function convertMultiplePendingToVoucher() {
 }
 
 /* ============================================================
-   بخش ۱۶ — استخراج از الگو
+   بخش ۱۸ — استخراج از الگو
    ============================================================ */
 function extractValuesFromPattern(newRaw, pattern) {
     var built = buildSmsPattern(newRaw);
@@ -1192,7 +1202,7 @@ function extractValuesFromPattern(newRaw, pattern) {
 }
 
 /* ============================================================
-   بخش ۱۷ — ورودی پیامک
+   بخش ۱۹ — ورودی پیامک
    ============================================================ */
 function handleIncomingSms(text, source, force) {
     var t = String(text || '').trim();
@@ -1238,7 +1248,7 @@ function handleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۱۸ — کلیپ‌بورد
+   بخش ۲۰ — کلیپ‌بورد
    ============================================================ */
 var _lastClipboardText = '';
 
@@ -1279,7 +1289,7 @@ function checkClipboardSupport() {
 }
 
 /* ============================================================
-   بخش ۱۹ — تب inbox
+   بخش ۲۱ — تب inbox
    ============================================================ */
 function renderSmsInbox() {
     var box = document.getElementById('sms-inbox-list');
@@ -1390,7 +1400,7 @@ function renderSmsInbox() {
 }
 
 /* ============================================================
-   بخش ۲۰ — سند ترکیبی از inbox
+   بخش ۲۲ — سند ترکیبی از inbox
    ============================================================ */
 function convertMultipleSmsToVoucher() {
     var checked = document.querySelectorAll('.sms-select-cb:checked');
@@ -1472,7 +1482,7 @@ function convertMultipleSmsToVoucher() {
 }
 
 /* ============================================================
-   بخش ۲۱ — رندر الگوها
+   بخش ۲۳ — رندر الگوها
    ============================================================ */
 function renderSmsPatternsTab() {
     var box = document.getElementById('sms-patterns-list');
@@ -1525,7 +1535,9 @@ function renderSmsPatternsTab() {
             ? esc(p.lineDesc)
             : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
 
-        var pShape = tokensShapeCollapsed(p.tokens || []).join(' ');
+        var cardKeyShow = p.cardKey || extractCardKey(p.raw || '') || '—';
+        var kwShow = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
+        var kwStr = kwShow.length > 0 ? kwShow.join(' ، ') : '—';
 
         html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
             + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
@@ -1545,7 +1557,8 @@ function renderSmsPatternsTab() {
             + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
             +   '<div style="color:var(--text-muted);margin-bottom:4px;font-weight:700">نمونهٔ الگو:</div>'
             +   '<div style="font-family:monospace;direction:rtl;white-space:pre-wrap;word-break:break-word;color:var(--primary-dark)">' + esc(preview) + '</div>'
-            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>Shape:</b> <span style="font-family:monospace">' + esc(pShape) + '</span></div>'
+            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>کارت:</b> <span style="font-family:monospace">' + esc(cardKeyShow) + '</span></div>'
+            +   '<div style="margin-top:2px;color:var(--text-muted)"><b>کلمات کلیدی:</b> ' + esc(kwStr) + '</div>'
             + '</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
             +   '<div><span style="color:var(--text-muted);font-weight:700">شرح سند:</span> ' + vDescShow + '</div>'
@@ -1587,7 +1600,7 @@ function renderSmsPatternsTab() {
 }
 
 /* ============================================================
-   بخش ۲۲ — ویرایش الگو
+   بخش ۲۴ — ویرایش الگو
    ============================================================ */
 function openEditSmsPattern(patternId) {
     try {
@@ -1607,7 +1620,9 @@ function openEditSmsPattern(patternId) {
         var dirIn = p.direction === 'in' ? 'checked' : '';
         var dirOut = p.direction === 'out' ? 'checked' : '';
         var preview = (p.tokens || []).join(' ');
-        var pShapeShow = tokensShapeCollapsed(p.tokens || []).join(' ');
+        var cardShow = p.cardKey || extractCardKey(p.raw || '') || '—';
+        var kwList = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
+        var kwShow = kwList.length > 0 ? kwList.join(' ، ') : '—';
 
         var voucherDescValue = (typeof p.voucherDesc === 'string') ? p.voucherDesc : '';
         var lineDescValue    = (typeof p.lineDesc    === 'string') ? p.lineDesc    : '';
@@ -1625,7 +1640,7 @@ function openEditSmsPattern(patternId) {
             +     '</div></div>'
             +     '<div class="field"><label>📝 شرح سند</label><input type="text" id="se-voucherDesc" value="' + esc(voucherDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
             +     '<div class="field"><label>📝 شرح قلم</label><input type="text" id="se-lineDesc" value="' + esc(lineDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
-            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '<br><b>Shape:</b> ' + esc(pShapeShow) + '</div></div>'
+            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '<br><b>کارت:</b> ' + esc(cardShow) + '<br><b>کلمات کلیدی:</b> ' + esc(kwShow) + '</div></div>'
             +     '<div class="field"><label style="padding:10px;background:var(--card-alt);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px"><input type="checkbox" id="se-blocked" ' + (p.blocked ? 'checked' : '') + '> <span>مسدود</span></label></div>'
             +   '</div>'
             +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
@@ -1675,7 +1690,7 @@ function openEditSmsPattern(patternId) {
 window.openEditSmsPattern = openEditSmsPattern;
 
 /* ============================================================
-   بخش ۲۳ — تبدیل تک پیامک
+   بخش ۲۵ — تبدیل تک پیامک
    ============================================================ */
 function convertSmsToVoucher(smsId) {
     try {
@@ -1763,7 +1778,7 @@ function convertSmsToVoucher(smsId) {
 }
 
 /* ============================================================
-   بخش ۲۴ — Init + Delegation
+   بخش ۲۶ — Init + Delegation
    ============================================================ */
 function bindSmsDelegation() {
     if (window._smsDelegationBound) return;
@@ -1917,10 +1932,10 @@ window.detectSmsDirection          = detectSmsDirection;
 window.smsNormalizeForPattern      = smsNormalizeForPattern;
 window.buildSmsPattern             = buildSmsPattern;
 window.tokensShapeCollapsed        = tokensShapeCollapsed;
-window.isContiguousSubsequence     = isContiguousSubsequence;
-window.levenshteinSim              = levenshteinSim;
-window.stripToSignature            = stripToSignature;
-window.smsTokenSimilarity          = smsTokenSimilarity;
+window.extractCardKey              = extractCardKey;
+window.extractKeywords             = extractKeywords;
+window.countNumberGroups           = countNumberGroups;
+window.signatureMatch              = signatureMatch;
 window.findMatchingSmsPattern      = findMatchingSmsPattern;
 window.isBankSms                   = isBankSms;
 window.suggestAmount               = suggestAmount;
@@ -1945,4 +1960,4 @@ window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
 
-console.log('✅ [modules/sms.js] loaded — v7 (4-method matching + dynamic threshold)');
+console.log('✅ [modules/sms.js] loaded — v8 (card + keywords matching)');
