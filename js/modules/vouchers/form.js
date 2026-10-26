@@ -1,6 +1,9 @@
 /* ============================================================
    پارسیس — فرم سند (نسخه نهایی، ضد تکرار و با ساعت جاری)
    مسیر: js/modules/vouchers/form.js
+   
+   ✅ تغییر: refreshStdDescDatalist() در renderVoucherLines() صدا زده می‌شود
+      (رفع باگ خالی بودن datalist شرح‌های استاندارد در صدور سند)
    ============================================================ */
 'use strict';
 
@@ -94,7 +97,7 @@ function createSearchableSelect(items, selectedValue, placeholder, onChange, dis
             e.stopPropagation();
             var isOpen = wrap.classList.contains('open');
             document.querySelectorAll('.cs-wrapper.open').forEach(function(el) { if (el !== wrap) el.classList.remove('open'); });
-            if (!isOpen) { wrap.classList.add('open'); setTimeout(function() { searchInp.focus(); }, 50); } 
+            if (!isOpen) { wrap.classList.add('open'); setTimeout(function() { searchInp.focus(); }, 50); }
             else wrap.classList.remove('open');
         });
         searchInp.addEventListener('input', function() { renderOptions(this.value); });
@@ -218,9 +221,17 @@ function getVoucherIssues(v) {
     return issues.concat(lineIssues);
 }
 
+/* ============================================================
+   ✅ renderVoucherLines — با refreshStdDescDatalist در شروع
+   ============================================================ */
 function renderVoucherLines() {
     var box = document.getElementById('voucher-lines');
     if (!box) { console.warn('[renderVoucherLines] #voucher-lines not found'); return; }
+
+    /* ✅ رفع باگ: قبل از هر بار رندر، مطمئن شو datalist پر است */
+    if (typeof refreshStdDescDatalist === 'function') {
+        try { refreshStdDescDatalist(); } catch (e) { console.warn('[refreshStdDescDatalist]', e); }
+    }
 
     box.innerHTML = '';
     if (!Array.isArray(voucherLines) || voucherLines.length === 0) voucherLines = [{ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }];
@@ -251,22 +262,18 @@ function renderVoucherLines() {
 
         var acc = accounts.find(function (a) { return a.id === line.account; });
         if (acc && acc.links && acc.links.length > 0) {
-            // ✅ اصلاح باگ تکرار: حذف لینک‌های تکراری
             var uniqueLinks = [];
             acc.links.forEach(function(lt) {
                 if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt);
             });
 
             var combined = [];
-            var seenTexts = {}; // ✅ برای جلوگیری از نمایش نام‌های تکراری
-
+            var seenTexts = {};
             uniqueLinks.forEach(function (lt) {
                 getLinkedItems(lt).forEach(function (it) {
                     var val = lt + '::' + it.id;
                     var lbl = getLinkedItemLabel(lt, it);
                     var txt = linkTypeName(lt) + ': ' + lbl;
-                    
-                    // ✅ فقط اگر این متن قبلاً اضافه نشده باشد، اضافه کن
                     if (!seenTexts[txt]) {
                         seenTexts[txt] = true;
                         combined.push({ value: val, text: txt });
@@ -615,6 +622,11 @@ function saveVoucherAsTemplate() {
 }
 
 function bindVoucherForm() {
+    /* ✅ اطمینان اضافی: در بدنه bind هم datalist را پر کن */
+    if (typeof refreshStdDescDatalist === 'function') {
+        try { refreshStdDescDatalist(); } catch(e) {}
+    }
+
     var addBtn = document.getElementById('add-line');
     if (addBtn && !addBtn.dataset.bound) { addBtn.dataset.bound = '1'; addBtn.addEventListener('click', function () { voucherLines.push({ id: uid(), account: '', details: {}, debit: 0, credit: 0, description: '' }); renderVoucherLines(); }); }
     var saveBtn = document.getElementById('save-voucher');
@@ -652,4 +664,4 @@ window.applyTemplate              = applyTemplate;
 window.saveVoucherAsTemplate      = saveVoucherAsTemplate;
 window.bindVoucherForm            = bindVoucherForm;
 
-console.log('✅ [modules/vouchers/form.js] loaded — Duplicate detail fixed');
+console.log('✅ [modules/vouchers/form.js] loaded — std-desc-datalist fix applied');
