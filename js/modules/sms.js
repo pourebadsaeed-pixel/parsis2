@@ -785,6 +785,7 @@ function renderPendingSmsBox() {
         var liveDir = detectSmsDirection(p.raw);
         var effectiveDir = liveDir || s.direction || '';
         var liveAmt = extractAmountWithSign(p.raw);
+        var isMatched = !!p.patternMatchedId;
 
         var accountOpts = '<option value="">— انتخاب حساب —</option>';
         for (var a = 0; a < accounts.length; a++) {
@@ -796,25 +797,60 @@ function renderPendingSmsBox() {
         var clsIn = (effectiveDir === 'in') ? ' active-in' : '';
         var clsOut = (effectiveDir === 'out') ? ' active-out' : '';
         var forcedBadge = p.forced ? '<span class="badge">دستی</span>' : '';
-        var matchedBadge = p.patternMatchedId ? ' <span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:8px;font-size:.66rem;font-weight:800">🧠 ' + esc(p.patternLabel || 'شناسایی‌شده') + '</span>' : '';
         var meta = '📅 ' + toFa(tsToJalaliDate(p.createdAt)) + ' — ' + toFa(tsToJalaliTime(p.createdAt));
 
         var voucherDescVal = (typeof s.voucherDesc === 'string') ? s.voucherDesc : suggestLabel(p.raw, s.bankName, effectiveDir);
         var lineDescVal    = (typeof s.lineDesc    === 'string') ? s.lineDesc    : suggestLabel(p.raw, s.bankName, effectiveDir);
 
-        html += '<div class="pending-sms-card psm-new" data-pid="' + pid + '">'
+        /* ⭐ کارت سبز + بنر وقتی شناسایی شده */
+        var cardStyle = isMatched
+            ? 'border:2px solid #10b981;background:linear-gradient(180deg,#ecfdf5 0%,#ffffff 100%);box-shadow:0 4px 16px rgba(16,185,129,0.15);'
+            : '';
+
+        var matchedBanner = '';
+        if (isMatched) {
+            matchedBanner = '<div style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:14px;font-weight:900;display:flex;align-items:center;gap:12px;box-shadow:0 4px 12px rgba(16,185,129,0.35)">'
+                + '<span style="font-size:1.8rem;line-height:1">🧠</span>'
+                + '<div style="flex:1;min-width:0">'
+                +   '<div style="font-size:.95rem">الگو شناسایی شد: «' + esc(p.patternLabel || 'شناسایی‌شده') + '»</div>'
+                +   '<div style="font-size:.72rem;opacity:.9;margin-top:3px">اطلاعات از الگو پر شده — فقط بررسی و تأیید کنید</div>'
+                + '</div>'
+                + '</div>';
+        }
+
+        var headerTitle = isMatched
+            ? '🔔 پیامک' + forcedBadge + ' <span style="background:#10b981;color:#fff;padding:2px 10px;border-radius:8px;font-size:.7rem;font-weight:800">✓ شناسایی‌شده</span>'
+            : '🔔 پیامک' + forcedBadge;
+
+        /* فیلد نام الگو فقط وقتی unmatched باشد */
+        var patternLabelField = isMatched
+            ? '<input type="hidden" data-field="label" value="' + esc(p.patternLabel || '') + '">'
+            : '<div class="psm-field"><label>🏷 نام الگو (اختیاری — برای شناسایی خودکار بعدی)</label>'
+              + '<input type="text" data-field="label" value="' + esc(suggestLabel(p.raw, s.bankName, effectiveDir)) + '">'
+              + '</div>';
+
+        /* دکمه‌ها */
+        var buttonsHtml = isMatched
+            ? '<button class="psm-btn-primary" data-action="save-with-voucher" data-id="' + pid + '" style="flex:3;font-size:1rem;padding:14px">✅ تأیید و ساخت سند</button>'
+              + '<button class="psm-btn-danger" data-action="drop" data-id="' + pid + '" title="حذف">🗑</button>'
+            : '<button class="psm-btn-primary" data-action="save-with-voucher" data-id="' + pid + '">✅ ثبت + ساخت سند</button>'
+              + '<button class="psm-btn-secondary" data-action="save-pattern-only" data-id="' + pid + '">🧠 فقط ثبت الگو</button>'
+              + '<button class="psm-btn-danger" data-action="drop" data-id="' + pid + '">🗑</button>';
+
+        html += '<div class="pending-sms-card psm-new" data-pid="' + pid + '" style="' + cardStyle + '">'
             +   '<div class="psm-head">'
             +     '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">'
             +       '<input type="checkbox" class="psm-select-cb" data-pid="' + pid + '" style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer">'
-            +       '<div><div class="title">🔔 پیامک' + forcedBadge + matchedBadge + '</div>'
+            +       '<div style="flex:1"><div class="title">' + headerTitle + '</div>'
             +       '<div class="meta">' + esc(meta) + '</div></div>'
             +     '</label>'
             +   '</div>'
-            +   '<div class="psm-text-wrap">'
-            +     '<div class="psm-text-toggle" data-toggle="text"><span>📄 متن پیامک</span><span class="arrow">◀</span></div>'
-            +     '<div class="psm-text-body">' + esc(p.raw) + '</div>'
-            +   '</div>'
             +   '<div class="psm-body">'
+            +     matchedBanner
+            +     '<div class="psm-text-wrap" style="margin-bottom:12px;background:var(--card-alt);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+            +       '<div class="psm-text-toggle" data-toggle="text"><span>📄 متن پیامک</span><span class="arrow">◀</span></div>'
+            +       '<div class="psm-text-body">' + esc(p.raw) + '</div>'
+            +     '</div>'
             +     '<div class="psm-dir-box">'
             +       '<button type="button" class="psm-dir-btn' + clsIn + '" data-dir="in" data-pid="' + pid + '"><span class="icon">📥</span><span class="lbl">واریز</span></button>'
             +       '<button type="button" class="psm-dir-btn' + clsOut + '" data-dir="out" data-pid="' + pid + '"><span class="icon">📤</span><span class="lbl">برداشت</span></button>'
@@ -835,14 +871,10 @@ function renderPendingSmsBox() {
             +     '<div class="psm-field"><label>📝 شرح قلم</label>'
             +       '<input type="text" data-field="lineDesc" value="' + esc(lineDescVal) + '">'
             +     '</div>'
-            +     '<div class="psm-field"><label>🏷 نام الگو (اختیاری — برای شناسایی خودکار بعدی)</label>'
-            +       '<input type="text" data-field="label" value="' + esc(suggestLabel(p.raw, s.bankName, effectiveDir)) + '">'
-            +     '</div>'
+            +     patternLabelField
             +   '</div>'
             +   '<div class="psm-actions">'
-            +     '<button class="psm-btn-primary" data-action="save-with-voucher" data-id="' + pid + '">✅ ثبت + ساخت سند</button>'
-            +     '<button class="psm-btn-secondary" data-action="save-pattern-only" data-id="' + pid + '">🧠 فقط ثبت الگو</button>'
-            +     '<button class="psm-btn-danger" data-action="drop" data-id="' + pid + '">🗑</button>'
+            +     buttonsHtml
             +   '</div>'
             + '</div>';
     }
