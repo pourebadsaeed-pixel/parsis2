@@ -563,14 +563,22 @@ function addSmsPattern(opts) {
     var newCardKey = extractCardKey(opts.raw || '');
     var newKeywords = extractKeywords(opts.raw || '');
     var newNumGroups = countNumberGroups(built.tokens);
+    var newDir = opts.direction || '';
 
+    /* ۱. جستجو با key دقیق */
     var existing = patterns.find(function (p) { return p.key === (opts.key || built.key); });
 
+    /* ۲. جستجو با cardKey + keywords + ✅ direction */
     if (!existing && newCardKey) {
         existing = patterns.find(function (p) {
+            /* ✅ مهم: اگر جهت‌ها مشخص و متفاوت هستند، الگوی جدید است */
+            var pDir = p.direction || '';
+            if (pDir && newDir && pDir !== newDir) return false;
+
             var pCard = p.cardKey || extractCardKey(p.raw || '');
             var pKw = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
             if (pCard !== newCardKey) return false;
+
             var common = 0;
             for (var i = 0; i < newKeywords.length; i++) {
                 if (pKw.indexOf(newKeywords[i]) !== -1) common++;
