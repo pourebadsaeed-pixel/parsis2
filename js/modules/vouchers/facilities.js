@@ -150,46 +150,98 @@ function tryDeleteFacility(f) {
 }
 
 function loadFacilityIntoForm(f) {
-    document.getElementById('fc-id').value = f.id;
-    document.getElementById('fc-name').value = f.name || '';
-    document.getElementById('fc-category').value = f.category || 'facility';
-    document.getElementById('fc-bank').value = f.bankId || '';
-    document.getElementById('fc-date').value = f.date || '';
-    document.getElementById('fc-initial').value = f.initial ? formatRaw(f.initial) : '';
-    document.getElementById('fc-paid').value = f.paid ? formatRaw(f.paid) : '';
+    if (!f) return;
 
-    var insCard = document.getElementById('fac-installments-card');
-    if (insCard) insCard.style.display = 'none';
+    if (typeof goToPage === 'function') goToPage('facilities');
 
-    var activePage = document.querySelector('.page.active');
-    var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
-    if (addTab) addTab.click();
+    var attempts = 0;
+    function fillForm() {
+        attempts++;
+        var activePage = document.querySelector('.page.active');
+        if (!activePage || activePage.id.indexOf('page-facilities') === -1) {
+            if (attempts < 40) setTimeout(fillForm, 50);
+            return;
+        }
+
+        var setVal = function(id, val) {
+            var el = activePage.querySelector('#' + id);
+            if (el && el.value !== val) el.value = val;
+        };
+        setVal('fc-id', f.id || '');
+        setVal('fc-name', f.name || '');
+        setVal('fc-category', f.category || 'facility');
+        setVal('fc-bank', f.bankId || '');
+        setVal('fc-date', f.date || '');
+        setVal('fc-initial', f.initial ? formatRaw(f.initial) : '');
+        setVal('fc-paid', f.paid ? formatRaw(f.paid) : '');
+
+        var insCard = activePage.querySelector('#fac-installments-card');
+        if (insCard) insCard.style.display = 'none';  /* ← اقساط بسته */
+
+        var addTab = activePage.querySelector('[data-tab="fac-add"]');
+        if (addTab && !addTab.classList.contains('active')) addTab.click();
+
+        if (attempts < 5) setTimeout(fillForm, 150);
+
+        if (attempts === 1) {
+            setTimeout(function () {
+                var formCard = activePage.querySelector('#voucher-head-card') ||
+                              activePage.querySelector('.card');
+                if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500);
+        }
+    }
+    setTimeout(fillForm, 80);
 }
 
 function loadFacilityForInstallments(f) {
+    if (!f) return;
     currentFacilityId = f.id;
     currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
 
-    document.getElementById('fc-id').value = f.id;
-    document.getElementById('fc-name').value = f.name || '';
-    document.getElementById('fc-category').value = f.category || 'facility';
-    document.getElementById('fc-bank').value = f.bankId || '';
-    document.getElementById('fc-date').value = f.date || '';
-    document.getElementById('fc-initial').value = f.initial ? formatRaw(f.initial) : '';
-    document.getElementById('fc-paid').value = f.paid ? formatRaw(f.paid) : '';
+    /* ✅ اول به صفحه تسهیلات برو */
+    if (typeof goToPage === 'function') goToPage('facilities');
 
-    var insCard = document.getElementById('fac-installments-card');
-    if (insCard) insCard.style.display = 'block';
+    var attempts = 0;
+    function fillForm() {
+        attempts++;
+        var activePage = document.querySelector('.page.active');
+        if (!activePage || activePage.id.indexOf('page-facilities') === -1) {
+            if (attempts < 40) setTimeout(fillForm, 50);
+            return;
+        }
 
-    renderInstallments();
+        var setVal = function(id, val) {
+            var el = activePage.querySelector('#' + id);
+            if (el && el.value !== val) el.value = val;
+        };
+        setVal('fc-id', f.id || '');
+        setVal('fc-name', f.name || '');
+        setVal('fc-category', f.category || 'facility');
+        setVal('fc-bank', f.bankId || '');
+        setVal('fc-date', f.date || '');
+        setVal('fc-initial', f.initial ? formatRaw(f.initial) : '');
+        setVal('fc-paid', f.paid ? formatRaw(f.paid) : '');
 
-    var activePage = document.querySelector('.page.active');
-    var addTab = activePage ? activePage.querySelector('[data-tab="fac-add"]') : null;
-    if (addTab) addTab.click();
+        var insCard = activePage.querySelector('#fac-installments-card');
+        if (insCard) insCard.style.display = 'block';
 
-    setTimeout(function () {
-        if (insCard) insCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 200);
+        if (typeof renderInstallments === 'function') renderInstallments();
+
+        var addTab = activePage.querySelector('[data-tab="fac-add"]');
+        if (addTab && !addTab.classList.contains('active')) addTab.click();
+
+        /* retry برای وقتی که refreshFacBankSelect مقدار رو reset می‌کنه */
+        if (attempts < 5) setTimeout(fillForm, 150);
+
+        /* اسکرول فقط یک بار */
+        if (attempts === 1) {
+            setTimeout(function () {
+                if (insCard) insCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500);
+        }
+    }
+    setTimeout(fillForm, 80);
 }
 
 function renderInstallments() {
