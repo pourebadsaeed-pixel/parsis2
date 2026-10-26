@@ -1,20 +1,21 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۶ — Shape Matching قطعی)
+   پارسیس — پیامک بانکی (نسخه ۷ — تطبیق چندلایه)
    مسیر: js/modules/sms.js
    
-   تغییرات نسخه ۶ (نسبت به ۵):
-     ✅ findMatchingSmsPattern: حذف کامل direction check
-        (دلیل باگ: کاربر جهت انتخاب می‌کرد → ذخیره می‌شد → دفعه بعد
-         detectSmsDirection مقدار متفاوت برمی‌گرداند → skip → تکرار الگو)
-     ✅ addSmsPattern: جستجو با shape key هم انجام می‌شود
-        (دلیل باگ: مبلغ ۵۰۰,۰۰۰ vs ۵,۰۰۰,۰۰۰ → key متفاوت → duplicate)
-     ✅ handleIncomingSms: چک inbox برای پیامک‌های converted
+   تغییرات نسخه ۷:
+     ✅ findMatchingSmsPattern: ۴ روش تطبیق (exact-shape / substring-shape / sig-fuzzy / fuzzy)
+     ✅ آستانه پویا: برای shape کوتاه‌تر از ۴ توکن → 0.45
+     ✅ levenshteinSim + stripToSignature + isContiguousSubsequence
+     ✅ بدون direction check
+   
+   تغییرات نسخه ۶:
+     ✅ addSmsPattern با shape key (جلوگیری از duplicate)
    
    تغییرات نسخه ۵:
-     ✅ tokensShapeCollapsed + تطبیق دو مرحله‌ای
+     ✅ tokensShapeCollapsed + shape key
    
    تغییرات نسخه ۴:
-     ✅ شرح خالی مجاز برای الگو
+     ✅ شرح خالی مجاز
    ============================================================ */
 'use strict';
 
@@ -266,6 +267,7 @@ function runSmsMigrations() {
         patterns.forEach(function (p) {
             if (typeof p.voucherDesc === 'undefined') { p.voucherDesc = p.label || 'تراکنش بانکی'; changed = true; }
             if (typeof p.lineDesc === 'undefined') { p.lineDesc = p.label || 'تراکنش بانکی'; changed = true; }
+            if (typeof p.blocked === 'undefined') { p.blocked = false; changed = true; }
         });
         if (changed) saveSmsPatterns(patterns);
     } catch (e) { console.warn('[sms migrations]', e); }
@@ -321,7 +323,7 @@ function detectSmsDirection(text) {
 }
 
 /* ============================================================
-   بخش ۶ — توکن‌سازی، shape و تطبیق
+   بخش ۶ — توکن‌سازی، shape، sig
    ============================================================ */
 function smsNormalizeForPattern(text) {
     return normalizeDigits(String(text || ''))
@@ -364,7 +366,6 @@ function isWild(t) { return typeof t === 'string' && t.indexOf('#') !== -1; }
 /* ============================================================
    ✅ tokensShapeCollapsed
    توکن‌های عددی متوالی → یک #
-   مثال: ['برداشت', '#1', '#2', '#3', 'ریال'] → ['برداشت', '#', 'ریال']
    ============================================================ */
 function tokensShapeCollapsed(tokens) {
     var out = [], prevWild = false;
@@ -379,6 +380,63 @@ function tokensShapeCollapsed(tokens) {
     return out;
 }
 
+/* ============================================================
+   ✅ توابع کمکی نسخه ۷
+   ============================================================ */
+
+/* آیا shorter به صورت پیوسته داخل longer هست؟ */
+function isContiguousSubsequence(shorter, longer) {
+    if (!shorter || !longer) return false;
+    if (shorter.length === 0 || longer.length === 0) return false;
+    if (shorter.length > longer.length) return false;
+    for (var i = 0; i <= longer.length - shorter.length; i++) {
+        var match = true;
+        for (var j = 0; j < shorter.length; j++) {
+            if (shorter[j] !== longer[i + j]) { match = false; break; }
+        }
+        if (match) return true;
+    }
+    return false;
+}
+
+/* شباهت Levenshtein نرمال شده (0 تا 1) */
+function levenshteinSim(a, b) {
+    if (a === b) return 1;
+    if (!a.length || !b.length) return 0;
+    var matrix = [];
+    for (var i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (var ii = 1; ii <= b.length; ii++) {
+        for (var jj = 1; jj <= a.length; jj++) {
+            if (b.charAt(ii - 1) === a.charAt(jj - 1)) {
+                matrix[ii][jj] = matrix[ii - 1][jj - 1];
+            } else {
+                matrix[ii][jj] = Math.min(
+                    matrix[ii - 1][jj - 1],
+                    matrix[ii][jj - 1],
+                    matrix[ii - 1][jj]
+                ) + 1;
+            }
+        }
+    }
+    var distance = matrix[b.length][a.length];
+    var maxLen = Math.max(a.length, b.length);
+    return 1 - (distance / maxLen);
+}
+
+/* استخراج امضای متنی — حذف همه ارقام و علائم */
+function stripToSignature(raw) {
+    return String(raw || '')
+        .replace(/[۰-۹]/g, '')
+        .replace(/[٠-٩]/g, '')
+        .replace(/\d/g, '')
+        .replace(/[.,،\u066B\u066C\s_\/:;|\-+()\[\]{}]+/g, ' ')
+        .trim();
+}
+
+/* ============================================================
+   ✅ smsTokenSimilarity
+   ============================================================ */
 function smsTokenSimilarity(a, b) {
     var n = Math.max(a.length, b.length);
     if (n === 0) return 0;
@@ -414,10 +472,12 @@ function smsTokenSimilarity(a, b) {
 }
 
 /* ============================================================
-   ✅ findMatchingSmsPattern — نسخه ۶
-   بدون هیچ فیلتری (نه direction، نه چیز دیگه)
-   مرحله ۱: shape key دقیق → قطعی
-   مرحله ۲: فازی روی raw و shape
+   ✅ findMatchingSmsPattern — نسخه ۷ (چندلایه)
+   روش ۱: exact-shape
+   روش ۲: substring-shape
+   روش ۳: sig-fuzzy (Levenshtein بدون رقم)
+   روش ۴: fuzzy token
+   + آستانه پویا
    ============================================================ */
 function findMatchingSmsPattern(raw) {
     var active = loadSmsPatterns().filter(function (p) { return !p.blocked; });
@@ -426,29 +486,68 @@ function findMatchingSmsPattern(raw) {
     var built = buildSmsPattern(raw);
     var liveShape = tokensShapeCollapsed(built.tokens);
     var liveShapeKey = liveShape.join(' ');
+    var liveSig = stripToSignature(raw);
 
-    /* مرحله ۱: تطبیق قطعی بر اساس shape */
+    /* ============ روش ۱: shape دقیق ============ */
     for (var i = 0; i < active.length; i++) {
         var p = active[i];
         var patShape = tokensShapeCollapsed(p.tokens || []);
         if (patShape.join(' ') === liveShapeKey) {
-            return { pattern: p, score: 1.0, built: built, exactShape: true };
+            return { pattern: p, score: 1.0, built: built, reason: 'exact-shape' };
         }
     }
 
-    /* مرحله ۲: فازی */
-    var best = null, bestScore = 0;
+    var best = null, bestScore = 0, bestReason = '';
+
+    /* ============ روش ۲: shape زیرمجموعه ============ */
     for (var j = 0; j < active.length; j++) {
         var p2 = active[j];
         var patShape2 = tokensShapeCollapsed(p2.tokens || []);
-        var simRaw   = smsTokenSimilarity(built.tokens, p2.tokens || []);
-        var simShape = smsTokenSimilarity(liveShape, patShape2);
-        var s = Math.max(simRaw, simShape);
-        if (s > bestScore) { bestScore = s; best = p2; }
+        if (patShape2.length === 0 || liveShape.length === 0) continue;
+
+        var longer = patShape2.length >= liveShape.length ? patShape2 : liveShape;
+        var shorter = patShape2.length >= liveShape.length ? liveShape : patShape2;
+        if (isContiguousSubsequence(shorter, longer)) {
+            var sc = 0.85 + (shorter.length / longer.length) * 0.15;
+            if (sc > bestScore) { bestScore = sc; best = p2; bestReason = 'substring-shape'; }
+        }
     }
 
-    return bestScore >= SMS_PATTERN_THRESHOLD
-        ? { pattern: best, score: bestScore, built: built }
+    /* ============ روش ۳: sig Levenshtein ============ */
+    if (liveSig.length > 3) {
+        for (var k = 0; k < active.length; k++) {
+            var p3 = active[k];
+            var patSig = stripToSignature(p3.raw || '');
+            if (!patSig) continue;
+            if (patSig === liveSig) {
+                if (0.99 > bestScore) { bestScore = 0.99; best = p3; bestReason = 'sig-exact'; }
+                continue;
+            }
+            var ls = levenshteinSim(liveSig, patSig);
+            if (ls > 0.75 && ls > bestScore) {
+                bestScore = ls; best = p3; bestReason = 'sig-fuzzy';
+            }
+        }
+    }
+
+    /* ============ روش ۴: fuzzy token ============ */
+    for (var m = 0; m < active.length; m++) {
+        var p4 = active[m];
+        var patShape4 = tokensShapeCollapsed(p4.tokens || []);
+        var simRaw = smsTokenSimilarity(built.tokens, p4.tokens || []);
+        var simShape = smsTokenSimilarity(liveShape, patShape4);
+        var s4 = Math.max(simRaw, simShape);
+        if (s4 > bestScore) { bestScore = s4; best = p4; bestReason = 'fuzzy'; }
+    }
+
+    /* ============ آستانه پویا ============ */
+    var threshold = SMS_PATTERN_THRESHOLD;
+    if (best && tokensShapeCollapsed(best.tokens || []).length <= 3) {
+        threshold = 0.45;
+    }
+
+    return bestScore >= threshold
+        ? { pattern: best, score: bestScore, built: built, reason: bestReason }
         : null;
 }
 
@@ -528,7 +627,7 @@ function suggestLabel(text, bankName, dir) {
 }
 
 /* ============================================================
-   ✅ بخش ۹ — addSmsPattern با جستجوی shape key
+   بخش ۹ — addSmsPattern (با shape key dedup)
    ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
@@ -539,7 +638,7 @@ function addSmsPattern(opts) {
     /* ۱. با key دقیق */
     var existing = patterns.find(function (p) { return p.key === key; });
 
-    /* ۲. با shape key (جلوگیری از duplicate با مبلغ متفاوت) */
+    /* ۲. با shape key */
     if (!existing) {
         existing = patterns.find(function (p) {
             return tokensShapeCollapsed(p.tokens || []).join(' ') === newShapeKey;
@@ -563,7 +662,7 @@ function addSmsPattern(opts) {
         id: 'sp_' + uid(), key: key, raw: built.raw, tokens: built.tokens,
         mapping: opts.mapping || built.mapping, slots: opts.slots || {},
         label: opts.label || 'الگوی پیامک', direction: opts.direction || '',
-        linkedAccountId: opts.linkedAccountId || '',
+        linkedAccountId: opts.linkedAccountId || '', blocked: false,
         voucherDesc: (typeof opts.voucherDesc === 'string') ? opts.voucherDesc : (opts.label || ''),
         lineDesc:    (typeof opts.lineDesc    === 'string') ? opts.lineDesc    : (opts.label || ''),
         uses: 1, createdAt: Date.now(), lastUsed: Date.now()
@@ -1426,6 +1525,8 @@ function renderSmsPatternsTab() {
             ? esc(p.lineDesc)
             : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
 
+        var pShape = tokensShapeCollapsed(p.tokens || []).join(' ');
+
         html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
             + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
             +   '<div style="flex:1;min-width:0">'
@@ -1444,6 +1545,7 @@ function renderSmsPatternsTab() {
             + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
             +   '<div style="color:var(--text-muted);margin-bottom:4px;font-weight:700">نمونهٔ الگو:</div>'
             +   '<div style="font-family:monospace;direction:rtl;white-space:pre-wrap;word-break:break-word;color:var(--primary-dark)">' + esc(preview) + '</div>'
+            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>Shape:</b> <span style="font-family:monospace">' + esc(pShape) + '</span></div>'
             + '</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
             +   '<div><span style="color:var(--text-muted);font-weight:700">شرح سند:</span> ' + vDescShow + '</div>'
@@ -1505,6 +1607,7 @@ function openEditSmsPattern(patternId) {
         var dirIn = p.direction === 'in' ? 'checked' : '';
         var dirOut = p.direction === 'out' ? 'checked' : '';
         var preview = (p.tokens || []).join(' ');
+        var pShapeShow = tokensShapeCollapsed(p.tokens || []).join(' ');
 
         var voucherDescValue = (typeof p.voucherDesc === 'string') ? p.voucherDesc : '';
         var lineDescValue    = (typeof p.lineDesc    === 'string') ? p.lineDesc    : '';
@@ -1522,7 +1625,7 @@ function openEditSmsPattern(patternId) {
             +     '</div></div>'
             +     '<div class="field"><label>📝 شرح سند</label><input type="text" id="se-voucherDesc" value="' + esc(voucherDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
             +     '<div class="field"><label>📝 شرح قلم</label><input type="text" id="se-lineDesc" value="' + esc(lineDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
-            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '</div></div>'
+            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '<br><b>Shape:</b> ' + esc(pShapeShow) + '</div></div>'
             +     '<div class="field"><label style="padding:10px;background:var(--card-alt);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px"><input type="checkbox" id="se-blocked" ' + (p.blocked ? 'checked' : '') + '> <span>مسدود</span></label></div>'
             +   '</div>'
             +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
@@ -1814,6 +1917,9 @@ window.detectSmsDirection          = detectSmsDirection;
 window.smsNormalizeForPattern      = smsNormalizeForPattern;
 window.buildSmsPattern             = buildSmsPattern;
 window.tokensShapeCollapsed        = tokensShapeCollapsed;
+window.isContiguousSubsequence     = isContiguousSubsequence;
+window.levenshteinSim              = levenshteinSim;
+window.stripToSignature            = stripToSignature;
 window.smsTokenSimilarity          = smsTokenSimilarity;
 window.findMatchingSmsPattern      = findMatchingSmsPattern;
 window.isBankSms                   = isBankSms;
@@ -1839,4 +1945,4 @@ window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
 
-console.log('✅ [modules/sms.js] loaded — v6 (no direction check + shape key dedup)');
+console.log('✅ [modules/sms.js] loaded — v7 (4-method matching + dynamic threshold)');
