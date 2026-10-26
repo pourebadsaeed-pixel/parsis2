@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v56-2025-cash-types-final';
+var CACHE_NAME = 'parsis-v57-2025-delete-integrity-fix';
 
 var ASSETS = [
   './index.html',
