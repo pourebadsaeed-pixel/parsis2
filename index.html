@@ -960,47 +960,68 @@
 <!-- ============ SMS ============ -->
 <section id="page-sms" class="page">
     <h2>📱 پیامک بانکی</h2>
-    <div class="card">
-        <div class="list-header">
-            <span class="count-badge" id="pending-sms-count">۰</span>
-            <span style="font-weight:800;color:var(--primary-dark)">🔔 پیامک‌های ثبت‌نشده</span>
-            <button class="export-btn" id="sms-patterns-manage" title="مدیریت الگوهای یادگرفته">🧠 الگوها</button>
-            <button class="export-btn" id="pending-sms-clear" style="margin-right:auto">🧹 خالی کردن</button>
-        </div>
-        <div id="pending-sms-list"></div>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="sms-pending">🔔 ثبت نشده</button>
+        <button class="tab-btn" data-tab="sms-inbox">📥 ثبت شده</button>
+        <button class="tab-btn" data-tab="sms-patterns">🧠 الگوها</button>
     </div>
-    <div class="card">
-        <h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:0.95rem">📡 روش‌های دریافت</h3>
-        <div class="method-card">
-            <h4><span class="method-num">۱</span> پیست دستی <span class="method-status ok">همیشه</span></h4>
-            <p>پیامک را کپی کن و در کادر زیر پیست کن.</p>
+
+    <!-- ==== TAB: Pending ==== -->
+    <div id="tab-sms-pending" class="tab-content active">
+        <div class="card">
+            <div class="list-header">
+                <span class="count-badge" id="pending-sms-count">۰</span>
+                <input type="text" class="filter-input" id="pending-sms-search" placeholder="🔍 جستجو در پیامک‌ها...">
+                <button class="export-btn" id="pending-sms-clear" style="margin-right:auto">🧹 خالی کردن</button>
+            </div>
+            <div id="pending-sms-list"></div>
         </div>
-        <div class="method-card" id="method-clip">
-            <h4><span class="method-num">۲</span> کلیپ‌بورد <span class="method-status no" id="clip-status">—</span></h4>
-            <p style="font-size:0.78rem">⚠️ فقط متن‌هایی که شامل <b>شماره حساب یا نام بانک‌های شما</b> باشند خوانده می‌شوند.</p>
-            <label class="checkbox-item" style="cursor:pointer;margin-bottom:10px">
+
+        <div class="card">
+            <h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:0.95rem">📡 افزودن پیامک جدید</h3>
+            <div class="field"><label>پیامک را پیست کن</label><textarea id="sms-text" rows="3"></textarea></div>
+            <div class="form-buttons">
+                <button id="parse-sms" class="btn-primary">🔍 تجزیه</button>
+                <button id="clear-sms" class="btn-secondary">پاک کردن</button>
+                <button id="sms-read-clip" class="btn-secondary">📋 خواندن کلیپ‌بورد</button>
+            </div>
+            <label class="checkbox-item" style="margin-top:10px;cursor:pointer">
                 <input type="checkbox" id="sms-auto-read"> <span>خواندن خودکار از کلیپ‌بورد</span>
             </label>
-            <div class="form-buttons">
-                <button id="sms-read-clip" class="btn-primary btn-mini">📋 خواندن</button>
+            <div id="sms-result" style="margin-top:16px"></div>
+        </div>
+    </div>
+
+    <!-- ==== TAB: Inbox ==== -->
+    <div id="tab-sms-inbox" class="tab-content">
+        <div class="card">
+            <div class="list-header">
+                <span class="count-badge" id="sms-inbox-count">۰</span>
+                <input type="text" class="filter-input" id="sms-inbox-search" placeholder="🔍 جستجو...">
+                <select class="filter-input" id="sms-inbox-status-filter" style="flex:0 0 auto;max-width:150px">
+                    <option value="">همه وضعیت‌ها</option>
+                    <option value="new">ثبت نشده</option>
+                    <option value="converted">تبدیل‌شده</option>
+                    <option value="ignored">نادیده</option>
+                </select>
+                <button class="export-btn" id="sms-bulk-create-voucher" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none">📝 ساخت سند ترکیبی</button>
+                <button class="export-btn" id="sms-clear-converted" style="margin-right:auto">🧹 حذف تبدیل‌شده‌ها</button>
             </div>
+            <div id="sms-inbox-list"></div>
         </div>
     </div>
-    <div class="card">
-        <div class="field"><label>پیامک را پیست کن</label><textarea id="sms-text" rows="3"></textarea></div>
-        <div class="form-buttons">
-            <button id="parse-sms" class="btn-primary">🔍 تجزیه</button>
-            <button id="clear-sms" class="btn-secondary">پاک کردن</button>
+
+    <!-- ==== TAB: Patterns ==== -->
+    <div id="tab-sms-patterns" class="tab-content">
+        <div class="card">
+            <div class="list-header">
+                <span class="count-badge" id="sms-patterns-count">۰</span>
+                <input type="text" class="filter-input" id="sms-patterns-search" placeholder="🔍 جستجو در الگوها...">
+                <button class="export-btn" id="sms-patterns-del-all" style="margin-right:auto">🗑 حذف همه</button>
+            </div>
+            <div id="sms-patterns-list"></div>
         </div>
-        <div id="sms-result" style="margin-top:16px"></div>
-    </div>
-    <div class="card">
-        <div class="list-header">
-            <span class="count-badge" id="sms-inbox-count">۰</span>
-            <span style="font-weight:800;color:var(--primary-dark)">📥 صندوق</span>
-            <button class="export-btn" id="sms-clear-converted" style="margin-right:auto">🧹 حذف تبدیل‌شده‌ها</button>
-        </div>
-        <div id="sms-inbox-list"></div>
     </div>
 </section>
 
