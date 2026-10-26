@@ -154,6 +154,184 @@ function tryParseNumericCell(text) {
     return isNeg ? -v : v;
 }
 
+/* ============================================================
+   ✅ getDeleteIssues — بررسی وابستگی‌های قبل از حذف
+   ============================================================ */
+function getDeleteIssues(type, id) {
+    var issues = [];
+    if (!type || !id) return issues;
+
+    var vouchers = DB.load('vouchers', []) || [];
+    if (!Array.isArray(vouchers)) vouchers = [];
+
+    /* ---------- دوره مالی ---------- */
+    if (type === 'fiscalPeriod') {
+        var relatedVouchers = vouchers.filter(function (v) { return v.periodId === id; });
+        if (relatedVouchers.length > 0) {
+            issues.push(toFa(relatedVouchers.length) + ' سند حسابداری به این دوره وصل است');
+        }
+        var estimates = DB.load('dailyEstimates', []) || [];
+        var relEstimates = estimates.filter(function (e) { return e.periodId === id; });
+        if (relEstimates.length > 0) {
+            issues.push(toFa(relEstimates.length) + ' برآورد هزینه به این دوره وصل است');
+        }
+    }
+
+    /* ---------- شخص ---------- */
+    if (type === 'person') {
+        var countV = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.person === id) countV++;
+            });
+        });
+        if (countV > 0) issues.push('در ' + toFa(countV) + ' قلم سند حسابداری استفاده شده');
+
+        var users = DB.load('users', []) || [];
+        if (users.some(function (u) { return u.personId === id; })) {
+            issues.push('به‌عنوان شخص مرتبط یک کاربر تعریف شده');
+        }
+
+        var calEvents = DB.load('calendarUserEvents', []) || [];
+        var calCount = 0;
+        calEvents.forEach(function (e) {
+            if ((e.persons || []).indexOf(id) !== -1) calCount++;
+        });
+        if (calCount > 0) issues.push('در ' + toFa(calCount) + ' رویداد تقویم استفاده شده');
+    }
+
+    /* ---------- شرکت ---------- */
+    if (type === 'company') {
+        var countC = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.company === id) countC++;
+            });
+        });
+        if (countC > 0) issues.push('در ' + toFa(countC) + ' قلم سند حسابداری استفاده شده');
+    }
+
+    /* ---------- حساب بانکی ---------- */
+    if (type === 'bankAccount') {
+        var countB = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.bank === id) countB++;
+            });
+        });
+        if (countB > 0) issues.push('در ' + toFa(countB) + ' قلم سند حسابداری استفاده شده');
+
+        var facilities = DB.load('facilities', []) || [];
+        var relFac = facilities.filter(function (f) { return f.bankId === id; });
+        if (relFac.length > 0) issues.push(toFa(relFac.length) + ' تسهیلات به این حساب وصل است');
+
+        var sourcesB = DB.load('cashFlowSources', []) || [];
+        var relSrcB = sourcesB.filter(function (s) { return s.linkType === 'bank' && s.detailId === id; });
+        if (relSrcB.length > 0) issues.push(toFa(relSrcB.length) + ' منبع دریافتنی به این حساب وصل است');
+    }
+
+    /* ---------- صندوق ---------- */
+    if (type === 'cashBox') {
+        var countCb = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.cashbox === id) countCb++;
+            });
+        });
+        if (countCb > 0) issues.push('در ' + toFa(countCb) + ' قلم سند حسابداری استفاده شده');
+
+        var sourcesCb = DB.load('cashFlowSources', []) || [];
+        var relSrcCb = sourcesCb.filter(function (s) { return s.linkType === 'cashbox' && s.detailId === id; });
+        if (relSrcCb.length > 0) issues.push(toFa(relSrcCb.length) + ' منبع دریافتنی به این صندوق وصل است');
+    }
+
+    /* ---------- پروژه ---------- */
+    if (type === 'project') {
+        var countP = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.project === id) countP++;
+            });
+        });
+        if (countP > 0) issues.push('در ' + toFa(countP) + ' قلم سند حسابداری استفاده شده');
+
+        var sourcesP = DB.load('cashFlowSources', []) || [];
+        var relSrcP = sourcesP.filter(function (s) { return s.linkType === 'project' && s.detailId === id; });
+        if (relSrcP.length > 0) issues.push(toFa(relSrcP.length) + ' منبع دریافتنی به این پروژه وصل است');
+    }
+
+    /* ---------- حساب کدینگ (شامل زیرمجموعه‌ها) ---------- */
+    if (type === 'chartAccount') {
+        var accounts = DB.load('accounts', []) || [];
+
+        /* جمع‌آوری همه زیرمجموعه‌ها */
+        var descendants = [id];
+        var queue = [id];
+        var safety = 0;
+        while (queue.length > 0 && safety < 5000) {
+            safety++;
+            var cur = queue.shift();
+            accounts.forEach(function (a) {
+                if (a.parent === cur && descendants.indexOf(a.id) === -1) {
+                    descendants.push(a.id);
+                    queue.push(a.id);
+                }
+            });
+        }
+
+        /* اسناد */
+        var countA = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.account && descendants.indexOf(l.account) !== -1) countA++;
+            });
+        });
+        if (countA > 0) issues.push('در ' + toFa(countA) + ' قلم سند حسابداری استفاده شده (شامل زیرمجموعه‌ها)');
+
+        /* منابع دریافتنی */
+        var sourcesA = DB.load('cashFlowSources', []) || [];
+        var relSrcA = sourcesA.filter(function (s) { return descendants.indexOf(s.moeinId) !== -1; });
+        if (relSrcA.length > 0) issues.push(toFa(relSrcA.length) + ' منبع دریافتنی به این حساب وصل است');
+
+        /* تسهیلات */
+        var facA = DB.load('facilities', []) || [];
+        var relFacA = facA.filter(function (f) { return descendants.indexOf(f.moeinId) !== -1; });
+        if (relFacA.length > 0) issues.push(toFa(relFacA.length) + ' تسهیلات به این حساب وصل است');
+
+        /* الگوهای سند */
+        var tpls = DB.load('voucherTemplates', []) || [];
+        var tplCount = 0;
+        tpls.forEach(function (t) {
+            (t.lines || []).forEach(function (l) {
+                if (l.account && descendants.indexOf(l.account) !== -1) tplCount++;
+            });
+        });
+        if (tplCount > 0) issues.push('در ' + toFa(tplCount) + ' قلم الگوی سند استفاده شده');
+    }
+
+    /* ---------- نوع حساب بانکی (بر اساس نام) ---------- */
+    if (type === 'bankType') {
+        var banks = DB.load('bankAccounts', []) || [];
+        var used = banks.filter(function (b) { return b.type === id; });
+        if (used.length > 0) {
+            var names = used.slice(0, 3).map(function (b) { return (b.bank || '') + (b.account ? ' - ' + b.account : ''); });
+            issues.push(toFa(used.length) + ' حساب بانکی با این نوع تعریف شده' + (names.length ? ' (' + names.join(' ، ') + ')' : ''));
+        }
+    }
+
+    /* ---------- نوع صندوق (بر اساس نام) ---------- */
+    if (type === 'cashType') {
+        var cbs = DB.load('cashBoxes', []) || [];
+        var used2 = cbs.filter(function (c) { return c.type === id; });
+        if (used2.length > 0) {
+            var names2 = used2.slice(0, 3).map(function (c) { return c.title || ''; });
+            issues.push(toFa(used2.length) + ' صندوق با این نوع تعریف شده' + (names2.length ? ' (' + names2.join(' ، ') + ')' : ''));
+        }
+    }
+
+    return issues;
+}
+
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
     var targetEl = activePage ? activePage.querySelector(selector) : null;
@@ -584,7 +762,7 @@ function exportReportTable(selector, filename) {
 }
 
 /* ============================================================
-   ✅ renderChips — رندر چیپ‌ها با قابلیت حذف
+   ✅ renderChips — با چک وابستگی قبل از حذف
    ============================================================ */
 function renderChips(containerId, list, stateKey) {
     var box = document.getElementById(containerId);
@@ -613,6 +791,17 @@ function renderChips(containerId, list, stateKey) {
             e.stopPropagation();
             var i = Number(this.getAttribute('data-idx'));
             var target = list[i];
+
+            /* ✅ چک وابستگی قبل از حذف */
+            var entityType = (stateKey === 'cashTypes') ? 'cashType' : 'bankType';
+            if (typeof getDeleteIssues === 'function') {
+                var issues = getDeleteIssues(entityType, target);
+                if (issues.length > 0) {
+                    alert('⚠️ امکان حذف «' + target + '» وجود ندارد:\n\n• ' + issues.join('\n• ') + '\n\nابتدا وابستگی‌ها را حذف یا تغییر دهید.');
+                    return;
+                }
+            }
+
             if (!confirm('حذف «' + target + '» شود؟')) return;
 
             list.splice(i, 1);
@@ -649,6 +838,7 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.exportDataToExcel = exportDataToExcel;
 window.tryParseNumericCell = tryParseNumericCell;
+window.getDeleteIssues = getDeleteIssues;
 window.renderChips = renderChips;
 
-console.log('✅ [core/lookups.js] loaded — voucher export routed + renderChips added');
+console.log('✅ [core/lookups.js] loaded — getDeleteIssues added');
