@@ -448,12 +448,21 @@ function findMatchingSmsPattern(raw) {
     var liveCard = extractCardKey(raw);
     var liveKeywords = extractKeywords(raw);
     var liveNumGroups = countNumberGroups(built.tokens);
+    var liveDir = detectSmsDirection(raw);   /* ← تشخیص جهت پیامک */
+
     var liveSig = { card: liveCard, keywords: liveKeywords, numberGroups: liveNumGroups };
 
     var best = null, bestScore = 0, bestReason = '';
 
     for (var i = 0; i < active.length; i++) {
         var p = active[i];
+
+        /* ✅ بررسی جهت: فقط اگر هر دو مشخص و متفاوت هستند، skip */
+        var patDir = p.direction || '';
+        if (patDir && liveDir && patDir !== liveDir) {
+            continue;   /* جهت الگو با پیامک نمی‌خواند → رد */
+        }
+
         var patSig = {
             card: p.cardKey || extractCardKey(p.raw || ''),
             keywords: (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || ''),
@@ -461,7 +470,9 @@ function findMatchingSmsPattern(raw) {
         };
         var res = signatureMatch(liveSig, patSig);
         if (res.match && res.score > bestScore) {
-            bestScore = res.score; best = p; bestReason = res.reason;
+            bestScore = res.score;
+            best = p;
+            bestReason = res.reason;
         }
     }
 
