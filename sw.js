@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v44-2025-sms-shape-match-v5';
+var CACHE_NAME = 'parsis-v45-2025-std-desc-datalist-fix';
 
 var ASSETS = [
   './index.html',
