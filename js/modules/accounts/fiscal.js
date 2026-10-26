@@ -1,9 +1,14 @@
 /* ============================================================
-   پارسیس — دوره‌های مالی (اصلاح دکمه ویرایش و فیلتر قیفی)
+   پارسیس — دوره‌های مالی (با چک وابستگی قبل از حذف)
    مسیر: js/modules/accounts/fiscal.js
    ============================================================ */
 'use strict';
 
+/* ============================================================
+   ✅ attachRowActions — نسخه اصلاح‌شده با چک وابستگی
+   این تابع برای همه فرم‌های پایه (اشخاص، شرکت‌ها، بانک‌ها، صندوق‌ها،
+   پروژه‌ها، دوره‌های مالی) استفاده می‌شود
+   ============================================================ */
 function attachRowActions(tb, sk, rf, ef) {
     var eds = tb.querySelectorAll('.row-btn.edit');
     var dls = tb.querySelectorAll('.row-btn.del');
@@ -19,13 +24,46 @@ function attachRowActions(tb, sk, rf, ef) {
 
     for (var k = 0; k < dls.length; k++) {
         dls[k].addEventListener('click', function () {
-            if (!confirm('حذف شود؟')) return;
             var id = this.getAttribute('data-id');
+
+            /* ✅ نقشه‌برداری از storage key به entity type */
+            var typeMap = {
+                'fiscalPeriods': 'fiscalPeriod',
+                'persons':       'person',
+                'companies':     'company',
+                'bankAccounts':  'bankAccount',
+                'cashBoxes':     'cashBox',
+                'projects':      'project'
+            };
+            var entityType = typeMap[sk];
+
+            /* ✅ چک وابستگی‌ها */
+            if (entityType && typeof getDeleteIssues === 'function') {
+                var issues = getDeleteIssues(entityType, id);
+                if (issues.length > 0) {
+                    var entityName = (DB.load(sk) || []).find(function (x) { return x.id === id; });
+                    var displayName = entityName ? (entityName.name || entityName.title || entityName.bank || '') : '';
+                    alert('⚠️ امکان حذف' + (displayName ? ' «' + displayName + '»' : '') + ' وجود ندارد:\n\n• ' + issues.join('\n• ') + '\n\nابتدا وابستگی‌ها را حذف یا تغییر دهید.');
+                    return;
+                }
+            }
+
+            if (!confirm('حذف شود؟')) return;
+
             var list = DB.load(sk);
             list = list.filter(function (x) { return x.id !== id; });
             DB.save(sk, list);
+
+            /* ✅ اگر دوره فعال حذف شد، اولین دوره موجود را فعال کن */
+            if (sk === 'fiscalPeriods' && state.activePeriodId === id) {
+                state.activePeriodId = list.length > 0 ? list[0].id : '';
+                saveState(LS_KEYS.ACTIVE_PERIOD);
+                if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
+            }
+
             rf();
             if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+            if (typeof showToast === 'function') showToast('🗑 حذف شد');
         });
     }
 }
@@ -182,4 +220,4 @@ window.refreshPeriodFilters = refreshPeriodFilters;
 window.clearFiscalForm     = clearFiscalForm;
 window.bindFiscalForm      = bindFiscalForm;
 
-console.log('✅ [modules/accounts/fiscal.js] loaded');
+console.log('✅ [modules/accounts/fiscal.js] loaded — delete dependency check enabled');
