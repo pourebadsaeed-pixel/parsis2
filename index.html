@@ -957,22 +957,13 @@
     </div></div>
 </section>
 
-<!-- ============ SMS ============ -->
-<section id="page-sms" class="page">
-    <h2>📱 پیامک بانکی</h2>
-
-    <div class="tabs">
-        <button class="tab-btn active" data-tab="sms-pending">🔔 ثبت نشده</button>
-        <button class="tab-btn" data-tab="sms-inbox">📥 ثبت شده</button>
-        <button class="tab-btn" data-tab="sms-patterns">🧠 الگوها</button>
-    </div>
-
     <!-- ==== TAB: Pending ==== -->
     <div id="tab-sms-pending" class="tab-content active">
         <div class="card">
             <div class="list-header">
                 <span class="count-badge" id="pending-sms-count">۰</span>
                 <input type="text" class="filter-input" id="pending-sms-search" placeholder="🔍 جستجو در پیامک‌ها...">
+                <button class="export-btn" id="pending-sms-bulk-voucher" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none">📝 ساخت سند ترکیبی</button>
                 <button class="export-btn" id="pending-sms-clear" style="margin-right:auto">🧹 خالی کردن</button>
             </div>
             <div id="pending-sms-list"></div>
@@ -982,7 +973,7 @@
             <h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:0.95rem">📡 افزودن پیامک جدید</h3>
             <div class="field"><label>پیامک را پیست کن</label><textarea id="sms-text" rows="3"></textarea></div>
             <div class="form-buttons">
-                <button id="parse-sms" class="btn-primary">🔍 تجزیه</button>
+                <button id="parse-sms" class="btn-primary">🔍 تجزیه و افزودن</button>
                 <button id="clear-sms" class="btn-secondary">پاک کردن</button>
                 <button id="sms-read-clip" class="btn-secondary">📋 خواندن کلیپ‌بورد</button>
             </div>
