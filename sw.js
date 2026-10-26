@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v41-2025-remove-scan'; // ✅ نسخه آپدیت شد — حذف scan.js
+var CACHE_NAME = 'parsis-v42-2025-sms-fix-pattern';
 
 var ASSETS = [
   './index.html',
