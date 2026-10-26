@@ -957,7 +957,16 @@
     </div></div>
 </section>
 
-    <!-- ==== TAB: Pending ==== -->
+<!-- ============ SMS ============ -->
+<section id="page-sms" class="page">
+    <h2>📱 پیامک بانکی</h2>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="sms-pending">🔔 ثبت نشده</button>
+        <button class="tab-btn" data-tab="sms-inbox">📥 ثبت شده</button>
+        <button class="tab-btn" data-tab="sms-patterns">🧠 الگوها</button>
+    </div>
+
     <div id="tab-sms-pending" class="tab-content active">
         <div class="card">
             <div class="list-header">
@@ -984,7 +993,6 @@
         </div>
     </div>
 
-    <!-- ==== TAB: Inbox ==== -->
     <div id="tab-sms-inbox" class="tab-content">
         <div class="card">
             <div class="list-header">
@@ -1003,7 +1011,6 @@
         </div>
     </div>
 
-    <!-- ==== TAB: Patterns ==== -->
     <div id="tab-sms-patterns" class="tab-content">
         <div class="card">
             <div class="list-header">
@@ -1688,10 +1695,7 @@
                 var s = document.createElement('script');
                 s.src = modules[i];
                 s.onload = resolve;
-                s.onerror = function () { 
-                    console.warn('Failed to load: ' + modules[i]); 
-                    resolve();
-                };
+                s.onerror = function () { console.warn('Failed to load: ' + modules[i]); resolve(); };
                 document.body.appendChild(s);
             });
         }
