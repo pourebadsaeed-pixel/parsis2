@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — راه‌اندازی نهایی (رفع مشکل دکمه‌های منو و تنظیمات)
+   پارسیس — راه‌اندازی نهایی
    مسیر: js/app.js
    ============================================================ */
 'use strict';
@@ -63,26 +63,52 @@ function bindCurrencyHide() {
     if (hideCb && !hideCb.dataset.bound) { hideCb.dataset.bound = '1'; hideCb.checked = state.hideNumbers; hideCb.onchange = function () { onHideNumbers(this.checked); }; }
 }
 
+/* ============================================================
+   ✅ bindBankCashTypes — نسخه اصلاح‌شده
+   ============================================================ */
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
     if (addBankBtn && !addBankBtn.dataset.bound) {
         addBankBtn.dataset.bound = '1';
         addBankBtn.onclick = function () {
-            var inp = document.getElementById('new-bank-type'); var v = inp.value.trim();
-            if (!v || state.bankTypes.indexOf(v) !== -1) return;
-            state.bankTypes.push(v); saveState(LS_KEYS.BANK_TYPES); inp.value = '';
-            renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+            var inp = document.getElementById('new-bank-type');
+            var v = (inp.value || '').trim();
+            if (!v) { if (typeof showToast === 'function') showToast('⚠️ متن را وارد کنید'); return; }
+            if (state.bankTypes.indexOf(v) !== -1) { if (typeof showToast === 'function') showToast('⚠️ این نوع قبلاً وجود دارد'); return; }
+            state.bankTypes.push(v);
+            saveState(LS_KEYS.BANK_TYPES);
+            inp.value = '';
+            if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+            if (typeof refreshBankTypeSelect === 'function') {
+                try { refreshBankTypeSelect(); } catch (e) {}
+            }
+            if (typeof showToast === 'function') showToast('✅ نوع بانکی «' + v + '» اضافه شد');
         };
     }
+
     var addCashBtn = document.getElementById('add-cash-type');
     if (addCashBtn && !addCashBtn.dataset.bound) {
         addCashBtn.dataset.bound = '1';
         addCashBtn.onclick = function () {
-            var inp = document.getElementById('new-cash-type'); var v = inp.value.trim();
-            if (!v || state.cashTypes.indexOf(v) !== -1) return;
-            state.cashTypes.push(v); saveState(LS_KEYS.CASH_TYPES); inp.value = '';
-            renderChips('cash-types-list', state.cashTypes, 'cashTypes');
+            var inp = document.getElementById('new-cash-type');
+            var v = (inp.value || '').trim();
+            if (!v) { if (typeof showToast === 'function') showToast('⚠️ متن را وارد کنید'); return; }
+            if (state.cashTypes.indexOf(v) !== -1) { if (typeof showToast === 'function') showToast('⚠️ این نوع قبلاً وجود دارد'); return; }
+            state.cashTypes.push(v);
+            saveState(LS_KEYS.CASH_TYPES);
+            inp.value = '';
+            if (typeof renderChips === 'function') renderChips('cash-types-list', state.cashTypes, 'cashTypes');
+            if (typeof refreshCashTypeSelect === 'function') {
+                try { refreshCashTypeSelect(); } catch (e) {}
+            }
+            if (typeof showToast === 'function') showToast('✅ نوع صندوق «' + v + '» اضافه شد');
         };
+    }
+
+    /* ✅ رندر اولیه */
+    if (typeof renderChips === 'function') {
+        renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+        renderChips('cash-types-list', state.cashTypes, 'cashTypes');
     }
 }
 
@@ -169,13 +195,16 @@ function startApp() {
     try { if (typeof initSidebarSearch === 'function') initSidebarSearch(); } catch(e){}
     try { if (typeof initHomeSwipe === 'function') initHomeSwipe(); } catch(e){}
 
-    // ✅ این دو خط بسیار مهم هستند و در نسخه قبل جا افتاده بودند
     try { if (typeof bindSidebarNav === 'function') bindSidebarNav(); } catch(e){ console.warn('Sidebar bind error:', e); }
     try { if (typeof bindSettingsButtons === 'function') bindSettingsButtons(); } catch(e){ console.warn('Settings bind error:', e); }
 
     bindBaseDataForms();
     bindFilterInputs();
     bindExportButtons();
+
+    /* ✅ بایند انواع صندوق و بانک */
+    try { bindBankCashTypes(); } catch(e) { console.warn('BankCashTypes bind error:', e); }
+    try { bindSmsButtons(); } catch(e) { console.warn('SmsButtons bind error:', e); }
 
     try { if (typeof updateDateDisplay === 'function') updateDateDisplay(); } catch(e){}
     try { if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod(); } catch(e){}
@@ -219,6 +248,7 @@ function init() {
 window.startApp = startApp;
 window.bindFilterInputs = bindFilterInputs;
 window.bindExportButtons = bindExportButtons;
+window.bindBankCashTypes = bindBankCashTypes;
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
