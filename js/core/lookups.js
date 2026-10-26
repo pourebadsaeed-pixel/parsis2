@@ -480,9 +480,6 @@ function exportDataToExcel(headers, rows, title, filename, sheetName) {
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
-/* ============================================================
-   ✅ exportToCsv — برای vouchers به تابع اختصاصی delegate می‌کند
-   ============================================================ */
 function exportToCsv(key, filename) {
     if (key === 'vouchers' && typeof window.exportVoucherListToExcel === 'function') {
         window.exportVoucherListToExcel(filename);
@@ -586,6 +583,57 @@ function exportReportTable(selector, filename) {
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
+/* ============================================================
+   ✅ renderChips — رندر چیپ‌ها با قابلیت حذف
+   ============================================================ */
+function renderChips(containerId, list, stateKey) {
+    var box = document.getElementById(containerId);
+    if (!box) return;
+
+    box.innerHTML = '';
+
+    if (!Array.isArray(list) || list.length === 0) {
+        box.innerHTML = '<div class="muted" style="text-align:center;padding:12px;font-size:.85rem;color:#94a3b8">هنوز آیتمی اضافه نشده. از کادر بالا اضافه کنید.</div>';
+        return;
+    }
+
+    list.forEach(function (item, idx) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#dbeafe;color:#1e40af;border-radius:22px;font-size:.82rem;font-weight:700;margin:4px';
+        chip.innerHTML = '<span>' + esc(item) + '</span>' +
+                         '<button class="chip-del" data-idx="' + idx + '" type="button" ' +
+                         'style="background:none;border:none;color:#dc2626;font-size:1.1rem;cursor:pointer;padding:0;font-weight:900;line-height:1" title="حذف">×</button>';
+        box.appendChild(chip);
+    });
+
+    box.querySelectorAll('.chip-del').forEach(function (b) {
+        b.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var i = Number(this.getAttribute('data-idx'));
+            var target = list[i];
+            if (!confirm('حذف «' + target + '» شود؟')) return;
+
+            list.splice(i, 1);
+            var lsKey = (stateKey === 'cashTypes') ? LS_KEYS.CASH_TYPES : LS_KEYS.BANK_TYPES;
+            DB.save(lsKey, list);
+            state[stateKey] = list;
+
+            renderChips(containerId, list, stateKey);
+
+            if (stateKey === 'cashTypes' && typeof refreshCashTypeSelect === 'function') {
+                try { refreshCashTypeSelect(); } catch (err) {}
+            }
+            if (stateKey === 'bankTypes' && typeof refreshBankTypeSelect === 'function') {
+                try { refreshBankTypeSelect(); } catch (err) {}
+            }
+
+            if (typeof showToast === 'function') showToast('🗑 حذف شد');
+        };
+    });
+}
+
 window.getAccountLabel = getAccountLabel;
 window.getAccountSearchText = getAccountSearchText;
 window.getDetailLabel = getDetailLabel;
@@ -601,5 +649,6 @@ window.exportToCsv = exportToCsv;
 window.exportReportTable = exportReportTable;
 window.exportDataToExcel = exportDataToExcel;
 window.tryParseNumericCell = tryParseNumericCell;
+window.renderChips = renderChips;
 
-console.log('✅ [core/lookups.js] loaded — voucher export routed');
+console.log('✅ [core/lookups.js] loaded — voucher export routed + renderChips added');
