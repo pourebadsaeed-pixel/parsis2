@@ -35,6 +35,14 @@ function runPageRenderer(name) {
         'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
         'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
 
+        /* ✅ انواع حساب بانکی و انواع صندوق */
+        'bank-types':           function () {
+            if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
+        },
+        'cash-types':           function () {
+            if (typeof renderChips === 'function') renderChips('cash-types-list', state.cashTypes, 'cashTypes');
+        },
+
         'estimate-daily':       function () { if (typeof refreshEstPeriodSelect === 'function') refreshEstPeriodSelect(); if (typeof renderEstimateList === 'function') renderEstimateList(); },
         'cashflow-sources':     function () { if (typeof refreshCfsMoeinSelect === 'function') refreshCfsMoeinSelect(); if (typeof renderCfsList === 'function') renderCfsList(); },
         'facilities':           function () { if (typeof renderFacilitiesList === 'function') renderFacilitiesList(); if (typeof refreshFacBankSelect === 'function') refreshFacBankSelect(); },
@@ -133,7 +141,6 @@ function applyPageHelpers() {
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
     
-    // ✅ اضافه کردن بایند مجدد دکمه‌ها برای تب‌های کپی‌شده
     if (typeof bindReportButtons === 'function') bindReportButtons();
     if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
     if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
