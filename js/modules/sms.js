@@ -1,18 +1,20 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۵ — Shape Matching + شرح خالی)
+   پارسیس — پیامک بانکی (نسخه ۶ — Shape Matching قطعی)
    مسیر: js/modules/sms.js
    
-   تغییرات نسخه ۵ (نسبت به ۴):
-     ✅ tokensShapeCollapsed — توکن‌های عددی متوالی به یک # تبدیل می‌شوند
-     ✅ findMatchingSmsPattern — دو مرحله‌ای:
-        - مرحله ۱: تطبیق دقیق بر اساس shape key (قطعیت کامل)
-        - مرحله ۲: تطبیق فازی (هم raw هم shape)
-     ✅ direction check — الگوی برداشت با پیامک واریز تطبیق نمی‌دهد
+   تغییرات نسخه ۶ (نسبت به ۵):
+     ✅ findMatchingSmsPattern: حذف کامل direction check
+        (دلیل باگ: کاربر جهت انتخاب می‌کرد → ذخیره می‌شد → دفعه بعد
+         detectSmsDirection مقدار متفاوت برمی‌گرداند → skip → تکرار الگو)
+     ✅ addSmsPattern: جستجو با shape key هم انجام می‌شود
+        (دلیل باگ: مبلغ ۵۰۰,۰۰۰ vs ۵,۰۰۰,۰۰۰ → key متفاوت → duplicate)
+     ✅ handleIncomingSms: چک inbox برای پیامک‌های converted
    
-   تغییرات نسخه ۴ (نسبت به ۳):
-     ✅ رفع تکرار الگو با patternMatchedId
-     ✅ آستانه 0.65 (از 0.75)
-     ✅ شرح خالی مجاز برای الگو (بدون fallback)
+   تغییرات نسخه ۵:
+     ✅ tokensShapeCollapsed + تطبیق دو مرحله‌ای
+   
+   تغییرات نسخه ۴:
+     ✅ شرح خالی مجاز برای الگو
    ============================================================ */
 'use strict';
 
@@ -203,7 +205,7 @@ function parseBankSms(text) {
 }
 
 /* ============================================================
-   بخش ۳ — صندوق‌ها
+   بخش ۳ — صندوق‌ها و inbox
    ============================================================ */
 function getSmsInbox() { var l = DB.load('smsInbox', []); return Array.isArray(l) ? l : []; }
 function saveSmsInbox(list) { DB.save('smsInbox', list); }
@@ -244,7 +246,7 @@ function addSmsToInbox(rawText, source) {
 }
 
 /* ============================================================
-   بخش ۴ — الگوها
+   بخش ۴ — الگوها و pending
    ============================================================ */
 var SMS_PATTERNS_KEY = 'smsPatterns';
 var SMS_PENDING_KEY = 'smsPending';
@@ -319,7 +321,7 @@ function detectSmsDirection(text) {
 }
 
 /* ============================================================
-   بخش ۶ — توکن‌سازی الگو
+   بخش ۶ — توکن‌سازی، shape و تطبیق
    ============================================================ */
 function smsNormalizeForPattern(text) {
     return normalizeDigits(String(text || ''))
@@ -360,9 +362,9 @@ function buildSmsPattern(raw) {
 function isWild(t) { return typeof t === 'string' && t.indexOf('#') !== -1; }
 
 /* ============================================================
-   ✅ tokensShapeCollapsed — توکن‌های عددی متوالی را به یک # تبدیل می‌کند
+   ✅ tokensShapeCollapsed
+   توکن‌های عددی متوالی → یک #
    مثال: ['برداشت', '#1', '#2', '#3', 'ریال'] → ['برداشت', '#', 'ریال']
-   این کار باعث می‌شود مبلغ 500,000 و 1,500,000 و 15,000,000 همه یکسان دیده شوند.
    ============================================================ */
 function tokensShapeCollapsed(tokens) {
     var out = [], prevWild = false;
@@ -412,41 +414,36 @@ function smsTokenSimilarity(a, b) {
 }
 
 /* ============================================================
-   ✅ findMatchingSmsPattern — دو مرحله‌ای
-   مرحله ۱: تطبیق دقیق بر اساس shape key (مطمئن‌ترین)
-   مرحله ۲: تطبیق فازی روی raw و shape
-   + direction check برای جلوگیری از false positive
+   ✅ findMatchingSmsPattern — نسخه ۶
+   بدون هیچ فیلتری (نه direction، نه چیز دیگه)
+   مرحله ۱: shape key دقیق → قطعی
+   مرحله ۲: فازی روی raw و shape
    ============================================================ */
 function findMatchingSmsPattern(raw) {
     var active = loadSmsPatterns().filter(function (p) { return !p.blocked; });
     if (active.length === 0) return null;
 
     var built = buildSmsPattern(raw);
-    var liveDir = detectSmsDirection(raw);
     var liveShape = tokensShapeCollapsed(built.tokens);
     var liveShapeKey = liveShape.join(' ');
 
-    /* -------- مرحله ۱: تطبیق دقیق shape -------- */
+    /* مرحله ۱: تطبیق قطعی بر اساس shape */
     for (var i = 0; i < active.length; i++) {
         var p = active[i];
-        if (liveDir && p.direction && p.direction !== liveDir) continue;
         var patShape = tokensShapeCollapsed(p.tokens || []);
         if (patShape.join(' ') === liveShapeKey) {
             return { pattern: p, score: 1.0, built: built, exactShape: true };
         }
     }
 
-    /* -------- مرحله ۲: تطبیق فازی -------- */
+    /* مرحله ۲: فازی */
     var best = null, bestScore = 0;
     for (var j = 0; j < active.length; j++) {
         var p2 = active[j];
-        if (liveDir && p2.direction && p2.direction !== liveDir) continue;
-
         var patShape2 = tokensShapeCollapsed(p2.tokens || []);
         var simRaw   = smsTokenSimilarity(built.tokens, p2.tokens || []);
         var simShape = smsTokenSimilarity(liveShape, patShape2);
         var s = Math.max(simRaw, simShape);
-
         if (s > bestScore) { bestScore = s; best = p2; }
     }
 
@@ -531,13 +528,24 @@ function suggestLabel(text, bankName, dir) {
 }
 
 /* ============================================================
-   بخش ۹ — CRUD الگو
+   ✅ بخش ۹ — addSmsPattern با جستجوی shape key
    ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
     var built = buildSmsPattern(opts.raw || '');
     var key = opts.key || built.key;
+    var newShapeKey = tokensShapeCollapsed(built.tokens).join(' ');
+
+    /* ۱. با key دقیق */
     var existing = patterns.find(function (p) { return p.key === key; });
+
+    /* ۲. با shape key (جلوگیری از duplicate با مبلغ متفاوت) */
+    if (!existing) {
+        existing = patterns.find(function (p) {
+            return tokensShapeCollapsed(p.tokens || []).join(' ') === newShapeKey;
+        });
+    }
+
     if (existing) {
         existing.uses = (existing.uses || 0) + 1;
         existing.lastUsed = Date.now();
@@ -550,6 +558,7 @@ function addSmsPattern(opts) {
         saveSmsPatterns(patterns);
         return existing;
     }
+
     var rec = {
         id: 'sp_' + uid(), key: key, raw: built.raw, tokens: built.tokens,
         mapping: opts.mapping || built.mapping, slots: opts.slots || {},
@@ -578,7 +587,7 @@ function deleteSmsPattern(id) {
 }
 
 /* ============================================================
-   بخش ۱۰ — افزودن به pending
+   بخش ۱۰ — pending CRUD
    ============================================================ */
 function addPendingSms(raw, source, force, extraData) {
     var text = String(raw || '').trim();
@@ -781,7 +790,7 @@ function bindPendingEventsNew(box) {
 }
 
 /* ============================================================
-   بخش ۱۲ — ذخیره pending (آپدیت الگو اگر شناسایی شده)
+   بخش ۱۲ — ذخیره pending
    ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
@@ -804,7 +813,6 @@ function savePendingAsPattern(pid, withVoucher) {
     if (!direction) { alert('⚠️ واریز یا برداشت را انتخاب کنید.'); return; }
     if (withVoucher && !accountId) { alert('⚠️ برای ساخت سند، حساب بانکی را انتخاب کنید.'); return; }
 
-    /* آپدیت الگوی موجود یا ساخت الگوی جدید */
     if (pending.patternMatchedId) {
         var allPatterns = loadSmsPatterns();
         var matched = allPatterns.find(function (p2) { return p2.id === pending.patternMatchedId; });
@@ -863,7 +871,6 @@ function savePendingAsPattern(pid, withVoucher) {
             voucherDesc: voucherDesc.trim(),
             lineDesc: lineDesc.trim()
         });
-
         if (voucherResult && voucherResult.voucher) {
             inbox[0].voucherId = voucherResult.voucher.id;
             if (voucherResult.approved) inbox[0].status = 'converted';
@@ -963,10 +970,7 @@ function _createVoucherSmart(data) {
    ============================================================ */
 function convertMultiplePendingToVoucher() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
-    if (checked.length === 0) {
-        alert('⚠️ ابتدا یک یا چند پیامک را تیک بزنید.');
-        return;
-    }
+    if (checked.length === 0) { alert('⚠️ ابتدا یک یا چند پیامک را تیک بزنید.'); return; }
 
     var bankMoein = getBankMoeinId();
     if (!bankMoein) { alert('⚠️ معین بانک تعریف نشده.'); return; }
@@ -1015,25 +1019,15 @@ function convertMultiplePendingToVoucher() {
         usedIds.push(pid);
     }
 
-    if (lines.length === 0) {
-        alert('⚠️ هیچ‌کدام از پیامک‌های انتخاب‌شده قابل تبدیل نیستند (مبلغ یا جهت نامشخص).');
-        return;
-    }
+    if (lines.length === 0) { alert('⚠️ هیچ‌کدام از پیامک‌های انتخاب‌شده قابل تبدیل نیستند.'); return; }
 
     var descArr = Object.keys(descSet);
     var voucherDesc = (descArr.length > 0 && descArr.length <= 3) ? descArr.join(' + ') : '';
 
     var vl = DB.load('vouchers', []);
-    var num = (typeof getNextVoucherNumberForPeriod === 'function')
-        ? getNextVoucherNumberForPeriod(state.activePeriodId || '')
-        : String(vl.length + 1);
+    var num = (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(state.activePeriodId || '') : String(vl.length + 1);
 
-    var v = {
-        id: uid(), number: num, date: todayJalaliStr(),
-        type: 'general', periodId: state.activePeriodId || '',
-        desc: voucherDesc, lines: lines, status: 'draft'
-    };
-
+    var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDesc, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
     vl.push(v);
     DB.save('vouchers', vl);
@@ -1845,4 +1839,4 @@ window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
 
-console.log('✅ [modules/sms.js] loaded — v5 (shape-based matching + empty desc allowed)');
+console.log('✅ [modules/sms.js] loaded — v6 (no direction check + shape key dedup)');
