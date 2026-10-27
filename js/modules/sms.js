@@ -1,14 +1,12 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۰ — Multi-Paste + Badge Fix)
+   پارسیس — پیامک بانکی (نسخه ۱۱ — Account Number Detection)
    مسیر: js/modules/sms.js
    
-   تغییرات v10:
-     ✅ Badge فقط pending می‌شمارد (نه inbox 'new')
-     ✅ Migration: پاک‌سازی inbox 'new' باقی‌مانده از نسخه‌های قدیمی
-     ✅ splitMultipleSms: شکستن متن چند پیامکی به آرایه
-     ✅ handleMultipleIncomingSms: پردازش گروهی
-     ✅ باکس «پیامک را پیست کن» حالا چند پیامک را می‌پذیرد
-     ✅ readClipboardAndAdd از multi هم پشتیبانی می‌کند
+   تغییرات v11:
+     ✅ extractCardKey: اولویت اول «حساب:X» حتی اگه کوتاه باشه (84009)
+     ✅ normalizeAccountKey: مقایسه یکپارچه با/بدون پیشوند
+     ✅ signatureMatch: اگر هر دو شماره حساب دارند و متفاوت → mismatch
+     ✅ runSmsMigrations: re-extract cardKey از raw برای الگوهای قدیمی
    ============================================================ */
 'use strict';
 
@@ -206,7 +204,6 @@ function getUnreadSmsCount() {
     return c;
 }
 
-/* ✅ v10: Badge فقط pending می‌شمارد */
 function updateSmsBadge() {
     var total = getPendingSmsCount();
     var b = document.getElementById('sms-nav-badge');
@@ -251,7 +248,6 @@ function getPendingSms() { var l = DB.load(SMS_PENDING_KEY, []); return Array.is
 function savePendingSms(list) { DB.save(SMS_PENDING_KEY, list.slice(-SMS_PENDING_MAX)); }
 function getPendingSmsCount() { return getPendingSms().length; }
 
-/* ✅ v10: migration + پاک‌سازی inbox 'new' قدیمی */
 function runSmsMigrations() {
     try {
         var patterns = loadSmsPatterns();
@@ -260,8 +256,20 @@ function runSmsMigrations() {
             if (typeof p.voucherDesc === 'undefined') { p.voucherDesc = p.label || ''; changed = true; }
             if (typeof p.lineDesc === 'undefined') { p.lineDesc = p.label || ''; changed = true; }
             if (typeof p.blocked === 'undefined') { p.blocked = false; changed = true; }
-            if (typeof p.cardKey === 'undefined') { p.cardKey = extractCardKey(p.raw || ''); changed = true; }
             if (typeof p.keywords === 'undefined') { p.keywords = extractKeywords(p.raw || ''); changed = true; }
+
+            /* ✅ v11: بازاستخراج cardKey از raw برای الگوهای قدیمی */
+            if (p.raw) {
+                var newCard = extractCardKey(p.raw);
+                if (newCard) {
+                    var oldNorm = normalizeAccountKey(p.cardKey || '');
+                    var newNorm = normalizeAccountKey(newCard);
+                    if (oldNorm !== newNorm) {
+                        p.cardKey = newCard;
+                        changed = true;
+                    }
+                }
+            }
         });
         if (changed) saveSmsPatterns(patterns);
     } catch (e) { console.warn('[sms migrations]', e); }
@@ -275,11 +283,8 @@ function runSmsMigrations() {
 
         inbox.forEach(function (s) {
             if (s.status !== 'new') return;
-            if (pendingRaws[s.rawText]) {
-                s.status = '_delete_';
-            } else {
-                s.status = 'ignored';
-            }
+            if (pendingRaws[s.rawText]) s.status = '_delete_';
+            else s.status = 'ignored';
             inboxChanged = true;
         });
 
@@ -363,18 +368,15 @@ function buildSmsPattern(raw) {
         var signBefore = p.match(/^([+\-−])(\d.*)$/);
         var signAfter  = p.match(/^(\d.*?)([+\-−])$/);
         if (signBefore) {
-            n++;
-            var s = signBefore[1] === '−' ? '-' : signBefore[1];
+            n++; var s = signBefore[1] === '−' ? '-' : signBefore[1];
             var slot = '#' + n;
             tokens.push(s + slot); mapping[slot] = p;
         } else if (signAfter) {
-            n++;
-            var s2 = signAfter[2] === '−' ? '-' : signAfter[2];
+            n++; var s2 = signAfter[2] === '−' ? '-' : signAfter[2];
             var slot2 = '#' + n;
             tokens.push(slot2 + s2); mapping[slot2] = p;
         } else if (/\d/.test(p)) {
-            n++;
-            var slot3 = '#' + n;
+            n++; var slot3 = '#' + n;
             tokens.push(slot3); mapping[slot3] = p;
         } else {
             tokens.push(p);
@@ -396,17 +398,40 @@ function tokensShapeCollapsed(tokens) {
 }
 
 /* ============================================================
-   بخش ۷ — کارت + کلمات کلیدی
+   ✅ بخش ۷ — استخراج شناسه حساب (نسخه ۱۱)
+   
+   اولویت:
+   ۱. «حساب:X» یا «کارت:X» یا «حساب شماره X»  ← حتی کوتاه (۳+ رقم)
+   ۲. IR + شبا
+   ۳. توالی طولانی ارقام (شماره کارت ۱۶ رقمی قدیمی)
    ============================================================ */
 function extractCardKey(raw) {
-    var normalized = normalizeDigits(String(raw || ''));
-    var matches = normalized.match(/\d[\d.\-_]{8,}/g);
-    if (!matches || matches.length === 0) return '';
-    for (var i = 0; i < matches.length; i++) {
-        var digits = matches[i].replace(/[^\d]/g, '');
-        if (digits.length >= 8) return digits.slice(-8);
+    var t = normalizeDigits(String(raw || ''));
+
+    /* ✅ Priority 1: برچسب حساب/کارت — حتی اعداد کوتاه */
+    var mAcc = t.match(/(?:حساب|کارت)\s*(?:شماره)?\s*[:ـ]?\s*(\d{3,})/);
+    if (mAcc) return 'ACC:' + mAcc[1];
+
+    /* ✅ Priority 2: IBAN */
+    var mIban = t.match(/IR\s*(\d{22,26})/i);
+    if (mIban) return 'IBAN:' + mIban[1];
+
+    /* Priority 3: legacy — توالی طولانی ارقام (کارت ۱۶ رقمی) */
+    var matches = t.match(/\d[\d.\-_]{8,}/g);
+    if (matches && matches.length > 0) {
+        for (var i = 0; i < matches.length; i++) {
+            var digits = matches[i].replace(/[^\d]/g, '');
+            if (digits.length >= 8) return 'CARD:' + digits.slice(-8);
+        }
     }
+
     return '';
+}
+
+/* ✅ نرمال‌سازی برای مقایسه — حذف پیشوندها */
+function normalizeAccountKey(k) {
+    if (!k) return '';
+    return String(k).replace(/^(ACC|CARD|IBAN|NUM):/, '');
 }
 
 function extractKeywords(raw) {
@@ -432,15 +457,30 @@ function countNumberGroups(tokens) {
     return count;
 }
 
+/* ============================================================
+   ✅ بخش ۸ — signatureMatch (نسخه ۱۱)
+   
+   اگر هر دو شماره حساب دارند و متفاوت → رد قطعی
+   ============================================================ */
 function signatureMatch(sig1, sig2) {
+    var norm1 = normalizeAccountKey(sig1.card);
+    var norm2 = normalizeAccountKey(sig2.card);
+
     var cardScore, cardReason = '';
-    if (sig1.card && sig2.card) {
-        if (sig1.card !== sig2.card) return { match: false, score: 0, reason: 'card-mismatch' };
-        cardScore = 1.0; cardReason = 'card-exact';
-    } else if (!sig1.card && !sig2.card) {
-        cardScore = 0.5; cardReason = 'no-cards';
+
+    if (norm1 && norm2) {
+        /* ✅ هر دو شناسه دارند — اگر متفاوت باشد قطعاً رد */
+        if (norm1 !== norm2) {
+            return { match: false, score: 0, reason: 'account-mismatch(' + norm1 + '≠' + norm2 + ')' };
+        }
+        cardScore = 1.0;
+        cardReason = 'account-exact';
+    } else if (!norm1 && !norm2) {
+        cardScore = 0.5;
+        cardReason = 'no-accounts';
     } else {
-        cardScore = 0.3; cardReason = 'one-card-missing';
+        cardScore = 0.3;
+        cardReason = 'one-account-missing';
     }
 
     if (sig1.keywords.length === 0 && sig2.keywords.length === 0) {
@@ -498,7 +538,7 @@ function findMatchingSmsPattern(raw) {
 }
 
 /* ============================================================
-   بخش ۸ — فیلتر
+   بخش ۹ — فیلتر
    ============================================================ */
 function isBankSms(text) {
     if (!text) return false;
@@ -523,7 +563,7 @@ function isBankSms(text) {
 }
 
 /* ============================================================
-   بخش ۹ — پیشنهادها
+   بخش ۱۰ — پیشنهادها
    ============================================================ */
 function suggestAmount(text) {
     var t = normalizeDigits(String(text || ''));
@@ -573,7 +613,7 @@ function suggestLabel(text, bankName, dir) {
 }
 
 /* ============================================================
-   بخش ۱۰ — CRUD الگو
+   بخش ۱۱ — CRUD الگو
    ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
@@ -591,8 +631,11 @@ function addSmsPattern(opts) {
             if (pDir && newDir && pDir !== newDir) return false;
 
             var pCard = p.cardKey || extractCardKey(p.raw || '');
+            var normP = normalizeAccountKey(pCard);
+            var normN = normalizeAccountKey(newCardKey);
+            if (normP !== normN) return false;   /* ✅ حساب باید یکسان باشد */
+
             var pKw = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
-            if (pCard !== newCardKey) return false;
             var common = 0;
             for (var i = 0; i < newKeywords.length; i++) {
                 if (pKw.indexOf(newKeywords[i]) !== -1) common++;
@@ -649,7 +692,7 @@ function deleteSmsPattern(id) {
 }
 
 /* ============================================================
-   بخش ۱۱ — pending CRUD
+   بخش ۱۲ — pending CRUD
    ============================================================ */
 function addPendingSms(raw, source, force, extraData) {
     var text = String(raw || '').trim();
@@ -702,19 +745,16 @@ function removePendingSms(id) {
 function clearPendingSms() { savePendingSms([]); }
 
 /* ============================================================
-   ✅ بخش ۱۲ — splitMultipleSms (جدید v10)
-   شکستن متن چند پیامکی به آرایه
+   بخش ۱۳ — splitMultipleSms
    ============================================================ */
 function splitMultipleSms(text) {
     var t = String(text || '').trim();
     if (!t) return [];
 
-    /* مرحله ۱: با خط‌های خالی بشکن (2+ newline) */
     var blocks = t.split(/\r?\n\s*\r?\n+/)
         .map(function (b) { return b.trim(); })
         .filter(Boolean);
 
-    /* مرحله ۲: اگر هر بلوک چند پیامک چسبیده داشت، با شروع شماره کارت بشکن */
     var result = [];
     var headerRe = /\r?\n(?=\s*(?:\d{3}[.\-\s]?\d{3}[.\-\s]?\d{5,}|\d{16}|IR\s*\d{24}|\*{3,}\d{4}))/;
 
@@ -722,20 +762,15 @@ function splitMultipleSms(text) {
         var parts = block.split(headerRe)
             .map(function (b) { return b.trim(); })
             .filter(Boolean);
-
-        if (parts.length > 1) {
-            result = result.concat(parts);
-        } else {
-            result.push(block);
-        }
+        if (parts.length > 1) result = result.concat(parts);
+        else result.push(block);
     });
 
     return result;
 }
 
 /* ============================================================
-   ✅ بخش ۱۳ — handleMultipleIncomingSms (جدید v10)
-   پردازش گروهی پیامک‌ها
+   بخش ۱۴ — handleMultipleIncomingSms
    ============================================================ */
 function handleMultipleIncomingSms(text, source, force) {
     var blocks = splitMultipleSms(text);
@@ -744,7 +779,6 @@ function handleMultipleIncomingSms(text, source, force) {
         return { ok: false, reason: 'empty', total: 0, matched: 0, unmatched: 0, duplicate: 0, notBank: 0 };
     }
 
-    /* تک پیامک: رفتار قبلی */
     if (blocks.length === 1) {
         var single = handleIncomingSms(blocks[0], source, force);
         return {
@@ -759,43 +793,23 @@ function handleMultipleIncomingSms(text, source, force) {
         };
     }
 
-    /* چند پیامک: اضافه کردن همه به pending */
-    var results = {
-        ok: true, total: blocks.length,
-        matched: 0, unmatched: 0, duplicate: 0, notBank: 0,
-        items: []
-    };
+    var results = { ok: true, total: blocks.length, matched: 0, unmatched: 0, duplicate: 0, notBank: 0, items: [] };
 
     blocks.forEach(function (block) {
-        /* در حالت چندگانه، اگر force نبود، فقط بانکی‌ها */
-        var singleForce = force;
-        var r = handleIncomingSms(block, source || 'paste-multi', singleForce);
-
+        var r = handleIncomingSms(block, source || 'paste-multi', force);
         if (r.ok) {
             if (r.matched) results.matched++;
             else results.unmatched++;
             results.items.push(r);
-        } else if (r.reason === 'duplicate') {
-            results.duplicate++;
-        } else if (r.reason === 'not-bank') {
-            /* اگه force نبود، فقط شمارش کن */
-            results.notBank++;
-        }
+        } else if (r.reason === 'duplicate') results.duplicate++;
+        else if (r.reason === 'not-bank') results.notBank++;
     });
 
-    /* پیام‌رسانی به UI */
     try { renderPendingSmsBox(); } catch (e) {}
     try { updateSmsBadge(); } catch (e) {}
 
     var totalAdded = results.matched + results.unmatched;
-
     if (totalAdded > 0) {
-        var msg = '✅ ' + toFa(totalAdded) + ' پیامک به لیست انتظار اضافه شد\n';
-        if (results.matched > 0) msg += '🧠 شناسایی‌شده: ' + toFa(results.matched) + '\n';
-        if (results.unmatched > 0) msg += '🔔 جدید (نیاز به تعریف الگو): ' + toFa(results.unmatched) + '\n';
-        if (results.duplicate > 0) msg += '⚠️ تکراری: ' + toFa(results.duplicate) + '\n';
-        if (results.notBank > 0) msg += '❌ غیربانکی: ' + toFa(results.notBank) + '\n';
-        msg += '\n💡 از دکمه «📝 ساخت سند ترکیبی» برای ادغام همه استفاده کنید.';
         showToast('✅ ' + toFa(totalAdded) + ' پیامک اضافه شد — از «ساخت سند ترکیبی» استفاده کنید', 4500);
     } else if (results.duplicate > 0) {
         showToast('⚠️ همه پیامک‌ها قبلاً ثبت شده بودند');
@@ -807,7 +821,7 @@ function handleMultipleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۱۴ — رندر pending (Compact + Unmatched)
+   بخش ۱۵ — رندر pending
    ============================================================ */
 function _buildMatchedCardHtml(p, s) {
     var pid = p.id;
@@ -832,7 +846,6 @@ function _buildMatchedCardHtml(p, s) {
 
     return '<div class="pending-sms-card psm-matched" data-pid="' + pid + '" ' +
         'style="border:2px solid #10b981; background:linear-gradient(180deg,#ecfdf5 0%,#ffffff 100%); border-radius:16px; overflow:hidden; margin-bottom:14px; box-shadow:0 4px 16px rgba(16,185,129,0.12);">' +
-
         '<div style="background:linear-gradient(135deg,#10b981,#059669); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px;">' +
             '<input type="checkbox" class="psm-select-cb" data-pid="' + pid + '" ' +
             'style="width:20px; height:20px; cursor:pointer; accent-color:#fff; flex-shrink:0;">' +
@@ -841,7 +854,6 @@ function _buildMatchedCardHtml(p, s) {
                 '<div style="font-size:.72rem; opacity:.9; margin-top:2px;">📅 ' + toFa(tsToJalaliDate(p.createdAt)) + ' — ' + toFa(tsToJalaliTime(p.createdAt)) + '</div>' +
             '</div>' +
         '</div>' +
-
         '<div style="padding:14px;">' +
             '<details style="margin-bottom:10px;">' +
                 '<summary style="cursor:pointer; font-size:.8rem; font-weight:700; color:var(--primary-dark); padding:4px 0; user-select:none;">📄 متن پیامک</summary>' +
@@ -880,7 +892,6 @@ function _buildMatchedCardHtml(p, s) {
                 '</div>' +
             '</details>' +
         '</div>' +
-
         '<div style="padding:12px 14px; background:var(--card-alt); border-top:1px solid var(--border); display:flex; gap:8px;">' +
             '<button class="psm-btn-primary" data-action="save-with-voucher" data-id="' + pid + '" ' +
             'style="flex:1; font-size:.95rem; padding:12px; background:linear-gradient(135deg,#10b981,#059669);">✅ تأیید و ساخت سند</button>' +
@@ -987,9 +998,7 @@ function renderPendingSmsBox() {
         shown++;
 
         var s = p.suggestion || {};
-        var isMatched = !!p.patternMatchedId;
-
-        if (isMatched) html += _buildMatchedCardHtml(p, s);
+        if (p.patternMatchedId) html += _buildMatchedCardHtml(p, s);
         else html += _buildUnmatchedCardHtml(p, s);
     }
 
@@ -1019,7 +1028,6 @@ function bindPendingEventsNew(box) {
             this.classList.add(dir === 'in' ? 'active-in' : 'active-out');
             var hidden = card.querySelector('[data-field="direction"]');
             if (hidden) hidden.value = dir;
-
             var pid = card.getAttribute('data-pid');
             var list = getPendingSms();
             var pending = list.find(function(x) { return x.id === pid; });
@@ -1043,9 +1051,7 @@ function bindPendingEventsNew(box) {
             var pid = this.getAttribute('data-id');
             if (action === 'drop') {
                 if (!confirm('این پیامک حذف شود؟')) return;
-                removePendingSms(pid);
-                renderPendingSmsBox();
-                return;
+                removePendingSms(pid); renderPendingSmsBox(); return;
             }
             if (action === 'save-pattern-only') return savePendingAsPattern(pid, false);
             if (action === 'save-with-voucher')  return savePendingAsPattern(pid, true);
@@ -1054,7 +1060,7 @@ function bindPendingEventsNew(box) {
 }
 
 /* ============================================================
-   بخش ۱۵ — ذخیره pending
+   بخش ۱۶ — ذخیره pending
    ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
@@ -1110,9 +1116,7 @@ function savePendingAsPattern(pid, withVoucher) {
         var inbox = getSmsInbox();
         var parsed = parseBankSms(pending.raw);
         var inboxItem = {
-            id: uid(),
-            rawText: pending.raw,
-            source: pending.source,
+            id: uid(), rawText: pending.raw, source: pending.source,
             receivedAt: pending.createdAt || Date.now(),
             parsed: {
                 amount: amount, direction: direction, balance: parsed.balance, bankName: parsed.bankName,
@@ -1123,24 +1127,17 @@ function savePendingAsPattern(pid, withVoucher) {
                 })(),
                 matchedField: '', accountCandidates: parsed.accountCandidates
             },
-            status: 'converted',
-            voucherId: ''
+            status: 'converted', voucherId: ''
         };
         inbox.unshift(inboxItem);
 
         var voucherResult = _createVoucherSmart({
-            bankAccountId: accountId,
-            amount: amount,
-            direction: direction,
+            bankAccountId: accountId, amount: amount, direction: direction,
             date: normalizeDigits(dateStr).trim() || todayJalaliStr(),
-            voucherDesc: voucherDesc.trim(),
-            lineDesc: lineDesc.trim()
+            voucherDesc: voucherDesc.trim(), lineDesc: lineDesc.trim()
         });
 
-        if (voucherResult && voucherResult.voucher) {
-            inboxItem.voucherId = voucherResult.voucher.id;
-        }
-
+        if (voucherResult && voucherResult.voucher) inboxItem.voucherId = voucherResult.voucher.id;
         saveSmsInbox(inbox);
     }
 
@@ -1150,10 +1147,7 @@ function savePendingAsPattern(pid, withVoucher) {
     renderSmsPatternsTab();
     updateSmsBadge();
 
-    if (!withVoucher) {
-        showToast('🧠 الگو ثبت شد (پیامک از لیست انتظار حذف شد)', 3500);
-        return;
-    }
+    if (!withVoucher) { showToast('🧠 الگو ثبت شد (پیامک از لیست انتظار حذف شد)', 3500); return; }
 
     var wasApproved = true;
     try {
@@ -1166,7 +1160,7 @@ function savePendingAsPattern(pid, withVoucher) {
 }
 
 /* ============================================================
-   بخش ۱۶ — Try Approve
+   بخش ۱۷ — Try Approve
    ============================================================ */
 function _tryCreateApprovedVoucher(voucher) {
     try {
@@ -1182,7 +1176,7 @@ function _tryCreateApprovedVoucher(voucher) {
 }
 
 /* ============================================================
-   بخش ۱۷ — _createVoucherSmart
+   بخش ۱۸ — _createVoucherSmart
    ============================================================ */
 function _createVoucherSmart(data) {
     var bankMoein = getBankMoeinId();
@@ -1214,8 +1208,7 @@ function _createVoucherSmart(data) {
     };
 
     var res = _tryCreateApprovedVoucher(v);
-    vl.push(v);
-    DB.save('vouchers', vl);
+    vl.push(v); DB.save('vouchers', vl);
 
     if (res.approved) setTimeout(function () { goToPage('voucher-list'); }, 100);
     else setTimeout(function () { if (typeof loadVoucherForEdit === 'function') loadVoucherForEdit(v); }, 100);
@@ -1224,7 +1217,7 @@ function _createVoucherSmart(data) {
 }
 
 /* ============================================================
-   بخش ۱۸ — سند ترکیبی از pending
+   بخش ۱۹ — سند ترکیبی از pending
    ============================================================ */
 function convertMultiplePendingToVoucher() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
@@ -1234,10 +1227,7 @@ function convertMultiplePendingToVoucher() {
     if (!bankMoein) { alert('⚠️ معین بانک تعریف نشده.'); return; }
 
     var allPending = getPendingSms();
-    var lines = [];
-    var usedIds = [];
-    var descSet = {};
-    var skippedCount = 0;
+    var lines = [], usedIds = [], descSet = {}, skippedCount = 0;
 
     var checkedArr = Array.prototype.slice.call(checked);
     for (var i = 0; i < checkedArr.length; i++) {
@@ -1277,7 +1267,7 @@ function convertMultiplePendingToVoucher() {
         usedIds.push(pid);
     }
 
-    if (lines.length === 0) { alert('⚠️ هیچ‌کدام از پیامک‌های انتخاب‌شده قابل تبدیل نیستند.'); return; }
+    if (lines.length === 0) { alert('⚠️ هیچ‌کدام قابل تبدیل نیستند.'); return; }
 
     var descArr = Object.keys(descSet);
     var voucherDesc = (descArr.length > 0 && descArr.length <= 3) ? descArr.join(' + ') : '';
@@ -1287,8 +1277,7 @@ function convertMultiplePendingToVoucher() {
 
     var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDesc, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
-    vl.push(v);
-    DB.save('vouchers', vl);
+    vl.push(v); DB.save('vouchers', vl);
 
     var inbox = getSmsInbox();
     usedIds.forEach(function (pid) {
@@ -1314,9 +1303,7 @@ function convertMultiplePendingToVoucher() {
     var newPending = allPending.filter(function (p) { return usedIds.indexOf(p.id) === -1; });
     savePendingSms(newPending);
 
-    renderPendingSmsBox();
-    renderSmsInbox();
-    updateSmsBadge();
+    renderPendingSmsBox(); renderSmsInbox(); updateSmsBadge();
 
     var msg = '✅ سند ' + (res.approved ? 'تأیید' : 'پیش‌نویس') + ' ساخته شد — ' + toFa(usedIds.length) + ' پیامک';
     if (skippedCount > 0) msg += '\n⚠️ ' + toFa(skippedCount) + ' پیامک رد شد.';
@@ -1327,7 +1314,7 @@ function convertMultiplePendingToVoucher() {
 }
 
 /* ============================================================
-   بخش ۱۹ — استخراج از الگو
+   بخش ۲۰ — استخراج از الگو
    ============================================================ */
 function extractValuesFromPattern(newRaw, pattern) {
     var built = buildSmsPattern(newRaw);
@@ -1343,7 +1330,7 @@ function extractValuesFromPattern(newRaw, pattern) {
 }
 
 /* ============================================================
-   بخش ۲۰ — ورودی تک پیامک
+   بخش ۲۱ — ورودی تک پیامک
    ============================================================ */
 function handleIncomingSms(text, source, force) {
     var t = String(text || '').trim();
@@ -1379,7 +1366,7 @@ function handleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۲۱ — کلیپ‌بورد (multi-aware)
+   بخش ۲۲ — کلیپ‌بورد
    ============================================================ */
 var _lastClipboardText = '';
 
@@ -1394,10 +1381,7 @@ function readClipboardAndAdd(auto) {
         if (auto && t === _lastClipboardText) return;
 
         var res = handleMultipleIncomingSms(t, auto ? 'auto' : 'clipboard', false);
-        if (res.ok && (res.matched + res.unmatched) > 0) {
-            _lastClipboardText = t;
-            return;
-        }
+        if (res.ok && (res.matched + res.unmatched) > 0) { _lastClipboardText = t; return; }
         if (res.duplicate > 0) { if (!auto) showToast('قبلاً ثبت شده.'); return; }
         if (res.notBank > 0) {
             if (auto) return;
@@ -1414,16 +1398,12 @@ function checkClipboardSupport() {
     var el = document.getElementById('clip-status');
     if (!el) return;
     if (navigator.clipboard && navigator.clipboard.readText) {
-        el.textContent = 'در دسترس';
-        el.className = 'method-status ok';
-    } else {
-        el.textContent = 'ندارد';
-        el.className = 'method-status no';
-    }
+        el.textContent = 'در دسترس'; el.className = 'method-status ok';
+    } else { el.textContent = 'ندارد'; el.className = 'method-status no'; }
 }
 
 /* ============================================================
-   بخش ۲۲ — رندر inbox (فقط converted)
+   بخش ۲۳ — رندر inbox
    ============================================================ */
 function renderSmsInbox() {
     var box = document.getElementById('sms-inbox-list');
@@ -1456,10 +1436,7 @@ function renderSmsInbox() {
 
     filtered.sort(function (a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); });
 
-    if (filtered.length === 0) {
-        box.innerHTML = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>';
-        return;
-    }
+    if (filtered.length === 0) { box.innerHTML = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>'; return; }
 
     var html = '';
     filtered.forEach(function (s) {
@@ -1529,7 +1506,7 @@ function renderSmsInbox() {
 }
 
 /* ============================================================
-   بخش ۲۳ — سند ترکیبی از inbox
+   بخش ۲۴ — سند ترکیبی از inbox
    ============================================================ */
 function convertMultipleSmsToVoucher() {
     var checked = document.querySelectorAll('.sms-select-cb:checked');
@@ -1581,8 +1558,7 @@ function convertMultipleSmsToVoucher() {
 
     var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDesc, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
-    vl.push(v);
-    DB.save('vouchers', vl);
+    vl.push(v); DB.save('vouchers', vl);
 
     var inbox = getSmsInbox();
     for (var i = 0; i < inbox.length; i++) {
@@ -1593,8 +1569,7 @@ function convertMultipleSmsToVoucher() {
     }
     saveSmsInbox(inbox);
 
-    renderSmsInbox();
-    updateSmsBadge();
+    renderSmsInbox(); updateSmsBadge();
 
     var msg = '✅ سند ' + (res.approved ? 'تأیید' : 'پیش‌نویس') + ' — ' + toFa(usedIds.length) + ' پیامک';
     if (skipped > 0) msg += '\n⚠️ ' + toFa(skipped) + ' پیامک رد شد.';
@@ -1605,7 +1580,7 @@ function convertMultipleSmsToVoucher() {
 }
 
 /* ============================================================
-   بخش ۲۴ — رندر الگوها
+   بخش ۲۵ — رندر الگوها
    ============================================================ */
 function renderSmsPatternsTab() {
     var box = document.getElementById('sms-patterns-list');
@@ -1672,7 +1647,7 @@ function renderSmsPatternsTab() {
             + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
             +   '<div style="color:var(--text-muted);margin-bottom:4px;font-weight:700">نمونهٔ الگو:</div>'
             +   '<div style="font-family:monospace;direction:rtl;white-space:pre-wrap;word-break:break-word;color:var(--primary-dark)">' + esc(preview) + '</div>'
-            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>کارت:</b> <span style="font-family:monospace">' + esc(cardKeyShow) + '</span></div>'
+            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>شناسه حساب:</b> <span style="font-family:monospace">' + esc(cardKeyShow) + '</span></div>'
             +   '<div style="margin-top:2px;color:var(--text-muted)"><b>کلمات کلیدی:</b> ' + esc(kwStr) + '</div>'
             + '</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
@@ -1710,7 +1685,7 @@ function renderSmsPatternsTab() {
 }
 
 /* ============================================================
-   بخش ۲۵ — ویرایش الگو
+   بخش ۲۶ — ویرایش الگو
    ============================================================ */
 function openEditSmsPattern(patternId) {
     try {
@@ -1750,7 +1725,7 @@ function openEditSmsPattern(patternId) {
             +     '</div></div>'
             +     '<div class="field"><label>📝 شرح سند</label><input type="text" id="se-voucherDesc" value="' + esc(voucherDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
             +     '<div class="field"><label>📝 شرح قلم</label><input type="text" id="se-lineDesc" value="' + esc(lineDescValue) + '" placeholder="(اختیاری — می‌تواند خالی باشد)"></div>'
-            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '<br><b>کارت:</b> ' + esc(cardShow) + '<br><b>کلمات کلیدی:</b> ' + esc(kwShow) + '</div></div>'
+            +     '<div class="field"><label>نمونه الگو</label><div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:150px;overflow-y:auto">' + esc(preview) + '<br><b>شناسه حساب:</b> ' + esc(cardShow) + '<br><b>کلمات کلیدی:</b> ' + esc(kwShow) + '</div></div>'
             +     '<div class="field"><label style="padding:10px;background:var(--card-alt);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px"><input type="checkbox" id="se-blocked" ' + (p.blocked ? 'checked' : '') + '> <span>مسدود</span></label></div>'
             +   '</div>'
             +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
@@ -1790,14 +1765,12 @@ function openEditSmsPattern(patternId) {
 
             closeFn(); renderSmsPatternsTab(); showToast('✅ ذخیره شد');
         };
-    } catch (err) {
-        console.error(err); alert('خطا: ' + (err.message || err));
-    }
+    } catch (err) { console.error(err); alert('خطا: ' + (err.message || err)); }
 }
 window.openEditSmsPattern = openEditSmsPattern;
 
 /* ============================================================
-   بخش ۲۶ — تبدیل تک پیامک
+   بخش ۲۷ — تبدیل تک پیامک
    ============================================================ */
 function convertSmsToVoucher(smsId) {
     try {
@@ -1864,13 +1837,11 @@ function convertSmsToVoucher(smsId) {
 
         if (res.approved) showToast('✅ سند تأیید شد');
         else showToast('📝 سند پیش‌نویس باز شد — تکمیل و تأیید کنید', 4000);
-    } catch (err) {
-        console.error(err); alert('⚠️ خطا: ' + (err.message || err));
-    }
+    } catch (err) { console.error(err); alert('⚠️ خطا: ' + (err.message || err)); }
 }
 
 /* ============================================================
-   بخش ۲۷ — Delegation
+   بخش ۲۸ — Delegation
    ============================================================ */
 function bindSmsDelegation() {
     if (window._smsDelegationBound) return;
@@ -1912,8 +1883,7 @@ function bindSmsDelegation() {
         if (e.target.closest('#pending-sms-clear')) {
             if (getPendingSmsCount() === 0) { showToast('باکس خالی است.'); return; }
             if (!confirm('همه پیامک‌های ثبت‌نشده حذف شوند؟')) return;
-            clearPendingSms(); renderPendingSmsBox(); updateSmsBadge(); showToast('🗑 باکس خالی شد');
-            return;
+            clearPendingSms(); renderPendingSmsBox(); updateSmsBadge(); showToast('🗑 باکس خالی شد'); return;
         }
 
         if (e.target.closest('#sms-bulk-create-voucher')) { convertMultipleSmsToVoucher(); return; }
@@ -1921,18 +1891,15 @@ function bindSmsDelegation() {
         if (e.target.closest('#sms-clear-converted')) {
             if (!confirm('همه پیامک‌های تبدیل‌شده حذف شوند؟')) return;
             var l = getSmsInbox().filter(function (s) { return s.status !== 'converted'; });
-            saveSmsInbox(l); renderSmsInbox(); updateSmsBadge();
-            return;
+            saveSmsInbox(l); renderSmsInbox(); updateSmsBadge(); return;
         }
 
         if (e.target.closest('#sms-patterns-del-all')) {
             if (loadSmsPatterns().length === 0) { showToast('الگویی وجود ندارد.'); return; }
             if (!confirm('همه الگوها حذف شوند؟')) return;
-            saveSmsPatterns([]); renderSmsPatternsTab(); showToast('🗑 حذف شد');
-            return;
+            saveSmsPatterns([]); renderSmsPatternsTab(); showToast('🗑 حذف شد'); return;
         }
 
-        /* ✅ parse-sms: حالا از multi استفاده می‌کند */
         if (e.target.closest('#parse-sms')) {
             var page = e.target.closest('.page');
             var textInp = page ? page.querySelector('#sms-text') : null;
@@ -1942,7 +1909,6 @@ function bindSmsDelegation() {
             var res = handleMultipleIncomingSms(text, 'paste', false);
 
             if (res.total > 1 || (res.matched + res.unmatched) > 1) {
-                /* در حالت چندگانه، toast داخل handleMultipleIncomingSms نمایش داده شد */
                 if (textInp) textInp.value = '';
             } else if (res.total === 1) {
                 if (res.ok) {
@@ -1975,7 +1941,7 @@ function bindSmsDelegation() {
 }
 
 /* ============================================================
-   بخش ۲۸ — Init
+   بخش ۲۹ — Init
    ============================================================ */
 function initSmsPatternSystem() {
     runSmsMigrations();
@@ -2017,9 +1983,7 @@ function initSmsPatternSystem() {
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () { setTimeout(boot, 400); });
-    } else {
-        setTimeout(boot, 400);
-    }
+    } else { setTimeout(boot, 400); }
 })();
 
 /* ============================================================
@@ -2048,6 +2012,7 @@ window.smsNormalizeForPattern      = smsNormalizeForPattern;
 window.buildSmsPattern             = buildSmsPattern;
 window.tokensShapeCollapsed        = tokensShapeCollapsed;
 window.extractCardKey              = extractCardKey;
+window.normalizeAccountKey         = normalizeAccountKey;
 window.extractKeywords             = extractKeywords;
 window.countNumberGroups           = countNumberGroups;
 window.signatureMatch              = signatureMatch;
@@ -2077,4 +2042,4 @@ window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
 
-console.log('✅ [modules/sms.js] loaded — v10 (multi-paste + badge fix)');
+console.log('✅ [modules/sms.js] loaded — v11 (account number detection)');
