@@ -1,12 +1,11 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۱ — Account Number Detection)
+   پارسیس — پیامک بانکی (نسخه ۱۲ — Exact Account Match)
    مسیر: js/modules/sms.js
    
-   تغییرات v11:
-     ✅ extractCardKey: اولویت اول «حساب:X» حتی اگه کوتاه باشه (84009)
-     ✅ normalizeAccountKey: مقایسه یکپارچه با/بدون پیشوند
-     ✅ signatureMatch: اگر هر دو شماره حساب دارند و متفاوت → mismatch
-     ✅ runSmsMigrations: re-extract cardKey از raw برای الگوهای قدیمی
+   تغییرات v12:
+     ✅ signatureMatch: اگر شماره حساب دقیقاً یکی → تطبیق قطعی (بدون شرط jaccard)
+     ✅ extractCardKey: با smsNormalizeForPattern (حذف ZWNJ، کاما، فاصله‌های خاص)
+     ✅ runSmsMigrations: بازاستخراج cardKey با نسخه جدید
    ============================================================ */
 'use strict';
 
@@ -258,7 +257,7 @@ function runSmsMigrations() {
             if (typeof p.blocked === 'undefined') { p.blocked = false; changed = true; }
             if (typeof p.keywords === 'undefined') { p.keywords = extractKeywords(p.raw || ''); changed = true; }
 
-            /* ✅ v11: بازاستخراج cardKey از raw برای الگوهای قدیمی */
+            /* ✅ v12: بازاستخراج cardKey از raw برای الگوهای قدیمی */
             if (p.raw) {
                 var newCard = extractCardKey(p.raw);
                 if (newCard) {
@@ -274,7 +273,7 @@ function runSmsMigrations() {
         if (changed) saveSmsPatterns(patterns);
     } catch (e) { console.warn('[sms migrations]', e); }
 
-    /* پاک‌سازی inbox 'new' (میراث باگ قدیمی) */
+    /* پاک‌سازی inbox 'new' */
     try {
         var inbox = getSmsInbox();
         var inboxChanged = false;
@@ -293,9 +292,7 @@ function runSmsMigrations() {
             saveSmsInbox(cleaned);
             console.log('[sms migration] cleaned inbox: ' + inbox.length + ' → ' + cleaned.length);
         }
-    } catch (e) {
-        console.warn('[sms inbox migration]', e);
-    }
+    } catch (e) { console.warn('[sms inbox migration]', e); }
 }
 
 /* ============================================================
@@ -398,25 +395,20 @@ function tokensShapeCollapsed(tokens) {
 }
 
 /* ============================================================
-   ✅ بخش ۷ — استخراج شناسه حساب (نسخه ۱۱)
-   
-   اولویت:
-   ۱. «حساب:X» یا «کارت:X» یا «حساب شماره X»  ← حتی کوتاه (۳+ رقم)
-   ۲. IR + شبا
-   ۳. توالی طولانی ارقام (شماره کارت ۱۶ رقمی قدیمی)
+   ✅ بخش ۷ — استخراج شناسه حساب (نسخه ۱۲)
    ============================================================ */
 function extractCardKey(raw) {
-    var t = normalizeDigits(String(raw || ''));
+    var t = smsNormalizeForPattern(raw);
 
-    /* ✅ Priority 1: برچسب حساب/کارت — حتی اعداد کوتاه */
+    /* Priority 1: حساب:X */
     var mAcc = t.match(/(?:حساب|کارت)\s*(?:شماره)?\s*[:ـ]?\s*(\d{3,})/);
     if (mAcc) return 'ACC:' + mAcc[1];
 
-    /* ✅ Priority 2: IBAN */
+    /* Priority 2: IBAN */
     var mIban = t.match(/IR\s*(\d{22,26})/i);
     if (mIban) return 'IBAN:' + mIban[1];
 
-    /* Priority 3: legacy — توالی طولانی ارقام (کارت ۱۶ رقمی) */
+    /* Priority 3: legacy — توالی طولانی ارقام */
     var matches = t.match(/\d[\d.\-_]{8,}/g);
     if (matches && matches.length > 0) {
         for (var i = 0; i < matches.length; i++) {
@@ -428,7 +420,6 @@ function extractCardKey(raw) {
     return '';
 }
 
-/* ✅ نرمال‌سازی برای مقایسه — حذف پیشوندها */
 function normalizeAccountKey(k) {
     if (!k) return '';
     return String(k).replace(/^(ACC|CARD|IBAN|NUM):/, '');
@@ -458,9 +449,7 @@ function countNumberGroups(tokens) {
 }
 
 /* ============================================================
-   ✅ بخش ۸ — signatureMatch (نسخه ۱۱)
-   
-   اگر هر دو شماره حساب دارند و متفاوت → رد قطعی
+   ✅ بخش ۸ — signatureMatch (نسخه ۱۲ — تطبیق قطعی بر اساس حساب)
    ============================================================ */
 function signatureMatch(sig1, sig2) {
     var norm1 = normalizeAccountKey(sig1.card);
@@ -469,7 +458,6 @@ function signatureMatch(sig1, sig2) {
     var cardScore, cardReason = '';
 
     if (norm1 && norm2) {
-        /* ✅ هر دو شناسه دارند — اگر متفاوت باشد قطعاً رد */
         if (norm1 !== norm2) {
             return { match: false, score: 0, reason: 'account-mismatch(' + norm1 + '≠' + norm2 + ')' };
         }
@@ -497,10 +485,15 @@ function signatureMatch(sig1, sig2) {
     var numScore = numDiff <= 1 ? 1.0 : (numDiff === 2 ? 0.5 : 0.0);
     var totalScore = cardScore * 0.5 + jaccard * 0.4 + numScore * 0.1;
 
+    /* ✅ v12: اگر شماره حساب دقیقاً یکی → تطبیق قطعی */
     var isMatch = false;
-    if (cardScore >= 1.0) isMatch = jaccard >= 0.3;
-    else if (cardScore >= 0.5) isMatch = jaccard >= 0.7;
-    else isMatch = jaccard >= 0.9;
+    if (cardScore >= 1.0) {
+        isMatch = true;
+    } else if (cardScore >= 0.5) {
+        isMatch = jaccard >= 0.7;
+    } else {
+        isMatch = jaccard >= 0.9;
+    }
 
     return { match: isMatch, score: totalScore, reason: cardReason + '|kw=' + jaccard.toFixed(2) + '|ng=' + numScore };
 }
@@ -633,7 +626,7 @@ function addSmsPattern(opts) {
             var pCard = p.cardKey || extractCardKey(p.raw || '');
             var normP = normalizeAccountKey(pCard);
             var normN = normalizeAccountKey(newCardKey);
-            if (normP !== normN) return false;   /* ✅ حساب باید یکسان باشد */
+            if (normP !== normN) return false;
 
             var pKw = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
             var common = 0;
@@ -2042,4 +2035,4 @@ window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
 
-console.log('✅ [modules/sms.js] loaded — v11 (account number detection)');
+console.log('✅ [modules/sms.js] loaded — v12 (exact account match)');
