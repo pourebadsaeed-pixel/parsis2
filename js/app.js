@@ -63,9 +63,6 @@ function bindCurrencyHide() {
     if (hideCb && !hideCb.dataset.bound) { hideCb.dataset.bound = '1'; hideCb.checked = state.hideNumbers; hideCb.onchange = function () { onHideNumbers(this.checked); }; }
 }
 
-/* ============================================================
-   ✅ bindBankCashTypes — نسخه اصلاح‌شده
-   ============================================================ */
 function bindBankCashTypes() {
     var addBankBtn = document.getElementById('add-bank-type');
     if (addBankBtn && !addBankBtn.dataset.bound) {
@@ -79,9 +76,7 @@ function bindBankCashTypes() {
             saveState(LS_KEYS.BANK_TYPES);
             inp.value = '';
             if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
-            if (typeof refreshBankTypeSelect === 'function') {
-                try { refreshBankTypeSelect(); } catch (e) {}
-            }
+            if (typeof refreshBankTypeSelect === 'function') { try { refreshBankTypeSelect(); } catch (e) {} }
             if (typeof showToast === 'function') showToast('✅ نوع بانکی «' + v + '» اضافه شد');
         };
     }
@@ -98,37 +93,31 @@ function bindBankCashTypes() {
             saveState(LS_KEYS.CASH_TYPES);
             inp.value = '';
             if (typeof renderChips === 'function') renderChips('cash-types-list', state.cashTypes, 'cashTypes');
-            if (typeof refreshCashTypeSelect === 'function') {
-                try { refreshCashTypeSelect(); } catch (e) {}
-            }
+            if (typeof refreshCashTypeSelect === 'function') { try { refreshCashTypeSelect(); } catch (e) {} }
             if (typeof showToast === 'function') showToast('✅ نوع صندوق «' + v + '» اضافه شد');
         };
     }
 
-    /* ✅ رندر اولیه */
     if (typeof renderChips === 'function') {
         renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         renderChips('cash-types-list', state.cashTypes, 'cashTypes');
     }
 }
 
+/* ✅ v10: bindSmsButtons ساده شد — بقیه در sms.js */
 function bindSmsButtons() {
-    function onSmsAutoRead(val) { state.smsAutoRead = val; DB.save(LS_KEYS.SMS_AUTO_READ, val); var e1 = document.getElementById('sms-auto-read'); var e2 = document.getElementById('set-sms-auto-read'); if (e1) e1.checked = val; if (e2) e2.checked = val; }
-    var sar = document.getElementById('sms-auto-read'); if (sar && !sar.dataset.bound) { sar.dataset.bound = '1'; sar.onchange = function () { onSmsAutoRead(this.checked); }; }
-    var ssar = document.getElementById('set-sms-auto-read'); if (ssar && !ssar.dataset.bound) { ssar.dataset.bound = '1'; ssar.onchange = function () { onSmsAutoRead(this.checked); }; }
-    var readClip = document.getElementById('sms-read-clip'); if (readClip && !readClip.dataset.bound) { readClip.dataset.bound = '1'; readClip.onclick = function () { if (typeof readClipboardAndAdd === 'function') readClipboardAndAdd(false); }; }
-    var parseSms = document.getElementById('parse-sms'); if (parseSms && !parseSms.dataset.bound) {
-        parseSms.dataset.bound = '1';
-        parseSms.onclick = function () {
-            var text = document.getElementById('sms-text').value; if (!text.trim()) return;
-            if (typeof addSmsToInbox === 'function') {
-                var res = addSmsToInbox(text, 'paste');
-                if (res.ok) { showToast('✅ اضافه شد'); document.getElementById('sms-text').value = ''; if (typeof renderSmsInbox === 'function') renderSmsInbox(); if (typeof updateSmsBadge === 'function') updateSmsBadge(); }
-            }
-        };
+    function onSmsAutoRead(val) {
+        state.smsAutoRead = val;
+        DB.save(LS_KEYS.SMS_AUTO_READ, val);
+        var e1 = document.getElementById('sms-auto-read'); if (e1) e1.checked = val;
+        var e2 = document.getElementById('set-sms-auto-read'); if (e2) e2.checked = val;
     }
-    var clearSms = document.getElementById('clear-sms'); if (clearSms && !clearSms.dataset.bound) { clearSms.dataset.bound = '1'; clearSms.onclick = function () { document.getElementById('sms-text').value = ''; document.getElementById('sms-result').innerHTML = ''; }; }
-    var smsClearConv = document.getElementById('sms-clear-converted'); if (smsClearConv && !smsClearConv.dataset.bound) { smsClearConv.dataset.bound = '1'; smsClearConv.onclick = function () { if (!confirm('حذف تبدیل‌شده‌ها؟')) return; if (typeof getSmsInbox === 'function') { var l = getSmsInbox().filter(function (s) { return s.status === 'new'; }); if (typeof saveSmsInbox === 'function') saveSmsInbox(l); if (typeof renderSmsInbox === 'function') renderSmsInbox(); if (typeof updateSmsBadge === 'function') updateSmsBadge(); } }; }
+    var ssar = document.getElementById('set-sms-auto-read');
+    if (ssar && !ssar.dataset.bound) {
+        ssar.dataset.bound = '1';
+        ssar.onchange = function () { onSmsAutoRead(this.checked); };
+    }
+    /* بقیه دکمه‌های SMS توسط bindSmsDelegation در sms.js مدیریت می‌شوند */
 }
 
 function bindBaseDataForms() {
@@ -202,7 +191,6 @@ function startApp() {
     bindFilterInputs();
     bindExportButtons();
 
-    /* ✅ بایند انواع صندوق و بانک */
     try { bindBankCashTypes(); } catch(e) { console.warn('BankCashTypes bind error:', e); }
     try { bindSmsButtons(); } catch(e) { console.warn('SmsButtons bind error:', e); }
 
