@@ -1,6 +1,8 @@
 /* ============================================================
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
+   
+   ✅ v3: افزودن case 'users' برای راه‌اندازی صفحه کاربران
    ============================================================ */
 'use strict';
 
@@ -34,6 +36,9 @@ function runPageRenderer(name) {
         'bank-accounts':        function () { if (typeof renderBankAccountsList === 'function') renderBankAccountsList(); if (typeof refreshBankTypeSelect === 'function') refreshBankTypeSelect(); },
         'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
         'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
+
+        /* ✅ v3 — صفحه کاربران */
+        'users':                function () { if (typeof initUsersPage === 'function') initUsersPage(); },
 
         /* ✅ انواع حساب بانکی و انواع صندوق */
         'bank-types':           function () {
@@ -112,15 +117,15 @@ function runPageRenderer(name) {
             if (typeof updateUnitChips === 'function') updateUnitChips();
             if (typeof runIncompleteReport === 'function') setTimeout(runIncompleteReport, 50);
         },
-        'report-facility':      function () { 
-            if (typeof runFacilityReport === 'function') setTimeout(runFacilityReport, 50); 
+        'report-facility':      function () {
+            if (typeof runFacilityReport === 'function') setTimeout(runFacilityReport, 50);
         },
         'report-facility-full': function () {
             if (typeof refreshRffBankSelect === 'function') refreshRffBankSelect();
             if (typeof runFacilityFullReport === 'function') setTimeout(runFacilityFullReport, 50);
         },
-        'report-compare':       function () { 
-            if (typeof runComparisonReport === 'function') setTimeout(runComparisonReport, 50); 
+        'report-compare':       function () {
+            if (typeof runComparisonReport === 'function') setTimeout(runComparisonReport, 50);
         },
 
         'home':                 function () { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); },
@@ -140,7 +145,7 @@ function applyPageHelpers() {
     if (typeof attachFilterRowsToAllTables === 'function') attachFilterRowsToAllTables();
     if (typeof window._enhanceGlobalSorting === 'function') window._enhanceGlobalSorting();
     if (typeof buildShareButtons === 'function') setTimeout(buildShareButtons, 80);
-    
+
     if (typeof bindReportButtons === 'function') bindReportButtons();
     if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
     if (typeof bindFacilityReportButtons === 'function') bindFacilityReportButtons();
@@ -184,7 +189,7 @@ function rerenderCurrentPage() {
     if (active.id.indexOf('page-report-facility-full') === 0) id = 'report-facility-full';
     if (active.id.indexOf('page-report-compare') === 0) id = 'report-compare';
     if (active.id.indexOf('page-voucher-list') === 0) id = 'voucher-list';
-    
+
     var map = {
         'persons':              'renderPersonsList',
         'companies':            'renderCompaniesList',
@@ -205,6 +210,7 @@ function rerenderCurrentPage() {
         'report-facility-full': 'runFacilityFullReport',
         'report-compare':       'runComparisonReport',
         'notes':                'renderNotesList',
+        'users':                'renderUsersList',
         'dashboard':            'renderDashboard',
         'home':                 'updateHomeWidgets'
     };
@@ -219,4 +225,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded');
+console.log('✅ [core/router.js] loaded — users case added');
