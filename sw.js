@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v65-2025-sms-exact-account-match';
+var CACHE_NAME = 'parsis-v66-2025-users-full-rewrite';
 
 var ASSETS = [
   './index.html',
