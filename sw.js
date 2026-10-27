@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v66-2025-users-full-rewrite';
+var CACHE_NAME = 'parsis-v67-2025-users-and-logout';
 
 var ASSETS = [
   './index.html',
