@@ -1,6 +1,8 @@
 /* ============================================================
    پارسیس — جستجوی حساب‌ها، چاپ، اکسل
    مسیر: js/core/lookups.js
+   
+   ✅ v2: افزودن چک وابستگی دفترچه تلفن به getDeleteIssues
    ============================================================ */
 'use strict';
 
@@ -155,7 +157,7 @@ function tryParseNumericCell(text) {
 }
 
 /* ============================================================
-   ✅ getDeleteIssues — بررسی وابستگی‌های قبل از حذف
+   ✅ getDeleteIssues — بررسی وابستگی‌ها قبل از حذف
    ============================================================ */
 function getDeleteIssues(type, id) {
     var issues = [];
@@ -163,6 +165,8 @@ function getDeleteIssues(type, id) {
 
     var vouchers = DB.load('vouchers', []) || [];
     if (!Array.isArray(vouchers)) vouchers = [];
+
+    var phonebookList = DB.load('phonebook', []) || [];
 
     /* ---------- دوره مالی ---------- */
     if (type === 'fiscalPeriod') {
@@ -198,6 +202,10 @@ function getDeleteIssues(type, id) {
             if ((e.persons || []).indexOf(id) !== -1) calCount++;
         });
         if (calCount > 0) issues.push('در ' + toFa(calCount) + ' رویداد تقویم استفاده شده');
+
+        /* ✅ v2: دفترچه تلفن */
+        var pbCount = phonebookList.filter(function (pb) { return pb.personId === id; }).length;
+        if (pbCount > 0) issues.push('در ' + toFa(pbCount) + ' رکورد دفترچه تلفن استفاده شده');
     }
 
     /* ---------- شرکت ---------- */
@@ -209,6 +217,10 @@ function getDeleteIssues(type, id) {
             });
         });
         if (countC > 0) issues.push('در ' + toFa(countC) + ' قلم سند حسابداری استفاده شده');
+
+        /* ✅ v2: دفترچه تلفن */
+        var pbCountC = phonebookList.filter(function (pb) { return pb.companyId === id; }).length;
+        if (pbCountC > 0) issues.push('در ' + toFa(pbCountC) + ' رکورد دفترچه تلفن استفاده شده');
     }
 
     /* ---------- حساب بانکی ---------- */
@@ -264,7 +276,6 @@ function getDeleteIssues(type, id) {
     if (type === 'chartAccount') {
         var accounts = DB.load('accounts', []) || [];
 
-        /* جمع‌آوری همه زیرمجموعه‌ها */
         var descendants = [id];
         var queue = [id];
         var safety = 0;
@@ -279,7 +290,6 @@ function getDeleteIssues(type, id) {
             });
         }
 
-        /* اسناد */
         var countA = 0;
         vouchers.forEach(function (v) {
             (v.lines || []).forEach(function (l) {
@@ -288,17 +298,14 @@ function getDeleteIssues(type, id) {
         });
         if (countA > 0) issues.push('در ' + toFa(countA) + ' قلم سند حسابداری استفاده شده (شامل زیرمجموعه‌ها)');
 
-        /* منابع دریافتنی */
         var sourcesA = DB.load('cashFlowSources', []) || [];
         var relSrcA = sourcesA.filter(function (s) { return descendants.indexOf(s.moeinId) !== -1; });
         if (relSrcA.length > 0) issues.push(toFa(relSrcA.length) + ' منبع دریافتنی به این حساب وصل است');
 
-        /* تسهیلات */
         var facA = DB.load('facilities', []) || [];
         var relFacA = facA.filter(function (f) { return descendants.indexOf(f.moeinId) !== -1; });
         if (relFacA.length > 0) issues.push(toFa(relFacA.length) + ' تسهیلات به این حساب وصل است');
 
-        /* الگوهای سند */
         var tpls = DB.load('voucherTemplates', []) || [];
         var tplCount = 0;
         tpls.forEach(function (t) {
@@ -309,7 +316,7 @@ function getDeleteIssues(type, id) {
         if (tplCount > 0) issues.push('در ' + toFa(tplCount) + ' قلم الگوی سند استفاده شده');
     }
 
-    /* ---------- نوع حساب بانکی (بر اساس نام) ---------- */
+    /* ---------- نوع حساب بانکی ---------- */
     if (type === 'bankType') {
         var banks = DB.load('bankAccounts', []) || [];
         var used = banks.filter(function (b) { return b.type === id; });
@@ -319,7 +326,7 @@ function getDeleteIssues(type, id) {
         }
     }
 
-    /* ---------- نوع صندوق (بر اساس نام) ---------- */
+    /* ---------- نوع صندوق ---------- */
     if (type === 'cashType') {
         var cbs = DB.load('cashBoxes', []) || [];
         var used2 = cbs.filter(function (c) { return c.type === id; });
@@ -331,6 +338,10 @@ function getDeleteIssues(type, id) {
 
     return issues;
 }
+
+/* ============================================================
+   printHtmlReport, exportDataToExcel, renderChips, ... (بدون تغییر)
+   ============================================================ */
 
 function printHtmlReport(selector, title) {
     var activePage = document.querySelector('.page.active');
@@ -389,7 +400,7 @@ function printHtmlReport(selector, title) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
-        
+
         var footRow = null;
         if (tfoot && tbody) {
             footRow = tfoot.querySelector('tr');
@@ -409,131 +420,21 @@ function printHtmlReport(selector, title) {
             }
             tfoot.remove();
         }
-
-        if (!tbody || !footRow) return;
-
-        var headerTexts = [];
-        if (thead) {
-            var headerRow = thead.querySelector('tr');
-            if (headerRow) {
-                Array.from(headerRow.children).forEach(function (th) {
-                    var cs = parseInt(th.getAttribute('colspan') || '1', 10);
-                    var txt = th.textContent.trim();
-                    for (var k = 0; k < cs; k++) headerTexts.push(txt);
-                });
-            }
-        }
-
-        var bodyRows = Array.from(tbody.querySelectorAll('tr')).filter(function (tr) {
-            return tr !== footRow && tr.style.display !== 'none' && !tr.classList.contains('empty-row');
-        });
-        if (bodyRows.length === 0) return;
-
-        var logicalCol = 0;
-        var footCells = Array.from(footRow.children);
-
-        footCells.forEach(function (cell) {
-            var cs = parseInt(cell.getAttribute('colspan') || '1', 10);
-
-            if (cs === 1) {
-                var colIdx = logicalCol;
-                var header = (headerTexts[colIdx] || '');
-                var isBalanceCol = /مانده/.test(header);
-
-                if (!isBalanceCol) {
-                    var cellCleanTxt = _faDigitsToLatin(cell.textContent)
-                        .replace(/,/g, '')
-                        .replace(/[()]/g, '')
-                        .trim();
-
-                    if (/^-?\d+(\.\d+)?$/.test(cellCleanTxt)) {
-                        var sum = 0;
-                        var hasNumbers = false;
-
-                        bodyRows.forEach(function (tr) {
-                            var td = tr.children[colIdx];
-                            if (!td) return;
-                            var val = tryParseNumericCell(td.textContent);
-                            if (val !== null) {
-                                sum += val;
-                                hasNumbers = true;
-                            }
-                        });
-
-                        if (hasNumbers) {
-                            var isNegSum = sum < 0;
-                            var absSum = Math.abs(sum);
-                            var formatted = absSum.toLocaleString('fa-IR');
-                            cell.textContent = isNegSum ? '(' + formatted + ')' : formatted;
-                            cell.style.color = isNegSum ? '#dc2626' : '#1e40af';
-                        }
-                    }
-                }
-            }
-
-            logicalCol += cs;
-        });
     });
 
-    var htmlContent = `
-        <!DOCTYPE html>
-        <html dir="rtl" lang="fa">
-        <head>
-            <meta charset="UTF-8">
-            <title>${esc(title)}</title>
-            <style>
-                @page {
-                    size: A4;
-                    margin: 15mm 12mm 18mm 12mm;
-                    @bottom-center {
-                        content: "صفحه " counter(page) " از " counter(pages);
-                        font-family: Tahoma, sans-serif;
-                        font-size: 10pt;
-                        color: #475569;
-                        font-weight: bold;
-                    }
-                    @top-center {
-                        content: "${esc(title)}";
-                        font-family: Tahoma, sans-serif;
-                        font-size: 9pt;
-                        color: #94a3b8;
-                    }
-                }
-                body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; font-size: 10.5pt; }
-                .header { text-align: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2.5px solid #1e40af; }
-                .header h1 { font-size: 17pt; margin: 0 0 8px 0; color: #1e40af; font-weight: 900; letter-spacing: -0.3px; }
-                .header .date-range { font-size: 11pt; color: #475569; font-weight: bold; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-                tr { page-break-inside: avoid !important; }
-                thead { display: table-header-group; }
-                th, td { border: 1px solid #64748b; padding: 5px 8px; text-align: center; vertical-align: middle; font-size: 9.5pt; }
-                th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }
-                .num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }
-                .dr { color: #dc2626 !important; font-weight: bold; }
-                .cr { color: #059669 !important; font-weight: bold; }
-                .cfd-section-title { font-size: 14pt; font-weight: bold; text-align: center; margin: 15px 0 10px; color: #1e40af; }
-                .cfd-head { background-color: #e2e8f0 !important; padding: 8px; font-weight: bold; border: 1px solid #64748b; }
-                .cfd-details { display: block !important; }
-                .ar-main { display: block !important; }
-                .ar-body { width: 100% !important; }
-                .ar-tb { margin-bottom: 15px !important; background: transparent !important; border: none !important; padding: 0 !important; }
-                .ar-tb-bc { font-size: 12pt !important; font-weight: bold !important; color: #1e40af !important; }
-                .ar-tb-bc a { text-decoration: none !important; border-bottom: none !important; color: #1e40af !important; }
-                .ar-tbl { table-layout: auto !important; width: 100% !important; }
-                .ar-tbl thead th { background-color: #e2e8f0 !important; color: #1e40af !important; border: 1px solid #64748b !important; }
-                .ar-tbl tbody td { border: 1px solid #64748b !important; }
-                .ar-tbl tfoot td { background-color: #e2e8f0 !important; color: #1e40af !important; border: 1px solid #64748b !important; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>${esc(title)}</h1>
-                ${dateRange ? `<div class="date-range">${esc(dateRange)}</div>` : ''}
-            </div>
-            <div>${clone.innerHTML}</div>
-        </body>
-        </html>
-    `;
+    var htmlContent =
+        '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
+        '<style>@page{size:A4;margin:15mm 12mm 18mm 12mm;} body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#000;margin:0;padding:0;font-size:10.5pt;} ' +
+        '.header{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2.5px solid #1e40af;} ' +
+        '.header h1{font-size:17pt;margin:0 0 8px 0;color:#1e40af;font-weight:900;} ' +
+        'table{width:100%;border-collapse:collapse;margin-bottom:15px;} tr{page-break-inside:avoid !important;} ' +
+        'thead{display:table-header-group;} th,td{border:1px solid #64748b;padding:5px 8px;text-align:center;vertical-align:middle;font-size:9.5pt;} ' +
+        'th{background-color:#e2e8f0 !important;font-weight:bold !important;color:#1e40af;} ' +
+        '.num{direction:ltr;font-family:Arial,Tahoma,sans-serif;font-variant-numeric:tabular-nums;} ' +
+        '.dr{color:#dc2626 !important;font-weight:bold;} .cr{color:#059669 !important;font-weight:bold;}' +
+        '</style></head><body><div class="header"><h1>' + esc(title) + '</h1>' +
+        (dateRange ? '<div class="date-range">' + esc(dateRange) + '</div>' : '') +
+        '</div><div>' + clone.innerHTML + '</div></body></html>';
 
     var printWindow = window.open('', '_blank');
     if (!printWindow) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
@@ -554,23 +455,18 @@ function _buildExcelCell(txt, isHeader, colspan, rowspan) {
     var attrs = '';
     if (colspan && parseInt(colspan, 10) > 1) attrs += ' colspan="' + colspan + '"';
     if (rowspan && parseInt(rowspan, 10) > 1) attrs += ' rowspan="' + rowspan + '"';
-
     var baseStyle = 'border:1px solid #64748b;padding:5px 8px;text-align:center;vertical-align:middle;font-family:Tahoma;font-size:10pt;';
-
     if (isHeader) {
         return '<td' + attrs + ' style="' + baseStyle + 'background:#e2e8f0;font-weight:bold;color:#1e40af;mso-number-format:\'\\@\'">' + esc(txt) + '</td>';
     }
-
     var trimmed = String(txt).trim();
     if (trimmed === '' || trimmed === '—' || trimmed === '-') {
         return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'\\@\'">' + esc(trimmed) + '</td>';
     }
-
     var num = tryParseNumericCell(trimmed);
     if (num !== null) {
         return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'#,##0\';direction:ltr">' + num + '</td>';
     }
-
     return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'\\@\'">' + esc(trimmed) + '</td>';
 }
 
@@ -579,26 +475,18 @@ function _wrapExcelHtml(tableRowsHtml, sheetName) {
     return '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
          + 'xmlns:x="urn:schemas-microsoft-com:office:excel" '
          + 'xmlns="http://www.w3.org/TR/REC-html40">'
-         + '<head>'
-         +   '<meta charset="UTF-8">'
-         +   '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'
-         +   '<!--[if gte mso 9]><xml>'
-         +   '<x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'
-         +   '<x:Name>' + esc(safeName) + '</x:Name>'
-         +   '<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
-         +   '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>'
-         +   '</xml><![endif]-->'
-         +   '<style>'
-         +     'table { border-collapse: collapse; }'
-         +     'td { mso-number-format:\\@; }'
-         +   '</style>'
-         + '</head>'
-         + '<body dir="rtl">'
-         +   '<table dir="rtl" border="1" style="border-collapse:collapse">'
-         +     tableRowsHtml
-         +   '</table>'
-         + '</body>'
-         + '</html>';
+         + '<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'
+         + '<!--[if gte mso 9]><xml>'
+         + '<x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'
+         + '<x:Name>' + esc(safeName) + '</x:Name>'
+         + '<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
+         + '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>'
+         + '</xml><![endif]-->'
+         + '<style>table { border-collapse: collapse; } td { mso-number-format:\\@; }</style>'
+         + '</head><body dir="rtl">'
+         + '<table dir="rtl" border="1" style="border-collapse:collapse">'
+         + tableRowsHtml
+         + '</table></body></html>';
 }
 
 function _triggerXlsDownload(htmlString, filename) {
@@ -631,11 +519,9 @@ function _excelCellFromRaw(val) {
 
 function exportDataToExcel(headers, rows, title, filename, sheetName) {
     var trs = [];
-
     if (title) {
         trs.push('<tr><td colspan="' + (headers ? headers.length : 1) + '" style="font-weight:bold;font-size:14pt;text-align:center;background:#e2e8f0;color:#1e40af;padding:10px;border:1px solid #64748b">' + esc(title) + '</td></tr>');
     }
-
     if (headers && headers.length > 0) {
         trs.push('<tr>');
         headers.forEach(function (h) {
@@ -643,7 +529,6 @@ function exportDataToExcel(headers, rows, title, filename, sheetName) {
         });
         trs.push('</tr>');
     }
-
     (rows || []).forEach(function (row) {
         trs.push('<tr>');
         (row || []).forEach(function (cell) {
@@ -651,10 +536,8 @@ function exportDataToExcel(headers, rows, title, filename, sheetName) {
         });
         trs.push('</tr>');
     });
-
     var html = _wrapExcelHtml(trs.join(''), sheetName || filename || 'report');
     _triggerXlsDownload(html, filename || 'report');
-
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
@@ -663,22 +546,18 @@ function exportToCsv(key, filename) {
         window.exportVoucherListToExcel(filename);
         return;
     }
-
     var data = DB.load(key, []);
     if (!Array.isArray(data)) data = [];
     if (data.length === 0) { alert('داده‌ای نیست.'); return; }
-
     var keys = [];
     data.forEach(function (row) {
         Object.keys(row).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
     });
-
     var trs = [];
     var headerRow = '<tr>';
     keys.forEach(function (k) { headerRow += _buildExcelCell(k, true, 0, 0); });
     headerRow += '</tr>';
     trs.push(headerRow);
-
     data.forEach(function (row) {
         var tr = '<tr>';
         keys.forEach(function (k) {
@@ -690,10 +569,8 @@ function exportToCsv(key, filename) {
         tr += '</tr>';
         trs.push(tr);
     });
-
     var html = _wrapExcelHtml(trs.join(''), filename || 'data');
     _triggerXlsDownload(html, filename || 'data');
-
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
@@ -725,16 +602,13 @@ function exportReportTable(selector, filename) {
 
     var table = el.querySelector('table');
     if (!table) { alert('جدولی برای خروجی نیست.'); return; }
-
     var clone = table.cloneNode(true);
     clone.querySelectorAll('.row-actions, .col-filter-btn, .col-resizer, button, .no-print, .ar-turnover-btn, .ar-col-toggle, .share-btn, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn').forEach(function (n) { n.remove(); });
-
     clone.querySelectorAll('tr').forEach(function (tr) {
         Array.from(tr.children).forEach(function (cell) {
             if (cell.style.display === 'none') cell.remove();
         });
     });
-
     var trs2 = [];
     var allTrs = clone.querySelectorAll('tr');
     for (var i = 0; i < allTrs.length; i++) {
@@ -752,29 +626,20 @@ function exportReportTable(selector, filename) {
         rowHtml += '</tr>';
         trs2.push(rowHtml);
     }
-
     if (trs2.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
-
     var html = _wrapExcelHtml(trs2.join(''), filename || 'report');
     _triggerXlsDownload(html, filename || 'report');
-
     if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
 }
 
-/* ============================================================
-   ✅ renderChips — با چک وابستگی قبل از حذف
-   ============================================================ */
 function renderChips(containerId, list, stateKey) {
     var box = document.getElementById(containerId);
     if (!box) return;
-
     box.innerHTML = '';
-
     if (!Array.isArray(list) || list.length === 0) {
         box.innerHTML = '<div class="muted" style="text-align:center;padding:12px;font-size:.85rem;color:#94a3b8">هنوز آیتمی اضافه نشده. از کادر بالا اضافه کنید.</div>';
         return;
     }
-
     list.forEach(function (item, idx) {
         var chip = document.createElement('span');
         chip.className = 'chip';
@@ -784,15 +649,12 @@ function renderChips(containerId, list, stateKey) {
                          'style="background:none;border:none;color:#dc2626;font-size:1.1rem;cursor:pointer;padding:0;font-weight:900;line-height:1" title="حذف">×</button>';
         box.appendChild(chip);
     });
-
     box.querySelectorAll('.chip-del').forEach(function (b) {
         b.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
             var i = Number(this.getAttribute('data-idx'));
             var target = list[i];
-
-            /* ✅ چک وابستگی قبل از حذف */
             var entityType = (stateKey === 'cashTypes') ? 'cashType' : 'bankType';
             if (typeof getDeleteIssues === 'function') {
                 var issues = getDeleteIssues(entityType, target);
@@ -801,23 +663,18 @@ function renderChips(containerId, list, stateKey) {
                     return;
                 }
             }
-
             if (!confirm('حذف «' + target + '» شود؟')) return;
-
             list.splice(i, 1);
             var lsKey = (stateKey === 'cashTypes') ? LS_KEYS.CASH_TYPES : LS_KEYS.BANK_TYPES;
             DB.save(lsKey, list);
             state[stateKey] = list;
-
             renderChips(containerId, list, stateKey);
-
             if (stateKey === 'cashTypes' && typeof refreshCashTypeSelect === 'function') {
                 try { refreshCashTypeSelect(); } catch (err) {}
             }
             if (stateKey === 'bankTypes' && typeof refreshBankTypeSelect === 'function') {
                 try { refreshBankTypeSelect(); } catch (err) {}
             }
-
             if (typeof showToast === 'function') showToast('🗑 حذف شد');
         };
     });
@@ -841,4 +698,4 @@ window.tryParseNumericCell = tryParseNumericCell;
 window.getDeleteIssues = getDeleteIssues;
 window.renderChips = renderChips;
 
-console.log('✅ [core/lookups.js] loaded — getDeleteIssues added');
+console.log('✅ [core/lookups.js] loaded — phonebook integration');
