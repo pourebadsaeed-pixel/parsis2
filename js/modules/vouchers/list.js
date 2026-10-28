@@ -1,16 +1,12 @@
 /* ============================================================
    پارسیس — فهرست اسناد (با دریافت اکسل و نمونه)
    مسیر: js/modules/vouchers/list.js
-   ✅ v3: اسناد وارد شده همیشه به عنوان پیش‌نویس ذخیره می‌شوند (بدون خطا)
+   ✅ v4: اسناد بر اساس دوره فعال فیلتر می‌شوند
    ============================================================ */
 'use strict';
 
 var VOUCHER_PAGE_SIZE = 50;
 window._vlistPg = window._vlistPg || { page: 1 };
-
-/* ============================================================
-   ✅ توابع فایل نمونه و دریافت داده
-   ============================================================ */
 
 function downloadVoucherTemplate() {
     if (typeof XLSX === 'undefined') {
@@ -71,7 +67,7 @@ function importVouchersFromExcel(file) {
                 var debit = Number(normalizeDigits(String(r[7] || '0')).replace(/[^\d]/g, '')) || 0;
                 var credit = Number(normalizeDigits(String(r[8] || '0')).replace(/[^\d]/g, '')) || 0;
                 
-                if (!vDate) continue; // تاریخ برای گروه‌بندی اسناد الزامی است
+                if (!vDate) continue; 
                 
                 var vKey = vNum || (vDate + '_' + vDesc);
                 if (!vouchersMap[vKey]) {
@@ -90,7 +86,6 @@ function importVouchersFromExcel(file) {
                 
                 var acc = leaves.find(function(a) { return String(a.code) === accCode; });
                 if (!acc) {
-                    // اگر کد حساب پیدا نشد، خط را خالی می‌گذاریم تا کاربر بعداً از فرم اصلاحش کند
                     vouchersMap[vKey].lines.push({
                         id: uid(),
                         account: '',
@@ -135,7 +130,7 @@ function importVouchersFromExcel(file) {
                     v.number = getNextVoucherNumberForPeriod(v.periodId);
                 }
                 v.id = uid();
-                v.status = 'draft'; // تضمین ذخیره به عنوان پیش‌نویس
+                v.status = 'draft'; 
                 vList.push(v);
                 imported++;
             });
@@ -143,7 +138,7 @@ function importVouchersFromExcel(file) {
             DB.save('vouchers', vList);
             renderVoucherList();
             
-            alert('✅ ' + imported + ' سند با موفقیت به عنوان پیش‌نویس ذخیره شد.\n\n💡 اسنادی که دارای نقص (مثل عدم تراز یا کد حساب نامعتبر) هستند، در لیست با علامت ⚠️ نمایش داده می‌شوند و می‌توانید آن‌ها را ویرایش کنید.');
+            alert('✅ ' + imported + ' سند با موفقیت به عنوان پیش‌نویس ذخیره شد.\n\n💡 اسنادی که دارای نقص هستند، در لیست با علامت ⚠️ نمایش داده می‌شوند و می‌توانید آن‌ها را ویرایش کنید.');
             
         } catch (err) {
             console.error(err);
@@ -152,10 +147,6 @@ function importVouchersFromExcel(file) {
     };
     reader.readAsArrayBuffer(file);
 }
-
-/* ============================================================
-   توابع رندر و بقیه منطق فهرست
-   ============================================================ */
 
 function ensureVoucherPaginationBox() {
     var box = document.getElementById('vlist-pagination');
@@ -204,7 +195,12 @@ function _computeFilteredVouchers() {
     if (!Array.isArray(allVouchers)) allVouchers = [];
     allVouchers = allVouchers.filter(function(x) { return x && typeof x === 'object'; });
 
-    var periodFilter = (document.getElementById('vl-period-filter') || {}).value || '';
+    var periodFilterEl = document.getElementById('vl-period-filter');
+    var periodFilter = periodFilterEl ? periodFilterEl.value : '';
+    
+    // ✅ اگر هیچ دوره‌ای انتخاب نشده بود، دوره فعال را پیش‌فرض قرار بده
+    if (!periodFilter) periodFilter = state.activePeriodId;
+
     var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
     var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
 
@@ -213,7 +209,12 @@ function _computeFilteredVouchers() {
     if (Array.isArray(periods)) { periods.forEach(function (p) { if (p) pMap[p.id] = p.title; }); }
 
     var vouchers = allVouchers.slice();
-    if (periodFilter) vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
+    
+    // ✅ فیلتر سخت‌گیرانه دوره
+    if (periodFilter) {
+        vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
+    }
+    
     if (statusFilter) vouchers = vouchers.filter(function (v) { return (v.status || 'draft') === statusFilter; });
 
     if (searchVal) {
@@ -653,7 +654,6 @@ function bindVoucherListFilters() {
         vstatus.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); });
     }
 
-    /* ✅ بایند دکمه‌های دریافت داده */
     var tmplBtn = document.getElementById('v-template-btn');
     if (tmplBtn && !tmplBtn.dataset.bound) {
         tmplBtn.dataset.bound = '1';
@@ -681,7 +681,7 @@ function bindVoucherListFilters() {
         var orig = window.goToPage;
         window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
-            if (name === 'voucher-list') { setTimeout(function () { try { renderVoucherList(); bindVoucherListFilters(); } catch (e) { console.error('vlist:', e); } }, 120); }
+            if (name === 'voucher-list') { setTimeout(function () { try { if (typeof refreshPeriodFilters === 'function') refreshPeriodFilters(); renderVoucherList(); bindVoucherListFilters(); } catch (e) { console.error('vlist:', e); } }, 120); }
             return r;
         };
     }
@@ -720,4 +720,4 @@ window._computeFilteredVouchers = _computeFilteredVouchers;
 window.downloadVoucherTemplate = downloadVoucherTemplate;
 window.importVouchersFromExcel = importVouchersFromExcel;
 
-console.log('✅ [modules/vouchers/list.js] loaded — v3 (draft-import allowed)');
+console.log('✅ [modules/vouchers/list.js] loaded — v4 active period strict filter');
