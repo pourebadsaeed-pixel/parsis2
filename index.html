@@ -83,6 +83,7 @@
                 <button data-page="bank-accounts">🏦 حساب‌های بانکی</button>
                 <button data-page="cash-boxes">💰 صندوق‌ها</button>
                 <button data-page="projects">📁 پروژه‌ها</button>
+                <button data-page="phonebook">📞 دفترچه تلفن</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="cash">
@@ -547,7 +548,6 @@
         </div>
     </div></div>
 </section>
-
 <!-- ============ PROJECTS ============ -->
 <section id="page-projects" class="page">
     <h2>📁 پروژه‌ها</h2>
@@ -572,6 +572,85 @@
         <div class="form-buttons">
             <button id="save-project" class="btn-primary">💾</button>
             <button id="new-project" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+</section>
+
+<!-- ============ PHONEBOOK ============ -->
+<section id="page-phonebook" class="page">
+    <h2>📞 دفترچه تلفن</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="pb-list">📋 فهرست اعضا</button>
+        <button class="tab-btn" data-tab="pb-form">✏️ تعریف / ویرایش</button>
+    </div>
+
+    <!-- تب فهرست -->
+    <div id="tab-pb-list" class="tab-content active"><div class="card">
+        <div class="list-header" data-col-table="pb-table" data-hide-key="pb-list">
+            <span class="count-badge" id="pb-count">۰</span>
+            <select class="filter-input" id="pb-list-company-filter" style="flex:0 0 auto;max-width:200px">
+                <option value="">همه شرکت‌ها</option>
+            </select>
+            <input type="text" class="filter-input" id="pb-list-search" placeholder="🔍 جستجو">
+        </div>
+        <div class="table-wrap"><table class="data-table" id="pb-table"><thead><tr>
+            <th>نام و نام خانوادگی</th>
+            <th>موبایل</th>
+            <th>سمت</th>
+            <th>داخلی</th>
+            <th>شرکت</th>
+            <th>عملیات</th>
+        </tr></thead><tbody id="pb-list-body"></tbody></table></div>
+    </div></div>
+
+    <!-- تب تعریف/ویرایش -->
+    <div id="tab-pb-form" class="tab-content"><div class="card">
+        <input type="hidden" id="pb-id">
+        <input type="hidden" id="pb-person-id">
+        <input type="hidden" id="pb-company-id">
+
+        <div class="field">
+            <label>نام و نام خانوادگی * <span style="font-size:0.7rem;color:#64748b">(ارجاع به اشخاص)</span></label>
+            <div style="display:flex;gap:6px;align-items:stretch">
+                <div id="pb-person-select" style="flex:1"></div>
+                <button type="button" id="pb-person-add" class="btn-primary"
+                        style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900"
+                        title="افزودن شخص جدید">+</button>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="field">
+                <label>شماره همراه</label>
+                <input type="text" id="pb-mobile" dir="ltr" placeholder="09xxxxxxxxx">
+                <small style="color:#64748b;font-weight:normal;font-size:0.7rem;display:block;margin-top:4px">
+                    💡 با شماره همراه شخص همگام می‌شود
+                </small>
+            </div>
+            <div class="field">
+                <label>شماره داخلی</label>
+                <input type="text" id="pb-extension" dir="ltr" placeholder="123">
+            </div>
+        </div>
+
+        <div class="field">
+            <label>سمت</label>
+            <input type="text" id="pb-role" placeholder="مثلاً: مدیر فروش">
+        </div>
+
+        <div class="field">
+            <label>شرکت <span style="font-size:0.7rem;color:#64748b">(ارجاع به شرکت‌ها)</span></label>
+            <div style="display:flex;gap:6px;align-items:stretch">
+                <div id="pb-company-select" style="flex:1"></div>
+                <button type="button" id="pb-company-add" class="btn-primary"
+                        style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900"
+                        title="افزودن شرکت جدید">+</button>
+            </div>
+        </div>
+
+        <div class="form-buttons">
+            <button id="pb-save" class="btn-primary">💾 ذخیره</button>
+            <button id="pb-new" class="btn-secondary">جدید</button>
         </div>
     </div></div>
 </section>
@@ -1731,7 +1810,7 @@
             './js/modules/reports/cashflow.js', './js/modules/reports/account.js', './js/modules/reports/trial.js',
             './js/modules/reports/facility.js', './js/modules/reports/rates.js',
             './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/calendar.js',
-            './js/modules/notes.js', './js/modules/sms.js', './js/modules/ai.js',
+            './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js','./js/modules/ai.js',
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
             './js/modules/users.js', './js/modules/auth.js', './js/app.js'
         ];
