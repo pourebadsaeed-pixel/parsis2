@@ -1,15 +1,11 @@
 /* ============================================================
-   پارسیس — برآورد منابع دریافتنی (نسخه با searchable + ادغام تفصیلی)
+   پارسیس — برآورد منابع دریافتنی (نسخه اصلاح‌شده نهایی)
    مسیر: js/modules/vouchers/sources.js
    ============================================================ */
 'use strict';
 
-/* متغیر نگهدارنده انتخاب تفصیلی: { linkType, id } یا null */
 var _cfsSelectedDetail = null;
 
-/* ============================================================
-   ✅ ساخت/بازسازی searchable select برای معین
-   ============================================================ */
 function refreshCfsMoeinSelect() {
     var hiddenInp = document.getElementById('cfs-moein');
     var container = document.getElementById('cfs-moein-searchable');
@@ -23,9 +19,7 @@ function refreshCfsMoeinSelect() {
 
     var currentVal = hiddenInp.value || '';
 
-    /* اطمینان از وجود تابع createSearchableSelect */
     if (typeof createSearchableSelect !== 'function') {
-        /* Fallback: اگر تابع نبود، از <select> ساده استفاده کن */
         container.innerHTML = '<select id="cfs-moein-fallback"></select>';
         var sel = document.getElementById('cfs-moein-fallback');
         sel.innerHTML = '<option value="">— انتخاب معین —</option>';
@@ -42,7 +36,6 @@ function refreshCfsMoeinSelect() {
         return;
     }
 
-    /* حالت عادی: searchable select */
     container.innerHTML = '';
     var searchSel = createSearchableSelect(
         items,
@@ -56,10 +49,6 @@ function refreshCfsMoeinSelect() {
     container.appendChild(searchSel);
 }
 
-/* ============================================================
-   ✅ با تغییر معین، بخش تفصیلی را با یک select ادغام‌شده می‌سازد
-   preSelectedDetailValue: اختیاری - برای پیش‌انتخاب هنگام ویرایش
-   ============================================================ */
 function onCfsMoeinChange(preSelectedDetailValue) {
     var moeinId = document.getElementById('cfs-moein').value;
     var wrap = document.getElementById('cfs-details-wrap');
@@ -73,13 +62,11 @@ function onCfsMoeinChange(preSelectedDetailValue) {
     var acc = accounts.find(function (a) { return a.id === moeinId; });
     if (!acc || !acc.links || acc.links.length === 0) return;
 
-    /* حذف تکراری‌ها از لینک‌ها */
     var uniqueLinks = [];
     acc.links.forEach(function (lt) {
         if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt);
     });
 
-    /* ساخت لیست ادغام‌شده از همه تفصیلی‌ها */
     var combined = [];
     var seenTexts = {};
     uniqueLinks.forEach(function (lt) {
@@ -102,7 +89,6 @@ function onCfsMoeinChange(preSelectedDetailValue) {
         return;
     }
 
-    /* بررسی اینکه آیا مقدار پیش‌انتخابی در لیست وجود دارد */
     var initialVal = null;
     if (preSelectedDetailValue) {
         var exists = combined.some(function (it) { return it.value === preSelectedDetailValue; });
@@ -113,7 +99,6 @@ function onCfsMoeinChange(preSelectedDetailValue) {
         }
     }
 
-    /* ساخت فیلد با یک searchable select */
     var wrapDiv = document.createElement('div');
     wrapDiv.className = 'field';
 
@@ -134,7 +119,6 @@ function onCfsMoeinChange(preSelectedDetailValue) {
         );
         wrapDiv.appendChild(detSel);
     } else {
-        /* Fallback: <select> ساده */
         var sel = document.createElement('select');
         sel.innerHTML = '<option value="">— انتخاب تفصیلی —</option>';
         combined.forEach(function (it) {
@@ -155,9 +139,6 @@ function onCfsMoeinChange(preSelectedDetailValue) {
     wrap.appendChild(wrapDiv);
 }
 
-/* ============================================================
-   نمایش فهرست
-   ============================================================ */
 function renderCfsList() {
     var list = DB.load('cashFlowSources', []);
     var filterEl = document.getElementById('cfs-filter');
@@ -226,23 +207,14 @@ function renderCfsList() {
 
             if (action === 'edit') {
                 document.getElementById('cfs-id').value = s.id;
-
-                /* ۱. تنظیم مقدار hidden moein */
                 document.getElementById('cfs-moein').value = s.moeinId || '';
-
-                /* ۲. بازسازی searchable moein (تا نمایش درست شود) */
                 refreshCfsMoeinSelect();
-
-                /* ۳. ساخت بخش تفصیلی با پیش‌انتخاب */
                 var preSel = (s.linkType && s.detailId) ? (s.linkType + '::' + s.detailId) : null;
                 onCfsMoeinChange(preSel);
-
-                /* ۴. بقیه فیلدها */
                 document.getElementById('cfs-date').value = s.expectedDate || '';
                 document.getElementById('cfs-amount').value = s.amount ? formatRaw(s.amount) : '';
                 document.getElementById('cfs-notes').value = s.notes || '';
 
-                /* ۵. سوئیچ به تب تعریف */
                 var activePage = document.querySelector('.page.active');
                 var addTab = activePage ? activePage.querySelector('[data-tab="cfs-add"]') : null;
                 if (addTab) addTab.click();
@@ -284,9 +256,6 @@ function renderCfsList() {
     if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('cfs-table'));
 }
 
-/* ============================================================
-   پاک کردن فرم
-   ============================================================ */
 function clearCfsForm() {
     var ids = ['cfs-id', 'cfs-moein', 'cfs-date', 'cfs-amount', 'cfs-notes'];
     ids.forEach(function (x) {
@@ -297,14 +266,9 @@ function clearCfsForm() {
     if (wrap) wrap.innerHTML = '';
     _cfsSelectedDetail = null;
     DB.save('cfs.tmp.details', {});
-
-    /* بازسازی moein برای پاک شدن مقدار */
     refreshCfsMoeinSelect();
 }
 
-/* ============================================================
-   ذخیره
-   ============================================================ */
 function saveCfsSource() {
     var id = document.getElementById('cfs-id').value;
     var moeinId = document.getElementById('cfs-moein').value;
@@ -314,7 +278,6 @@ function saveCfsSource() {
     var acc = accounts.find(function (a) { return a.id === moeinId; });
     if (!acc) { alert('معین نامعتبر.'); return; }
 
-    /* بررسی نیاز به تفصیلی */
     var linkType = '';
     var detailId = '';
 
@@ -366,9 +329,6 @@ function saveCfsSource() {
     if (listTab) listTab.click();
 }
 
-/* ============================================================
-   برچسب منبع (برای استفاده در گزارش‌ها)
-   ============================================================ */
 function getSourceLabel(s) {
     var accounts = DB.load('accounts', []);
     var moeinLabel = getAccountLabel(s.moeinId, accounts);
@@ -378,34 +338,26 @@ function getSourceLabel(s) {
 }
 
 /* ============================================================
-   اتصال فرم (idempotent — بدون تکرار listener)
+   ✅ بایند کردن (استفاده از onclick برای جلوگیری از باگ تب‌های کپی‌شده)
    ============================================================ */
 function bindSourcesForm() {
-    /* ۱. بازسازی searchable moein در هر بار ورود به فرم */
     refreshCfsMoeinSelect();
 
-    /* ۲. دکمه ذخیره */
     var saveBtn = document.getElementById('save-cfs');
-    if (saveBtn && !saveBtn.dataset.cfsBound) {
-        saveBtn.dataset.cfsBound = '1';
-        saveBtn.addEventListener('click', saveCfsSource);
+    if (saveBtn) {
+        saveBtn.onclick = saveCfsSource; 
     }
 
-    /* ۳. دکمه جدید */
     var newBtn = document.getElementById('new-cfs');
-    if (newBtn && !newBtn.dataset.cfsBound) {
-        newBtn.dataset.cfsBound = '1';
-        newBtn.addEventListener('click', clearCfsForm);
+    if (newBtn) {
+        newBtn.onclick = clearCfsForm;
     }
 
-    /* ۴. فیلتر جستجو در فهرست */
     var filterEl = document.getElementById('cfs-filter');
-    if (filterEl && !filterEl.dataset.cfsBound) {
-        filterEl.dataset.cfsBound = '1';
-        filterEl.addEventListener('input', renderCfsList);
+    if (filterEl) {
+        filterEl.oninput = renderCfsList;
     }
 
-    /* ۵. money input مبلغ */
     if (typeof attachMoneyInput === 'function') {
         attachMoneyInput(document.getElementById('cfs-amount'));
     }
@@ -419,4 +371,4 @@ window.saveCfsSource         = saveCfsSource;
 window.getSourceLabel        = getSourceLabel;
 window.bindSourcesForm       = bindSourcesForm;
 
-console.log('✅ [modules/vouchers/sources.js] loaded — searchable + combined details');
+console.log('✅ [modules/vouchers/sources.js] loaded — save button fixed');
