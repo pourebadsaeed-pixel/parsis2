@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — فهرست اسناد (با دریافت اکسل و نمونه)
    مسیر: js/modules/vouchers/list.js
-   ✅ v2: اضافه شدن قابلیت دریافت داده از اکسل و فایل نمونه
+   ✅ v3: اسناد وارد شده همیشه به عنوان پیش‌نویس ذخیره می‌شوند (بدون خطا)
    ============================================================ */
 'use strict';
 
@@ -9,7 +9,7 @@ var VOUCHER_PAGE_SIZE = 50;
 window._vlistPg = window._vlistPg || { page: 1 };
 
 /* ============================================================
-   ✅ توابع جدید: فایل نمونه و دریافت داده
+   ✅ توابع فایل نمونه و دریافت داده
    ============================================================ */
 
 function downloadVoucherTemplate() {
@@ -25,7 +25,6 @@ function downloadVoucherTemplate() {
     ];
     var ws = XLSX.utils.aoa_to_sheet(ws_data);
     
-    // تنظیم عرض ستون‌ها
     ws['!cols'] = [
         { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 20 },
         { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
@@ -56,7 +55,7 @@ function importVouchersFromExcel(file) {
             var accounts = DB.load('accounts', []);
             var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
             
-            var errors = [];
+            var parsedRows = 0;
             
             for (var i = 1; i < rows.length; i++) {
                 var r = rows[i];
@@ -72,10 +71,7 @@ function importVouchersFromExcel(file) {
                 var debit = Number(normalizeDigits(String(r[7] || '0')).replace(/[^\d]/g, '')) || 0;
                 var credit = Number(normalizeDigits(String(r[8] || '0')).replace(/[^\d]/g, '')) || 0;
                 
-                if (!vDate || !accCode) { errors.push('ردیف ' + (i+1) + ': تاریخ یا کد حساب خالی است'); continue; }
-                
-                var acc = leaves.find(function(a) { return String(a.code) === accCode; });
-                if (!acc) { errors.push('ردیف ' + (i+1) + ': کد حساب ' + accCode + ' یافت نشد'); continue; }
+                if (!vDate) continue; // تاریخ برای گروه‌بندی اسناد الزامی است
                 
                 var vKey = vNum || (vDate + '_' + vDesc);
                 if (!vouchersMap[vKey]) {
@@ -88,6 +84,22 @@ function importVouchersFromExcel(file) {
                         lines: [],
                         status: 'draft'
                     };
+                }
+                
+                parsedRows++;
+                
+                var acc = leaves.find(function(a) { return String(a.code) === accCode; });
+                if (!acc) {
+                    // اگر کد حساب پیدا نشد، خط را خالی می‌گذاریم تا کاربر بعداً از فرم اصلاحش کند
+                    vouchersMap[vKey].lines.push({
+                        id: uid(),
+                        account: '',
+                        details: {},
+                        debit: debit,
+                        credit: credit,
+                        description: lineDesc || vDesc || ('کد حساب ' + accCode + ' یافت نشد')
+                    });
+                    continue;
                 }
                 
                 var details = {};
@@ -108,22 +120,22 @@ function importVouchersFromExcel(file) {
                 });
             }
             
+            if (parsedRows === 0) {
+                alert('هیچ ردیف معتبری در فایل یافت نشد.');
+                return;
+            }
+            
             var imported = 0;
             var vList = DB.load('vouchers', []);
             var keys = Object.keys(vouchersMap);
             
             keys.forEach(function(k) {
                 var v = vouchersMap[k];
-                var td = 0, tc = 0;
-                v.lines.forEach(function(l) { td += l.debit; tc += l.credit; });
-                if (Math.abs(td - tc) > 0.5) {
-                    errors.push('سند ' + (v.number || v.desc) + ': تراز نیست (بد: ' + td + '، بس: ' + tc + ')');
-                    return;
-                }
                 if (!v.number) {
                     v.number = getNextVoucherNumberForPeriod(v.periodId);
                 }
                 v.id = uid();
+                v.status = 'draft'; // تضمین ذخیره به عنوان پیش‌نویس
                 vList.push(v);
                 imported++;
             });
@@ -131,11 +143,7 @@ function importVouchersFromExcel(file) {
             DB.save('vouchers', vList);
             renderVoucherList();
             
-            if (errors.length > 0) {
-                alert('⚠️ ' + imported + ' سند با موفقیت وارد شد.\n\nخطاها:\n' + errors.slice(0, 10).join('\n') + (errors.length > 10 ? '\n...' : ''));
-            } else {
-                alert('✅ ' + imported + ' سند با موفقیت وارد شد.');
-            }
+            alert('✅ ' + imported + ' سند با موفقیت به عنوان پیش‌نویس ذخیره شد.\n\n💡 اسنادی که دارای نقص (مثل عدم تراز یا کد حساب نامعتبر) هستند، در لیست با علامت ⚠️ نمایش داده می‌شوند و می‌توانید آن‌ها را ویرایش کنید.');
             
         } catch (err) {
             console.error(err);
@@ -144,6 +152,10 @@ function importVouchersFromExcel(file) {
     };
     reader.readAsArrayBuffer(file);
 }
+
+/* ============================================================
+   توابع رندر و بقیه منطق فهرست
+   ============================================================ */
 
 function ensureVoucherPaginationBox() {
     var box = document.getElementById('vlist-pagination');
@@ -708,4 +720,4 @@ window._computeFilteredVouchers = _computeFilteredVouchers;
 window.downloadVoucherTemplate = downloadVoucherTemplate;
 window.importVouchersFromExcel = importVouchersFromExcel;
 
-console.log('✅ [modules/vouchers/list.js] loaded — v2 import/export excel added');
+console.log('✅ [modules/vouchers/list.js] loaded — v3 (draft-import allowed)');
