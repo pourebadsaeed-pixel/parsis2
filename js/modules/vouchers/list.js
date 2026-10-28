@@ -1,11 +1,149 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (با فیلتر سراسری + اکسل استاندارد)
+   پارسیس — فهرست اسناد (با دریافت اکسل و نمونه)
    مسیر: js/modules/vouchers/list.js
+   ✅ v2: اضافه شدن قابلیت دریافت داده از اکسل و فایل نمونه
    ============================================================ */
 'use strict';
 
 var VOUCHER_PAGE_SIZE = 50;
 window._vlistPg = window._vlistPg || { page: 1 };
+
+/* ============================================================
+   ✅ توابع جدید: فایل نمونه و دریافت داده
+   ============================================================ */
+
+function downloadVoucherTemplate() {
+    if (typeof XLSX === 'undefined') {
+        alert('کتابخانه اکسل بارگذاری نشده است. اتصال اینترنت را بررسی کنید.');
+        return;
+    }
+
+    var ws_data = [
+        ['شماره سند', 'تاریخ', 'نوع سند', 'شرح سند', 'کد حساب', 'تفصیلی', 'شرح قلم', 'بدهکار', 'بستانکار'],
+        ['', '1405/08/05', 'عمومی', 'خرید ملزومات', '5-01-002', 'صندوق', 'خرید ملزومات', '500000', '0'],
+        ['', '1405/08/05', 'عمومی', 'خرید ملزومات', '1-01-001', '', 'پرداخت از صندوق', '0', '500000']
+    ];
+    var ws = XLSX.utils.aoa_to_sheet(ws_data);
+    
+    // تنظیم عرض ستون‌ها
+    ws['!cols'] = [
+        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 20 },
+        { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
+    ];
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "parsis-voucher-template.xlsx");
+}
+
+function importVouchersFromExcel(file) {
+    if (typeof XLSX === 'undefined') {
+        alert('کتابخانه اکسل بارگذاری نشده است.');
+        return;
+    }
+    
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = new Uint8Array(e.target.result);
+            var workbook = XLSX.read(data, {type: 'array'});
+            var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+            
+            if (rows.length < 2) { alert('فایل خالی است.'); return; }
+            
+            var vouchersMap = {};
+            var accounts = DB.load('accounts', []);
+            var leaves = accounts.filter(function(a) { return !accounts.some(function(x) { return x.parent === a.id; }); });
+            
+            var errors = [];
+            
+            for (var i = 1; i < rows.length; i++) {
+                var r = rows[i];
+                if (!r || r.length < 5) continue;
+                
+                var vNum = String(r[0] || '').trim();
+                var vDate = normalizeDigits(String(r[1] || '').trim());
+                var vType = String(r[2] || 'general').trim();
+                var vDesc = String(r[3] || '').trim();
+                var accCode = String(r[4] || '').trim();
+                var detailStr = String(r[5] || '').trim();
+                var lineDesc = String(r[6] || '').trim();
+                var debit = Number(normalizeDigits(String(r[7] || '0')).replace(/[^\d]/g, '')) || 0;
+                var credit = Number(normalizeDigits(String(r[8] || '0')).replace(/[^\d]/g, '')) || 0;
+                
+                if (!vDate || !accCode) { errors.push('ردیف ' + (i+1) + ': تاریخ یا کد حساب خالی است'); continue; }
+                
+                var acc = leaves.find(function(a) { return String(a.code) === accCode; });
+                if (!acc) { errors.push('ردیف ' + (i+1) + ': کد حساب ' + accCode + ' یافت نشد'); continue; }
+                
+                var vKey = vNum || (vDate + '_' + vDesc);
+                if (!vouchersMap[vKey]) {
+                    vouchersMap[vKey] = {
+                        number: vNum,
+                        date: vDate,
+                        type: vType,
+                        desc: vDesc,
+                        periodId: state.activePeriodId || '',
+                        lines: [],
+                        status: 'draft'
+                    };
+                }
+                
+                var details = {};
+                if (detailStr && acc.links && acc.links.length > 0) {
+                    var lt = acc.links[0]; 
+                    var items = getLinkedItems(lt);
+                    var found = items.find(function(it) { return getLinkedItemLabel(lt, it).indexOf(detailStr) !== -1; });
+                    if (found) details[lt] = found.id;
+                }
+                
+                vouchersMap[vKey].lines.push({
+                    id: uid(),
+                    account: acc.id,
+                    details: details,
+                    debit: debit,
+                    credit: credit,
+                    description: lineDesc || vDesc
+                });
+            }
+            
+            var imported = 0;
+            var vList = DB.load('vouchers', []);
+            var keys = Object.keys(vouchersMap);
+            
+            keys.forEach(function(k) {
+                var v = vouchersMap[k];
+                var td = 0, tc = 0;
+                v.lines.forEach(function(l) { td += l.debit; tc += l.credit; });
+                if (Math.abs(td - tc) > 0.5) {
+                    errors.push('سند ' + (v.number || v.desc) + ': تراز نیست (بد: ' + td + '، بس: ' + tc + ')');
+                    return;
+                }
+                if (!v.number) {
+                    v.number = getNextVoucherNumberForPeriod(v.periodId);
+                }
+                v.id = uid();
+                vList.push(v);
+                imported++;
+            });
+            
+            DB.save('vouchers', vList);
+            renderVoucherList();
+            
+            if (errors.length > 0) {
+                alert('⚠️ ' + imported + ' سند با موفقیت وارد شد.\n\nخطاها:\n' + errors.slice(0, 10).join('\n') + (errors.length > 10 ? '\n...' : ''));
+            } else {
+                alert('✅ ' + imported + ' سند با موفقیت وارد شد.');
+            }
+            
+        } catch (err) {
+            console.error(err);
+            alert('خطا در خواندن فایل:\n' + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
 
 function ensureVoucherPaginationBox() {
     var box = document.getElementById('vlist-pagination');
@@ -49,11 +187,6 @@ function renderVoucherPager(total, curPage) {
     mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین');
 }
 
-/* ============================================================
-   ✅ محاسبه سطرها با تمام فیلترها (شامل فیلترهای ستونی)
-   ورودی: هیچ — داده از DB و DOM خوانده می‌شود
-   خروجی: { vouchers: [...], pMap: {...}, total: N }
-   ============================================================ */
 function _computeFilteredVouchers() {
     var allVouchers = DB.load('vouchers', []);
     if (!Array.isArray(allVouchers)) allVouchers = [];
@@ -79,20 +212,19 @@ function _computeFilteredVouchers() {
         });
     }
 
-    /* ✅ فیلترهای ستونی — روی کل دیتاست قبل از pagination */
     var vFilters = (typeof COLUMN_FILTERS !== 'undefined' && COLUMN_FILTERS['voucher-table-list']) || {};
     var hasVFilters = Object.keys(vFilters).some(function(k) { return vFilters[k] && vFilters[k].op; });
     if (hasVFilters) {
         vouchers = vouchers.filter(function (v) {
             var rowCells = [
-                String(v.number || ''),                        /* 0: شماره */
-                String(v.date || ''),                          /* 1: تاریخ */
-                voucherTypeName(v.type),                       /* 2: نوع */
-                pMap[v.periodId] || '—',                       /* 3: دوره */
-                v.desc || '',                                  /* 4: شرح */
-                getVoucherAmount(v),                           /* 5: مبلغ (عدد) */
-                v.status === 'approved' ? 'تأیید' : 'پیش‌نویس', /* 6: وضعیت */
-                ''                                             /* 7: عملیات */
+                String(v.number || ''),
+                String(v.date || ''),
+                voucherTypeName(v.type),
+                pMap[v.periodId] || '—',
+                v.desc || '',
+                getVoucherAmount(v),
+                v.status === 'approved' ? 'تأیید' : 'پیش‌نویس',
+                ''
             ];
             for (var key in vFilters) {
                 var origIdx = Number(key);
@@ -104,7 +236,6 @@ function _computeFilteredVouchers() {
         });
     }
 
-    /* مرتب‌سازی */
     var st = (typeof sortState !== 'undefined' && sortState.vouchers) ? sortState.vouchers : { col: 'number', dir: 'desc' };
     vouchers.sort(function (a, b) {
         var va, vb;
@@ -214,7 +345,6 @@ function renderVoucherList() {
         if (typeof applyColumnOrder === 'function') applyColumnOrder('voucher-table-list');
         if (typeof buildFilterRow === 'function') buildFilterRow(document.getElementById('voucher-table-list'));
 
-        /* همگام‌سازی cache فیلتر (تا setInterval دوباره رندر نکند) */
         if (typeof COLUMN_FILTERS !== 'undefined') {
             window._lastVoucherFilterKey = JSON.stringify(COLUMN_FILTERS['voucher-table-list'] || {});
         }
@@ -401,9 +531,6 @@ function printVoucherPreview() {
     setTimeout(function() { win.focus(); win.print(); win.onafterprint = function() { win.close(); }; }, 500);
 }
 
-/* ============================================================
-   ✅ خروجی اکسل استاندارد پیش‌نمایش سند
-   ============================================================ */
 function exportVoucherPreviewToExcel() {
     var v = window._currentPreviewVoucher;
     if (!v) { alert('سندی برای خروجی نیست.'); return; }
@@ -452,10 +579,6 @@ function exportVoucherPreviewToExcel() {
     exportDataToExcel(headers, rows, title, 'سند-' + v.number, 'سند');
 }
 
-/* ============================================================
-   ✅ خروجی اکسل استاندارد فهرست اسناد
-   (همان ستون‌های جدول، مبلغ numeric)
-   ============================================================ */
 function exportVoucherListToExcel(filename) {
     var result = _computeFilteredVouchers();
     var vouchers = result.vouchers;
@@ -473,7 +596,7 @@ function exportVoucherListToExcel(filename) {
             voucherTypeName(v.type),
             pMap[v.periodId] || '—',
             v.desc || '',
-            getVoucherAmount(v),   /* ✅ مبلغ numeric */
+            getVoucherAmount(v),
             v.status === 'approved' ? 'تأیید شده' : 'پیش‌نویس'
         ];
     });
@@ -517,6 +640,26 @@ function bindVoucherListFilters() {
         vstatus.dataset.bound = '1';
         vstatus.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); });
     }
+
+    /* ✅ بایند دکمه‌های دریافت داده */
+    var tmplBtn = document.getElementById('v-template-btn');
+    if (tmplBtn && !tmplBtn.dataset.bound) {
+        tmplBtn.dataset.bound = '1';
+        tmplBtn.addEventListener('click', downloadVoucherTemplate);
+    }
+
+    var importBtn = document.getElementById('v-import-btn');
+    var importFile = document.getElementById('v-import-file');
+    if (importBtn && importFile && !importBtn.dataset.bound) {
+        importBtn.dataset.bound = '1';
+        importBtn.addEventListener('click', function() { importFile.click(); });
+        importFile.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                importVouchersFromExcel(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
 }
 
 (function patchGoToPageForVoucherList() {
@@ -526,7 +669,7 @@ function bindVoucherListFilters() {
         var orig = window.goToPage;
         window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
-            if (name === 'voucher-list') { setTimeout(function () { try { renderVoucherList(); } catch (e) { console.error('vlist:', e); } }, 120); }
+            if (name === 'voucher-list') { setTimeout(function () { try { renderVoucherList(); bindVoucherListFilters(); } catch (e) { console.error('vlist:', e); } }, 120); }
             return r;
         };
     }
@@ -562,5 +705,7 @@ window.exportVoucherListToExcel = exportVoucherListToExcel;
 window.openVoucherForEditById = openVoucherForEditById;
 window.bindVoucherListFilters = bindVoucherListFilters;
 window._computeFilteredVouchers = _computeFilteredVouchers;
+window.downloadVoucherTemplate = downloadVoucherTemplate;
+window.importVouchersFromExcel = importVouchersFromExcel;
 
-console.log('✅ [modules/vouchers/list.js] loaded — global filter + standard excel');
+console.log('✅ [modules/vouchers/list.js] loaded — v2 import/export excel added');
