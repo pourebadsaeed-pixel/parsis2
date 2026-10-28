@@ -21,6 +21,8 @@
 <link rel="stylesheet" href="./css/layout.css">
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/calendar.css">
+<!-- ✅ SheetJS برای خواندن و نوشتن فایل اکسل -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="theme-sky font-tahoma">
 
@@ -80,10 +82,10 @@
             <div class="nav-group-items">
                 <button data-page="persons">👥 اشخاص</button>
                 <button data-page="companies">🏢 شرکت‌ها</button>
+                <button data-page="phonebook">📞 دفترچه تلفن</button>
                 <button data-page="bank-accounts">🏦 حساب‌های بانکی</button>
                 <button data-page="cash-boxes">💰 صندوق‌ها</button>
                 <button data-page="projects">📁 پروژه‌ها</button>
-                <button data-page="phonebook">📞 دفترچه تلفن</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="cash">
@@ -223,7 +225,6 @@
     </div></div>
     <div id="tab-users-add" class="tab-content"><div class="card">
         <input type="hidden" id="user-id">
-
         <div class="grid-2">
             <div class="field">
                 <label>نام کاربری *</label>
@@ -234,7 +235,6 @@
                 <select id="user-person"></select>
             </div>
         </div>
-
         <div class="grid-2">
             <div class="field">
                 <label>کلمه عبور <span style="color:#dc2626">*</span>
@@ -256,7 +256,6 @@
                 <input type="password" id="user-password-confirm" dir="ltr" autocomplete="new-password">
             </div>
         </div>
-
         <div class="grid-2">
             <div class="field" style="padding:14px;background:var(--card-alt);border-radius:12px;border:1px solid var(--border);margin-bottom:12px">
                 <label class="checkbox-item" style="margin:0;cursor:pointer;background:none;padding:0;display:flex;align-items:center;gap:8px">
@@ -277,7 +276,6 @@
                 </div>
             </div>
         </div>
-
         <div class="form-buttons">
             <button id="save-user" class="btn-primary">💾 ذخیره</button>
             <button id="new-user" class="btn-secondary">جدید</button>
@@ -548,6 +546,7 @@
         </div>
     </div></div>
 </section>
+
 <!-- ============ PROJECTS ============ -->
 <section id="page-projects" class="page">
     <h2>📁 پروژه‌ها</h2>
@@ -584,7 +583,6 @@
         <button class="tab-btn" data-tab="pb-form">✏️ تعریف / ویرایش</button>
     </div>
 
-    <!-- تب فهرست -->
     <div id="tab-pb-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="pb-table" data-hide-key="pb-list">
             <span class="count-badge" id="pb-count">۰</span>
@@ -603,7 +601,6 @@
         </tr></thead><tbody id="pb-list-body"></tbody></table></div>
     </div></div>
 
-    <!-- تب تعریف/ویرایش -->
     <div id="tab-pb-form" class="tab-content"><div class="card">
         <input type="hidden" id="pb-id">
         <input type="hidden" id="pb-person-id">
@@ -835,11 +832,12 @@
     </div>
 
     <div class="card">
-        <div class="form-buttons" style="margin-bottom:12px">
+        <div class="form-buttons" style="margin-bottom:12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <button id="load-default-chart" class="btn-secondary btn-mini">📥 بارگذاری</button>
             <button id="add-group" class="btn-primary btn-mini">+ گروه</button>
             <button id="cd-expand" class="btn-secondary btn-mini">باز کردن</button>
             <button id="cd-collapse" class="btn-secondary btn-mini">بستن</button>
+            <button id="export-chart-excel" class="btn-secondary btn-mini" style="background:#d1fae5;color:#065f46;margin-right:auto">📊 خروجی اکسل</button>
         </div>
         <div class="tree-search"><input type="text" id="charttree-search" placeholder="🔍 جستجو"></div>
         <div id="chart-tree" class="tree"></div>
@@ -904,6 +902,12 @@
         <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list" style="display: flex; justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 8px;">
             <!-- آیکن شمارشگر جایگزین جستجو شد -->
             <span class="count-badge" id="vlist-count" style="margin-right: 10px; font-size: 1.1rem; padding: 6px 16px;">۰</span>
+            
+            <!-- ✅ دکمه‌های دریافت داده و فایل نمونه -->
+            <button id="v-template-btn" class="export-btn" title="دانلود فایل نمونه">📥 فایل نمونه</button>
+            <button id="v-import-btn" class="export-btn" title="دریافت داده از اکسل">📤 دریافت داده</button>
+            <input type="file" id="v-import-file" accept=".xlsx, .xls, .csv" hidden>
+
             <button class="export-btn" data-export="vouchers">📊 اکسل</button>
             <!-- بقیه دکمه‌ها (چشم، تنظیمات، رفرش) به صورت خودکار توسط buildHeaderButtons در JS اضافه می‌شوند -->
         </div>
@@ -1810,7 +1814,7 @@
             './js/modules/reports/cashflow.js', './js/modules/reports/account.js', './js/modules/reports/trial.js',
             './js/modules/reports/facility.js', './js/modules/reports/rates.js',
             './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/calendar.js',
-            './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js','./js/modules/ai.js',
+            './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js', './js/modules/ai.js',
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
             './js/modules/users.js', './js/modules/auth.js', './js/app.js'
         ];
