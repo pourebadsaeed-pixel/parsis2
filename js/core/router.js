@@ -2,7 +2,7 @@
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
    
-   ✅ v3: افزودن case 'users' برای راه‌اندازی صفحه کاربران
+   ✅ v4: افزودن case 'phonebook'
    ============================================================ */
 'use strict';
 
@@ -36,6 +36,9 @@ function runPageRenderer(name) {
         'bank-accounts':        function () { if (typeof renderBankAccountsList === 'function') renderBankAccountsList(); if (typeof refreshBankTypeSelect === 'function') refreshBankTypeSelect(); },
         'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
         'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
+
+        /* ✅ v4 — صفحه دفترچه تلفن */
+        'phonebook':            function () { if (typeof initPhonebookPage === 'function') initPhonebookPage(); },
 
         /* ✅ v3 — صفحه کاربران */
         'users':                function () { if (typeof initUsersPage === 'function') initUsersPage(); },
@@ -193,6 +196,7 @@ function rerenderCurrentPage() {
     var map = {
         'persons':              'renderPersonsList',
         'companies':            'renderCompaniesList',
+        'phonebook':            'renderPhonebookList',
         'bank-accounts':        'renderBankAccountsList',
         'cash-boxes':           'renderCashBoxesList',
         'projects':             'renderProjectsList',
@@ -225,4 +229,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded — users case added');
+console.log('✅ [core/router.js] loaded — phonebook case added');
