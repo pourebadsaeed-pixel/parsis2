@@ -1,14 +1,10 @@
 /* ============================================================
    پارسیس — دوره‌های مالی (با چک وابستگی قبل از حذف)
    مسیر: js/modules/accounts/fiscal.js
+   ✅ v3: فیلتر دوره فعال در فهرست اسناد
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   ✅ attachRowActions — نسخه اصلاح‌شده با چک وابستگی
-   این تابع برای همه فرم‌های پایه (اشخاص، شرکت‌ها، بانک‌ها، صندوق‌ها،
-   پروژه‌ها، دوره‌های مالی) استفاده می‌شود
-   ============================================================ */
 function attachRowActions(tb, sk, rf, ef) {
     var eds = tb.querySelectorAll('.row-btn.edit');
     var dls = tb.querySelectorAll('.row-btn.del');
@@ -26,7 +22,6 @@ function attachRowActions(tb, sk, rf, ef) {
         dls[k].addEventListener('click', function () {
             var id = this.getAttribute('data-id');
 
-            /* ✅ نقشه‌برداری از storage key به entity type */
             var typeMap = {
                 'fiscalPeriods': 'fiscalPeriod',
                 'persons':       'person',
@@ -37,7 +32,6 @@ function attachRowActions(tb, sk, rf, ef) {
             };
             var entityType = typeMap[sk];
 
-            /* ✅ چک وابستگی‌ها */
             if (entityType && typeof getDeleteIssues === 'function') {
                 var issues = getDeleteIssues(entityType, id);
                 if (issues.length > 0) {
@@ -54,7 +48,6 @@ function attachRowActions(tb, sk, rf, ef) {
             list = list.filter(function (x) { return x.id !== id; });
             DB.save(sk, list);
 
-            /* ✅ اگر دوره فعال حذف شد، اولین دوره موجود را فعال کن */
             if (sk === 'fiscalPeriods' && state.activePeriodId === id) {
                 state.activePeriodId = list.length > 0 ? list[0].id : '';
                 saveState(LS_KEYS.ACTIVE_PERIOD);
@@ -148,15 +141,22 @@ function refreshPeriodFilters() {
     var list = DB.load('fiscalPeriods', []);
     var sel = document.getElementById('vl-period-filter');
     if (!sel) return;
-    var v = sel.value;
-    sel.innerHTML = '<option value="">همه دوره‌ها</option>';
+    
+    // ✅ حذف گزینه "همه دوره‌ها" برای جلوگیری از قاطی شدن اسناد
+    sel.innerHTML = ''; 
     for (var i = 0; i < list.length; i++) {
         var o = document.createElement('option');
         o.value = list[i].id;
         o.textContent = list[i].title;
         sel.appendChild(o);
     }
-    sel.value = v;
+    
+    // ✅ انتخاب خودکار دوره فعال
+    if (state.activePeriodId) {
+        sel.value = state.activePeriodId;
+    } else if (list.length > 0) {
+        sel.value = list[0].id;
+    }
 }
 
 function clearFiscalForm() {
@@ -220,4 +220,4 @@ window.refreshPeriodFilters = refreshPeriodFilters;
 window.clearFiscalForm     = clearFiscalForm;
 window.bindFiscalForm      = bindFiscalForm;
 
-console.log('✅ [modules/accounts/fiscal.js] loaded — delete dependency check enabled');
+console.log('✅ [modules/accounts/fiscal.js] loaded — v3 active period filter');
