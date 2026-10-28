@@ -1,5 +1,8 @@
-/* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v70-2025-filter-operators';
+/* ============================================================
+   پارسیس — Service Worker (بروزرسانی خودکار کش)
+   نسخه v71 — phonebook module
+   ============================================================ */
+var CACHE_NAME = 'parsis-v71-2025-phonebook';
 
 var ASSETS = [
   './index.html',
@@ -48,6 +51,7 @@ var ASSETS = [
   './js/modules/calendar.js',
   './js/modules/notes.js',
   './js/modules/sms.js',
+  './js/modules/phonebook.js',
   './js/modules/ai.js',
   './js/modules/welcome.js',
   './js/modules/backup.js',
