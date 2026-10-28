@@ -1,6 +1,8 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
+   
+   ✅ v2: افزودن تقویم شمسی در فیلتر ستون‌های تاریخ
    ============================================================ */
 'use strict';
 
@@ -687,13 +689,7 @@ function applyTableSort(tableId, rows, keyFn) {
 
 var COLUMN_FILTERS = {};
 
-/* ============================================================
-   ✅ اعمال فیلتر ستون‌ها
-   برای voucher-table-list به‌جای hide DOM، کل لیست را دوباره رندر می‌کند
-   تا فیلتر روی همه صفحات اعمال شود
-   ============================================================ */
 function applyColumnFiltersToTable(tableId) {
-    /* --- مسیر اختصاصی فهرست اسناد (چون paginate می‌شود) --- */
     if (tableId === 'voucher-table-list') {
         if (window._voucherListRendering) return;
         var key = JSON.stringify(COLUMN_FILTERS['voucher-table-list'] || {});
@@ -707,7 +703,6 @@ function applyColumnFiltersToTable(tableId) {
         return;
     }
 
-    /* --- مسیر عادی: hide DOM برای جداول بدون pagination --- */
     var table = document.getElementById(tableId);
     if (!table) return;
     var filters = COLUMN_FILTERS[tableId] || {};
@@ -817,10 +812,39 @@ function openColFilterPopover(tableId, origIdx, btn) {
     opWrap.appendChild(opList);
     pop.appendChild(opWrap);
 
+    /* ✅ تشخیص ستون تاریخ برای افزودن تقویم */
+    var table = document.getElementById(tableId);
+    var headerText = '';
+    if (table) {
+        var headerRow = table.querySelector('thead tr:not(.column-filter-row)');
+        if (headerRow) {
+            var ths = headerRow.querySelectorAll('th');
+            for (var i = 0; i < ths.length; i++) {
+                if (ths[i].getAttribute('data-orig-index') == origIdx) {
+                    headerText = ths[i].textContent.trim();
+                    break;
+                }
+            }
+        }
+    }
+    var isDateColumn = headerText.indexOf('تاریخ') !== -1;
+
     var inp = document.createElement('input');
     inp.type = 'text';
-    inp.placeholder = 'مقدار...';
+    inp.placeholder = isDateColumn ? 'YYYY/MM/DD' : 'مقدار...';
     inp.value = existing.val || '';
+    if (isDateColumn) {
+        inp.dir = 'ltr';
+        inp.style.textAlign = 'center';
+        inp.classList.add('date-picker');
+        inp.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (typeof openCalendar === 'function') openCalendar(this);
+        });
+        inp.addEventListener('focus', function(e) {
+            if (typeof openCalendar === 'function') openCalendar(this);
+        });
+    }
     pop.appendChild(inp);
 
     var actions = document.createElement('div');
@@ -1067,4 +1091,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — voucher-list filters now apply to all pages');
+console.log('✅ [ui/table.js] loaded — date-picker added to column filters');
