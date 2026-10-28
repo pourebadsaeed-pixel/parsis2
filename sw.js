@@ -1,5 +1,5 @@
 /* پارسیس — Service Worker (بروزرسانی خودکار کش) */
-var CACHE_NAME = 'parsis-v68-2025-voucher-list-clean';
+var CACHE_NAME = 'parsis-v69-2025-date-filter-fix';
 
 var ASSETS = [
   './index.html',
