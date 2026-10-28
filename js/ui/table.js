@@ -2,7 +2,7 @@
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
    
-   ✅ v3: رفع باگ تقویم فیلتر تاریخ (بدون باز شدن خودکار)
+   ✅ v4: به‌روزرسانی گزینه‌های فیلتر (مساوی، نامساوی، بزرگتر، کوچکتر و...)
    ============================================================ */
 'use strict';
 
@@ -42,13 +42,20 @@ function cellToNumber(s) { var t = normalizeDigits(String(s || '')).replace(/[^\
 
 function testFilter(cellText, filter) {
     if (!filter || !filter.op) return true;
-    var txt = normalizeForFilter(cellText); var val = normalizeForFilter(filter.val || '');
-    var numTxt = cellToNumber(cellText); var numVal = cellToNumber(filter.val || '');
+    var txt = normalizeForFilter(cellText); 
+    var val = normalizeForFilter(filter.val || '');
+    var numTxt = cellToNumber(cellText); 
+    var numVal = cellToNumber(filter.val || '');
+    
     switch (filter.op) {
         case 'contains': return txt.indexOf(val) !== -1;
         case 'notContains': return txt.indexOf(val) === -1;
-        case 'eq': return txt === val;
-        case 'neq': return txt !== val;
+        case 'eq': 
+            if (numTxt !== null && numVal !== null) return numTxt === numVal;
+            return txt === val;
+        case 'neq': 
+            if (numTxt !== null && numVal !== null) return numTxt !== numVal;
+            return txt !== val;
         case 'gt': return numTxt !== null && numVal !== null && numTxt > numVal;
         case 'gte': return numTxt !== null && numVal !== null && numTxt >= numVal;
         case 'lt': return numTxt !== null && numVal !== null && numTxt < numVal;
@@ -761,20 +768,17 @@ function openColFilterPopover(tableId, origIdx, btn) {
     var existing = (COLUMN_FILTERS[tableId] && COLUMN_FILTERS[tableId][origIdx]) || {};
     var currentOp = existing.op || '';
 
+    /* ✅ گزینه‌های دقیقاً مطابق درخواست شما */
     var ops = [
-        ['', '— انتخاب کنید —'],
-        ['contains', 'شامل'],
-        ['notContains', 'نیست شبیه / شامل نباشد'],
-        ['eq', 'مساوی'],
-        ['neq', 'نامساوی'],
+        ['', 'بدون فیلتر'],
+        ['eq', 'مساوی با'],
+        ['neq', 'نامساوی با'],
         ['gt', 'بزرگتر از'],
-        ['gte', 'بزرگتر یا مساوی'],
         ['lt', 'کوچکتر از'],
+        ['gte', 'بزرگتر یا مساوی'],
         ['lte', 'کوچکتر یا مساوی'],
-        ['startsWith', 'شروع با'],
-        ['endsWith', 'پایان با'],
-        ['empty', 'خالی'],
-        ['notEmpty', 'خالی نباشد']
+        ['empty', 'بدون مقدار'],
+        ['notEmpty', 'با مقدار']
     ];
 
     var opWrap = document.createElement('div');
@@ -782,7 +786,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
 
     var opBtn = document.createElement('div');
     opBtn.className = 'cf-op-btn';
-    var selectedLabel = ops.find(function(o) { return o[0] === currentOp; })[1] || '— انتخاب کنید —';
+    var selectedLabel = ops.find(function(o) { return o[0] === currentOp; })[1] || 'بدون فیلتر';
     opBtn.innerHTML = '<span>' + selectedLabel + '</span><span>▼</span>';
 
     var opList = document.createElement('div');
@@ -799,6 +803,9 @@ function openColFilterPopover(tableId, origIdx, btn) {
             opList.classList.remove('show');
             opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); });
             item.classList.add('selected');
+            if (currentOp === '') {
+                inp.value = '';
+            }
             update();
         };
         opList.appendChild(item);
@@ -880,6 +887,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
             if (COLUMN_FILTERS[tableId]) delete COLUMN_FILTERS[tableId][origIdx];
             btn.classList.remove('active');
         } else if (!op && val) {
+            /* اگر مقداری تایپ شد ولی عملگری انتخاب نشد، به صورت پیش‌فرض فیلتر "شامل" عمل کند */
             if (!COLUMN_FILTERS[tableId]) COLUMN_FILTERS[tableId] = {};
             COLUMN_FILTERS[tableId][origIdx] = { op: 'contains', val: val };
             btn.classList.add('active');
@@ -902,7 +910,7 @@ function openColFilterPopover(tableId, origIdx, btn) {
 
     pop.querySelector('.cf-clear').addEventListener('click', function() {
         inp.value = ''; currentOp = '';
-        opBtn.innerHTML = '<span>— انتخاب کنید —</span><span>▼</span>';
+        opBtn.innerHTML = '<span>بدون فیلتر</span><span>▼</span>';
         opList.querySelectorAll('.cf-op-item').forEach(function(el) { el.classList.remove('selected'); });
         update();
         closeColFilterPopover();
@@ -1107,4 +1115,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — v3 (fixed date filter calendar)');
+console.log('✅ [ui/table.js] loaded — v4 (custom filter operators)');
