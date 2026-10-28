@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — چارت حساب‌ها (درخت)
    مسیر: js/modules/accounts/chart.js
-   ✅ با چک وابستگی قبل از حذف
+   ✅ با خروجی اکسل و چک وابستگی قبل از حذف
    ============================================================ */
 'use strict';
 
@@ -370,11 +370,7 @@ function _chartBuildNodeFiltered(node, all, level, editable, visibleIds) {
     return wrap;
 }
 
-/* ============================================================
-   ✅ _chartDeleteNode — با چک وابستگی
-   ============================================================ */
 function _chartDeleteNode(nodeId) {
-    /* ✅ چک وابستگی‌ها (شامل زیرمجموعه‌ها) */
     if (typeof getDeleteIssues === 'function') {
         var issues = getDeleteIssues('chartAccount', nodeId);
         if (issues.length > 0) {
@@ -551,11 +547,60 @@ function loadDefaultChart() {
     if (typeof refreshTemplateSelect === 'function') refreshTemplateSelect();
 }
 
+/* ============================================================
+   ✅ خروجی اکسل از تمام سطوح حساب‌ها
+   ============================================================ */
+function exportChartToExcel() {
+    var accounts = DB.load('accounts', []);
+    if (!accounts || accounts.length === 0) {
+        alert('حسابی تعریف نشده است.');
+        return;
+    }
+
+    accounts = _chartSortByCode(accounts);
+
+    var rows = [];
+    accounts.forEach(function (acc) {
+        var lvl = _chartComputeLevel(acc, accounts);
+        var lvlName = lvl === 1 ? 'گروه' : (lvl === 2 ? 'کل' : 'معین');
+        var catName = (acc.cat === 'temporary') ? 'موقت' : ((acc.cat === 'none') ? 'مهم نیست' : 'دائمی');
+        var natureName = (acc.nature === 'credit') ? 'بستانکار' : ((acc.nature === 'none') ? 'مهم نیست' : 'بدهکار');
+        var links = (acc.links && acc.links.length) ? acc.links.map(linkTypeName).join('، ') : '—';
+        var cfEffect = acc.cfEffect ? 'بله' : 'خیر';
+        var active = acc.active === false ? 'غیرفعال' : 'فعال';
+        
+        rows.push([
+            acc.code,
+            acc.name,
+            lvlName,
+            catName,
+            natureName,
+            links,
+            cfEffect,
+            active
+        ]);
+    });
+
+    var headers = ['کد حساب', 'عنوان حساب', 'سطح', 'نوع', 'ماهیت', 'تفصیلی‌های مرتبط', 'موثر در گردش وجه نقد', 'وضعیت'];
+    
+    if (typeof exportDataToExcel === 'function') {
+        exportDataToExcel(headers, rows, 'لیست کامل حساب‌های کدینگ', 'chart-of-accounts', 'حساب‌ها');
+    } else {
+        alert('خطا: تابع خروجی اکسل یافت نشد.');
+    }
+}
+
 function bindChartForm() {
     var loadBtn = document.getElementById('load-default-chart');
     if (loadBtn && !loadBtn.dataset.bound) {
         loadBtn.dataset.bound = '1';
         loadBtn.addEventListener('click', loadDefaultChart);
+    }
+
+    var exportBtn = document.getElementById('export-chart-excel');
+    if (exportBtn && !exportBtn.dataset.bound) {
+        exportBtn.dataset.bound = '1';
+        exportBtn.addEventListener('click', exportChartToExcel);
     }
 
     var addGroupBtn = document.getElementById('add-group');
@@ -714,8 +759,9 @@ window.computeLevelIn         = computeLevelIn;
 window.setAllExpanded         = setAllExpanded;
 window.openChartForm          = openChartForm;
 window.loadDefaultChart       = loadDefaultChart;
+window.exportChartToExcel     = exportChartToExcel;
 window.bindChartForm          = bindChartForm;
 window._chartFilter           = _chartFilter;
 window._chartSortByCode       = _chartSortByCode;
 
-console.log('✅ [modules/accounts/chart.js] loaded — delete dependency check enabled');
+console.log('✅ [modules/accounts/chart.js] loaded — v2 export chart added');
