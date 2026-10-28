@@ -200,7 +200,7 @@
     <div class="home-page-dots" id="home-page-dots"></div>
 </section>
 
-<!-- ============ USERS (نسخه جدید) ============ -->
+<!-- ============ USERS ============ -->
 <section id="page-users" class="page">
     <h2>👤 معرفی کاربران</h2>
     <div class="tabs">
@@ -820,20 +820,13 @@
 
 <!-- ============ VOUCHER LIST ============ -->
 <section id="page-voucher-list" class="page">
-    <h2>📄 فهرست اسناد</h2>
+    <!-- 🎯 فیلترهای بالا و عنوان صفحه حذف شدند -->
     <div class="card">
-        <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list">
-            <span class="count-badge" id="vlist-count">۰</span>
-            <select class="filter-input" id="vl-period-filter" style="flex:0 0 auto;max-width:180px">
-                <option value="">همه دوره‌ها</option>
-            </select>
-            <select class="filter-input" id="vlist-status-filter" style="flex:0 0 auto;max-width:150px">
-                <option value="">همه وضعیت‌ها</option>
-                <option value="draft">پیش‌نویس</option>
-                <option value="approved">تأییدشده</option>
-            </select>
-            <input type="text" class="filter-input" id="vlist-search" placeholder="🔍 جستجو">
+        <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list" style="display: flex; justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <!-- آیکن شمارشگر جایگزین جستجو شد -->
+            <span class="count-badge" id="vlist-count" style="margin-right: 10px; font-size: 1.1rem; padding: 6px 16px;">۰</span>
             <button class="export-btn" data-export="vouchers">📊 اکسل</button>
+            <!-- بقیه دکمه‌ها (چشم، تنظیمات، رفرش) به صورت خودکار توسط buildHeaderButtons در JS اضافه می‌شوند -->
         </div>
         <div class="table-wrap"><table class="data-table" id="voucher-table-list"><thead><tr>
             <th data-sortable data-sort-key="number">شماره <span class="sort-ind"></span></th>
