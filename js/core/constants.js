@@ -62,6 +62,7 @@ var NAVIGABLE_PAGES = {
     'voucher-new':          'صدور سند جدید',
     'persons':              'اشخاص',
     'companies':            'شرکت‌ها',
+    'phonebook':            'دفترچه تلفن',
     'bank-accounts':        'حساب‌های بانکی',
     'cash-boxes':           'صندوق‌ها',
     'projects':             'پروژه‌ها',
@@ -95,6 +96,7 @@ var PAGE_TITLES_FA = {
     'chart-define':         { icon: '✏️', title: 'تعریف حساب‌ها' },
     'persons':              { icon: '👥', title: 'اشخاص' },
     'companies':            { icon: '🏢', title: 'شرکت‌ها' },
+    'phonebook':            { icon: '📞', title: 'دفترچه تلفن' },
     'bank-accounts':        { icon: '🏦', title: 'حساب‌های بانکی' },
     'cash-boxes':           { icon: '💰', title: 'صندوق‌ها' },
     'projects':             { icon: '📁', title: 'پروژه‌ها' },
@@ -175,4 +177,4 @@ window.NOTE_CATEGORIES      = NOTE_CATEGORIES;
 window.CHECKLIST_CATEGORIES = CHECKLIST_CATEGORIES;
 window.MAX_HOME_PAGES       = MAX_HOME_PAGES;
 
-console.log('✅ [core/constants.js] loaded — LS_KEYS keys:', Object.keys(LS_KEYS).length);
+console.log('✅ [core/constants.js] loaded — phonebook added');
