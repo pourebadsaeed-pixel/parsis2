@@ -2,7 +2,7 @@
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
    
-   ✅ v2: افزودن تقویم شمسی در فیلتر ستون‌های تاریخ
+   ✅ v3: رفع باگ تقویم فیلتر تاریخ (بدون باز شدن خودکار)
    ============================================================ */
 'use strict';
 
@@ -747,6 +747,7 @@ document.addEventListener('click', function(e) {
     if (!pop) return;
     if (pop.contains(e.target)) return;
     if (e.target.closest && e.target.closest('.col-filter-btn')) return;
+    if (e.target.closest && (e.target.closest('#cal-popup') || e.target.closest('#cal-overlay'))) return;
     closeColFilterPopover();
 });
 
@@ -812,7 +813,6 @@ function openColFilterPopover(tableId, origIdx, btn) {
     opWrap.appendChild(opList);
     pop.appendChild(opWrap);
 
-    /* ✅ تشخیص ستون تاریخ برای افزودن تقویم */
     var table = document.getElementById(tableId);
     var headerText = '';
     if (table) {
@@ -829,23 +829,36 @@ function openColFilterPopover(tableId, origIdx, btn) {
     }
     var isDateColumn = headerText.indexOf('تاریخ') !== -1;
 
+    var inpWrap = document.createElement('div');
+    inpWrap.style.cssText = 'position:relative; width:100%;';
+
     var inp = document.createElement('input');
     inp.type = 'text';
     inp.placeholder = isDateColumn ? 'YYYY/MM/DD' : 'مقدار...';
     inp.value = existing.val || '';
+    
     if (isDateColumn) {
         inp.dir = 'ltr';
         inp.style.textAlign = 'center';
-        inp.classList.add('date-picker');
-        inp.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (typeof openCalendar === 'function') openCalendar(this);
-        });
-        inp.addEventListener('focus', function(e) {
-            if (typeof openCalendar === 'function') openCalendar(this);
-        });
+        inp.style.paddingLeft = '38px';
     }
-    pop.appendChild(inp);
+    
+    inpWrap.appendChild(inp);
+
+    if (isDateColumn) {
+        var calBtn = document.createElement('button');
+        calBtn.type = 'button';
+        calBtn.innerHTML = '📅';
+        calBtn.style.cssText = 'position:absolute; top:50%; left:5px; transform:translateY(-50%); background:var(--primary-soft); border:none; width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center; z-index:10;';
+        calBtn.onclick = function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            if (typeof openCalendar === 'function') openCalendar(inp);
+        };
+        inpWrap.appendChild(calBtn);
+    }
+
+    pop.appendChild(inpWrap);
 
     var actions = document.createElement('div');
     actions.className = 'cf-actions';
@@ -896,7 +909,10 @@ function openColFilterPopover(tableId, origIdx, btn) {
     });
 
     pop.querySelector('.cf-close').addEventListener('click', closeColFilterPopover);
-    setTimeout(function() { inp.focus(); }, 30);
+    
+    if (!isDateColumn) {
+        setTimeout(function() { inp.focus(); }, 30);
+    }
 }
 
 function buildFilterRow(table) {
@@ -1091,4 +1107,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — date-picker added to column filters');
+console.log('✅ [ui/table.js] loaded — v3 (fixed date filter calendar)');
