@@ -1,6 +1,9 @@
 /* ============================================================
    پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
+   
+   ✅ v2: رفع باگ مبالغ تفصیلی — نمایش مبلغ هر تفصیلی در محدوده‌ی
+   همان معین انتخاب‌شده (perParent) به‌جای تجمیع کل معین‌ها
    ============================================================ */
 'use strict';
 
@@ -263,6 +266,9 @@ function filterVouchers(opts) {
     });
 }
 
+/* ============================================================
+   ✅ computeAccountBalances — با perParent برای تفصیلی‌ها
+   ============================================================ */
 function computeAccountBalances(opts) {
     var vouchers = filterVouchers(opts);
     var accounts = DB.load('accounts', []);
@@ -297,16 +303,34 @@ function computeAccountBalances(opts) {
                 if (opts.cat && acc.cat !== opts.cat) return;
                 if (opts.nature && acc.nature !== opts.nature) return;
                 
+                var d = Number(line.debit) || 0;
+                var c = Number(line.credit) || 0;
+
                 Object.keys(line.details).forEach(function (lt) {
                     var did = line.details[lt];
                     if (!did) return;
                     var key = lt + '::' + did;
                     if (!db[key]) {
-                        db[key] = { id: did, linkType: lt, parents: [], debit: 0, credit: 0 };
+                        db[key] = {
+                            id: did,
+                            linkType: lt,
+                            parents: [],
+                            debit: 0,
+                            credit: 0,
+                            perParent: {}     // ✅ NEW: مبالغ جداگانه برای هر معین
+                        };
                     }
-                    if (db[key].parents.indexOf(acc.id) === -1) db[key].parents.push(acc.id);
-                    db[key].debit += Number(line.debit) || 0;
-                    db[key].credit += Number(line.credit) || 0;
+                    if (db[key].parents.indexOf(acc.id) === -1) {
+                        db[key].parents.push(acc.id);
+                    }
+                    if (!db[key].perParent[acc.id]) {
+                        db[key].perParent[acc.id] = { debit: 0, credit: 0 };
+                    }
+                    db[key].perParent[acc.id].debit  += d;
+                    db[key].perParent[acc.id].credit += c;
+
+                    db[key].debit  += d;
+                    db[key].credit += c;
                 });
             });
         });
@@ -401,6 +425,9 @@ function refreshReportPeriodSelects() {
     });
 }
 
+/* ============================================================
+   ✅ renderAccountReview — با فیلتر perParent در سطح تفصیل
+   ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
     if (!box) return;
@@ -459,13 +486,20 @@ function renderAccountReview() {
             });
         });
     } else {
+        /* ✅ سطح تفصیل: اگر parentId داریم، مبلغ همان معین را نمایش بده */
         Object.keys(detailBals).forEach(function (key) {
             var d = detailBals[key];
             if (parentId && d.parents.indexOf(parentId) === -1) return;
+
+            var dAmt = (parentId && d.perParent && d.perParent[parentId])
+                ? d.perParent[parentId]
+                : { debit: d.debit, credit: d.credit };
+
             list.push({
                 id: d.id, isDetail: true, linkType: d.linkType, parentIds: d.parents,
                 name: getDetailLabel(d.linkType, d.id), code: '—',
-                debit: d.debit, credit: d.credit
+                debit: dAmt.debit,
+                credit: dAmt.credit
             });
         });
     }
@@ -995,4 +1029,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded');
+console.log('✅ [modules/reports/account.js] loaded — v2 perParent detail fix');
