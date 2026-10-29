@@ -2,8 +2,9 @@
    پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
    
-   ✅ v2: رفع باگ مبالغ تفصیلی — نمایش مبلغ هر تفصیلی در محدوده‌ی
-   همان معین انتخاب‌شده (perParent) به‌جای تجمیع کل معین‌ها
+   ✅ v3: 
+     • v2: رفع مبالغ تفصیلی (perParent)
+     • v3: رفع گردش تفصیلی — نمایش فقط معین جاری
    ============================================================ */
 'use strict';
 
@@ -85,32 +86,14 @@ var _arSort = { col: 'code', dir: 'asc' };
 })();
 
 /* ============================================================
-   ✅ Collapsible Logic
+   Collapsible Logic
    ============================================================ */
 function injectRaCollapseStyle() {
     if (document.getElementById('ra-collapse-style')) return;
     var s = document.createElement('style');
     s.id = 'ra-collapse-style';
     s.textContent = ''
-    + '.ra-filter-toggle {'
-    +   'display:inline-flex !important;'
-    +   'align-items:center;'
-    +   'gap:8px;'
-    +   'padding:9px 16px;'
-    +   'margin-bottom:14px;'
-    +   'border-radius:10px;'
-    +   'background:linear-gradient(135deg,#4a90e2,#6366f1);'
-    +   'color:#fff;'
-    +   'border:none;'
-    +   'cursor:pointer;'
-    +   'font-size:0.85rem;'
-    +   'font-weight:800;'
-    +   'font-family:inherit;'
-    +   'box-shadow:0 3px 10px rgba(74,144,226,0.35);'
-    +   'transition:all 0.2s;'
-    +   'user-select:none;'
-    +   '-webkit-tap-highlight-color:transparent;'
-    + '}'
+    + '.ra-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; margin-bottom:14px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
     + '.ra-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
     + '.ra-filter-toggle:active { transform:scale(0.97); }'
     + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
@@ -267,7 +250,7 @@ function filterVouchers(opts) {
 }
 
 /* ============================================================
-   ✅ computeAccountBalances — با perParent برای تفصیلی‌ها
+   computeAccountBalances — با perParent برای تفصیلی‌ها
    ============================================================ */
 function computeAccountBalances(opts) {
     var vouchers = filterVouchers(opts);
@@ -317,7 +300,7 @@ function computeAccountBalances(opts) {
                             parents: [],
                             debit: 0,
                             credit: 0,
-                            perParent: {}     // ✅ NEW: مبالغ جداگانه برای هر معین
+                            perParent: {}
                         };
                     }
                     if (db[key].parents.indexOf(acc.id) === -1) {
@@ -379,7 +362,9 @@ function getRootAccountId(accId, accounts) {
     return acc ? acc.id : '';
 }
 
+/* ✅ v3: گارد در برابر accountId خالی */
 function getDescendantIds(accountId) {
+    if (!accountId) return [];
     var accounts = DB.load('accounts', []);
     if (!Array.isArray(accounts)) return [accountId];
     var result = [accountId];
@@ -426,7 +411,7 @@ function refreshReportPeriodSelects() {
 }
 
 /* ============================================================
-   ✅ renderAccountReview — با فیلتر perParent در سطح تفصیل
+   renderAccountReview — با perParent + parentAccId برای گردش
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -486,7 +471,6 @@ function renderAccountReview() {
             });
         });
     } else {
-        /* ✅ سطح تفصیل: اگر parentId داریم، مبلغ همان معین را نمایش بده */
         Object.keys(detailBals).forEach(function (key) {
             var d = detailBals[key];
             if (parentId && d.parents.indexOf(parentId) === -1) return;
@@ -540,6 +524,8 @@ function renderAccountReview() {
 
         var turnoverAcc = a.isDetail ? '' : a.id; 
         var turnoverDetailAttr = a.isDetail ? ' data-turnover-detail="' + a.id + '" data-turnover-link="' + a.linkType + '"' : '';
+        /* ✅ v3: پاس دادن parentId تا گردش تفصیلی محدود به معین جاری شود */
+        var turnoverParentAttr = (a.isDetail && parentId) ? ' data-turnover-parent="' + parentId + '"' : '';
 
         rowsHtml += '<tr class="' + rowCls + '" '
              +  'data-id="' + (a.isDetail ? '' : a.id) + '" '
@@ -567,6 +553,7 @@ function renderAccountReview() {
              +      '<button type="button" class="ar-turnover-btn" '
              +        'data-turnover-acc="' + turnoverAcc + '"'
              +        turnoverDetailAttr
+             +        turnoverParentAttr
              +        ' onclick="event.stopPropagation(); window._AR_openTurnover(this); return false;" '
              +        'title="نمایش گردش حساب">📊</button>'
              +    '</div>'
@@ -763,17 +750,25 @@ function bindAccountReviewEvents(accounts, box) {
     });
 }
 
+/* ============================================================
+   _AR_openTurnover — با خواندن parentId
+   ============================================================ */
 window._AR_openTurnover = function (btn) {
     try {
         if (!btn) return;
         var accId = btn.getAttribute('data-turnover-acc');
         var detId = btn.getAttribute('data-turnover-detail');
         var link = btn.getAttribute('data-turnover-link');
+        var parentAccId = btn.getAttribute('data-turnover-parent') || null;
         
         if (!accId && !detId) { alert('⚠️ شناسه یافت نشد.'); return; }
 
         if (detId && link) {
-            openAccountTurnover(accId, { linkType: link, detailId: detId });
+            openAccountTurnover(accId, {
+                linkType: link,
+                detailId: detId,
+                parentAccId: parentAccId
+            });
         } else {
             openAccountTurnover(accId, null);
         }
@@ -805,34 +800,46 @@ function _arOpenVoucherPreviewAboveTurnover(v) {
     }, 100);
 }
 
+/* ============================================================
+   openAccountTurnover — با فیلتر parentAccId
+   ============================================================ */
 function openAccountTurnover(accountId, detailInfo) {
     var accounts = DB.load('accounts', []);
     var ids = [];
     var title = '';
 
-    var targetAcc = accounts.find(function(a) { return a.id === accountId; });
-    if (targetAcc && !accounts.some(function(a) { return a.parent === targetAcc.id; })) {
-        ids = [accountId];
-    } else {
-        ids = getDescendantIds(accountId);
+    /* ✅ v3: اولویت ۱ — اگر از تفصیل با parent آمده‌ایم، فقط معین جاری */
+    if (detailInfo && detailInfo.parentAccId) {
+        var pAcc = accounts.find(function(a) { return a.id === detailInfo.parentAccId; });
+        ids = [detailInfo.parentAccId];
+        title = '📊 گردش: '
+              + (pAcc ? pAcc.name : '—')
+              + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
     }
-
-    if (detailInfo) {
-        title = '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
+    /* اولویت ۲ — تفصیل بدون parent: در همه حساب‌ها بگرد */
+    else if (detailInfo) {
         if (accountId) {
             var acc = accounts.find(function(a) { return a.id === accountId; });
             if (acc) {
                 title = '📊 گردش: ' + acc.name + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
+            } else {
+                title = '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
             }
-        }
-        if (ids.length === 0) {
+            ids = [accountId];
+        } else {
+            title = '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
             ids = accounts.map(function(a) { return a.id; });
         }
-    } else if (accountId) {
-        var acc2 = accounts.find(function(a) { return a.id === accountId; });
-        if (!acc2) return;
-        title = '📊 گردش: ' + acc2.name;
-    } else {
+    }
+    /* اولویت ۳ — کلیک روی خود معین/کل/گروه */
+    else if (accountId) {
+        var targetAcc = accounts.find(function(a) { return a.id === accountId; });
+        if (!targetAcc) return;
+        var hasChildren = accounts.some(function(a) { return a.parent === targetAcc.id; });
+        ids = hasChildren ? getDescendantIds(accountId) : [accountId];
+        title = '📊 گردش: ' + targetAcc.name;
+    }
+    else {
         return;
     }
 
@@ -859,7 +866,8 @@ function openAccountTurnover(accountId, detailInfo) {
     vouchers.forEach(function (v) {
         var lines = v.lines || [];
         lines.forEach(function (l) {
-            if (!l || !l.account || ids.indexOf(l.account) === -1) return;
+            if (!l || !l.account) return;
+            if (ids.indexOf(l.account) === -1) return;
             if (detailInfo) {
                 if (!l.details || l.details[detailInfo.linkType] !== detailInfo.detailId) return;
             }
@@ -1029,4 +1037,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — v2 perParent detail fix');
+console.log('✅ [modules/reports/account.js] loaded — v3 turnover parent fix');
