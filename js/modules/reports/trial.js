@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — تراز آزمایشی + گزارش مقایسه‌ای + تراکنش‌های تکمیل نشده
    مسیر: js/modules/reports/trial.js
-   ✅ v3: بازنویسی گزارش تراکنش‌های تکمیل نشده — نمایش ریز اقلام
+   ✅ v4: بهینه‌سازی سرعت، پیش‌فرض دوره/وضعیت، نمایش تمام ردیف‌ها
    ============================================================ */
 'use strict';
 
@@ -285,11 +285,36 @@ function runTrialBalance() {
 }
 
 /* ============================================================
-   ✅ گزارش تراکنش‌های تکمیل نشده — بازنویسی کامل با ریز اقلام
+   ✅ گزارش تراکنش‌های تکمیل نشده (بهینه‌سازی شده)
    ============================================================ */
 function runIncompleteReport() {
-    var statusF = (document.getElementById('ri-status') || {}).value || '';
-    var periodF = (document.getElementById('ri-period') || {}).value || '';
+    var statusEl = document.getElementById('ri-status');
+    var periodEl = document.getElementById('ri-period');
+
+    // ۱. پر کردن لیست دوره‌ها در صورت خالی بودن
+    if (periodEl && periodEl.options.length <= 1) {
+        var periodsList = DB.load('fiscalPeriods', []);
+        periodEl.innerHTML = '<option value="">همه</option>';
+        periodsList.forEach(function (p) {
+            var o = document.createElement('option');
+            o.value = p.id;
+            o.textContent = p.title;
+            periodEl.appendChild(o);
+        });
+    }
+
+    // ۲. تنظیم مقادیر پیش‌فرض در اولین بارگذاری
+    if (statusEl && !statusEl.dataset.init) {
+        statusEl.dataset.init = '1';
+        statusEl.value = 'draft'; // پیش‌فرض: پیش‌نویس
+    }
+    if (periodEl && !periodEl.dataset.init) {
+        periodEl.dataset.init = '1';
+        periodEl.value = state.activePeriodId || ''; // پیش‌فرض: دوره جاری
+    }
+
+    var statusF = statusEl ? statusEl.value : '';
+    var periodF = periodEl ? periodEl.value : '';
     var hide = getHideState('ri');
 
     var vouchers = DB.load('vouchers', []);
@@ -300,10 +325,12 @@ function runIncompleteReport() {
 
     var incompleteVouchers = [];
 
+    // ۳. فیلتر کردن سریع قبل از بررسی نقص (افزایش شدید سرعت)
     vouchers.forEach(function (v) {
         var st = v.status || 'draft';
         if (statusF && st !== statusF) return;
         if (periodF && v.periodId !== periodF) return;
+
         var issues = getVoucherIssues(v);
         if (issues.length === 0) return;
         incompleteVouchers.push({ v: v, issues: issues });
@@ -337,14 +364,8 @@ function runIncompleteReport() {
         var lines = v.lines || [];
         var issueText = item.issues.join(' • ');
 
-        /* اگر ردیفی ندارد، یک ردیف خالی نمایش بده */
-        var displayLines = lines.filter(function (l) {
-            return (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0 || (l.account);
-        });
-
-        if (displayLines.length === 0) {
-            displayLines = [null];
-        }
+        // ۴. نمایش تمام ردیف‌ها (حتی ردیف‌های بدون حساب یا مبلغ صفر)
+        var displayLines = lines.length > 0 ? lines : [null];
 
         displayLines.forEach(function (line, lineIdx) {
             globalRowIdx++;
@@ -401,7 +422,6 @@ function runIncompleteReport() {
                  +  '</tr>';
         });
 
-        /* سطر مشکلات */
         if (issueText) {
             html += '<tr style="background:#fffbeb">'
                  +  '<td colspan="12" style="text-align:right;padding:8px 14px;color:#92400e;font-size:0.82rem;font-weight:700;border-bottom:2px solid #f59e0b">'
@@ -411,7 +431,7 @@ function runIncompleteReport() {
     });
 
     if (incompleteVouchers.length === 0) {
-        html += '<tr><td colspan="12" class="empty-row">✅ همه اسناد کامل هستند.</td></tr>';
+        html += '<tr><td colspan="12" class="empty-row">✅ هیچ سند ناقصی با این فیلترها یافت نشد.</td></tr>';
     }
 
     html += '</tbody>';
@@ -551,6 +571,9 @@ function runComparisonReport() {
     if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
 }
 
+/* ============================================================
+   Bind Buttons
+   ============================================================ */
 function bindTrialReportButtons() {
     var rtRun = document.getElementById('rt-run'); 
     if (rtRun && !rtRun.dataset.bound) { 
@@ -634,4 +657,4 @@ window.setRcDefaultDates        = setRcDefaultDates;
 window.recalcRtFooter           = recalcRtFooter;
 window.bindTrialReportButtons   = bindTrialReportButtons;
 
-console.log('✅ [modules/reports/trial.js] loaded — v3 (incomplete report with line items)');
+console.log('✅ [modules/reports/trial.js] loaded — v4 (optimized incomplete report)');
