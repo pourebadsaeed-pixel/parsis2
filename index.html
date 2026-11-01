@@ -21,12 +21,10 @@
 <link rel="stylesheet" href="./css/layout.css">
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/calendar.css">
-<!-- ✅ SheetJS برای خواندن و نوشتن فایل اکسل -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="theme-sky font-tahoma">
 
-<!-- ============ LOGIN OVERLAY ============ -->
 <div id="login-overlay" style="position:fixed; inset:0; background:var(--bg-grad); z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
     <div class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;">
         <h2 style="color:var(--primary-dark); margin-bottom:20px;">ورود به پارسیس</h2>
@@ -897,24 +895,14 @@
 
 <!-- ============ VOUCHER LIST ============ -->
 <section id="page-voucher-list" class="page">
-    <!-- 🎯 فیلترهای بالا و عنوان صفحه حذف شدند -->
     <div class="card">
         <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list" style="display: flex; justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 8px;">
-            <!-- آیکن شمارشگر جایگزین جستجو شد -->
             <span class="count-badge" id="vlist-count" style="margin-right: 10px; font-size: 1.1rem; padding: 6px 16px;">۰</span>
-            
-            <!-- ✅ فیلتر دوره (بدون گزینه "همه دوره‌ها") -->
-            <select class="filter-input" id="vl-period-filter" style="flex:0 0 auto;max-width:180px">
-                <!-- گزینه‌ها توسط JS پر می‌شوند و به صورت خودکار روی دوره فعال تنظیم می‌شوند -->
-            </select>
-
-            <!-- ✅ دکمه‌های دریافت داده و فایل نمونه -->
+            <select class="filter-input" id="vl-period-filter" style="flex:0 0 auto;max-width:180px"></select>
             <button id="v-template-btn" class="export-btn" title="دانلود فایل نمونه">📥 فایل نمونه</button>
             <button id="v-import-btn" class="export-btn" title="دریافت داده از اکسل">📤 دریافت داده</button>
             <input type="file" id="v-import-file" accept=".xlsx, .xls, .csv" hidden>
-
             <button class="export-btn" data-export="vouchers">📊 اکسل</button>
-            <!-- بقیه دکمه‌ها (چشم، تنظیمات، رفرش) به صورت خودکار توسط buildHeaderButtons در JS اضافه می‌شوند -->
         </div>
         <div class="table-wrap"><table class="data-table" id="voucher-table-list"><thead><tr>
             <th data-sortable data-sort-key="number">شماره <span class="sort-ind"></span></th>
@@ -1032,13 +1020,10 @@
     </div></div>
 </section>
 
-<!-- ============ NOTES ============ -->
+<!-- ============ NOTES (بدون تب — با دکمه جدید در فهرست) ============ -->
 <section id="page-notes" class="page">
     <h2>📔 دفترچه یادداشت</h2>
-    <div class="tabs">
-        <button class="tab-btn active" data-tab="notes-list">📋 فهرست</button>
-        <button class="tab-btn" data-tab="notes-add">✏️ یادداشت جدید</button>
-    </div>
+
     <div id="tab-notes-list" class="tab-content active"><div class="card">
         <div class="tabs" style="margin-bottom:12px;background:var(--card-solid)">
             <button class="tab-btn active" data-notes-view="all">📋 همه یادداشت‌ها</button>
@@ -1046,6 +1031,7 @@
         </div>
         <div class="list-header" data-hide-key="notes-list">
             <span class="count-badge" id="notes-count">۰</span>
+            <button type="button" id="notes-open-new-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;padding:9px 16px;border-radius:10px;font-family:inherit;font-weight:800;font-size:0.85rem;cursor:pointer;white-space:nowrap">✏️ یادداشت جدید</button>
             <select class="filter-input" id="notes-cat-filter" style="flex:0 0 auto;max-width:160px">
                 <option value="">همه دسته‌ها</option>
                 <option value="personal">⭐ شخصی</option>
@@ -1056,7 +1042,11 @@
         </div>
         <div id="notes-list-body" class="notes-grid"></div>
     </div></div>
+
     <div id="tab-notes-add" class="tab-content"><div class="card">
+        <div style="margin-bottom:14px">
+            <button type="button" id="notes-back-btn" style="width:100%;padding:10px 16px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:10px;font-family:inherit;font-weight:800;font-size:0.85rem;cursor:pointer">← بازگشت به فهرست</button>
+        </div>
         <input type="hidden" id="nt-id">
         <div class="grid-2">
             <div class="field"><label>عنوان *</label><input type="text" id="nt-title" placeholder="عنوان یادداشت"></div>
@@ -1093,13 +1083,11 @@
 <!-- ============ SMS ============ -->
 <section id="page-sms" class="page">
     <h2>📱 پیامک بانکی</h2>
-
     <div class="tabs">
         <button class="tab-btn active" data-tab="sms-pending">🔔 ثبت نشده</button>
         <button class="tab-btn" data-tab="sms-inbox">📥 ثبت شده</button>
         <button class="tab-btn" data-tab="sms-patterns">🧠 الگوها</button>
     </div>
-
     <div id="tab-sms-pending" class="tab-content active">
         <div class="card">
             <div class="list-header">
@@ -1110,7 +1098,6 @@
             </div>
             <div id="pending-sms-list"></div>
         </div>
-
         <div class="card">
             <h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:0.95rem">📡 افزودن پیامک جدید</h3>
             <div class="field"><label>پیامک را پیست کن</label><textarea id="sms-text" rows="3"></textarea></div>
@@ -1125,7 +1112,6 @@
             <div id="sms-result" style="margin-top:16px"></div>
         </div>
     </div>
-
     <div id="tab-sms-inbox" class="tab-content">
         <div class="card">
             <div class="list-header">
@@ -1143,7 +1129,6 @@
             <div id="sms-inbox-list"></div>
         </div>
     </div>
-
     <div id="tab-sms-patterns" class="tab-content">
         <div class="card">
             <div class="list-header">
@@ -1793,8 +1778,6 @@
     <div class="cal-body" style="padding:14px">
         <input type="text" id="calc-display" dir="ltr" readonly value="0">
         <div id="calc-buttons" class="calc-buttons"></div>
-    </div>
-    <div class="calc-foot-custom">
         <button class="calc-set" id="calc-set">✅ قرار دادن</button>
         <button class="calc-add" id="calc-add">➕ افزودن</button>
         <button class="calc-clear" id="calc-clear">C پاک کن</button>
