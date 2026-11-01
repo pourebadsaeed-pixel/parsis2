@@ -1,7 +1,6 @@
 /* ============================================================
-   پارسیس — تقویم شمسی (بخش ۱: core + helpers + event building)
+   پارسیس — تقویم شمسی (نسخه کامل + تب ابزارها)
    مسیر: js/modules/calendar.js
-   وابستگی: core/* + ui/* + reports/*
    ============================================================ */
 'use strict';
 
@@ -348,7 +347,6 @@ function expandRec41(u) {
         out.push(makeOccurrence41(u, d, time));
     });
 
-    /* Exception: تغییر یافته‌ها */
     Object.keys(ov).forEach(function (d) {
         if (ov[d] && ov[d].modified) {
             var m = ov[d].modified;
@@ -454,7 +452,6 @@ function invalidateCalEventCache() {
     _calEvCacheTs = 0;
 }
 
-/* پچ DB.save برای پاک کردن کش */
 (function patchDBSaveForCal() {
     var _origSave = DB.save;
     DB.save = function (k, v) {
@@ -553,8 +550,7 @@ function calRenderMonth41(events) {
 }
 
 /* ============================================================
-   بخش ۱۰ — رندر چند-روزه (هفته و ۳ روز)
-   ✅ نمای ۳ روز: تایم‌لاین ۳ ستونه کامل (رویدادها absolute)
+   بخش ۱۰ — رندر چند-روزه
    ============================================================ */
 function calRenderMultiDay41(events, numDays, viewKey) {
     var cur = CAL41.cursor;
@@ -579,9 +575,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
     var todayStr = today[0] + '/' + pad2(today[1]) + '/' + pad2(today[2]);
     var EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    /* ============================================================
-       نمای ۳ روز آتی: تایم‌لاین ۳ ستونه
-       ============================================================ */
     if (viewKey === '3day') {
         var HOUR_H = 64;
         var START_H = 5;
@@ -590,7 +583,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
 
         var html3 = '<div style="display:grid;grid-template-columns:74px repeat(' + numDays + ',minmax(0,1fr));border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-solid);direction:rtl">';
 
-        /* هدر: خانه خالی + هدر روزها */
         html3 += '<div style="padding:8px 4px;background:var(--card-alt);border-bottom:2px solid var(--border);border-left:1px solid var(--border)"></div>';
         for (var dh = 0; dh < numDays; dh++) {
             var dsH = addJalaliDays(startJ, dh);
@@ -610,7 +602,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
                   + '</div>';
         }
 
-        /* ستون ساعت‌ها */
         html3 += '<div style="background:linear-gradient(180deg,#f9fbfe,#f4f8fd);border-left:1px solid var(--border)">';
         for (var h = START_H; h < END_H; h++) {
             html3 += '<div style="height:' + HOUR_H + 'px;display:flex;align-items:flex-start;justify-content:center;padding-top:5px;font-size:.72rem;font-weight:900;font-family:monospace;color:var(--primary-dark);direction:ltr;border-bottom:1px solid var(--border)">'
@@ -619,7 +610,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
         }
         html3 += '</div>';
 
-        /* ۳ ستون روزها با رویدادهای absolute */
         for (var d = 0; d < numDays; d++) {
             var ds = addJalaliDays(startJ, d);
             if (!ds) continue;
@@ -627,7 +617,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
             html3 += '<div class="calg-3day-col" data-day="' + ds + '" '
                   +  'style="position:relative;background:#fff;height:' + bodyH + 'px;border-left:1px solid var(--border)">';
 
-            /* خطوط شبکه */
             for (var hh = START_H; hh <= END_H; hh++) {
                 var top = (hh - START_H) * HOUR_H;
                 html3 += '<div style="position:absolute;left:0;right:0;top:' + top + 'px;border-bottom:1px solid var(--border);pointer-events:none;z-index:0"></div>';
@@ -639,7 +628,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
                 }
             }
 
-            /* رویدادهای این روز */
             var dayEvs = (byDate[ds] || []).slice();
             var parsed = [];
             dayEvs.forEach(function (e) {
@@ -696,9 +684,6 @@ function calRenderMultiDay41(events, numDays, viewKey) {
         return html3;
     }
 
-    /* ============================================================
-       نمای هفته (بدون تغییر)
-       ============================================================ */
     var html = '<div class="calg-multi" data-view="' + viewKey + '" style="display:grid;grid-template-columns:repeat(' + numDays + ',minmax(0,1fr));gap:5px">';
 
     for (var d2 = 0; d2 < numDays; d2++) {
@@ -1068,6 +1053,230 @@ function renderCalAgendaView(events) {
 }
 
 /* ============================================================
+   ✅ بخش ۱۴.۵ — نمای ابزارهای تاریخ (جدید)
+   ============================================================ */
+function renderCalToolsView41() {
+    var html = '<div class="cal-tools-wrap" style="display:flex;flex-direction:column;gap:14px">';
+
+    /* ---- ابزار ۱: فاصله دو تاریخ ---- */
+    html += '<div class="card" style="margin:0">'
+         +   '<h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:1rem">📏 محاسبه فاصله دو تاریخ</h3>'
+         +   '<div class="grid-2" style="margin-bottom:10px">'
+         +     '<div class="field"><label>از تاریخ</label><input type="text" id="cal-tool-diff-from" class="date-picker" dir="ltr" value="' + todayJalaliStr() + '"></div>'
+         +     '<div class="field"><label>تا تاریخ</label><input type="text" id="cal-tool-diff-to" class="date-picker" dir="ltr" value="' + addJalaliDays(todayJalaliStr(), 30) + '"></div>'
+         +   '</div>'
+         +   '<button type="button" id="cal-tool-diff-btn" class="btn-primary" style="width:100%">🔍 محاسبه</button>'
+         +   '<div id="cal-tool-diff-result" style="margin-top:12px"></div>'
+         + '</div>';
+
+    /* ---- ابزار ۲: تبدیل تاریخ ---- */
+    html += '<div class="card" style="margin:0">'
+         +   '<h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:1rem">🔄 تبدیل تاریخ</h3>'
+         +   '<div class="field">'
+         +     '<label>نوع مبدأ</label>'
+         +     '<select id="cal-tool-conv-type">'
+         +       '<option value="j2g">شمسی → میلادی</option>'
+         +       '<option value="g2j">میلادی → شمسی</option>'
+         +     '</select>'
+         +   '</div>'
+         +   '<div class="field"><label>تاریخ مبدأ</label><input type="text" id="cal-tool-conv-input" dir="ltr" placeholder="1404/01/01" value="' + todayJalaliStr() + '"></div>'
+         +   '<button type="button" id="cal-tool-conv-btn" class="btn-primary" style="width:100%">🔄 تبدیل</button>'
+         +   '<div id="cal-tool-conv-result" style="margin-top:12px"></div>'
+         + '</div>';
+
+    /* ---- ابزار ۳: محاسبه سن ---- */
+    html += '<div class="card" style="margin:0">'
+         +   '<h3 style="margin-bottom:14px;color:var(--primary-dark);font-size:1rem">🎂 محاسبه سن</h3>'
+         +   '<div class="field"><label>تاریخ تولد</label><input type="text" id="cal-tool-age-birth" class="date-picker" dir="ltr" placeholder="1370/05/15"></div>'
+         +   '<button type="button" id="cal-tool-age-btn" class="btn-primary" style="width:100%">🎂 محاسبه</button>'
+         +   '<div id="cal-tool-age-result" style="margin-top:12px"></div>'
+         + '</div>';
+
+    html += '</div>';
+
+    setTimeout(function () {
+        bindCalToolsView41();
+        if (typeof attachDatePickers === 'function') attachDatePickers();
+    }, 50);
+
+    return html;
+}
+
+function bindCalToolsView41() {
+    /* --- ابزار فاصله دو تاریخ --- */
+    var diffBtn = document.getElementById('cal-tool-diff-btn');
+    if (diffBtn && !diffBtn.dataset.bound) {
+        diffBtn.dataset.bound = '1';
+        diffBtn.onclick = function () {
+            var fromV = normalizeDigits((document.getElementById('cal-tool-diff-from').value || '').trim());
+            var toV = normalizeDigits((document.getElementById('cal-tool-diff-to').value || '').trim());
+            var out = document.getElementById('cal-tool-diff-result');
+
+            if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(fromV) || !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(toV)) {
+                out.innerHTML = '<div style="color:#dc2626;padding:10px;background:#fee2e2;border-radius:10px;font-weight:700">⚠️ هر دو تاریخ باید به فرمت YYYY/MM/DD باشند.</div>';
+                return;
+            }
+
+            var fp = fromV.split('/').map(Number);
+            var tp = toV.split('/').map(Number);
+
+            var totalDays = jalaliDiff(fp[0], fp[1], fp[2], tp[0], tp[1], tp[2]);
+            var absDays = Math.abs(totalDays);
+
+            var sign = totalDays >= 0 ? 1 : -1;
+            var y1, m1, d1, y2, m2, d2;
+            if (sign > 0) { y1 = fp[0]; m1 = fp[1]; d1 = fp[2]; y2 = tp[0]; m2 = tp[1]; d2 = tp[2]; }
+            else          { y1 = tp[0]; m1 = tp[1]; d1 = tp[2]; y2 = fp[0]; m2 = fp[1]; d2 = fp[2]; }
+
+            var years = y2 - y1;
+            var months = m2 - m1;
+            var days = d2 - d1;
+            if (days < 0) {
+                months--;
+                var prevM = m2 - 1, prevY = y2;
+                if (prevM < 1) { prevM = 12; prevY--; }
+                days += daysInJalaliMonth(prevY, prevM);
+            }
+            if (months < 0) { years--; months += 12; }
+
+            var weeks = Math.floor(absDays / 7);
+            var remainDays = absDays % 7;
+
+            var parts = [];
+            if (years > 0) parts.push(toFa(years) + ' سال');
+            if (months > 0) parts.push(toFa(months) + ' ماه');
+            if (days > 0) parts.push(toFa(days) + ' روز');
+
+            out.innerHTML =
+                '<div style="padding:14px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #10b981;border-radius:12px;color:#065f46">'
+                + '<div style="font-weight:900;font-size:1.1rem;margin-bottom:8px">📅 ' + toFa(absDays) + ' روز</div>'
+                + '<div style="font-weight:700;margin-bottom:6px">معادل: ' + (parts.length ? parts.join(' و ') : '۰ روز') + '</div>'
+                + '<div style="font-size:0.82rem;opacity:0.85">≈ ' + toFa(weeks) + ' هفته و ' + toFa(remainDays) + ' روز</div>'
+                + (totalDays < 0 ? '<div style="margin-top:8px;font-size:0.78rem;color:#92400e;font-weight:700">ℹ️ تاریخ پایان قبل از شروع است.</div>' : '')
+                + '</div>';
+        };
+    }
+
+    /* --- تبدیل تاریخ --- */
+    var convBtn = document.getElementById('cal-tool-conv-btn');
+    if (convBtn && !convBtn.dataset.bound) {
+        convBtn.dataset.bound = '1';
+        convBtn.onclick = function () {
+            var type = (document.getElementById('cal-tool-conv-type').value || 'j2g');
+            var inp = normalizeDigits((document.getElementById('cal-tool-conv-input').value || '').trim());
+            var out = document.getElementById('cal-tool-conv-result');
+
+            if (type === 'j2g') {
+                if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(inp)) {
+                    out.innerHTML = '<div style="color:#dc2626;padding:10px;background:#fee2e2;border-radius:10px;font-weight:700">⚠️ فرمت نامعتبر. مثال: 1404/01/01</div>';
+                    return;
+                }
+                var p = inp.split('/').map(Number);
+                var g = jalaliToGregorian(p[0], p[1], p[2]);
+                var monthsEn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                var dow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                var gDate = new Date(g[0], g[1] - 1, g[2]);
+                var gStr = g[0] + '/' + pad2(g[1]) + '/' + pad2(g[2]);
+                var gLong = dow[gDate.getDay()] + ', ' + g[2] + ' ' + monthsEn[g[1] - 1] + ' ' + g[0];
+
+                out.innerHTML =
+                    '<div style="padding:14px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border:1.5px solid #3b82f6;border-radius:12px;color:#1e3a8a">'
+                    + '<div style="font-weight:900;font-size:1.1rem;margin-bottom:6px" dir="ltr">' + toFa(gStr) + '</div>'
+                    + '<div style="font-weight:700;font-size:0.9rem" dir="ltr">' + gLong + '</div>'
+                    + '</div>';
+            } else {
+                if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(inp)) {
+                    out.innerHTML = '<div style="color:#dc2626;padding:10px;background:#fee2e2;border-radius:10px;font-weight:700">⚠️ فرمت نامعتبر. مثال: 2025/01/01</div>';
+                    return;
+                }
+                var gp = inp.split('/').map(Number);
+                var j = toJalali(gp[0], gp[1], gp[2]);
+                var jStr = j[0] + '/' + pad2(j[1]) + '/' + pad2(j[2]);
+                var gDate2 = new Date(gp[0], gp[1] - 1, gp[2]);
+                var jDow = WEEKDAYS_FA[gDate2.getDay()];
+                var jLong = jDow + '، ' + toFa(j[2]) + ' ' + JALALI_MONTHS[j[1] - 1] + ' ' + toFa(j[0]);
+
+                out.innerHTML =
+                    '<div style="padding:14px;background:linear-gradient(135deg,#fef3c7,#fde68a);border:1.5px solid #f59e0b;border-radius:12px;color:#92400e">'
+                    + '<div style="font-weight:900;font-size:1.1rem;margin-bottom:6px" dir="ltr">' + toFa(jStr) + '</div>'
+                    + '<div style="font-weight:700;font-size:0.9rem">' + jLong + '</div>'
+                    + '</div>';
+            }
+        };
+    }
+
+    /* --- محاسبه سن --- */
+    var ageBtn = document.getElementById('cal-tool-age-btn');
+    if (ageBtn && !ageBtn.dataset.bound) {
+        ageBtn.dataset.bound = '1';
+        ageBtn.onclick = function () {
+            var inp = normalizeDigits((document.getElementById('cal-tool-age-birth').value || '').trim());
+            var out = document.getElementById('cal-tool-age-result');
+
+            if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(inp)) {
+                out.innerHTML = '<div style="color:#dc2626;padding:10px;background:#fee2e2;border-radius:10px;font-weight:700">⚠️ فرمت نامعتبر. مثال: 1370/05/15</div>';
+                return;
+            }
+
+            var bp = inp.split('/').map(Number);
+            var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+            var tY = today[0], tM = today[1], tD = today[2];
+
+            if (bp[0] > tY || (bp[0] === tY && bp[1] > tM) || (bp[0] === tY && bp[1] === tM && bp[2] > tD)) {
+                out.innerHTML = '<div style="color:#dc2626;padding:10px;background:#fee2e2;border-radius:10px;font-weight:700">⚠️ تاریخ تولد نمی‌تواند در آینده باشد.</div>';
+                return;
+            }
+
+            var years = tY - bp[0];
+            var months = tM - bp[1];
+            var days = tD - bp[2];
+
+            if (days < 0) {
+                months--;
+                var prevM = tM - 1, prevY = tY;
+                if (prevM < 1) { prevM = 12; prevY--; }
+                days += daysInJalaliMonth(prevY, prevM);
+            }
+            if (months < 0) { years--; months += 12; }
+
+            var totalDays = jalaliDiff(bp[0], bp[1], bp[2], tY, tM, tD);
+
+            var nextBdY = tY;
+            var nextBdM = bp[1];
+            var nextBdD = bp[2];
+            var dim = daysInJalaliMonth(nextBdY, nextBdM);
+            if (nextBdD > dim) nextBdD = dim;
+            var daysToBd = jalaliDiff(tY, tM, tD, nextBdY, nextBdM, nextBdD);
+            if (daysToBd < 0) {
+                nextBdY++;
+                daysToBd = jalaliDiff(tY, tM, tD, nextBdY, nextBdM, nextBdD);
+            }
+
+            var nextBdG = jalaliToGregorian(nextBdY, nextBdM, nextBdD);
+            var nextBdDate = new Date(nextBdG[0], nextBdG[1] - 1, nextBdG[2]);
+            var nextBdDow = WEEKDAYS_FA[nextBdDate.getDay()];
+
+            var bdText;
+            if (daysToBd === 0) bdText = '🎉 امروز تولد!';
+            else if (daysToBd === 1) bdText = 'فردا';
+            else bdText = toFa(daysToBd) + ' روز دیگر (' + nextBdDow + '، ' + toFa(nextBdD) + ' ' + JALALI_MONTHS[nextBdM - 1] + ')';
+
+            var parts = [];
+            if (years > 0) parts.push(toFa(years) + ' سال');
+            if (months > 0) parts.push(toFa(months) + ' ماه');
+            if (days > 0) parts.push(toFa(days) + ' روز');
+
+            out.innerHTML =
+                '<div style="padding:14px;background:linear-gradient(135deg,#f3e8ff,#e9d5ff);border:1.5px solid #a855f7;border-radius:12px;color:#581c87">'
+                + '<div style="font-weight:900;font-size:1.15rem;margin-bottom:8px">🎂 سن: ' + parts.join(' و ') + '</div>'
+                + '<div style="font-size:0.85rem;font-weight:700;margin-bottom:4px">📊 جمعاً: ' + toFa(totalDays) + ' روز</div>'
+                + '<div style="font-size:0.85rem;font-weight:700;padding-top:6px;border-top:1px dashed #a855f740">🎁 تولد بعدی: ' + bdText + '</div>'
+                + '</div>';
+        };
+    }
+}
+
+/* ============================================================
    بخش ۱۵ — عنوان نوار بالا
    ============================================================ */
 function buildCalTitle41() {
@@ -1077,6 +1286,7 @@ function buildCalTitle41() {
 
     if (CAL41.view === 'month') return mon + ' ' + toFa(cur.y);
     if (CAL41.view === 'agenda') return 'رویدادهای پیش‌رو';
+    if (CAL41.view === 'tools')  return '🛠 ابزارهای تاریخ';
     if (CAL41.view === 'day') {
         var g = jalaliToGregorian(cur.y, cur.m, cur.d);
         var d = new Date(g[0], g[1] - 1, g[2]);
@@ -1126,7 +1336,6 @@ function calRender() {
 
     var html = '<h2>📅 مدیریت تقویم</h2><div class="calg-wrap">';
 
-    /* نوار بالا */
     html += '<div class="calg-bar">';
     html += '<button class="calg-btn" id="calg-prev">‹</button>';
     html += '<h3 id="calg-titledate">' + titleText + '</h3>';
@@ -1136,14 +1345,12 @@ function calRender() {
     html += '<button class="calg-btn primary" id="calg-new">＋ رویداد</button>';
     html += '</div>';
 
-    /* تب‌ها */
     html += '<div class="calg-tabs">';
-    [['month', 'ماه'], ['week', 'هفته'], ['3day', '۳ روز آتی'], ['day', 'روز'], ['agenda', 'دستورکار']].forEach(function (x) {
+    [['month', 'ماه'], ['week', 'هفته'], ['3day', '۳ روز آتی'], ['day', 'روز'], ['agenda', 'دستورکار'], ['tools', '🛠 ابزارها']].forEach(function (x) {
         html += '<button class="calg-tab' + (CAL41.view === x[0] ? ' active' : '') + '" data-view="' + x[0] + '">' + x[1] + '</button>';
     });
     html += '</div>';
 
-    /* نوار جستجو */
     if (CAL41.view === 'day' || CAL41.view === 'agenda') {
         var q = (CAL41.view === 'day') ? (CAL41.daySearch || '') : (CAL41.agendaSearch || '');
         html += '<div style="display:flex;gap:8px;padding:10px 14px;background:#f8fafd;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center">';
@@ -1167,16 +1374,15 @@ function calRender() {
         html += '</div>';
     }
 
-    /* بدنه */
     html += '<div class="calg-body" id="calg-body">';
     if (CAL41.view === 'month')      html += calRenderMonth41(active);
     else if (CAL41.view === 'week')  html += calRenderMultiDay41(active, 7, 'week');
     else if (CAL41.view === '3day')  html += calRenderMultiDay41(active, 3, '3day');
     else if (CAL41.view === 'day')   html += renderCalDayView(active);
+    else if (CAL41.view === 'tools') html += renderCalToolsView41();
     else                              html += renderCalAgendaView(active);
     html += '</div>';
 
-    /* راهنمای دسته‌بندی */
     var cats = window.CAL_CATS || {};
     html += '<div class="calg-legend">';
     Object.keys(cats).forEach(function (k) {
@@ -1202,9 +1408,6 @@ function calRender() {
     }
 }
 
-/* ============================================================
-   بخش ۱۶.۵ — رندر فقط بدنه (برای جستجو بدون بستن کیبورد)
-   ============================================================ */
 function calRenderBodyOnly() {
     var bodyEl = document.getElementById('calg-body');
     if (!bodyEl) {
@@ -1224,6 +1427,7 @@ function calRenderBodyOnly() {
     else if (CAL41.view === 'week')  html = calRenderMultiDay41(active, 7, 'week');
     else if (CAL41.view === '3day')  html = calRenderMultiDay41(active, 3, '3day');
     else if (CAL41.view === 'day')   html = renderCalDayView(active);
+    else if (CAL41.view === 'tools') html = renderCalToolsView41();
     else                              html = renderCalAgendaView(active);
 
     bodyEl.innerHTML = html;
@@ -1239,7 +1443,6 @@ function calRenderBodyOnly() {
 }
 
 function bindCalBodyEvents(active) {
-    /* نوار روزها */
     document.querySelectorAll('.cal-day-chip').forEach(function (ch) {
         var d = ch.getAttribute('data-date');
         var navStrip = ch.getAttribute('data-nav-strip');
@@ -1261,7 +1464,6 @@ function bindCalBodyEvents(active) {
         }
     });
 
-    /* رویدادها */
     document.querySelectorAll('#calg-body [data-ev]').forEach(function (el) {
         el.onclick = function (e) {
             e.stopPropagation();
@@ -1271,7 +1473,6 @@ function bindCalBodyEvents(active) {
         };
     });
 
-    /* خانه‌های ماه */
     document.querySelectorAll('.calg-mcell').forEach(function (cell) {
         cell.onclick = function (e) {
             if (e.target.closest('.cev')) return;
@@ -1279,7 +1480,6 @@ function bindCalBodyEvents(active) {
         };
     });
 
-    /* کلیک روی ناحیه خالی ستون ۳ روز */
     document.querySelectorAll('.calg-3day-col').forEach(function (col) {
         col.onclick = function (e) {
             if (e.target.closest('.calg-tl-event')) return;
@@ -1300,7 +1500,6 @@ function bindCalBodyEvents(active) {
         };
     });
 
-    /* سلول‌های نمای هفته */
     document.querySelectorAll('.calg-md-col').forEach(function (col) {
         col.onclick = function (e) {
             if (e.target.closest('[data-ev]')) return;
@@ -1311,7 +1510,6 @@ function bindCalBodyEvents(active) {
 
 /* ============================================================
    بخش ۱۷ — اتصال رویدادهای shell تقویم
-   ✅ رفع باگ: جستجو → فقط بدنه رندر می‌شود (کیبورد بسته نمی‌شود)
    ============================================================ */
 function bindCalEvents41(active) {
     var prev = document.getElementById('calg-prev');
@@ -1340,7 +1538,6 @@ function bindCalEvents41(active) {
         openEventModal41(null, ds);
     };
 
-    /* تب‌ها */
     document.querySelectorAll('.calg-tab').forEach(function (t) {
         t.onclick = function () {
             CAL41.view = this.getAttribute('data-view');
@@ -1348,7 +1545,6 @@ function bindCalEvents41(active) {
         };
     });
 
-    /* چک‌باکس دسته‌بندی */
     document.querySelectorAll('.calg-legend input').forEach(function (cb) {
         cb.onchange = function () {
             CAL41.filterCats[this.getAttribute('data-cat')] = this.checked;
@@ -1356,7 +1552,6 @@ function bindCalEvents41(active) {
         };
     });
 
-    /* ✅ جستجو — فقط بدنه رندر می‌شود (کیبورد باز می‌مونه) */
     var si = document.getElementById('calg-search-input');
     if (si) {
         si.addEventListener('input', function () {
@@ -1380,7 +1575,6 @@ function bindCalEvents41(active) {
         calRender();
     };
 
-    /* بقیه رویدادهای داخل بدنه */
     bindCalBodyEvents(active);
 }
 
@@ -1388,6 +1582,8 @@ function bindCalEvents41(active) {
    بخش ۱۸ — ناوبری
    ============================================================ */
 function navigateCal41(dir) {
+    if (CAL41.view === 'tools') return;
+
     var cur = CAL41.cursor;
     if (CAL41.view === 'month' || CAL41.view === 'agenda') {
         cur.m += dir;
@@ -2052,6 +2248,7 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
                  + (pr.first || '') + ' ' + (pr.last || '')
                  + ' <button type="button" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:900" data-rm="' + pid + '">×</button></span>';
         }).join('');
+        
         box.querySelectorAll('[data-rm]').forEach(function (b) {
             b.onclick = function () {
                 var pid = this.getAttribute('data-rm');
@@ -2060,6 +2257,7 @@ function openEventModal41(ev, defaultDate, defaultHour, scope) {
             };
         });
     }
+    
     document.getElementById('evt-person-add').onclick = function () {
         var v = document.getElementById('evt-person-select').value;
         if (v && persons.indexOf(v) === -1) {
@@ -2642,6 +2840,8 @@ window.renderCalTimeline           = renderCalTimeline;
 window.renderCalDateStrip          = renderCalDateStrip;
 window.renderCalDayView            = renderCalDayView;
 window.renderCalAgendaView         = renderCalAgendaView;
+window.renderCalToolsView41        = renderCalToolsView41;
+window.bindCalToolsView41          = bindCalToolsView41;
 window.buildCalTitle41             = buildCalTitle41;
 window.calRender                   = calRender;
 window.calRenderBodyOnly           = calRenderBodyOnly;
@@ -2657,4 +2857,4 @@ window.collectRecurrenceFromUI41   = collectRecurrenceFromUI41;
 window.shareDayEvents41            = shareDayEvents41;
 window.calEnsurePage               = calEnsurePage;
 
-console.log('✅ [modules/calendar.js] loaded — 4 parts complete');
+console.log('✅ [modules/calendar.js] loaded — 5 parts complete (tools tab added)');
