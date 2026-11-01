@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — دفترچه یادداشت (نسخه کامل و اصلاح‌شده)
+   پارسیس — دفترچه یادداشت (نسخه ۲ — بدون تب، با دکمه جدید)
    مسیر: js/modules/notes.js
    ============================================================ */
 'use strict';
@@ -15,6 +15,33 @@ function getNoteCategoryMeta(key) {
         if (NOTE_CATEGORIES[i].key === key) return NOTE_CATEGORIES[i];
     }
     return NOTE_CATEGORIES[0];
+}
+
+/* ============================================================
+   ✅ سوئیچ بین «فهرست» و «فرم جدید» (بدون تب)
+   ============================================================ */
+function switchNotesTab(tabName) {
+    var activePage = document.querySelector('.page.active');
+    if (!activePage || activePage.id.indexOf('page-notes') === -1) {
+        activePage = document.getElementById('page-notes');
+    }
+    if (!activePage) return;
+
+    var listContent = activePage.querySelector('#tab-notes-list');
+    var addContent = activePage.querySelector('#tab-notes-add');
+
+    if (tabName === 'add') {
+        if (listContent) listContent.classList.remove('active');
+        if (addContent) addContent.classList.add('active');
+        setTimeout(function () {
+            if (typeof attachDatePickers === 'function') attachDatePickers();
+            var titleInp = activePage.querySelector('#nt-title');
+            if (titleInp) titleInp.focus();
+        }, 120);
+    } else {
+        if (addContent) addContent.classList.remove('active');
+        if (listContent) listContent.classList.add('active');
+    }
 }
 
 var _noteImageDB = {
@@ -285,9 +312,8 @@ function saveNote() {
     renderNotesList();
     if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 
-    var activePage = document.querySelector('.page.active');
-    var listTab = activePage ? activePage.querySelector('[data-tab="notes-list"]') : null;
-    if (listTab) listTab.click();
+    /* ✅ برگشت به فهرست */
+    switchNotesTab('list');
 }
 
 function renderNotesList() {
@@ -362,10 +388,9 @@ function renderNotesList() {
             noteChecklist = JSON.parse(JSON.stringify(n.checklist || []));
             noteImageRefs = (n.imageRefs || []).slice();
             renderNoteChecklist(); renderNoteImages();
-            
-            var activePage = document.querySelector('.page.active');
-            var addTab = activePage ? activePage.querySelector('[data-tab="notes-add"]') : null;
-            if (addTab) addTab.click();
+
+            /* ✅ برگشت به فرم ویرایش */
+            switchNotesTab('add');
         });
     }
 
@@ -455,10 +480,7 @@ async function openNoteView(noteId) {
             noteChecklist = JSON.parse(JSON.stringify(note.checklist || []));
             noteImageRefs = (note.imageRefs || []).slice();
             renderNoteChecklist(); renderNoteImages();
-            
-            var activePage = document.querySelector('.page.active');
-            var addTab = activePage ? activePage.querySelector('[data-tab="notes-add"]') : null;
-            if (addTab) addTab.click();
+            switchNotesTab('add');
         }, 150);
     };
 
@@ -545,25 +567,46 @@ function closeNoteView() {
 }
 
 function bindNotesForm() {
+    /* ✅ دکمه یادداشت جدید در فهرست */
+    var openNewBtn = document.getElementById('notes-open-new-btn');
+    if (openNewBtn && !openNewBtn.dataset.bound) {
+        openNewBtn.dataset.bound = '1';
+        openNewBtn.onclick = function () {
+            clearNoteForm();
+            switchNotesTab('add');
+        };
+    }
+
     var addItemBtn = document.getElementById('nt-add-item');
-    if (addItemBtn) addItemBtn.addEventListener('click', function () { noteChecklist.push({ id: uid(), text: '', done: false }); renderNoteChecklist(); });
+    if (addItemBtn && !addItemBtn.dataset.bound) {
+        addItemBtn.dataset.bound = '1';
+        addItemBtn.addEventListener('click', function () { noteChecklist.push({ id: uid(), text: '', done: false }); renderNoteChecklist(); });
+    }
 
     var saveBtn = document.getElementById('nt-save');
-    if (saveBtn) saveBtn.addEventListener('click', saveNote);
+    if (saveBtn && !saveBtn.dataset.bound) {
+        saveBtn.dataset.bound = '1';
+        saveBtn.addEventListener('click', saveNote);
+    }
 
     var newBtn = document.getElementById('nt-new');
-    if (newBtn) newBtn.addEventListener('click', clearNoteForm);
+    if (newBtn && !newBtn.dataset.bound) {
+        newBtn.dataset.bound = '1';
+        newBtn.addEventListener('click', clearNoteForm);
+    }
 
     var cancelBtn = document.getElementById('nt-cancel');
-    if (cancelBtn) cancelBtn.addEventListener('click', function () {
-        clearNoteForm();
-        var activePage = document.querySelector('.page.active');
-        var listTab = activePage ? activePage.querySelector('[data-tab="notes-list"]') : null;
-        if (listTab) listTab.click();
-    });
+    if (cancelBtn && !cancelBtn.dataset.bound) {
+        cancelBtn.dataset.bound = '1';
+        cancelBtn.addEventListener('click', function () {
+            clearNoteForm();
+            switchNotesTab('list');
+        });
+    }
 
     var imgInput = document.getElementById('nt-image-input');
-    if (imgInput) {
+    if (imgInput && !imgInput.dataset.bound) {
+        imgInput.dataset.bound = '1';
         imgInput.addEventListener('click', function (e) { if (window.showOpenFilePicker) { e.preventDefault(); handleNoteImagesFS(); } });
         imgInput.addEventListener('change', function () {
             if (!window.showOpenFilePicker && this.files && this.files.length) handleNoteImages(this.files);
@@ -572,13 +615,21 @@ function bindNotesForm() {
     }
 
     var filterEl = document.getElementById('notes-filter');
-    if (filterEl) filterEl.addEventListener('input', renderNotesList);
+    if (filterEl && !filterEl.dataset.bound) {
+        filterEl.dataset.bound = '1';
+        filterEl.addEventListener('input', renderNotesList);
+    }
 
     var catFilter = document.getElementById('notes-cat-filter');
-    if (catFilter) catFilter.addEventListener('change', renderNotesList);
+    if (catFilter && !catFilter.dataset.bound) {
+        catFilter.dataset.bound = '1';
+        catFilter.addEventListener('change', renderNotesList);
+    }
 
     var viewBtns = document.querySelectorAll('[data-notes-view]');
     for (var nv = 0; nv < viewBtns.length; nv++) {
+        if (viewBtns[nv].dataset.bound) continue;
+        viewBtns[nv].dataset.bound = '1';
         viewBtns[nv].addEventListener('click', function () {
             state.notesView = this.getAttribute('data-notes-view');
             saveState(LS_KEYS.NOTES_VIEW);
@@ -590,6 +641,7 @@ function bindNotesForm() {
 window.noteChecklist      = noteChecklist;
 window.noteImageRefs      = noteImageRefs;
 window.getNoteCategoryMeta = getNoteCategoryMeta;
+window.switchNotesTab     = switchNotesTab;
 window.renderNoteChecklist = renderNoteChecklist;
 window.renderNoteImages   = renderNoteImages;
 window.openImageView      = openImageView;
@@ -600,4 +652,4 @@ window.openNoteView       = openNoteView;
 window.closeNoteView      = closeNoteView;
 window.bindNotesForm      = bindNotesForm;
 
-console.log('✅ [modules/notes.js] loaded — Complete');
+console.log('✅ [modules/notes.js] loaded — v2 (no tabs, one new-note button)');
