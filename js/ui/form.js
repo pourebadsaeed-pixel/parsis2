@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — سیستم تب‌های پیشرفته (نسخه کامل و بدون باگ)
+   پارسیس — سیستم تب‌های پیشرفته (نسخه با دابل‌کلیک بستن بقیه)
    مسیر: js/ui/form.js
    ============================================================ */
 'use strict';
@@ -170,6 +170,9 @@ function ensureTabBar() {
     return bar;
 }
 
+/* ============================================================
+   ✅ renderTabs — با دابل‌کلیک بستن بقیه تب‌ها
+   ============================================================ */
 function renderTabs() {
     var bar = ensureTabBar();
     if (!bar) return;
@@ -191,6 +194,14 @@ function renderTabs() {
         }
 
         tab.addEventListener('click', function () { if (TAB_STATE.active !== t.id) switchToTab(t.id); });
+
+        /* ✅ دابل‌کلیک: بستن بقیه تب‌ها */
+        tab.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeOtherTabs(t.id);
+        });
+
         tab.addEventListener('dragover', function (e) { e.preventDefault(); });
         tab.addEventListener('drop', function (e) {
             e.preventDefault();
@@ -211,6 +222,43 @@ function renderTabs() {
         var activeEl = bar.querySelector('.form-tab.active');
         if (activeEl && activeEl.scrollIntoView) { try { activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     }, 30);
+}
+
+/* ============================================================
+   ✅ closeOtherTabs — بستن همه تب‌های دیگر به جز انتخاب‌شده
+   ============================================================ */
+function closeOtherTabs(keepTabId) {
+    var keepTab = TAB_STATE.tabs.find(function (t) { return t.id === keepTabId; });
+    if (!keepTab) return;
+
+    var others = TAB_STATE.tabs.filter(function (t) { return t.id !== keepTabId && t.id !== 'home'; });
+    if (others.length === 0) {
+        if (typeof showToast === 'function') showToast('تب دیگری برای بستن نیست.');
+        return;
+    }
+
+    var hasUnsaved = others.some(function (t) { return hasUnsavedData(t.page); });
+    var msg = 'همه تب‌های دیگر بسته شوند؟' + (hasUnsaved ? '\n(بعضی تب‌ها داده ذخیره‌نشده دارند)' : '');
+    if (!confirm(msg)) return;
+
+    others.forEach(function (t) {
+        clearFormData(t.page);
+        var remNode = document.getElementById(t.domId);
+        if (remNode && !remNode.classList.contains('page-template')) remNode.remove();
+    });
+
+    TAB_STATE.tabs = TAB_STATE.tabs.filter(function (t) {
+        return t.id === keepTabId || t.id === 'home';
+    });
+
+    /* اگر تب فعال جزو بسته‌شده‌ها بود، به تب نگه‌داشته برو */
+    if (!TAB_STATE.tabs.some(function (t) { return t.id === TAB_STATE.active; })) {
+        switchToTab(keepTabId);
+    } else {
+        renderTabs();
+    }
+
+    if (typeof showToast === 'function') showToast('🧹 ' + toFa(others.length) + ' تب بسته شد');
 }
 
 function cleanClonedPage(clone) {
@@ -369,5 +417,6 @@ window.TAB_STATE = TAB_STATE;
 window.cleanClonedPage = cleanClonedPage;
 window.switchToTab = switchToTab;
 window.closeTab = closeTab;
+window.closeOtherTabs = closeOtherTabs;
 window.closeAllTabs = closeAllTabs;
 window.autoAttachReportHelpers = autoAttachReportHelpers;
