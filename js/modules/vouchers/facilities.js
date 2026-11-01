@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — تسهیلات (نسخه کامل و اصلاح‌شده)
+   پارسیس — تسهیلات (نسخه یکپارچه — رفع باگ پرشدن اقساط)
    مسیر: js/modules/vouchers/facilities.js
    ============================================================ */
 'use strict';
@@ -50,9 +50,7 @@ function renderFacilitiesList() {
     var filtered = list.filter(function (f) {
         if (cf && (f.category || 'facility') !== cf) return false;
         if (filter) {
-            var txt = ((f.name || '') + ' '
-                     + categoryName(f.category) + ' '
-                     + (f.date || '')).toLowerCase();
+            var txt = ((f.name || '') + ' ' + categoryName(f.category) + ' ' + (f.date || '')).toLowerCase();
             if (txt.indexOf(filter) === -1) return false;
         }
         return true;
@@ -152,6 +150,10 @@ function tryDeleteFacility(f) {
 function loadFacilityIntoForm(f) {
     if (!f) return;
 
+    /* ✅ حیاتی: پر کردن state داخلی از اقساط موجود تا موقع ذخیره پاک نشوند */
+    currentFacilityId = f.id;
+    currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
+
     if (typeof goToPage === 'function') goToPage('facilities');
 
     var attempts = 0;
@@ -176,7 +178,7 @@ function loadFacilityIntoForm(f) {
         setVal('fc-paid', f.paid ? formatRaw(f.paid) : '');
 
         var insCard = activePage.querySelector('#fac-installments-card');
-        if (insCard) insCard.style.display = 'none';  /* ← اقساط بسته */
+        if (insCard) insCard.style.display = 'none'; /* در ویرایش، کارت اقساط بسته می‌ماند */
 
         var addTab = activePage.querySelector('[data-tab="fac-add"]');
         if (addTab && !addTab.classList.contains('active')) addTab.click();
@@ -185,8 +187,7 @@ function loadFacilityIntoForm(f) {
 
         if (attempts === 1) {
             setTimeout(function () {
-                var formCard = activePage.querySelector('#voucher-head-card') ||
-                              activePage.querySelector('.card');
+                var formCard = activePage.querySelector('#voucher-head-card') || activePage.querySelector('.card');
                 if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 500);
         }
@@ -199,7 +200,6 @@ function loadFacilityForInstallments(f) {
     currentFacilityId = f.id;
     currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
 
-    /* ✅ اول به صفحه تسهیلات برو */
     if (typeof goToPage === 'function') goToPage('facilities');
 
     var attempts = 0;
@@ -231,10 +231,8 @@ function loadFacilityForInstallments(f) {
         var addTab = activePage.querySelector('[data-tab="fac-add"]');
         if (addTab && !addTab.classList.contains('active')) addTab.click();
 
-        /* retry برای وقتی که refreshFacBankSelect مقدار رو reset می‌کنه */
         if (attempts < 5) setTimeout(fillForm, 150);
 
-        /* اسکرول فقط یک بار */
         if (attempts === 1) {
             setTimeout(function () {
                 if (insCard) insCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -560,7 +558,7 @@ function payInstallment(facilityId, installmentIdx) {
             opts + '\n\nشماره:', '1'
         );
         if (!ans) return;
-        var idx = Number(normalizeDigits(ans)) - 1;
+        var idx = Number(normalizeDigits(ans)) - 1;   /* ← این خط اینجا کامل شد */
         if (isNaN(idx) || idx < 0 || idx >= leaves.length) { alert('نامعتبر.'); return; }
         facMoeinId = leaves[idx].id;
 
@@ -716,4 +714,4 @@ window.saveFacilityInstallments   = saveFacilityInstallments;
 window.payInstallment             = payInstallment;
 window.bindFacilitiesForm         = bindFacilitiesForm;
 
-console.log('✅ [modules/vouchers/facilities.js] loaded — Complete');
+console.log('✅ [modules/vouchers/facilities.js] loaded — Complete Clean Version');
