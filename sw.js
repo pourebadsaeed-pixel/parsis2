@@ -2,7 +2,7 @@
    پارسیس — Service Worker (بروزرسانی خودکار کش)
    نسخه v71 — phonebook module
    ============================================================ */
-var CACHE_NAME = 'parsis-v75-2025-active-period-vouchers';
+var CACHE_NAME = 'parsis-v76-2025-active-period-vouchers';
 
 var ASSETS = [
   './index.html',
