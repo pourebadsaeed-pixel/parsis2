@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v8: بازگرداندن ستون عملیات + مخفی‌سازی آن فقط در پرینت
+   ✅ v9: نمایش اجباری ستون‌های جدید (ریست خودکار تنظیمات) + عملیات در پرینت مخفی
    ============================================================ */
 'use strict';
 
@@ -201,6 +201,13 @@ function runFacilityFullReport() {
 }
 
 function renderFacilityFullSummary(rows) {
+    // ✅ ریست کردن تنظیمات مخفی‌سازی ستون‌ها تا ستون‌های جدید حتماً دیده شوند
+    try {
+        var cs = DB.load(LS_KEYS.COLUMN_SETTINGS, {});
+        if (cs['rff-table']) { delete cs['rff-table']; DB.save(LS_KEYS.COLUMN_SETTINGS, cs); }
+        if (typeof colSettings !== 'undefined') { delete colSettings['rff-table']; }
+    } catch(e) {}
+
     var hide = getHideState('rff');
     var html = '<div class="table-wrap"><table class="report-table" id="rff-table"><thead><tr>'
         + '<th data-sort="name">عنوان</th><th data-sort="category">دسته</th><th data-sort="bank">بانک</th><th data-sort="date">تاریخ</th><th data-sort="initial">مبلغ اولیه</th>'
@@ -424,8 +431,8 @@ function printFacilityReport(selector, title, orientation) {
         detailList.parentNode.replaceChild(wrapper, detailList);
     }
 
-    // حذف المان‌های اضافی که در چاپ نباید باشند (دکمه‌ها، فیلترها و...)
-    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
+    // حذف المان‌های اضافی و ستون‌های کلاس print-hide در چاپ
+    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta, .print-hide');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
     clone.querySelectorAll('.cfd-details').forEach(function(el) {
@@ -437,6 +444,22 @@ function printFacilityReport(selector, title, orientation) {
         var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
+
+        // حذف ستون‌های مخفی از هدر و بدنه
+        var hiddenIndices = [];
+        var ths = thead ? thead.querySelectorAll('th') : [];
+        for (var i = 0; i < ths.length; i++) {
+            if (ths[i].classList.contains('print-hide')) hiddenIndices.push(i);
+        }
+
+        var allRows = table.querySelectorAll('tr');
+        for (var j = 0; j < allRows.length; j++) {
+            var cells = allRows[j].children;
+            for (var k = hiddenIndices.length - 1; k >= 0; k--) {
+                var idx = hiddenIndices[k];
+                if (cells[idx]) cells[idx].remove();
+            }
+        }
 
         var footRow = null;
         if (tfoot && tbody) {
@@ -460,7 +483,6 @@ function printFacilityReport(selector, title, orientation) {
 
     var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
 
-    // استایل‌های چاپ بهینه‌شده برای Fit to Page + مخفی کردن ستون‌های print-hide
     var htmlContent =
         '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
         '<style>' +
@@ -476,7 +498,7 @@ function printFacilityReport(selector, title, orientation) {
         '.cr { color: #059669 !important; font-weight: bold; }' +
         'tr { page-break-inside: avoid !important; }' +
         'thead { display: table-header-group; }' +
-        '.row-actions, button, .print-hide { display: none !important; }' + // مخفی کردن ستون‌های کلاس print-hide
+        '.row-actions, button, .print-hide { display: none !important; }' +
         '</style></head><body>' +
         '<div class="header"><h1>' + esc(title) + '</h1>' +
         (dateRange ? '<div class="date-range" style="font-size: 9pt;">' + esc(dateRange) + '</div>' : '') +
@@ -501,7 +523,6 @@ function printFacilityReport(selector, title, orientation) {
    ✅ Bind دکمه‌های چاپ و اکسل گزارش‌های تسهیلات
    ============================================================ */
 function bindFacilityReportButtons() {
-    /* خلاصه تسهیلات */
     var rfRun = document.getElementById('rf-run');
     if (rfRun && !rfRun.dataset.bound) {
         rfRun.dataset.bound = '1';
@@ -528,7 +549,6 @@ function bindFacilityReportButtons() {
         });
     }
 
-    /* جامع تسهیلات */
     var rffRun = document.getElementById('rff-run');
     if (rffRun && !rffRun.dataset.bound) {
         rffRun.dataset.bound = '1';
@@ -567,7 +587,6 @@ function bindFacilityReportButtons() {
         });
     }
 
-    /* فیلترها */
     var rfCat = document.getElementById('rf-category');
     if (rfCat && !rfCat.dataset.bound) { rfCat.dataset.bound = '1'; rfCat.addEventListener('change', runFacilityReport); }
     var rfStatus = document.getElementById('rf-status');
@@ -615,4 +634,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v8 (actions column restored & hidden on print)');
+console.log('✅ [modules/reports/facility.js] loaded — v9 (force unhide new columns)');
