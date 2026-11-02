@@ -1,6 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
+   ✅ v3: افزودن گزینه چاپ افقی/عمودی برای گزارش جامع تسهیلات
    ============================================================ */
 'use strict';
 
@@ -374,6 +375,100 @@ function _flattenRffDetailToTableHtml(containerEl) {
 }
 
 /* ============================================================
+   ✅ تابع اختصاصی چاپ برای گزارش تسهیلات با پشتیبانی از افقی/عمودی
+   ============================================================ */
+function printFacilityReport(selector, title, orientation) {
+    var activePage = document.querySelector('.page.active');
+    var targetEl = activePage ? activePage.querySelector(selector) : null;
+    if (!targetEl) targetEl = document.querySelector(selector);
+    if (!targetEl) { alert('محتوایی برای چاپ یافت نشد.'); return; }
+
+    var dateRange = '';
+    var fromVal = '', toVal = '';
+    if (selector === '#rff-result') {
+        fromVal = (document.getElementById('rff-from') || {}).value || '';
+        toVal = (document.getElementById('rff-to') || {}).value || '';
+    }
+    if (fromVal || toVal) {
+        dateRange = 'از تاریخ: ' + toFa(fromVal) + (toVal ? ' | تا تاریخ: ' + toFa(toVal) : '');
+    }
+
+    var clone = targetEl.cloneNode(true);
+
+    var detailList = clone.querySelector('.rff-detail-list');
+    if (detailList && typeof window._flattenRffDetailToTableHtml === 'function') {
+        var flatHtml = window._flattenRffDetailToTableHtml(detailList);
+        var wrapper = document.createElement('div');
+        wrapper.innerHTML = flatHtml;
+        detailList.parentNode.replaceChild(wrapper, detailList);
+    }
+
+    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
+    for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
+
+    clone.querySelectorAll('.cfd-details').forEach(function(el) {
+        el.classList.add('show');
+        el.style.display = 'block';
+    });
+
+    clone.querySelectorAll('table').forEach(function (table) {
+        var thead = table.querySelector('thead');
+        var tfoot = table.querySelector('tfoot');
+        var tbody = table.querySelector('tbody');
+
+        var footRow = null;
+        if (tfoot && tbody) {
+            footRow = tfoot.querySelector('tr');
+            if (footRow) {
+                footRow.style.backgroundColor = '#f1f5f9';
+                footRow.style.color = '#0f172a';
+                footRow.style.fontWeight = 'bold';
+                footRow.style.fontSize = '11pt';
+                footRow.style.pageBreakInside = 'avoid';
+                var tds = footRow.querySelectorAll('td');
+                for (var i=0; i<tds.length; i++) {
+                    tds[i].style.borderTop = '2px solid #1e40af';
+                    tds[i].style.borderBottom = '2px solid #1e40af';
+                    tds[i].style.padding = '10px 5px';
+                }
+                tbody.appendChild(footRow);
+            }
+            tfoot.remove();
+        }
+    });
+
+    var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
+
+    var htmlContent =
+        '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
+        '<style>@page{size:' + pageSize + ';margin:10mm 8mm 12mm 8mm;} body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#000;margin:0;padding:0;font-size:9pt;} ' +
+        '.header{text-align:center;margin-bottom:15px;padding-bottom:10px;border-bottom:2.5px solid #1e40af;} ' +
+        '.header h1{font-size:15pt;margin:0 0 6px 0;color:#1e40af;font-weight:900;} ' +
+        'table{width:100%;border-collapse:collapse;margin-bottom:15px;} tr{page-break-inside:avoid !important;} ' +
+        'thead{display:table-header-group;} th,td{border:1px solid #64748b;padding:4px 6px;text-align:center;vertical-align:middle;font-size:8.5pt;} ' +
+        'th{background-color:#e2e8f0 !important;font-weight:bold !important;color:#1e40af;} ' +
+        '.num{direction:ltr;font-family:Arial,Tahoma,sans-serif;font-variant-numeric:tabular-nums;} ' +
+        '.dr{color:#dc2626 !important;font-weight:bold;} .cr{color:#059669 !important;font-weight:bold;}' +
+        '</style></head><body><div class="header"><h1>' + esc(title) + '</h1>' +
+        (dateRange ? '<div class="date-range">' + esc(dateRange) + '</div>' : '') +
+        '</div><div>' + clone.innerHTML + '</div></body></html>';
+
+    var printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+
+    setTimeout(function () {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.onafterprint = function () { printWindow.close(); };
+    }, 500);
+}
+
+/* ============================================================
    ✅ Bind دکمه‌های چاپ و اکسل گزارش‌های تسهیلات
    ============================================================ */
 function bindFacilityReportButtons() {
@@ -388,8 +483,8 @@ function bindFacilityReportButtons() {
     if (rfPrint && !rfPrint.dataset.bound) {
         rfPrint.dataset.bound = '1';
         rfPrint.addEventListener('click', function () {
-            if (typeof printHtmlReport === 'function') {
-                printHtmlReport('#rf-result', 'خلاصه تسهیلات');
+            if (typeof printFacilityReport === 'function') {
+                printFacilityReport('#rf-result', 'خلاصه تسهیلات', 'portrait');
             }
         });
     }
@@ -412,13 +507,26 @@ function bindFacilityReportButtons() {
     }
 
     var rffPrint = document.getElementById('rff-print');
-    if (rffPrint && !rffPrint.dataset.bound) {
-        rffPrint.dataset.bound = '1';
-        rffPrint.addEventListener('click', function () {
-            if (typeof printHtmlReport === 'function') {
-                printHtmlReport('#rff-result', 'گزارش جامع تسهیلات');
-            }
-        });
+    if (rffPrint) {
+        /* تزریق منوی کشویی انتخاب جهت چاپ در کنار دکمه چاپ */
+        if (!document.getElementById('rff-print-orientation')) {
+            var sel = document.createElement('select');
+            sel.id = 'rff-print-orientation';
+            sel.style.cssText = 'padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--primary); background: var(--primary-light); color: var(--primary-dark); font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; height: 42px; display: inline-flex; align-items: center; outline: none;';
+            sel.innerHTML = '<option value="landscape">🖨 افقی (Landscape)</option><option value="portrait">🖨 عمودی (Portrait)</option>';
+            rffPrint.parentNode.insertBefore(sel, rffPrint);
+        }
+
+        if (!rffPrint.dataset.bound) {
+            rffPrint.dataset.bound = '1';
+            rffPrint.addEventListener('click', function () {
+                var orientEl = document.getElementById('rff-print-orientation');
+                var orient = orientEl ? orientEl.value : 'landscape';
+                if (typeof printFacilityReport === 'function') {
+                    printFacilityReport('#rff-result', 'گزارش جامع تسهیلات', orient);
+                }
+            });
+        }
     }
 
     var rffExport = document.getElementById('rff-export');
@@ -477,5 +585,6 @@ window.renderFacilityFullDetail      = renderFacilityFullDetail;
 window.bindFacilityReportButtons     = bindFacilityReportButtons;
 window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
+window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — buttons + flatten');
+console.log('✅ [modules/reports/facility.js] loaded — v3 (print orientation added)');
