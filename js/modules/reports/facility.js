@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v3: افزودن گزینه چاپ افقی/عمودی برای گزارش جامع تسهیلات
+   ✅ v4: افزودن گزینه چاپ افقی/عمودی + قابلیت Fit to Page در پرینت
    ============================================================ */
 'use strict';
 
@@ -375,7 +375,7 @@ function _flattenRffDetailToTableHtml(containerEl) {
 }
 
 /* ============================================================
-   ✅ تابع اختصاصی چاپ برای گزارش تسهیلات با پشتیبانی از افقی/عمودی
+   ✅ تابع اختصاصی چاپ با پشتیبانی از Fit to Page
    ============================================================ */
 function printFacilityReport(selector, title, orientation) {
     var activePage = document.querySelector('.page.active');
@@ -438,19 +438,27 @@ function printFacilityReport(selector, title, orientation) {
     });
 
     var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
+    // استفاده از zoom برای Fit to Page
+    var zoomStyle = (orientation === 'landscape') ? 'zoom: 0.72;' : 'zoom: 0.9;';
 
     var htmlContent =
         '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
-        '<style>@page{size:' + pageSize + ';margin:10mm 8mm 12mm 8mm;} body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#000;margin:0;padding:0;font-size:9pt;} ' +
-        '.header{text-align:center;margin-bottom:15px;padding-bottom:10px;border-bottom:2.5px solid #1e40af;} ' +
-        '.header h1{font-size:15pt;margin:0 0 6px 0;color:#1e40af;font-weight:900;} ' +
-        'table{width:100%;border-collapse:collapse;margin-bottom:15px;} tr{page-break-inside:avoid !important;} ' +
-        'thead{display:table-header-group;} th,td{border:1px solid #64748b;padding:4px 6px;text-align:center;vertical-align:middle;font-size:8.5pt;} ' +
-        'th{background-color:#e2e8f0 !important;font-weight:bold !important;color:#1e40af;} ' +
-        '.num{direction:ltr;font-family:Arial,Tahoma,sans-serif;font-variant-numeric:tabular-nums;} ' +
-        '.dr{color:#dc2626 !important;font-weight:bold;} .cr{color:#059669 !important;font-weight:bold;}' +
-        '</style></head><body><div class="header"><h1>' + esc(title) + '</h1>' +
-        (dateRange ? '<div class="date-range">' + esc(dateRange) + '</div>' : '') +
+        '<style>' +
+        '@page { size: ' + pageSize + '; margin: 5mm; }' +
+        'body { ' + zoomStyle + ' font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; }' +
+        '.header { text-align: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2.5px solid #1e40af; }' +
+        '.header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; font-weight: 900; }' +
+        'table { width: 100% !important; border-collapse: collapse; margin-bottom: 15px; table-layout: auto; }' +
+        'tr { page-break-inside: avoid !important; }' +
+        'thead { display: table-header-group; }' +
+        'th, td { border: 1px solid #64748b; padding: 3px 4px; text-align: center; vertical-align: middle; font-size: 9pt; white-space: normal !important; word-wrap: break-word; }' +
+        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }' +
+        '.num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }' +
+        '.dr { color: #dc2626 !important; font-weight: bold; }' +
+        '.cr { color: #059669 !important; font-weight: bold; }' +
+        '</style></head><body>' +
+        '<div class="header"><h1>' + esc(title) + '</h1>' +
+        (dateRange ? '<div class="date-range" style="font-size: 10pt;">' + esc(dateRange) + '</div>' : '') +
         '</div><div>' + clone.innerHTML + '</div></body></html>';
 
     var printWindow = window.open('', '_blank');
@@ -513,7 +521,7 @@ function bindFacilityReportButtons() {
             var sel = document.createElement('select');
             sel.id = 'rff-print-orientation';
             sel.style.cssText = 'padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--primary); background: var(--primary-light); color: var(--primary-dark); font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; height: 42px; display: inline-flex; align-items: center; outline: none;';
-            sel.innerHTML = '<option value="landscape">🖨 افقی (Landscape)</option><option value="portrait">🖨 عمودی (Portrait)</option>';
+            sel.innerHTML = '<option value="landscape">🖨 افقی (Fit to Page)</option><option value="portrait">🖨 عمودی (Portrait)</option>';
             rffPrint.parentNode.insertBefore(sel, rffPrint);
         }
 
@@ -587,4 +595,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v3 (print orientation added)');
+console.log('✅ [modules/reports/facility.js] loaded — v4 (Fit to Page enabled)');
