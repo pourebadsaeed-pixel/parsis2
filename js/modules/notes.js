@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — دفترچه یادداشت (نسخه ۲ — بدون تب، با دکمه جدید)
+   پارسیس — دفترچه یادداشت (نسخه ۳ — رفع باگ دکمه بازگشت)
    مسیر: js/modules/notes.js
    ============================================================ */
 'use strict';
@@ -577,6 +577,16 @@ function bindNotesForm() {
         };
     }
 
+    /* ✅ دکمه بازگشت به فهرست */
+    var backBtn = document.getElementById('notes-back-btn');
+    if (backBtn && !backBtn.dataset.bound) {
+        backBtn.dataset.bound = '1';
+        backBtn.onclick = function () {
+            clearNoteForm();
+            switchNotesTab('list');
+        };
+    }
+
     var addItemBtn = document.getElementById('nt-add-item');
     if (addItemBtn && !addItemBtn.dataset.bound) {
         addItemBtn.dataset.bound = '1';
@@ -652,4 +662,4 @@ window.openNoteView       = openNoteView;
 window.closeNoteView      = closeNoteView;
 window.bindNotesForm      = bindNotesForm;
 
-console.log('✅ [modules/notes.js] loaded — v2 (no tabs, one new-note button)');
+console.log('✅ [modules/notes.js] loaded — v3 (back button fixed)');
