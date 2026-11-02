@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v5: رفع کامل مشکل Fit to Page با استایل‌های چاپی اختصاصی
+   ✅ v6: حذف ستون عملیات از خلاصه + رفع به‌هم‌ریختگی فوتر با مخفی‌سازی ستون‌ها
    ============================================================ */
 'use strict';
 
@@ -202,7 +202,7 @@ function renderFacilityFullSummary(rows) {
         + '<th data-sort="name">عنوان</th><th data-sort="category">دسته</th><th data-sort="bank">بانک</th><th data-sort="date">تاریخ</th><th data-sort="initial">مبلغ اولیه</th>'
         + '<th data-sort="paidAmt">پرداخت</th><th data-sort="unpaidAmt">باقی‌مانده</th><th data-sort="insCount">تعداد</th><th data-sort="paidCount">پرداخت‌شده</th>'
         + '<th data-sort="unpaidCount">باقی</th><th data-sort="overdueCount">سررسید گذشته</th><th data-sort="firstUnpaidDate">اولین قسط پرداخت‌نشده</th>'
-        + '<th data-sort="lastPaidDate">آخرین پرداخت</th><th data-sort="status">وضعیت</th><th>عملیات</th></tr></thead><tbody>';
+        + '<th data-sort="lastPaidDate">آخرین پرداخت</th><th data-sort="status">وضعیت</th></tr></thead><tbody>';
 
     var sumInit = 0, sumPaid = 0, sumUnpaid = 0, sumInsCount = 0, sumPaidCount = 0, sumUnpaidCount = 0, sumOverdue = 0;
 
@@ -215,24 +215,36 @@ function renderFacilityFullSummary(rows) {
         var stB = r.settled ? '<span class="badge badge-settled">تسویه</span>' : '<span class="badge badge-active">جاری</span>';
         var overdue = r.overdueCount > 0 ? '<span class="badge badge-overdue">' + toFa(r.overdueCount) + '</span>' : '۰';
         var firstUnpaidCell = r.firstUnpaidDate ? (toFa(r.firstUnpaidDate) + (r.firstUnpaidAmount ? ' <span class="muted" style="font-size:0.7rem">(' + (hide ? '—' : fmtRep(r.firstUnpaidAmount, 'rff')) + ')</span>' : '')) : '—';
-        var aH = '<div class="row-actions"><button class="row-btn open" data-fid="' + f.id + '" data-action="rff-inst">📖</button><button class="row-btn edit" data-fid="' + f.id + '" data-action="rff-edit">✎</button></div>';
 
         html += '<tr><td><strong>' + esc(f.name) + '</strong></td><td>' + catB + '</td><td>' + esc(r.bank ? r.bank.bank : '—') + '</td><td dir="ltr">' + toFa(esc(f.date || '—')) + '</td>'
             + '<td class="num">' + (hide ? '—' : fmtRep(f.initial || 0, 'rff')) + '</td><td class="num" style="color:#1e9e6a">' + (hide ? '—' : fmtRep(r.paidAmt, 'rff')) + '</td>'
             + '<td class="num" style="color:' + (r.unpaidAmt > 0 ? '#c0392b' : '#1e9e6a') + '">' + (hide ? '—' : fmtRep(r.unpaidAmt, 'rff')) + '</td>'
             + '<td class="num">' + toFa(r.insCount) + '</td><td class="num" style="color:#1e9e6a">' + toFa(r.paidCount) + '</td>'
             + '<td class="num" style="color:#c47c00">' + toFa(r.unpaidCount) + '</td><td class="num">' + overdue + '</td>'
-            + '<td dir="ltr">' + firstUnpaidCell + '</td><td dir="ltr">' + toFa(r.lastPaidDate) + '</td><td>' + stB + '</td><td>' + aH + '</td></tr>';
+            + '<td dir="ltr">' + firstUnpaidCell + '</td><td dir="ltr">' + toFa(r.lastPaidDate) + '</td><td>' + stB + '</td></tr>';
     }
 
-    if (rows.length === 0) html += '<tr><td colspan="15" class="empty-row">موردی یافت نشد.</td></tr>';
+    if (rows.length === 0) html += '<tr><td colspan="14" class="empty-row">موردی یافت نشد.</td></tr>';
     html += '</tbody>';
 
     if (rows.length > 0) {
-        html += '<tfoot><tr><td colspan="4" style="text-align:left">جمع کل</td><td class="num">' + (hide ? '—' : fmtRep(sumInit, 'rff')) + '</td>'
-            + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : fmtRep(sumPaid, 'rff')) + '</td><td class="num" style="color:#c0392b">' + (hide ? '—' : fmtRep(sumUnpaid, 'rff')) + '</td>'
-            + '<td class="num">' + toFa(sumInsCount) + '</td><td class="num" style="color:#1e9e6a">' + toFa(sumPaidCount) + '</td><td class="num" style="color:#c47c00">' + toFa(sumUnpaidCount) + '</td>'
-            + '<td class="num">' + toFa(sumOverdue) + '</td><td colspan="4"></td></tr></tfoot>';
+        // ستون‌ها دقیقاً به صورت تک‌تک نوشته شده‌اند تا مخفی‌سازی ستون‌ها، فوتر را به‌هم نریزد
+        html += '<tfoot><tr>'
+            + '<td style="text-align:right; font-weight:bold;">جمع کل</td>' // 0
+            + '<td></td>' // 1
+            + '<td></td>' // 2
+            + '<td></td>' // 3
+            + '<td class="num">' + (hide ? '—' : fmtRep(sumInit, 'rff')) + '</td>' // 4
+            + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : fmtRep(sumPaid, 'rff')) + '</td>' // 5
+            + '<td class="num" style="color:#c0392b">' + (hide ? '—' : fmtRep(sumUnpaid, 'rff')) + '</td>' // 6
+            + '<td class="num">' + toFa(sumInsCount) + '</td>' // 7
+            + '<td class="num" style="color:#1e9e6a">' + toFa(sumPaidCount) + '</td>' // 8
+            + '<td class="num" style="color:#c47c00">' + toFa(sumUnpaidCount) + '</td>' // 9
+            + '<td class="num">' + toFa(sumOverdue) + '</td>' // 10
+            + '<td></td>' // 11
+            + '<td></td>' // 12
+            + '<td></td>' // 13
+            + '</tr></tfoot>';
     }
     html += '</table></div>';
 
@@ -242,18 +254,6 @@ function renderFacilityFullSummary(rows) {
     var unitEl = document.getElementById('rff-unit'); if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
 
     setupRffSorting();
-
-    var btns = document.querySelectorAll('#rff-result [data-action]');
-    for (var bi = 0; bi < btns.length; bi++) {
-        if (btns[bi].dataset.bound) continue; btns[bi].dataset.bound = '1';
-        btns[bi].addEventListener('click', function () {
-            var fid = this.getAttribute('data-fid'); var act = this.getAttribute('data-action');
-            var f = DB.load('facilities', []).find(function (x) { return x.id === fid; });
-            if (!f) return;
-            if (act === 'rff-inst') loadFacilityForInstallments(f);
-            else if (act === 'rff-edit') loadFacilityIntoForm(f);
-        });
-    }
 
     setTimeout(function () {
         var t = document.getElementById('rff-table');
@@ -403,7 +403,6 @@ function printFacilityReport(selector, title, orientation) {
         detailList.parentNode.replaceChild(wrapper, detailList);
     }
 
-    // حذف المان‌های اضافی که در چاپ نباید باشند (دکمه‌ها، فیلترها و...)
     var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
@@ -439,7 +438,6 @@ function printFacilityReport(selector, title, orientation) {
 
     var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
 
-    // استایل‌های چاپ بهینه‌شده برای Fit to Page (شکستن خطوط و تنظیم دقیق فونت)
     var htmlContent =
         '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
         '<style>' +
@@ -516,7 +514,6 @@ function bindFacilityReportButtons() {
 
     var rffPrint = document.getElementById('rff-print');
     if (rffPrint) {
-        /* تزریق منوی کشویی انتخاب جهت چاپ در کنار دکمه چاپ */
         if (!document.getElementById('rff-print-orientation')) {
             var sel = document.createElement('select');
             sel.id = 'rff-print-orientation';
@@ -595,4 +592,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v5 (True Fit to Page)');
+console.log('✅ [modules/reports/facility.js] loaded — v6 (fixed footer alignment + removed actions column)');
