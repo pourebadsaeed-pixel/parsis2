@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v6: حذف ستون عملیات از خلاصه + رفع به‌هم‌ریختگی فوتر با مخفی‌سازی ستون‌ها
+   ✅ v7: افزودن ستون «تاریخ آخرین قسط» + تنظیم فوتر
    ============================================================ */
 'use strict';
 
@@ -145,7 +145,10 @@ function computeFacilityRows() {
         var settled = ins.length > 0 && unpaidList.length === 0;
 
         var lastInsDate = '—';
-        if (ins.length > 0) { var sortedIns = ins.slice().sort(function (a, b) { return compareVals(b.date, a.date); }); lastInsDate = sortedIns[0].date || '—'; }
+        if (ins.length > 0) { 
+            var sortedIns = ins.slice().sort(function (a, b) { return compareVals(b.date, a.date); }); 
+            lastInsDate = sortedIns[0].date || '—'; 
+        }
 
         if ((fromD || toD) && ins.length === 0) return;
         if (sf === 'settled' && !settled) return;
@@ -182,6 +185,7 @@ function runFacilityFullReport() {
             case 'unpaidCount': va = a.unpaidCount; vb = b.unpaidCount; break;
             case 'firstUnpaidDate': va = a.firstUnpaidDate || ''; vb = b.firstUnpaidDate || ''; break;
             case 'lastPaidDate': va = a.lastPaidDate || ''; vb = b.lastPaidDate || ''; break;
+            case 'lastInsDate': va = a.lastInsDate || ''; vb = b.lastInsDate || ''; break;
             case 'overdueCount': va = a.overdueCount; vb = b.overdueCount; break;
             case 'status': va = a.settled ? 'تسویه' : 'جاری'; vb = b.settled ? 'تسویه' : 'جاری'; break;
             default: va = ''; vb = '';
@@ -202,7 +206,7 @@ function renderFacilityFullSummary(rows) {
         + '<th data-sort="name">عنوان</th><th data-sort="category">دسته</th><th data-sort="bank">بانک</th><th data-sort="date">تاریخ</th><th data-sort="initial">مبلغ اولیه</th>'
         + '<th data-sort="paidAmt">پرداخت</th><th data-sort="unpaidAmt">باقی‌مانده</th><th data-sort="insCount">تعداد</th><th data-sort="paidCount">پرداخت‌شده</th>'
         + '<th data-sort="unpaidCount">باقی</th><th data-sort="overdueCount">سررسید گذشته</th><th data-sort="firstUnpaidDate">اولین قسط پرداخت‌نشده</th>'
-        + '<th data-sort="lastPaidDate">آخرین پرداخت</th><th data-sort="status">وضعیت</th></tr></thead><tbody>';
+        + '<th data-sort="lastPaidDate">آخرین پرداخت</th><th data-sort="lastInsDate">تاریخ آخرین قسط</th><th data-sort="status">وضعیت</th></tr></thead><tbody>';
 
     var sumInit = 0, sumPaid = 0, sumUnpaid = 0, sumInsCount = 0, sumPaidCount = 0, sumUnpaidCount = 0, sumOverdue = 0;
 
@@ -221,29 +225,31 @@ function renderFacilityFullSummary(rows) {
             + '<td class="num" style="color:' + (r.unpaidAmt > 0 ? '#c0392b' : '#1e9e6a') + '">' + (hide ? '—' : fmtRep(r.unpaidAmt, 'rff')) + '</td>'
             + '<td class="num">' + toFa(r.insCount) + '</td><td class="num" style="color:#1e9e6a">' + toFa(r.paidCount) + '</td>'
             + '<td class="num" style="color:#c47c00">' + toFa(r.unpaidCount) + '</td><td class="num">' + overdue + '</td>'
-            + '<td dir="ltr">' + firstUnpaidCell + '</td><td dir="ltr">' + toFa(r.lastPaidDate) + '</td><td>' + stB + '</td></tr>';
+            + '<td dir="ltr">' + firstUnpaidCell + '</td><td dir="ltr">' + toFa(r.lastPaidDate) + '</td>'
+            + '<td dir="ltr">' + toFa(r.lastInsDate) + '</td><td>' + stB + '</td></tr>';
     }
 
-    if (rows.length === 0) html += '<tr><td colspan="14" class="empty-row">موردی یافت نشد.</td></tr>';
+    if (rows.length === 0) html += '<tr><td colspan="15" class="empty-row">موردی یافت نشد.</td></tr>';
     html += '</tbody>';
 
     if (rows.length > 0) {
         // ستون‌ها دقیقاً به صورت تک‌تک نوشته شده‌اند تا مخفی‌سازی ستون‌ها، فوتر را به‌هم نریزد
         html += '<tfoot><tr>'
-            + '<td style="text-align:right; font-weight:bold;">جمع کل</td>' // 0
-            + '<td></td>' // 1
-            + '<td></td>' // 2
-            + '<td></td>' // 3
-            + '<td class="num">' + (hide ? '—' : fmtRep(sumInit, 'rff')) + '</td>' // 4
-            + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : fmtRep(sumPaid, 'rff')) + '</td>' // 5
-            + '<td class="num" style="color:#c0392b">' + (hide ? '—' : fmtRep(sumUnpaid, 'rff')) + '</td>' // 6
-            + '<td class="num">' + toFa(sumInsCount) + '</td>' // 7
-            + '<td class="num" style="color:#1e9e6a">' + toFa(sumPaidCount) + '</td>' // 8
-            + '<td class="num" style="color:#c47c00">' + toFa(sumUnpaidCount) + '</td>' // 9
-            + '<td class="num">' + toFa(sumOverdue) + '</td>' // 10
-            + '<td></td>' // 11
-            + '<td></td>' // 12
-            + '<td></td>' // 13
+            + '<td style="text-align:right; font-weight:bold;">جمع کل</td>' // 0 Name
+            + '<td></td>' // 1 Category
+            + '<td></td>' // 2 Bank
+            + '<td></td>' // 3 Date
+            + '<td class="num">' + (hide ? '—' : fmtRep(sumInit, 'rff')) + '</td>' // 4 Initial
+            + '<td class="num" style="color:#1e9e6a">' + (hide ? '—' : fmtRep(sumPaid, 'rff')) + '</td>' // 5 Paid
+            + '<td class="num" style="color:#c0392b">' + (hide ? '—' : fmtRep(sumUnpaid, 'rff')) + '</td>' // 6 Unpaid
+            + '<td class="num">' + toFa(sumInsCount) + '</td>' // 7 InsCount
+            + '<td class="num" style="color:#1e9e6a">' + toFa(sumPaidCount) + '</td>' // 8 PaidCount
+            + '<td class="num" style="color:#c47c00">' + toFa(sumUnpaidCount) + '</td>' // 9 UnpaidCount
+            + '<td class="num">' + toFa(sumOverdue) + '</td>' // 10 Overdue
+            + '<td></td>' // 11 FirstUnpaidDate
+            + '<td></td>' // 12 LastPaidDate
+            + '<td></td>' // 13 LastInsDate
+            + '<td></td>' // 14 Status
             + '</tr></tfoot>';
     }
     html += '</table></div>';
@@ -592,4 +598,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v6 (fixed footer alignment + removed actions column)');
+console.log('✅ [modules/reports/facility.js] loaded — v7 (last installment date added)');
