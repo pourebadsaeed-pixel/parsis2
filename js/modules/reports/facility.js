@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v4: افزودن گزینه چاپ افقی/عمودی + قابلیت Fit to Page در پرینت
+   ✅ v5: رفع کامل مشکل Fit to Page با استایل‌های چاپی اختصاصی
    ============================================================ */
 'use strict';
 
@@ -375,7 +375,7 @@ function _flattenRffDetailToTableHtml(containerEl) {
 }
 
 /* ============================================================
-   ✅ تابع اختصاصی چاپ با پشتیبانی از Fit to Page
+   ✅ تابع اختصاصی چاپ با پشتیبانی کامل از Fit to Page
    ============================================================ */
 function printFacilityReport(selector, title, orientation) {
     var activePage = document.querySelector('.page.active');
@@ -403,6 +403,7 @@ function printFacilityReport(selector, title, orientation) {
         detailList.parentNode.replaceChild(wrapper, detailList);
     }
 
+    // حذف المان‌های اضافی که در چاپ نباید باشند (دکمه‌ها، فیلترها و...)
     var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
@@ -423,13 +424,12 @@ function printFacilityReport(selector, title, orientation) {
                 footRow.style.backgroundColor = '#f1f5f9';
                 footRow.style.color = '#0f172a';
                 footRow.style.fontWeight = 'bold';
-                footRow.style.fontSize = '11pt';
                 footRow.style.pageBreakInside = 'avoid';
                 var tds = footRow.querySelectorAll('td');
                 for (var i=0; i<tds.length; i++) {
                     tds[i].style.borderTop = '2px solid #1e40af';
                     tds[i].style.borderBottom = '2px solid #1e40af';
-                    tds[i].style.padding = '10px 5px';
+                    tds[i].style.padding = '4px 2px';
                 }
                 tbody.appendChild(footRow);
             }
@@ -438,27 +438,27 @@ function printFacilityReport(selector, title, orientation) {
     });
 
     var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
-    // استفاده از zoom برای Fit to Page
-    var zoomStyle = (orientation === 'landscape') ? 'zoom: 0.72;' : 'zoom: 0.9;';
 
+    // استایل‌های چاپ بهینه‌شده برای Fit to Page (شکستن خطوط و تنظیم دقیق فونت)
     var htmlContent =
         '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
         '<style>' +
         '@page { size: ' + pageSize + '; margin: 5mm; }' +
-        'body { ' + zoomStyle + ' font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; }' +
-        '.header { text-align: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2.5px solid #1e40af; }' +
+        'body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; }' +
+        '.header { text-align: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2.5px solid #1e40af; }' +
         '.header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; font-weight: 900; }' +
-        'table { width: 100% !important; border-collapse: collapse; margin-bottom: 15px; table-layout: auto; }' +
-        'tr { page-break-inside: avoid !important; }' +
-        'thead { display: table-header-group; }' +
-        'th, td { border: 1px solid #64748b; padding: 3px 4px; text-align: center; vertical-align: middle; font-size: 9pt; white-space: normal !important; word-wrap: break-word; }' +
-        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; }' +
+        'table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; margin-bottom: 10px; }' +
+        'th, td { border: 1px solid #64748b; padding: 3px 2px !important; text-align: center; vertical-align: middle; font-size: 7pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.3; }' +
+        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 7.5pt !important; }' +
         '.num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }' +
         '.dr { color: #dc2626 !important; font-weight: bold; }' +
         '.cr { color: #059669 !important; font-weight: bold; }' +
+        'tr { page-break-inside: avoid !important; }' +
+        'thead { display: table-header-group; }' +
+        '.row-actions, button { display: none !important; }' +
         '</style></head><body>' +
         '<div class="header"><h1>' + esc(title) + '</h1>' +
-        (dateRange ? '<div class="date-range" style="font-size: 10pt;">' + esc(dateRange) + '</div>' : '') +
+        (dateRange ? '<div class="date-range" style="font-size: 9pt;">' + esc(dateRange) + '</div>' : '') +
         '</div><div>' + clone.innerHTML + '</div></body></html>';
 
     var printWindow = window.open('', '_blank');
@@ -595,4 +595,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v4 (Fit to Page enabled)');
+console.log('✅ [modules/reports/facility.js] loaded — v5 (True Fit to Page)');
