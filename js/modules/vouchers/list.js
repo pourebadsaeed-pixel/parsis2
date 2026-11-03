@@ -649,7 +649,12 @@ function bindVoucherListFilters() {
     var vpf = document.getElementById('vl-period-filter');
     if (vpf && !vpf.dataset.bound) {
         vpf.dataset.bound = '1';
-        vpf.addEventListener('change', function () { window._vlistPg.page = 1; renderVoucherList(); });
+        vpf.addEventListener('change', function () {
+            /* ✅ ذخیره انتخاب کاربر برای دفعات بعد */
+            DB.save('vlistPeriodFilter', this.value);
+            window._vlistPg.page = 1;
+            renderVoucherList();
+        });
     }
     var vsrch = document.getElementById('vlist-search');
     if (vsrch && !vsrch.dataset.bound) {
