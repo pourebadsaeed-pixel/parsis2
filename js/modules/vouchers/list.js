@@ -197,9 +197,9 @@ function _computeFilteredVouchers() {
 
     var periodFilterEl = document.getElementById('vl-period-filter');
     var periodFilter = periodFilterEl ? periodFilterEl.value : '';
-    
-    // ✅ اگر هیچ دوره‌ای انتخاب نشده بود، دوره فعال را پیش‌فرض قرار بده
-    if (!periodFilter) periodFilter = state.activePeriodId;
+
+    /* ✅ اگر خالی بود، «همه دوره‌ها» فرض کن */
+    if (!periodFilter) periodFilter = '__ALL__';
 
     var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
     var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
@@ -209,17 +209,25 @@ function _computeFilteredVouchers() {
     if (Array.isArray(periods)) { periods.forEach(function (p) { if (p) pMap[p.id] = p.title; }); }
 
     var vouchers = allVouchers.slice();
-    
-    // ✅ فیلتر سخت‌گیرانه دوره
-    if (periodFilter) {
-        vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
+
+    /* ✅ فیلتر دوره با پشتیبانی از «همه» و «بی‌دوره» */
+    if (periodFilter && periodFilter !== '__ALL__') {
+        if (periodFilter === '__NOPERIOD__') {
+            var knownIds = {};
+            periods.forEach(function(p) { knownIds[p.id] = true; });
+            vouchers = vouchers.filter(function (v) {
+                return !v.periodId || !knownIds[v.periodId];
+            });
+        } else {
+            vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
+        }
     }
-    
+
     if (statusFilter) vouchers = vouchers.filter(function (v) { return (v.status || 'draft') === statusFilter; });
 
     if (searchVal) {
         vouchers = vouchers.filter(function (v) {
-            var pN = pMap[v.periodId] || '';
+            var pN = pMap[v.periodId] || (v.periodId ? '(دوره حذف‌شده)' : '(بدون دوره)');
             var txt = String(v.number || '') + ' ' + String(v.date || '') + ' ' + String(v.desc || '') + ' ' + voucherTypeName(v.type) + ' ' + pN;
             return txt.toLowerCase().indexOf(searchVal) !== -1;
         });
