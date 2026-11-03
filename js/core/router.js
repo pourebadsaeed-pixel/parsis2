@@ -1,8 +1,7 @@
 /* ============================================================
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
-   
-   ✅ v4: افزودن case 'phonebook'
+   ✅ v5: تاپ‌بار حالا کمبو باکس انتخاب دوره فعال است (جدیدترین اول)
    ============================================================ */
 'use strict';
 
@@ -36,27 +35,19 @@ function runPageRenderer(name) {
         'bank-accounts':        function () { if (typeof renderBankAccountsList === 'function') renderBankAccountsList(); if (typeof refreshBankTypeSelect === 'function') refreshBankTypeSelect(); },
         'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
         'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
-
-        /* ✅ v4 — صفحه دفترچه تلفن */
         'phonebook':            function () { if (typeof initPhonebookPage === 'function') initPhonebookPage(); },
-
-        /* ✅ v3 — صفحه کاربران */
         'users':                function () { if (typeof initUsersPage === 'function') initUsersPage(); },
-
-        /* ✅ انواع حساب بانکی و انواع صندوق */
         'bank-types':           function () {
             if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         },
         'cash-types':           function () {
             if (typeof renderChips === 'function') renderChips('cash-types-list', state.cashTypes, 'cashTypes');
         },
-
         'estimate-daily':       function () { if (typeof refreshEstPeriodSelect === 'function') refreshEstPeriodSelect(); if (typeof renderEstimateList === 'function') renderEstimateList(); },
         'cashflow-sources':     function () { if (typeof refreshCfsMoeinSelect === 'function') refreshCfsMoeinSelect(); if (typeof renderCfsList === 'function') renderCfsList(); },
         'facilities':           function () { if (typeof renderFacilitiesList === 'function') renderFacilitiesList(); if (typeof refreshFacBankSelect === 'function') refreshFacBankSelect(); },
-
         'voucher-list':         function () {
-            if (typeof refreshPeriodFilters === 'function') refreshPeriodFilters();
+            if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
             if (typeof renderVoucherList === 'function') renderVoucherList();
         },
         'voucher-new':          function () {
@@ -79,9 +70,7 @@ function runPageRenderer(name) {
             if (typeof updateSmsBadge === 'function') updateSmsBadge();
             if (typeof renderPendingSmsBox === 'function') renderPendingSmsBox();
         },
-
         'dashboard':            function () { if (typeof renderDashboard === 'function') renderDashboard(); },
-
         'report-cashflow': function () {
             var fromEl = document.getElementById('cf-from');
             if (fromEl && !fromEl.value) {
@@ -130,7 +119,6 @@ function runPageRenderer(name) {
         'report-compare':       function () {
             if (typeof runComparisonReport === 'function') setTimeout(runComparisonReport, 50);
         },
-
         'home':                 function () { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); },
         'jalali-calendar':      function () { if (typeof calRender === 'function') setTimeout(calRender, 80); }
     };
@@ -171,12 +159,71 @@ function getActiveFiscalYearStart() {
     return parts[0] + '/01/01';
 }
 
+/* ============================================================
+   ✅ تاپ‌بار — کمبو باکس انتخاب دوره فعال
+   ============================================================ */
 function updateTopbarPeriod() {
     var el = document.getElementById('topbar-period');
     if (!el) return;
+
     var list = DB.load('fiscalPeriods', []);
-    var p = list.find(function (x) { return x.id === state.activePeriodId; });
-    el.textContent = p ? p.title : 'دوره: —';
+    if (!Array.isArray(list)) list = [];
+
+    // مرتب‌سازی: جدیدترین سال در ابتدا (بر اساس تاریخ شروع)
+    list = list.slice().sort(function (a, b) {
+        return String(b.from || '').localeCompare(String(a.from || ''));
+    });
+
+    // اگر دوره فعال وجود نداشت یا از لیست حذف شده، جدیدترین را انتخاب کن
+    var current = state.activePeriodId || '';
+    if (list.length > 0 && !list.some(function (x) { return x.id === current; })) {
+        current = list[0].id;
+        state.activePeriodId = current;
+        saveState(LS_KEYS.ACTIVE_PERIOD);
+    }
+
+    if (el.tagName === 'SELECT') {
+        var html = '';
+        if (list.length === 0) {
+            html = '<option value="">— بدون دوره —</option>';
+        } else {
+            list.forEach(function (p) {
+                var sel = (p.id === current) ? ' selected' : '';
+                var label = p.title || 'دوره';
+                if (p.from && p.to) label += ' | ' + p.from + ' تا ' + p.to;
+                html += '<option value="' + esc(p.id) + '"' + sel + '>' + esc(label) + '</option>';
+            });
+        }
+        el.innerHTML = html;
+
+        if (!el.dataset.boundChange) {
+            el.dataset.boundChange = '1';
+            el.addEventListener('change', function () {
+                var newId = this.value;
+                if (!newId) return;
+                state.activePeriodId = newId;
+                saveState(LS_KEYS.ACTIVE_PERIOD);
+
+                // رفرش لیست اسناد
+                if (typeof window.renderVoucherList === 'function') {
+                    window._vlistPg = window._vlistPg || { page: 1 };
+                    window._vlistPg.page = 1;
+                    try { window.renderVoucherList(); } catch (e) {}
+                }
+                if (typeof updateHomeWidgets === 'function') {
+                    try { updateHomeWidgets(); } catch (e) {}
+                }
+                if (typeof showToast === 'function') {
+                    var pp = list.find(function (x) { return x.id === newId; });
+                    showToast('📅 دوره فعال: ' + (pp ? pp.title : newId));
+                }
+            });
+        }
+    } else {
+        // پشتیبانی از div (اگر HTML هنوز آپدیت نشده)
+        var p = list.find(function (x) { return x.id === current; });
+        el.textContent = p ? p.title : 'دوره: —';
+    }
 }
 
 function rerenderCurrentPage() {
@@ -229,4 +276,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded — phonebook case added');
+console.log('✅ [core/router.js] loaded — v5 (topbar period combobox)');
