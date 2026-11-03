@@ -1,7 +1,7 @@
 /* ============================================================
-   پارسیس — فهرست اسناد (با دریافت اکسل و نمونه)
+   پارسیس — فهرست اسناد
    مسیر: js/modules/vouchers/list.js
-   ✅ v4: اسناد بر اساس دوره فعال فیلتر می‌شوند
+   ✅ v5: فیلتر سخت‌گیرانه دوره فعال (از تاپ‌بار) — حذف vl-period-filter
    ============================================================ */
 'use strict';
 
@@ -138,7 +138,7 @@ function importVouchersFromExcel(file) {
             DB.save('vouchers', vList);
             renderVoucherList();
             
-            alert('✅ ' + imported + ' سند با موفقیت به عنوان پیش‌نویس ذخیره شد.\n\n💡 اسنادی که دارای نقص هستند، در لیست با علامت ⚠️ نمایش داده می‌شوند و می‌توانید آن‌ها را ویرایش کنید.');
+            alert('✅ ' + imported + ' سند با موفقیت به عنوان پیش‌نویس ذخیره شد.\n\n💡 اسنادی که دارای نقص هستند، در لیست با علامت ⚠️ نمایش داده می‌شوند.');
             
         } catch (err) {
             console.error(err);
@@ -190,16 +190,16 @@ function renderVoucherPager(total, curPage) {
     mkBtn('⏮', totalPages, curPage === totalPages, 'آخرین');
 }
 
+/* ============================================================
+   ✅ _computeFilteredVouchers — فیلتر سخت‌گیرانه بر اساس دوره فعال (تاپ‌بار)
+   ============================================================ */
 function _computeFilteredVouchers() {
     var allVouchers = DB.load('vouchers', []);
     if (!Array.isArray(allVouchers)) allVouchers = [];
     allVouchers = allVouchers.filter(function(x) { return x && typeof x === 'object'; });
 
-    var periodFilterEl = document.getElementById('vl-period-filter');
-    var periodFilter = periodFilterEl ? periodFilterEl.value : '';
-
-    /* ✅ اگر خالی بود، «همه دوره‌ها» فرض کن */
-    if (!periodFilter) periodFilter = '__ALL__';
+    // ✅ دوره فعال از state (که با کمبوباکس تاپ‌بار ست می‌شود)
+    var periodId = state.activePeriodId || '';
 
     var statusFilter = (document.getElementById('vlist-status-filter') || {}).value || '';
     var searchVal = ((document.getElementById('vlist-search') || {}).value || '').toLowerCase();
@@ -210,24 +210,20 @@ function _computeFilteredVouchers() {
 
     var vouchers = allVouchers.slice();
 
-    /* ✅ فیلتر دوره با پشتیبانی از «همه» و «بی‌دوره» */
-    if (periodFilter && periodFilter !== '__ALL__') {
-        if (periodFilter === '__NOPERIOD__') {
-            var knownIds = {};
-            periods.forEach(function(p) { knownIds[p.id] = true; });
-            vouchers = vouchers.filter(function (v) {
-                return !v.periodId || !knownIds[v.periodId];
-            });
-        } else {
-            vouchers = vouchers.filter(function (v) { return v.periodId === periodFilter; });
-        }
+    // ✅ فیلتر سخت‌گیرانه: فقط اسناد دوره فعال
+    if (periodId) {
+        vouchers = vouchers.filter(function (v) { return v.periodId === periodId; });
+    } else {
+        vouchers = []; // بدون دوره فعال → هیچ سندی
     }
 
-    if (statusFilter) vouchers = vouchers.filter(function (v) { return (v.status || 'draft') === statusFilter; });
+    if (statusFilter) {
+        vouchers = vouchers.filter(function (v) { return (v.status || 'draft') === statusFilter; });
+    }
 
     if (searchVal) {
         vouchers = vouchers.filter(function (v) {
-            var pN = pMap[v.periodId] || (v.periodId ? '(دوره حذف‌شده)' : '(بدون دوره)');
+            var pN = pMap[v.periodId] || '';
             var txt = String(v.number || '') + ' ' + String(v.date || '') + ' ' + String(v.desc || '') + ' ' + voucherTypeName(v.type) + ' ' + pN;
             return txt.toLowerCase().indexOf(searchVal) !== -1;
         });
@@ -269,7 +265,13 @@ function _computeFilteredVouchers() {
         return st.dir === 'asc' ? c : -c;
     });
 
-    return { vouchers: vouchers, pMap: pMap, total: vouchers.length, allCount: allVouchers.length };
+    return {
+        vouchers: vouchers,
+        pMap: pMap,
+        total: vouchers.length,
+        allCount: allVouchers.length,
+        hasActivePeriod: !!periodId
+    };
 }
 
 function renderVoucherList() {
@@ -281,15 +283,37 @@ function renderVoucherList() {
         if (!tb) return;
 
         var result = _computeFilteredVouchers();
-        var allCount = result.allCount;
         var vouchers = result.vouchers;
         var pMap = result.pMap;
         var total = result.total;
+        var hasPeriod = result.hasActivePeriod;
 
-        if (allCount === 0) {
-            tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی ثبت نشده است.</td></tr>';
-            var cEl = document.getElementById('vlist-count'); if (cEl) cEl.textContent = '۰';
-            var box = document.getElementById('vlist-pagination'); if (box) box.style.display = 'none';
+        // ✅ اگر دوره فعال انتخاب نشده
+        if (!hasPeriod) {
+            tb.innerHTML = '<tr><td colspan="8" class="empty-row">⚠️ هیچ دوره مالی فعالی انتخاب نشده است.<br>از منوی بالای صفحه یک دوره را انتخاب کنید.</td></tr>';
+            var cEl = document.getElementById('vlist-count');
+            if (cEl) cEl.textContent = '۰';
+            var box = document.getElementById('vlist-pagination');
+            if (box) box.style.display = 'none';
+            return;
+        }
+
+        // ✅ اگر در دوره فعال سندی نیست
+        if (result.allCount === 0) {
+            tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی در سیستم ثبت نشده است.</td></tr>';
+            var cEl2 = document.getElementById('vlist-count');
+            if (cEl2) cEl2.textContent = '۰';
+            var box2 = document.getElementById('vlist-pagination');
+            if (box2) box2.style.display = 'none';
+            return;
+        }
+
+        if (total === 0) {
+            tb.innerHTML = '<tr><td colspan="8" class="empty-row">هیچ سندی در دوره فعال با این فیلترها یافت نشد.</td></tr>';
+            var cEl3 = document.getElementById('vlist-count');
+            if (cEl3) cEl3.textContent = '۰';
+            var box3 = document.getElementById('vlist-pagination');
+            if (box3) box3.style.display = 'none';
             return;
         }
 
@@ -646,16 +670,8 @@ function openVoucherForEditById(vid) {
 }
 
 function bindVoucherListFilters() {
-    var vpf = document.getElementById('vl-period-filter');
-    if (vpf && !vpf.dataset.bound) {
-        vpf.dataset.bound = '1';
-        vpf.addEventListener('change', function () {
-            /* ✅ ذخیره انتخاب کاربر برای دفعات بعد */
-            DB.save('vlistPeriodFilter', this.value);
-            window._vlistPg.page = 1;
-            renderVoucherList();
-        });
-    }
+    /* ❌ vl-period-filter حذف شد — انتخاب دوره در تاپ‌بار است */
+    
     var vsrch = document.getElementById('vlist-search');
     if (vsrch && !vsrch.dataset.bound) {
         vsrch.dataset.bound = '1';
@@ -694,7 +710,15 @@ function bindVoucherListFilters() {
         var orig = window.goToPage;
         window.goToPage = function (name, forceNew) {
             var r = orig.apply(this, arguments);
-            if (name === 'voucher-list') { setTimeout(function () { try { if (typeof refreshPeriodFilters === 'function') refreshPeriodFilters(); renderVoucherList(); bindVoucherListFilters(); } catch (e) { console.error('vlist:', e); } }, 120); }
+            if (name === 'voucher-list') { 
+                setTimeout(function () { 
+                    try { 
+                        if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
+                        renderVoucherList(); 
+                        bindVoucherListFilters(); 
+                    } catch (e) { console.error('vlist:', e); } 
+                }, 120); 
+            }
             return r;
         };
     }
@@ -733,4 +757,4 @@ window._computeFilteredVouchers = _computeFilteredVouchers;
 window.downloadVoucherTemplate = downloadVoucherTemplate;
 window.importVouchersFromExcel = importVouchersFromExcel;
 
-console.log('✅ [modules/vouchers/list.js] loaded — v4 active period strict filter');
+console.log('✅ [modules/vouchers/list.js] loaded — v5 (strict active period, no vl-period-filter)');
