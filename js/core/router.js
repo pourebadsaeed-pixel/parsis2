@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
-   ✅ v5: تاپ‌بار حالا کمبو باکس انتخاب دوره فعال است (جدیدترین اول)
+   ✅ v6: تاپ‌بار فقط عنوان دوره را نشان می‌دهد (بدون بازه تاریخ)
    ============================================================ */
 'use strict';
 
@@ -160,7 +160,7 @@ function getActiveFiscalYearStart() {
 }
 
 /* ============================================================
-   ✅ تاپ‌بار — کمبو باکس انتخاب دوره فعال
+   ✅ تاپ‌بار — کمبو باکس انتخاب دوره فعال (فقط عنوان، بدون بازه)
    ============================================================ */
 function updateTopbarPeriod() {
     var el = document.getElementById('topbar-period');
@@ -189,8 +189,8 @@ function updateTopbarPeriod() {
         } else {
             list.forEach(function (p) {
                 var sel = (p.id === current) ? ' selected' : '';
+                // ✅ فقط عنوان دوره — بدون بازه تاریخ
                 var label = p.title || 'دوره';
-                if (p.from && p.to) label += ' | ' + p.from + ' تا ' + p.to;
                 html += '<option value="' + esc(p.id) + '"' + sel + '>' + esc(label) + '</option>';
             });
         }
@@ -276,4 +276,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded — v5 (topbar period combobox)');
+console.log('✅ [core/router.js] loaded — v6 (title only in topbar period select)');
