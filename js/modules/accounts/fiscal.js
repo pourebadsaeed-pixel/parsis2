@@ -141,21 +141,45 @@ function refreshPeriodFilters() {
     var list = DB.load('fiscalPeriods', []);
     var sel = document.getElementById('vl-period-filter');
     if (!sel) return;
-    
-    // ✅ حذف گزینه "همه دوره‌ها" برای جلوگیری از قاطی شدن اسناد
-    sel.innerHTML = ''; 
+
+    var saved = DB.load('vlistPeriodFilter', null);
+
+    sel.innerHTML = '';
+
+    /* ✅ گزینه «همه دوره‌ها» */
+    var optAll = document.createElement('option');
+    optAll.value = '__ALL__';
+    optAll.textContent = '📋 همه دوره‌ها';
+    sel.appendChild(optAll);
+
+    /* گزینه‌های دوره‌های تعریف‌شده */
     for (var i = 0; i < list.length; i++) {
         var o = document.createElement('option');
         o.value = list[i].id;
         o.textContent = list[i].title;
         sel.appendChild(o);
     }
-    
-    // ✅ انتخاب خودکار دوره فعال
-    if (state.activePeriodId) {
-        sel.value = state.activePeriodId;
-    } else if (list.length > 0) {
-        sel.value = list[0].id;
+
+    /* ✅ گزینه «بدون دوره / دوره حذف‌شده» برای اسناد بی‌دوره */
+    var vouchers = DB.load('vouchers', []);
+    if (!Array.isArray(vouchers)) vouchers = [];
+    var knownIds = {};
+    list.forEach(function(p) { knownIds[p.id] = true; });
+    var orphanCount = vouchers.filter(function(v) {
+        return !v.periodId || !knownIds[v.periodId];
+    }).length;
+    if (orphanCount > 0) {
+        var optOrphan = document.createElement('option');
+        optOrphan.value = '__NOPERIOD__';
+        optOrphan.textContent = '⚠️ بدون دوره / حذف‌شده (' + toFa(orphanCount) + ')';
+        sel.appendChild(optOrphan);
+    }
+
+    /* ✅ بازگرداندن آخرین انتخاب کاربر یا پیش‌فرض «همه» */
+    if (saved && Array.from(sel.options).some(function(o) { return o.value === saved; })) {
+        sel.value = saved;
+    } else {
+        sel.value = '__ALL__';
     }
 }
 
