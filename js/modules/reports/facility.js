@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — گزارش‌های تسهیلات
    مسیر: js/modules/reports/facility.js
-   ✅ v9: نمایش اجباری ستون‌های جدید (ریست خودکار تنظیمات) + عملیات در پرینت مخفی
+   ✅ v10: رفع فیلتر تاریخ، حذف ریست ستون‌ها، اصلاح رویدادها
    ============================================================ */
 'use strict';
 
@@ -123,11 +123,19 @@ function computeFacilityRows() {
     facilities.forEach(function (f) {
         if (cf && (f.category || 'facility') !== cf) return;
         if (bf && f.bankId !== bf) return;
-        if (fromD && f.date && f.date < fromD) return;
-        if (toD && f.date && f.date > toD) return;
 
+        // ✅ رفع باگ: شرط تاریخ خود تسهیلات برداشته شد تا فقط سررسید اقساط لحاظ شود
         var allIns = f.installments || []; var ins = allIns;
-        if (fromD || toD) { ins = allIns.filter(function (x) { if (!x.date) return false; if (fromD && x.date < fromD) return false; if (toD && x.date > toD) return false; return true; }); }
+        if (fromD || toD) { 
+            ins = allIns.filter(function (x) { 
+                if (!x.date) return false; 
+                if (fromD && x.date < fromD) return false; 
+                if (toD && x.date > toD) return false; 
+                return true; 
+            }); 
+        }
+
+        if ((fromD || toD) && ins.length === 0) return;
 
         var paidCount = ins.filter(function (x) { return x.status === 'paid'; }).length;
         var totalAmt = ins.reduce(function (s, x) { return s + (Number(x.amount) || 0); }, 0);
@@ -150,7 +158,6 @@ function computeFacilityRows() {
             lastInsDate = sortedIns[0].date || '—'; 
         }
 
-        if ((fromD || toD) && ins.length === 0) return;
         if (sf === 'settled' && !settled) return;
         if (sf === 'active' && settled) return;
         if (inf === 'has-unpaid' && !(unpaidList.length > 0)) return;
@@ -201,12 +208,7 @@ function runFacilityFullReport() {
 }
 
 function renderFacilityFullSummary(rows) {
-    // ✅ ریست کردن تنظیمات مخفی‌سازی ستون‌ها تا ستون‌های جدید حتماً دیده شوند
-    try {
-        var cs = DB.load(LS_KEYS.COLUMN_SETTINGS, {});
-        if (cs['rff-table']) { delete cs['rff-table']; DB.save(LS_KEYS.COLUMN_SETTINGS, cs); }
-        if (typeof colSettings !== 'undefined') { delete colSettings['rff-table']; }
-    } catch(e) {}
+    // ✅ کد ریست ستون‌ها (که باعث می‌شد تیک‌ها برگردند) حذف شد
 
     var hide = getHideState('rff');
     var html = '<div class="table-wrap"><table class="report-table" id="rff-table"><thead><tr>'
@@ -431,7 +433,6 @@ function printFacilityReport(selector, title, orientation) {
         detailList.parentNode.replaceChild(wrapper, detailList);
     }
 
-    // حذف المان‌های اضافی و ستون‌های کلاس print-hide در چاپ
     var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta, .print-hide');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
@@ -445,7 +446,6 @@ function printFacilityReport(selector, title, orientation) {
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
 
-        // حذف ستون‌های مخفی از هدر و بدنه
         var hiddenIndices = [];
         var ths = thead ? thead.querySelectorAll('th') : [];
         for (var i = 0; i < ths.length; i++) {
@@ -591,6 +591,7 @@ function bindFacilityReportButtons() {
     if (rfCat && !rfCat.dataset.bound) { rfCat.dataset.bound = '1'; rfCat.addEventListener('change', runFacilityReport); }
     var rfStatus = document.getElementById('rf-status');
     if (rfStatus && !rfStatus.dataset.bound) { rfStatus.dataset.bound = '1'; rfStatus.addEventListener('change', runFacilityReport); }
+    
     var rffCat = document.getElementById('rff-category');
     if (rffCat && !rffCat.dataset.bound) { rffCat.dataset.bound = '1'; rffCat.addEventListener('change', runFacilityFullReport); }
     var rffStatus = document.getElementById('rff-status');
@@ -602,9 +603,14 @@ function bindFacilityReportButtons() {
     var rffSearch = document.getElementById('rff-search');
     if (rffSearch && !rffSearch.dataset.bound) { rffSearch.dataset.bound = '1'; rffSearch.addEventListener('input', runFacilityFullReport); }
 
+    // ✅ افزودن رویداد change و input برای فیلدهای تاریخ تا هر دو حالت کار کنند
     ['rff-from', 'rff-to'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el && !el.dataset.bound) { el.dataset.bound = '1'; el.addEventListener('input', runFacilityFullReport); }
+        if (el && !el.dataset.bound) { 
+            el.dataset.bound = '1'; 
+            el.addEventListener('input', runFacilityFullReport); 
+            el.addEventListener('change', runFacilityFullReport);
+        }
     });
 
     var rffTabs = document.querySelectorAll('[data-rff-view]');
@@ -634,4 +640,4 @@ window._flattenRffDetailToTableData  = _flattenRffDetailToTableData;
 window._flattenRffDetailToTableHtml  = _flattenRffDetailToTableHtml;
 window.printFacilityReport           = printFacilityReport;
 
-console.log('✅ [modules/reports/facility.js] loaded — v9 (force unhide new columns)');
+console.log('✅ [modules/reports/facility.js] loaded — v10 (date filter & column reset fixed)');
