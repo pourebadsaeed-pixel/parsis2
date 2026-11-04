@@ -1,10 +1,7 @@
 /* ============================================================
    پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
-   
-   ✅ v3: 
-     • v2: رفع مبالغ تفصیلی (perParent)
-     • v3: رفع گردش تفصیلی — نمایش فقط معین جاری
+   ✅ v5: باکس نوع تفصیل + ناوبری دوطرفه با فیلتر تفصیل در همه سطوح
    ============================================================ */
 'use strict';
 
@@ -15,6 +12,26 @@ var _AR = {
     detailFilter: null,
     detailFilterType: null
 };
+
+var _AR_DetailTypeFilter = DB.load('ar.detailTypeFilter', null);
+(function initARTypeFilter() {
+    var defaultTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
+        ? LINK_TYPES
+        : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
+    if (!_AR_DetailTypeFilter || typeof _AR_DetailTypeFilter !== 'object') {
+        _AR_DetailTypeFilter = {};
+    }
+    var changed = false;
+    defaultTypes.forEach(function (t) {
+        if (typeof _AR_DetailTypeFilter[t] === 'undefined') {
+            _AR_DetailTypeFilter[t] = true;
+            changed = true;
+        }
+    });
+    if (changed) {
+        try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+    }
+})();
 
 var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
 var _arSort = { col: 'code', dir: 'asc' };
@@ -67,8 +84,9 @@ var _arSort = { col: 'code', dir: 'asc' };
         .ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }
         .ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; transition:all .15s; flex-shrink:0; font-family:inherit; line-height:1 }
         .ar-turnover-btn:hover { background:#1e40af; color:#fff; transform:scale(1.15); box-shadow:0 2px 8px rgba(30,64,175,.4) }
-        .ar-filter-badge { background:#fef3c7; color:#92400e; padding:6px 12px; border-radius:8px; font-size:0.8rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin: 0 14px 10px 14px; border: 1px solid #f59e0b; }
-        .ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:0.75rem; font-weight:bold; }
+        .ar-filter-badge { background:#fef3c7; color:#92400e; padding:8px 14px; border-radius:10px; font-size:0.82rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; gap:10px; margin: 0 14px 10px 14px; border: 1.5px solid #f59e0b; flex-wrap:wrap; }
+        .ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:6px 12px; border-radius:8px; cursor:pointer; font-family:inherit; font-size:0.78rem; font-weight:bold; }
+        .ar-filter-badge .ar-fb-info { flex:1; min-width:150px; line-height:1.7 }
         @media (max-width:720px) {
             .ar-main { flex-direction:column }
             .ar-side { width:100%; border-left:none; border-bottom:1px solid var(--border) }
@@ -85,9 +103,6 @@ var _arSort = { col: 'code', dir: 'asc' };
     document.head.appendChild(s);
 })();
 
-/* ============================================================
-   Collapsible Logic
-   ============================================================ */
 function injectRaCollapseStyle() {
     if (document.getElementById('ra-collapse-style')) return;
     var s = document.createElement('style');
@@ -109,24 +124,18 @@ injectRaCollapseStyle();
 (function installRaToggleDelegation() {
     if (window._raToggleDelegated) return;
     window._raToggleDelegated = true;
-
     document.addEventListener('click', function (e) {
         var btn = e.target && e.target.closest && e.target.closest('.ra-filter-toggle');
         if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
-
         var card = btn.closest('.cf-filter-card'); 
         if (!card) return;
-
         var isCollapsed = card.classList.toggle('cf-collapsed');
         try { DB.save('ra.filterCollapsed', isCollapsed); } catch (er) {}
     }, true);
 })();
 
-/* ============================================================
-   Filter Panel Builder
-   ============================================================ */
 function rebuildAccountFilterPanel() {
     var body = document.getElementById('ra-filter-body');
     if (!body) return;
@@ -146,6 +155,30 @@ function rebuildAccountFilterPanel() {
     var defFrom = activePeriod ? activePeriod.from : '';
     var defTo = activePeriod ? activePeriod.to : '';
     var onlyBalVal = DB.load('ra.onlyBal', true);
+
+    var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
+        ? LINK_TYPES
+        : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
+    
+    var typesHtml = '<div class="field" style="padding:12px;background:#f8fafd;border:1.5px solid var(--border);border-radius:12px;margin-top:10px">'
+        + '<label style="font-weight:900;color:#1e40af;font-size:0.88rem;display:block;margin-bottom:10px">🏷 نوع تفصیل — نمایش در سطح تفصیل</label>'
+        + '<div class="checkbox-grid">';
+    allTypes.forEach(function (lt) {
+        var checked = _AR_DetailTypeFilter[lt] !== false ? 'checked' : '';
+        typesHtml += '<label class="checkbox-item" style="margin:0;cursor:pointer">'
+            + '<input type="checkbox" data-ar-type-filter="' + lt + '" ' + checked + '>'
+            + '<span>' + linkTypeName(lt) + '</span>'
+            + '</label>';
+    });
+    typesHtml += '</div>'
+        + '<p style="margin:8px 0 0 0;font-size:0.72rem;color:#64748b;line-height:1.7">'
+        + '💡 این تنظیم فقط در سطح «تفصیل» اعمال می‌شود. تفصیلی‌هایی که نوعشان تیک نخورده باشد، نمایش داده نمی‌شوند.'
+        + '</p>'
+        + '<div style="display:flex;gap:6px;margin-top:8px">'
+        +   '<button type="button" id="ar-type-all" class="btn-secondary btn-mini" style="flex:1;font-size:0.75rem">✓ انتخاب همه</button>'
+        +   '<button type="button" id="ar-type-none" class="btn-secondary btn-mini" style="flex:1;font-size:0.75rem">✗ حذف همه</button>'
+        + '</div>'
+        + '</div>';
 
     var html = ''
         + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">'
@@ -184,7 +217,8 @@ function rebuildAccountFilterPanel() {
         +       '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
         +     '</label>'
         +   '</div>'
-        + '</div>';
+        + '</div>'
+        + typesHtml;
 
     body.innerHTML = html;
 
@@ -194,6 +228,32 @@ function rebuildAccountFilterPanel() {
             DB.save('ra.onlyBal', this.checked);
             renderAccountReview();
         });
+    }
+
+    body.querySelectorAll('[data-ar-type-filter]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var lt = this.getAttribute('data-ar-type-filter');
+            _AR_DetailTypeFilter[lt] = this.checked;
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            renderAccountReview();
+        });
+    });
+
+    var btnAll = document.getElementById('ar-type-all');
+    if (btnAll) {
+        btnAll.onclick = function () {
+            allTypes.forEach(function (lt) { _AR_DetailTypeFilter[lt] = true; });
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            renderAccountReview();
+        };
+    }
+    var btnNone = document.getElementById('ar-type-none');
+    if (btnNone) {
+        btnNone.onclick = function () {
+            allTypes.forEach(function (lt) { _AR_DetailTypeFilter[lt] = false; });
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            renderAccountReview();
+        };
     }
 
     var runBtn = document.getElementById('ra-run');
@@ -249,9 +309,6 @@ function filterVouchers(opts) {
     });
 }
 
-/* ============================================================
-   computeAccountBalances — با perParent برای تفصیلی‌ها
-   ============================================================ */
 function computeAccountBalances(opts) {
     var vouchers = filterVouchers(opts);
     var accounts = DB.load('accounts', []);
@@ -362,7 +419,6 @@ function getRootAccountId(accId, accounts) {
     return acc ? acc.id : '';
 }
 
-/* ✅ v3: گارد در برابر accountId خالی */
 function getDescendantIds(accountId) {
     if (!accountId) return [];
     var accounts = DB.load('accounts', []);
@@ -411,7 +467,7 @@ function refreshReportPeriodSelects() {
 }
 
 /* ============================================================
-   renderAccountReview — با perParent + parentAccId برای گردش
+   ✅ renderAccountReview — فیلتر تفصیل در همه سطوح با مبالغ متعلقه
    ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
@@ -442,37 +498,25 @@ function renderAccountReview() {
     else if (_AR.activeLevel === 3) parentId = _AR.path[1] || null;
     else if (_AR.activeLevel === 4) parentId = _AR.path[2] || null;
 
-    var filterParents = null;
+    /* ✅ اطلاعات فیلتر تفصیل (اگر فعال است) */
+    var detailInfo = null;
     if (_AR.detailFilter && _AR.detailFilterType) {
         var dKey = _AR.detailFilterType + '::' + _AR.detailFilter;
-        if (detailBals[dKey]) filterParents = detailBals[dKey].parents;
+        detailInfo = detailBals[dKey] || null;
+        if (!detailInfo) {
+            /* فیلتر نامعتبر (تفصیل حذف شده؟) → پاک شود */
+            _AR.detailFilter = null;
+            _AR.detailFilterType = null;
+        }
     }
 
     var list = [];
-    if (_AR.activeLevel <= 3) {
-        accounts.forEach(function (a) {
-            var lvl = 1, cur = a;
-            while(cur && cur.parent) { lvl++; cur = accounts.find(function(x){ return x.id === cur.parent; }); }
-            if (lvl !== _AR.activeLevel) return;
-            
-            if (_AR.activeLevel === 1) {
-                if (a.parent) return;
-            } else if (parentId) {
-                if (a.parent !== parentId) return;
-            }
 
-            if (filterParents && filterParents.indexOf(a.id) === -1) return;
-
-            list.push({
-                id: a.id, isDetail: false, name: a.name, code: a.code,
-                debit: (rolled[a.id] && rolled[a.id].debit) || 0,
-                credit: (rolled[a.id] && rolled[a.id].credit) || 0,
-                parentId: a.parent
-            });
-        });
-    } else {
+    if (_AR.activeLevel === 4) {
+        /* سطح ۴ (تفصیل) — فیلتر تفصیل این‌جا اعمال نمی‌شود؛ فقط نوع تفصیل */
         Object.keys(detailBals).forEach(function (key) {
             var d = detailBals[key];
+            if (d.linkType && _AR_DetailTypeFilter[d.linkType] === false) return;
             if (parentId && d.parents.indexOf(parentId) === -1) return;
 
             var dAmt = (parentId && d.perParent && d.perParent[parentId])
@@ -482,18 +526,109 @@ function renderAccountReview() {
             list.push({
                 id: d.id, isDetail: true, linkType: d.linkType, parentIds: d.parents,
                 name: getDetailLabel(d.linkType, d.id), code: '—',
-                debit: dAmt.debit,
-                credit: dAmt.credit
+                debit: dAmt.debit, credit: dAmt.credit
+            });
+        });
+    }
+    else if (detailInfo) {
+        /* ✅ فیلتر تفصیل فعال — سطوح ۱ تا ۳ از perParent استفاده می‌کنند */
+        var relevantMoeins = detailInfo.parents;
+
+        if (_AR.activeLevel === 3) {
+            /* معین‌های مرتبط */
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc) return;
+                if (parentId && acc.parent !== parentId) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                list.push({
+                    id: acc.id, isDetail: false, name: acc.name, code: acc.code,
+                    debit: dAmt.debit, credit: dAmt.credit, parentId: acc.parent
+                });
+            });
+        }
+        else if (_AR.activeLevel === 2) {
+            /* کل‌های مرتبط (جمع از perParent) */
+            var kolAgg = {};
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc || !acc.parent) return;
+                if (parentId && acc.parent !== parentId) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                if (!kolAgg[acc.parent]) kolAgg[acc.parent] = { debit: 0, credit: 0 };
+                kolAgg[acc.parent].debit  += dAmt.debit;
+                kolAgg[acc.parent].credit += dAmt.credit;
+            });
+            Object.keys(kolAgg).forEach(function (kolId) {
+                var kol = accounts.find(function (a) { return a.id === kolId; });
+                if (!kol) return;
+                list.push({
+                    id: kol.id, isDetail: false, name: kol.name, code: kol.code,
+                    debit: kolAgg[kolId].debit, credit: kolAgg[kolId].credit, parentId: kol.parent
+                });
+            });
+        }
+        else if (_AR.activeLevel === 1) {
+            /* گروه‌های مرتبط (جمع از perParent) */
+            var groupAgg = {};
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc) return;
+                var cur = acc;
+                var safety = 0;
+                while (cur && cur.parent && safety < 20) {
+                    cur = accounts.find(function (a) { return a.id === cur.parent; });
+                    safety++;
+                }
+                if (!cur) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                if (!groupAgg[cur.id]) groupAgg[cur.id] = { debit: 0, credit: 0 };
+                groupAgg[cur.id].debit  += dAmt.debit;
+                groupAgg[cur.id].credit += dAmt.credit;
+            });
+            Object.keys(groupAgg).forEach(function (gid) {
+                var g = accounts.find(function (a) { return a.id === gid; });
+                if (!g) return;
+                list.push({
+                    id: g.id, isDetail: false, name: g.name, code: g.code,
+                    debit: groupAgg[gid].debit, credit: groupAgg[gid].credit, parentId: ''
+                });
+            });
+        }
+    }
+    else {
+        /* بدون فیلتر تفصیل — ناوبری عادی */
+        accounts.forEach(function (a) {
+            var lvl = 1, cur = a;
+            while (cur && cur.parent) {
+                lvl++;
+                cur = accounts.find(function (x) { return x.id === cur.parent; });
+            }
+            if (lvl !== _AR.activeLevel) return;
+            
+            if (_AR.activeLevel === 1) {
+                if (a.parent) return;
+            } else if (parentId) {
+                if (a.parent !== parentId) return;
+            }
+
+            list.push({
+                id: a.id, isDetail: false, name: a.name, code: a.code,
+                debit: (rolled[a.id] && rolled[a.id].debit) || 0,
+                credit: (rolled[a.id] && rolled[a.id].credit) || 0,
+                parentId: a.parent
             });
         });
     }
 
+    /* فیلتر فقط دارای مانده */
     list = list.filter(function(a) {
         var net = a.debit - a.credit;
         if (filterBal && Math.abs(net) < 0.5) return false;
         return true;
     });
 
+    /* مرتب‌سازی */
     list.sort(function(a, b) {
         var col = _arSort.col, dir = _arSort.dir === 'asc' ? 1 : -1;
         var va, vb;
@@ -524,7 +659,6 @@ function renderAccountReview() {
 
         var turnoverAcc = a.isDetail ? '' : a.id; 
         var turnoverDetailAttr = a.isDetail ? ' data-turnover-detail="' + a.id + '" data-turnover-link="' + a.linkType + '"' : '';
-        /* ✅ v3: پاس دادن parentId تا گردش تفصیلی محدود به معین جاری شود */
         var turnoverParentAttr = (a.isDetail && parentId) ? ' data-turnover-parent="' + parentId + '"' : '';
 
         rowsHtml += '<tr class="' + rowCls + '" '
@@ -567,9 +701,15 @@ function renderAccountReview() {
     });
 
     if (list.length === 0) {
-        rowsHtml += '<tr><td colspan="6" class="ar-empty">'
-             +  (filterBal || _AR.detailFilter ? 'هیچ موردی با این فیلترها یافت نشد.' : 'داده‌ای در این سطح نیست.')
-             +  '</td></tr>';
+        var emptyMsg;
+        if (detailInfo) {
+            emptyMsg = 'این تفصیل در این شاخه تراکنشی ندارد.';
+        } else if (filterBal) {
+            emptyMsg = 'هیچ موردی با این فیلترها یافت نشد.';
+        } else {
+            emptyMsg = 'داده‌ای در این سطح نیست.';
+        }
+        rowsHtml += '<tr><td colspan="6" class="ar-empty">' + emptyMsg + '</td></tr>';
     }
 
     var footHtml = '<tr>';
@@ -588,10 +728,12 @@ function renderAccountReview() {
     html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
     html += '</div>';
 
-    if (_AR.detailFilter && _AR.detailFilterType) {
+    /* ✅ نمایش Badge فیلتر در همه سطوح */
+    if (detailInfo) {
         var detName = getDetailLabel(_AR.detailFilterType, _AR.detailFilter);
+        var typeName = linkTypeName(_AR.detailFilterType);
         html += '<div class="ar-filter-badge">';
-        html += '<span>🔍 فیلتر روی تفصیلی: <b>' + esc(detName) + '</b> (نمایش معین‌های مرتبط)</span>';
+        html += '<span class="ar-fb-info">🔍 <b>فیلتر تفصیل فعال:</b> ' + esc(typeName) + ': <b>' + esc(detName) + '</b> — فقط شاخه‌های مرتبط نمایش داده می‌شوند</span>';
         html += '<button type="button" id="ar-clear-detail-filter">❌ لغو فیلتر</button>';
         html += '</div>';
     }
@@ -673,17 +815,24 @@ function renderAccountReview() {
     }, 50);
 }
 
+/* ============================================================
+   ✅ bindAccountReviewEvents — ناوبری با حفظ فیلتر تفصیل
+   ============================================================ */
 function bindAccountReviewEvents(accounts, box) {
+    /* ✅ دکمه‌های سطح (گروه/کل/معین/تفصیل) — فیلتر تفصیل حفظ می‌شود */
     box.querySelectorAll('.ar-lvl').forEach(function (el) {
         el.addEventListener('click', function () {
             var lvl = Number(this.getAttribute('data-lvl'));
             if (lvl === _AR.activeLevel) return;
-            
-            _AR.detailFilter = null;
-            _AR.detailFilterType = null;
+
+            /* اگر به سطح ۴ می‌رویم، فیلتر تفصیل پاک شود (چون در سطح ۴ معنی ندارد) */
+            if (lvl === 4) {
+                _AR.detailFilter = null;
+                _AR.detailFilterType = null;
+            }
 
             if (lvl < _AR.activeLevel) {
-                _AR.path = _AR.path.slice(0, lvl - 1);
+                _AR.path = _AR.path.slice(0, Math.max(0, lvl - 1));
             }
             
             _AR.activeLevel = lvl;
@@ -692,16 +841,14 @@ function bindAccountReviewEvents(accounts, box) {
         });
     });
 
+    /* ✅ Breadcrumb — فیلتر تفصیل حفظ می‌شود */
     box.querySelectorAll('[data-goto]').forEach(function (a) {
         a.addEventListener('click', function () {
-            _AR.detailFilter = null;
-            _AR.detailFilterType = null;
-            
             var id = this.getAttribute('data-goto');
             var idx = _AR.path.indexOf(id);
             if (idx >= 0) {
                 _AR.path = _AR.path.slice(0, idx + 1);
-                _AR.activeLevel = idx + 1;
+                _AR.activeLevel = Math.min(4, idx + 2);
             } else {
                 _AR.path = [];
                 _AR.activeLevel = 1;
@@ -713,9 +860,6 @@ function bindAccountReviewEvents(accounts, box) {
 
     box.querySelectorAll('[data-goto-lvl]').forEach(function (a) {
         a.addEventListener('click', function () {
-            _AR.detailFilter = null;
-            _AR.detailFilterType = null;
-            
             _AR.path = [];
             _AR.activeLevel = 1;
             _AR.selectedId = null;
@@ -723,6 +867,7 @@ function bindAccountReviewEvents(accounts, box) {
         });
     });
 
+    /* ✅ کلیک روی ردیف */
     box.querySelectorAll('.ar-row').forEach(function (tr) {
         tr.addEventListener('click', function (e) {
             if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
@@ -734,11 +879,15 @@ function bindAccountReviewEvents(accounts, box) {
             _AR.selectedId = id;
             
             if (isDetail) {
+                /* ✅ کلیک روی تفصیل → فیلتر فعال می‌شود و به سطح ۳ می‌رویم */
                 _AR.detailFilter = id;
                 _AR.detailFilterType = tr.getAttribute('data-link');
                 _AR.activeLevel = 3;
-                _AR.path = [];
+                if (_AR.path.length > 2) {
+                    _AR.path = _AR.path.slice(0, 2);
+                }
             } else {
+                /* ✅ کلیک روی غیر تفصیل → drill-down عادی + پاک شدن فیلتر تفصیل */
                 _AR.detailFilter = null;
                 _AR.detailFilterType = null;
                 _AR.path[_AR.activeLevel - 1] = id;
@@ -750,9 +899,6 @@ function bindAccountReviewEvents(accounts, box) {
     });
 }
 
-/* ============================================================
-   _AR_openTurnover — با خواندن parentId
-   ============================================================ */
 window._AR_openTurnover = function (btn) {
     try {
         if (!btn) return;
@@ -800,15 +946,11 @@ function _arOpenVoucherPreviewAboveTurnover(v) {
     }, 100);
 }
 
-/* ============================================================
-   openAccountTurnover — با فیلتر parentAccId
-   ============================================================ */
 function openAccountTurnover(accountId, detailInfo) {
     var accounts = DB.load('accounts', []);
     var ids = [];
     var title = '';
 
-    /* ✅ v3: اولویت ۱ — اگر از تفصیل با parent آمده‌ایم، فقط معین جاری */
     if (detailInfo && detailInfo.parentAccId) {
         var pAcc = accounts.find(function(a) { return a.id === detailInfo.parentAccId; });
         ids = [detailInfo.parentAccId];
@@ -816,7 +958,6 @@ function openAccountTurnover(accountId, detailInfo) {
               + (pAcc ? pAcc.name : '—')
               + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
     }
-    /* اولویت ۲ — تفصیل بدون parent: در همه حساب‌ها بگرد */
     else if (detailInfo) {
         if (accountId) {
             var acc = accounts.find(function(a) { return a.id === accountId; });
@@ -831,7 +972,6 @@ function openAccountTurnover(accountId, detailInfo) {
             ids = accounts.map(function(a) { return a.id; });
         }
     }
-    /* اولویت ۳ — کلیک روی خود معین/کل/گروه */
     else if (accountId) {
         var targetAcc = accounts.find(function(a) { return a.id === accountId; });
         if (!targetAcc) return;
@@ -1024,6 +1164,7 @@ document.addEventListener('click', function(e) {
 });
 
 window._AR                            = _AR;
+window._AR_DetailTypeFilter           = _AR_DetailTypeFilter;
 window._AR_LEVELS                     = _AR_LEVELS;
 window.rebuildAccountFilterPanel      = rebuildAccountFilterPanel;
 window.renderAccountReview            = renderAccountReview;
@@ -1037,4 +1178,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — v3 turnover parent fix');
+console.log('✅ [modules/reports/account.js] loaded — v5 (detail filter persists across all levels)');
