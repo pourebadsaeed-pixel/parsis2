@@ -20,7 +20,7 @@
             DB.save('users', [{
                 id: 'u_admin',
                 username: 'سرپرست',
-                password: '1369',
+                password: 'گویندگان',
                 personId: '',
                 isAdmin: true,
                 active: true
