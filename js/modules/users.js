@@ -16,7 +16,7 @@
 'use strict';
 
 var ADMIN_USERNAME = 'سرپرست';
-var ADMIN_DEFAULT_PASSWORD = '1369';
+var ADMIN_DEFAULT_PASSWORD = 'گویندگان';
 var ADMIN_MAIN_ID = 'u_admin';
 
 /* ============================================================
