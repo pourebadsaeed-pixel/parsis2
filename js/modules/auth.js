@@ -151,7 +151,7 @@ function login() {
 
         var users = DB.load('users', []);
         if (!Array.isArray(users) || users.length === 0) {
-            users = [{ id: 'u_admin', username: 'سرپرست', password: '1369', personId: '', isAdmin: true, active: true }];
+            users = [{ id: 'u_admin', username: 'سرپرست', password: 'گویندگان', personId: '', isAdmin: true, active: true }];
             DB.save('users', users);
         }
 
