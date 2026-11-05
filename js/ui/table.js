@@ -1,8 +1,7 @@
 /* ============================================================
    پارسیس — جدول‌ها: عرض، ترتیب، مخفی‌سازی، مرتب‌سازی، فیلتر
    مسیر: js/ui/table.js
-   
-   ✅ v4: به‌روزرسانی گزینه‌های فیلتر (مساوی، نامساوی، بزرگتر، کوچکتر و...)
+   ✅ v5: رفع باگ کرش در فیلتر ستون‌ها (اضافه شدن contains)
    ============================================================ */
 'use strict';
 
@@ -768,9 +767,9 @@ function openColFilterPopover(tableId, origIdx, btn) {
     var existing = (COLUMN_FILTERS[tableId] && COLUMN_FILTERS[tableId][origIdx]) || {};
     var currentOp = existing.op || '';
 
-    /* ✅ گزینه‌های دقیقاً مطابق درخواست شما */
     var ops = [
         ['', 'بدون فیلتر'],
+        ['contains', 'شامل (حاوی)'],
         ['eq', 'مساوی با'],
         ['neq', 'نامساوی با'],
         ['gt', 'بزرگتر از'],
@@ -786,7 +785,8 @@ function openColFilterPopover(tableId, origIdx, btn) {
 
     var opBtn = document.createElement('div');
     opBtn.className = 'cf-op-btn';
-    var selectedLabel = ops.find(function(o) { return o[0] === currentOp; })[1] || 'بدون فیلتر';
+    var foundOp = ops.find(function(o) { return o[0] === currentOp; });
+    var selectedLabel = foundOp ? foundOp[1] : 'بدون فیلتر';
     opBtn.innerHTML = '<span>' + selectedLabel + '</span><span>▼</span>';
 
     var opList = document.createElement('div');
@@ -887,7 +887,6 @@ function openColFilterPopover(tableId, origIdx, btn) {
             if (COLUMN_FILTERS[tableId]) delete COLUMN_FILTERS[tableId][origIdx];
             btn.classList.remove('active');
         } else if (!op && val) {
-            /* اگر مقداری تایپ شد ولی عملگری انتخاب نشد، به صورت پیش‌فرض فیلتر "شامل" عمل کند */
             if (!COLUMN_FILTERS[tableId]) COLUMN_FILTERS[tableId] = {};
             COLUMN_FILTERS[tableId][origIdx] = { op: 'contains', val: val };
             btn.classList.add('active');
@@ -1115,4 +1114,4 @@ window.syncBodyOrigIndices = syncBodyOrigIndices;
 window.openColFilterPopover = openColFilterPopover;
 window.closeColFilterPopover = closeColFilterPopover;
 
-console.log('✅ [ui/table.js] loaded — v4 (custom filter operators)');
+console.log('✅ [ui/table.js] loaded — v5 (fixed column filter crash)');
