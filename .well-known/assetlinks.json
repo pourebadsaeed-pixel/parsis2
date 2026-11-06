@@ -1,12 +1,8 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "ir.parsis.app",
-      "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_SHA256_FINGERPRINT"
-      ]
-    }
-  }
-]
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.pourebadsaeed_pixel.twa",
+        "sha256_cert_fingerprints": ["BA:83:C3:85:2B:BB:AE:D6:3B:22:00:A7:1F:BF:ED:F2:50:2E:59:77:0D:A1:86:61:00:15:2B:EB:06:7E:84:B1"]
+      }
+    }]
