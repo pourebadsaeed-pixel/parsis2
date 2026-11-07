@@ -15,10 +15,13 @@ function bindSettingsButtons() {
             if (overlay) overlay.classList.add('show');
             if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
             if (typeof renderDashboardOrderUI === 'function') renderDashboardOrderUI();
+            if (typeof updateBiometricUI === 'function') updateBiometricUI(); // ✅ این خط اضافه شود
+            
             var aboutEl = document.getElementById('about-version');
             if (aboutEl) aboutEl.textContent = APP_NAME + ' — نسخه ' + toFa(APP_VERSION) + ' (PWA)';
         };
     }
+    // ... بقیه کدها بدون تغییر ...
     var closeBtn = document.getElementById('close-settings');
     if (closeBtn) closeBtn.onclick = closeSettings;
     var overlay = document.getElementById('settings-overlay');
