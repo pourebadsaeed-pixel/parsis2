@@ -31,10 +31,10 @@ var LS_KEYS = {
     CURRENCY:         'currency',
     CURRENCY_DISPLAY: 'currencyDisplay',
     HIDE_NUMBERS:     'hideNumbers',
+    REPORT_HIDE:      'reportHide',
     BIOMETRIC_ENABLED: 'biometricEnabled',
     BIOMETRIC_CRED_ID: 'biometricCredId',
     LAST_USER_ID:      'lastUserId',
-    REPORT_HIDE:      'reportHide',
     BANK_TYPES:       'bankTypes',
     CASH_TYPES:       'cashTypes',
     ACTIVE_PERIOD:    'activePeriodId',
@@ -180,4 +180,4 @@ window.NOTE_CATEGORIES      = NOTE_CATEGORIES;
 window.CHECKLIST_CATEGORIES = CHECKLIST_CATEGORIES;
 window.MAX_HOME_PAGES       = MAX_HOME_PAGES;
 
-console.log('✅ [core/constants.js] loaded — phonebook added');
+console.log('✅ [core/constants.js] loaded — Biometric keys added');
