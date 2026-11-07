@@ -26,21 +26,26 @@
 <body class="theme-sky font-tahoma">
 
 <div id="login-overlay" style="position:fixed; inset:0; background:var(--bg-grad); z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
-    <div class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;">
+    <!-- اضافه کردن autocomplete="off" به کل فرم -->
+    <form class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;" autocomplete="off" onsubmit="event.preventDefault(); login();">
         <h2 style="color:var(--primary-dark); margin-bottom:20px;">ورود به پارسیس</h2>
+        
         <div class="field" style="text-align:right;">
             <label>نام کاربری</label>
-            <input type="text" id="login-username" placeholder="سرپرست" dir="rtl" autocomplete="username">
+            <!-- غیرفعال کردن ذخیره نام کاربری -->
+            <input type="text" id="login-username" name="username" placeholder="سرپرست" dir="rtl" autocomplete="off">
         </div>
+        
         <div class="field" style="text-align:right;">
             <label>کلمه عبور</label>
-            <input type="password" id="login-password" placeholder="****" dir="rtl" autocomplete="current-password">
+            <!-- ترفند اصلی: new-password باعث می‌شود مرورگر فکر کند در حال ساخت رمز جدید هستیم و رمز قبلی را پر نمی‌کند -->
+            <input type="password" id="login-password" name="password" placeholder="****" dir="rtl" autocomplete="new-password">
         </div>
-        <button id="login-btn" class="btn-primary" style="width:100%; margin-top:10px;">ورود</button>
-        <!-- دکمه جدید برای ورود بیومتریک -->
+        
+        <button id="login-btn" type="submit" class="btn-primary" style="width:100%; margin-top:10px;">ورود</button>
         <button id="login-bio-btn" class="btn-secondary hidden" style="width:100%; margin-top:10px; background:#10b981; color:#fff; border:none;">👤 ورود با اثر انگشت / چهره</button>
         <div id="login-error" style="color:red; font-size:0.85rem; margin-top:10px; display:none;"></div>
-    </div>
+    </form>
 </div>
 
 <div id="app" style="display:none;">
