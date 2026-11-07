@@ -9,7 +9,7 @@
         var users = DB.load('users', null);
         if (!users || !Array.isArray(users) || users.length === 0) {
             DB.save('users', [{
-                id: 'u_admin', username: 'سرپرست', password: '1369',
+                id: 'u_admin', username: 'سرپرست', password: 'گویندگان',
                 personId: '', isAdmin: true, active: true
             }]);
         }
@@ -20,9 +20,6 @@ function normalizeFaLogin(s) {
     return String(s || '').replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک').trim().toLowerCase();
 }
 
-/* ============================================================
-   ✅ توابع کمکی WebAuthn (تبدیل بافر به Base64 و برعکس)
-   ============================================================ */
 function _bufToB64(buf) {
     let binary = '';
     let bytes = new Uint8Array(buf);
@@ -46,9 +43,6 @@ async function checkBiometricSupport() {
     }
 }
 
-/* ============================================================
-   ثبت اثر انگشت (فعال‌سازی)
-   ============================================================ */
 async function registerBiometric() {
     var user = state.currentUser;
     if (!user) return false;
@@ -62,11 +56,11 @@ async function registerBiometric() {
                 challenge: challenge,
                 rp: { name: "پارسیس", id: location.hostname },
                 user: {
-                    id: new Uint8Array(16), // یک شناسه تصادفی
+                    id: new Uint8Array(16),
                     name: user.username,
                     displayName: user.username
                 },
-                pubKeyCredParams: [{ alg: -7, type: "public-key" }], // الگوریتم ES256
+                pubKeyCredParams: [{ alg: -7, type: "public-key" }],
                 authenticatorSelection: { 
                     authenticatorAttachment: "platform", 
                     userVerification: "required" 
@@ -88,9 +82,6 @@ async function registerBiometric() {
     return false;
 }
 
-/* ============================================================
-   ورود با اثر انگشت
-   ============================================================ */
 async function loginWithBiometric() {
     var storedId = DB.load(LS_KEYS.BIOMETRIC_CRED_ID, null);
     if (!storedId) return;
@@ -109,7 +100,6 @@ async function loginWithBiometric() {
         });
 
         if (assert) {
-            // ورود موفقیت‌آمیز بود
             var users = DB.load('users', []);
             var userId = DB.load(LS_KEYS.LAST_USER_ID, '');
             var found = users.find(function(u) { return u.id === userId; });
@@ -127,14 +117,10 @@ async function loginWithBiometric() {
     }
 }
 
-/* ============================================================
-   آپدیت UI تنظیمات و دکمه لاگین
-   ============================================================ */
 async function updateBiometricUI() {
     var isSupported = await checkBiometricSupport();
     var isEnabled = DB.load(LS_KEYS.BIOMETRIC_ENABLED, false);
     
-    // 1. آپدیت دکمه لاگین
     var bioBtn = document.getElementById('login-bio-btn');
     if (bioBtn) {
         if (isSupported && isEnabled) {
@@ -145,7 +131,6 @@ async function updateBiometricUI() {
         }
     }
 
-    // 2. آپدیت کلید تنظیمات
     var cb = document.getElementById('set-biometric');
     var status = document.getElementById('bio-settings-status');
     if (cb) {
@@ -180,9 +165,6 @@ async function updateBiometricUI() {
     }
 }
 
-/* ============================================================
-   نمایش کارت کاربر فعلی
-   ============================================================ */
 function renderCurrentUserUI() {
     var user = state.currentUser;
     if (!user || !user.username) return;
@@ -259,7 +241,7 @@ function login() {
 
         var users = DB.load('users', []);
         if (!Array.isArray(users) || users.length === 0) {
-            users = [{ id: 'u_admin', username: 'سرپرست', password: '1369', personId: '', isAdmin: true, active: true }];
+            users = [{ id: 'u_admin', username: 'سرپرست', password: 'گویندگان', personId: '', isAdmin: true, active: true }];
             DB.save('users', users);
         }
 
@@ -279,7 +261,7 @@ function login() {
         }
 
         try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch (e) {}
-        DB.save(LS_KEYS.LAST_USER_ID, found.id); // ذخیره آخرین کاربر برای بیومتریک
+        DB.save(LS_KEYS.LAST_USER_ID, found.id); 
 
         var btn = document.getElementById('login-btn');
         if (btn) { btn.innerHTML = '⏳ در حال ورود...'; btn.disabled = true; }
@@ -319,7 +301,6 @@ function bindAuthUI() {
         }
     });
 
-    // راه‌اندازی اولیه بیومتریک
     updateBiometricUI();
 }
 
@@ -329,5 +310,3 @@ window.bindAuthUI = bindAuthUI;
 window.login = login;
 window.renderCurrentUserUI = renderCurrentUserUI;
 window.updateBiometricUI = updateBiometricUI;
-
-console.log('✅ [modules/auth.js] loaded — WebAuthn Biometric enabled');
