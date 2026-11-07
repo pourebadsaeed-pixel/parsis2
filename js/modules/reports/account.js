@@ -1,11 +1,7 @@
 /* ============================================================
    پارسیس — گزارش مرور حساب‌ها
    مسیر: js/modules/reports/account.js
-   ✅ v6: 
-      - رفع باگ «انتخاب همه» / «حذف همه» (آپدیت بصری چک‌باکس‌ها)
-      - فیلتر نوع تفصیل در همه سطوح (۱ تا ۴)
-      - مبالغ فیلترشده بر اساس نوع تفصیل
-      - حفظ فیلتر تفصیل در پیمایش
+   ✅ v7: انتقال دکمه‌های عملیات به کنار دکمه فیلتر
    ============================================================ */
 'use strict';
 
@@ -114,7 +110,7 @@ function injectRaCollapseStyle() {
     var s = document.createElement('style');
     s.id = 'ra-collapse-style';
     s.textContent = ''
-    + '.ra-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; margin-bottom:14px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
+    + '.ra-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
     + '.ra-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
     + '.ra-filter-toggle:active { transform:scale(0.97); }'
     + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
@@ -143,18 +139,61 @@ injectRaCollapseStyle();
 })();
 
 /* ============================================================
-   ✅ پنل فیلتر با باکس نوع تفصیل
+   ✅ پنل فیلتر با باکس نوع تفصیل و دکمه‌های هم‌تراز
    ============================================================ */
 function rebuildAccountFilterPanel() {
     var body = document.getElementById('ra-filter-body');
     if (!body) return;
     
-    if (body.querySelector('button')) return; 
+    var card = document.getElementById('ra-filter-card');
+    var toggleBtn = document.getElementById('ra-filter-toggle');
+    
+    /* ✅ انتقال دکمه‌ها به بالای پنل و هم‌تراز کردن با دکمه فیلتر */
+    if (card && toggleBtn && !document.getElementById('ra-header-row')) {
+        var headerRow = document.createElement('div');
+        headerRow.id = 'ra-header-row';
+        headerRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap;';
+        
+        card.insertBefore(headerRow, toggleBtn);
+        headerRow.appendChild(toggleBtn);
+        
+        var btnGroup = document.createElement('div');
+        btnGroup.id = 'ra-btn-group';
+        btnGroup.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap;';
+        btnGroup.innerHTML = ''
+            + '<button id="ra-run" class="btn-primary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">🔍 اجرا</button>'
+            + '<button id="ra-print" class="btn-secondary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">🖨 چاپ</button>'
+            + '<button id="ra-export" class="btn-secondary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">📊 اکسل</button>';
+        headerRow.appendChild(btnGroup);
+    }
+    
+    /* بایند کردن رویداد دکمه‌ها (در هر بار لود تب جدید) */
+    var runBtn = document.getElementById('ra-run');
+    if (runBtn) {
+        runBtn.onclick = function () {
+            _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
+            renderAccountReview();
+        };
+    }
+    var printBtn = document.getElementById('ra-print');
+    if (printBtn) {
+        printBtn.onclick = function () {
+            if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
+        };
+    }
+    var exportBtn = document.getElementById('ra-export');
+    if (exportBtn) {
+        exportBtn.onclick = function () {
+            if (typeof exportReportTable === 'function') exportReportTable('#ra-result', 'مرور-حساب-ها');
+        };
+    }
+    
+    /* گارد جلوگیری از بازسازی تکراری فرم */
+    if (body.querySelector('#ra-from')) return; 
     body.innerHTML = ''; 
 
     var collapsed = false;
     try { collapsed = DB.load('ra.filterCollapsed', false); } catch (e) {}
-    var card = document.getElementById('ra-filter-card');
     if (card) {
         if (collapsed) card.classList.add('cf-collapsed');
         else card.classList.remove('cf-collapsed');
@@ -190,11 +229,6 @@ function rebuildAccountFilterPanel() {
         + '</div>';
 
     var html = ''
-        + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">'
-        +   '<button id="ra-run" class="btn-primary">🔍 اجرا</button>'
-        +   '<button id="ra-print" class="btn-secondary">🖨 چاپ</button>'
-        +   '<button id="ra-export" class="btn-secondary">📊 اکسل</button>'
-        + '</div>'
         + '<div class="grid-2">'
         +   '<div class="field"><label>از تاریخ</label><input type="text" id="ra-from" class="date-picker" dir="ltr" value="' + esc(defFrom) + '"></div>'
         +   '<div class="field"><label>تا تاریخ</label><input type="text" id="ra-to" class="date-picker" dir="ltr" value="' + esc(defTo) + '"></div>'
@@ -248,7 +282,6 @@ function rebuildAccountFilterPanel() {
         });
     });
 
-    /* ✅ رفع باگ: انتخاب همه + آپدیت بصری چک‌باکس‌ها */
     var btnAll = document.getElementById('ar-type-all');
     if (btnAll) {
         btnAll.onclick = function () {
@@ -266,28 +299,6 @@ function rebuildAccountFilterPanel() {
             body.querySelectorAll('[data-ar-type-filter]').forEach(function (cb) { cb.checked = false; });
             renderAccountReview();
         };
-    }
-
-    var runBtn = document.getElementById('ra-run');
-    if (runBtn) {
-        runBtn.addEventListener('click', function () {
-            _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
-            renderAccountReview();
-        });
-    }
-
-    var printBtn = document.getElementById('ra-print');
-    if (printBtn) {
-        printBtn.addEventListener('click', function () {
-            if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
-        });
-    }
-
-    var exportBtn = document.getElementById('ra-export');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', function () {
-            if (typeof exportReportTable === 'function') exportReportTable('#ra-result', 'مرور-حساب-ها');
-        });
     }
 
     if (typeof attachDatePickers === 'function') attachDatePickers();
@@ -403,9 +414,6 @@ function rollupBalances(accounts, balances) {
     return rolled;
 }
 
-/* ============================================================
-   ✅ توابع فیلتر نوع تفصیل — محاسبه بالانس‌های فیلترشده و moein‌های قابل نمایش
-   ============================================================ */
 function _arTypeFilterIsActive() {
     var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
         ? LINK_TYPES
@@ -437,7 +445,6 @@ function _arComputeFilteredBalances(opts) {
             if (opts.cat && acc.cat !== opts.cat) return;
             if (opts.nature && acc.nature !== opts.nature) return;
 
-            /* فقط خطوطی که حداقل یک تفصیل با نوع تیک‌خورده دارند */
             if (!_arLineHasMatchingDetail(line)) return;
 
             if (!balances[acc.id]) balances[acc.id] = { debit: 0, credit: 0 };
@@ -463,7 +470,6 @@ function _arComputeVisibleAccountIds(opts, accounts) {
             if (opts.nature && acc.nature !== opts.nature) return;
             if (!_arLineHasMatchingDetail(line)) return;
 
-            /* این moein و همه والدینش قابل نمایش‌اند */
             var cur = acc, safety = 0;
             while (cur && safety < 20) {
                 visible[cur.id] = true;
@@ -536,9 +542,6 @@ function refreshReportPeriodSelects() {
     });
 }
 
-/* ============================================================
-   ✅ renderAccountReview — فیلتر نوع تفصیل در همه سطوح
-   ============================================================ */
 function renderAccountReview() {
     var box = document.getElementById('ra-result');
     if (!box) return;
@@ -567,7 +570,6 @@ function renderAccountReview() {
     else if (_AR.activeLevel === 3) parentId = _AR.path[1] || null;
     else if (_AR.activeLevel === 4) parentId = _AR.path[2] || null;
 
-    /* آیا فیلتر تفصیل فعال است؟ */
     var detailInfo = null;
     if (_AR.detailFilter && _AR.detailFilterType) {
         var dKey = _AR.detailFilterType + '::' + _AR.detailFilter;
@@ -578,10 +580,8 @@ function renderAccountReview() {
         }
     }
 
-    /* آیا فیلتر نوع تفصیل فعال است؟ (وقتی فیلتر تفصیل فعال است، اولویت با فیلتر تفصیل است) */
     var typeFilterActive = !detailInfo && _arTypeFilterIsActive();
 
-    /* محاسبه بالانس‌های فیلترشده */
     var balancesForRollup, visibleIds = null;
     if (typeFilterActive) {
         balancesForRollup = _arComputeFilteredBalances(opts);
@@ -594,7 +594,6 @@ function renderAccountReview() {
     var list = [];
 
     if (_AR.activeLevel === 4) {
-        /* سطح تفصیل */
         Object.keys(detailBals).forEach(function (key) {
             var d = detailBals[key];
             if (d.linkType && _AR_DetailTypeFilter[d.linkType] === false) return;
@@ -612,7 +611,6 @@ function renderAccountReview() {
         });
     }
     else if (detailInfo) {
-        /* فیلتر تفصیل فعال — فقط شاخه‌های مرتبط با آن تفصیل */
         var relevantMoeins = detailInfo.parents;
 
         if (_AR.activeLevel === 3) {
@@ -674,7 +672,6 @@ function renderAccountReview() {
         }
     }
     else if (typeFilterActive) {
-        /* ✅ فیلتر نوع تفصیل فعال — فقط شاخه‌های درگیر با انواع تیک‌خورده */
         accounts.forEach(function (a) {
             var lvl = 1, cur = a;
             while (cur && cur.parent) {
@@ -689,7 +686,6 @@ function renderAccountReview() {
                 if (a.parent !== parentId) return;
             }
 
-            /* ✅ فقط اگر این حساب (یا فرزندانش) با نوع تفصیل تیک‌خورده درگیر باشد */
             if (!visibleIds[a.id]) return;
 
             var bal = rolled[a.id] || { debit: 0, credit: 0 };
@@ -700,7 +696,6 @@ function renderAccountReview() {
         });
     }
     else {
-        /* حالت عادی بدون فیلتر */
         accounts.forEach(function (a) {
             var lvl = 1, cur = a;
             while (cur && cur.parent) {
@@ -724,14 +719,12 @@ function renderAccountReview() {
         });
     }
 
-    /* فیلتر فقط دارای مانده */
     list = list.filter(function(a) {
         var net = a.debit - a.credit;
         if (filterBal && Math.abs(net) < 0.5) return false;
         return true;
     });
 
-    /* مرتب‌سازی */
     list.sort(function(a, b) {
         var col = _arSort.col, dir = _arSort.dir === 'asc' ? 1 : -1;
         var va, vb;
@@ -821,7 +814,6 @@ function renderAccountReview() {
     html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
     html += '</div>';
 
-    /* نمایش Badge فیلتر تفصیل */
     if (detailInfo) {
         var detName = getDetailLabel(_AR.detailFilterType, _AR.detailFilter);
         var typeName = linkTypeName(_AR.detailFilterType);
@@ -831,7 +823,6 @@ function renderAccountReview() {
         html += '</div>';
     }
 
-    /* نمایش Badge فیلتر نوع تفصیل */
     if (typeFilterActive) {
         var activeTypesList = [];
         var allTypesForBadge = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length) ? LINK_TYPES : ['person','company','bank','cashbox','project','facility'];
@@ -905,7 +896,6 @@ function renderAccountReview() {
             var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length) ? LINK_TYPES : ['person','company','bank','cashbox','project','facility'];
             allTypes.forEach(function(lt) { _AR_DetailTypeFilter[lt] = true; });
             try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch(e) {}
-            /* آپدیت بصری چک‌باکس‌های پنل فیلتر */
             var body2 = document.getElementById('ra-filter-body');
             if (body2) {
                 body2.querySelectorAll('[data-ar-type-filter]').forEach(function(cb){ cb.checked = true; });
@@ -1239,4 +1229,4 @@ window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
 window.openAccountTurnover            = openAccountTurnover;
 window.closeTurnover                  = closeTurnover;
 
-console.log('✅ [modules/reports/account.js] loaded — v6 (type filter all levels + select/deselect fix)');
+console.log('✅ [modules/reports/account.js] loaded — v7 (action buttons next to filter)');
