@@ -37,8 +37,8 @@
             <input type="password" id="login-password" placeholder="****" dir="rtl" autocomplete="current-password">
         </div>
         <button id="login-btn" class="btn-primary" style="width:100%; margin-top:10px;">ورود</button>
-<!-- دکمه جدید برای ورود بیومتریک -->
-<button id="login-bio-btn" class="btn-secondary hidden" style="width:100%; margin-top:10px; background:#10b981; color:#fff; border:none;">👤 ورود با اثر انگشت / چهره</button>
+        <!-- دکمه جدید برای ورود بیومتریک -->
+        <button id="login-bio-btn" class="btn-secondary hidden" style="width:100%; margin-top:10px; background:#10b981; color:#fff; border:none;">👤 ورود با اثر انگشت / چهره</button>
         <div id="login-error" style="color:red; font-size:0.85rem; margin-top:10px; display:none;"></div>
     </div>
 </div>
@@ -217,24 +217,45 @@
             <input type="text" class="filter-input" id="users-filter" placeholder="🔍 جستجو">
         </div>
         <div class="table-wrap"><table class="data-table" id="users-table"><thead><tr>
-            <th>نام کاربری</th><th>شخص مرتبط</th><th>نقش</th><th>وضعیت</th><th>عملیات</th>
+            <th>نام کاربری</th>
+            <th>شخص مرتبط</th>
+            <th>نقش</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
         </tr></thead><tbody id="users-list-body"></tbody></table></div>
     </div></div>
     <div id="tab-users-add" class="tab-content"><div class="card">
         <input type="hidden" id="user-id">
         <div class="grid-2">
-            <div class="field"><label>نام کاربری *</label><input type="text" id="user-username" dir="rtl" autocomplete="off"></div>
-            <div class="field"><label>شخص مرتبط</label><select id="user-person"></select></div>
+            <div class="field">
+                <label>نام کاربری *</label>
+                <input type="text" id="user-username" dir="rtl" autocomplete="off">
+            </div>
+            <div class="field">
+                <label>شخص مرتبط</label>
+                <select id="user-person"></select>
+            </div>
         </div>
         <div class="grid-2">
             <div class="field">
-                <label>کلمه عبور <span style="color:#dc2626">*</span><small style="color:#64748b;font-weight:normal;font-size:0.72rem">(در ویرایش، خالی بگذارید)</small></label>
+                <label>کلمه عبور <span style="color:#dc2626">*</span>
+                    <small style="color:#64748b;font-weight:normal;font-size:0.72rem">(در ویرایش، خالی بگذارید تا تغییر نکند)</small>
+                </label>
                 <div style="position:relative">
                     <input type="password" id="user-password" dir="ltr" autocomplete="new-password" style="padding-left:44px">
-                    <button type="button" id="user-password-toggle" title="نمایش" style="position:absolute;top:50%;left:5px;transform:translateY(-50%);background:var(--primary-soft);color:var(--primary-dark);border:none;width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:1rem;padding:0;display:flex;align-items:center;justify-content:center">👁</button>
+                    <button type="button" id="user-password-toggle"
+                            title="نمایش/مخفی کردن پسورد"
+                            style="position:absolute;top:50%;left:5px;transform:translateY(-50%);
+                                   background:var(--primary-soft);color:var(--primary-dark);
+                                   border:none;width:32px;height:32px;border-radius:9px;
+                                   cursor:pointer;font-size:1rem;padding:0;
+                                   display:flex;align-items:center;justify-content:center">👁</button>
                 </div>
             </div>
-            <div class="field"><label>تکرار کلمه عبور</label><input type="password" id="user-password-confirm" dir="ltr" autocomplete="new-password"></div>
+            <div class="field">
+                <label>تکرار کلمه عبور</label>
+                <input type="password" id="user-password-confirm" dir="ltr" autocomplete="new-password">
+            </div>
         </div>
         <div class="grid-2">
             <div class="field" style="padding:14px;background:var(--card-alt);border-radius:12px;border:1px solid var(--border);margin-bottom:12px">
@@ -242,12 +263,18 @@
                     <input type="checkbox" id="user-is-admin" style="width:18px;height:18px;accent-color:var(--primary)">
                     <span style="font-weight:700">👑 سرپرست</span>
                 </label>
+                <div style="font-size:0.72rem;color:#64748b;margin-top:6px;line-height:1.7">
+                    دسترسی کامل به همه بخش‌ها — می‌تواند کاربران دیگر را ویرایش/حذف کند
+                </div>
             </div>
             <div class="field" style="padding:14px;background:var(--card-alt);border-radius:12px;border:1px solid var(--border);margin-bottom:12px">
                 <label class="checkbox-item" style="margin:0;cursor:pointer;background:none;padding:0;display:flex;align-items:center;gap:8px">
                     <input type="checkbox" id="user-active" checked style="width:18px;height:18px;accent-color:var(--primary)">
                     <span style="font-weight:700">✅ حساب فعال است</span>
                 </label>
+                <div style="font-size:0.72rem;color:#64748b;margin-top:6px;line-height:1.7">
+                    فقط کاربران فعال می‌توانند وارد سیستم شوند
+                </div>
             </div>
         </div>
         <div class="form-buttons">
@@ -259,7 +286,9 @@
 
 <section id="page-language" class="page">
     <h2>🌐 زبان</h2>
-    <div class="card"><div class="field"><label>انتخاب زبان</label><select id="set-language"><option value="fa">فارسی</option><option value="en">English</option></select></div></div>
+    <div class="card"><div class="field"><label>انتخاب زبان</label>
+        <select id="set-language"><option value="fa">فارسی</option><option value="en">English</option></select>
+    </div></div>
 </section>
 
 <section id="page-account-types" class="page">
@@ -291,8 +320,12 @@
 <section id="page-currency" class="page">
     <h2>💱 ارز</h2>
     <div class="card">
-        <div class="field"><label>واحد پول</label><select id="set-currency"><option value="rial">ریال</option><option value="toman">تومان</option></select></div>
-        <div class="field"><label>نمایش</label><select id="set-currency-display"><option value="rial">ریال</option><option value="toman">تومان</option><option value="million">میلیون ریال</option></select></div>
+        <div class="field"><label>واحد پول</label>
+            <select id="set-currency"><option value="rial">ریال</option><option value="toman">تومان</option></select>
+        </div>
+        <div class="field"><label>نمایش</label>
+            <select id="set-currency-display"><option value="rial">ریال</option><option value="toman">تومان</option><option value="million">میلیون ریال</option></select>
+        </div>
     </div>
 </section>
 
@@ -566,7 +599,9 @@
             <label>نام و نام خانوادگی * <span style="font-size:0.7rem;color:#64748b">(ارجاع به اشخاص)</span></label>
             <div style="display:flex;gap:6px;align-items:stretch">
                 <div id="pb-person-select" style="flex:1"></div>
-                <button type="button" id="pb-person-add" class="btn-primary" style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900" title="افزودن شخص جدید">+</button>
+                <button type="button" id="pb-person-add" class="btn-primary"
+                        style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900"
+                        title="افزودن شخص جدید">+</button>
             </div>
         </div>
 
@@ -574,7 +609,9 @@
             <div class="field">
                 <label>شماره همراه</label>
                 <input type="text" id="pb-mobile" dir="ltr" placeholder="09xxxxxxxxx">
-                <small style="color:#64748b;font-weight:normal;font-size:0.7rem;display:block;margin-top:4px">💡 با شماره همراه شخص همگام می‌شود</small>
+                <small style="color:#64748b;font-weight:normal;font-size:0.7rem;display:block;margin-top:4px">
+                    💡 با شماره همراه شخص همگام می‌شود
+                </small>
             </div>
             <div class="field">
                 <label>شماره داخلی</label>
@@ -591,7 +628,9 @@
             <label>شرکت <span style="font-size:0.7rem;color:#64748b">(ارجاع به شرکت‌ها)</span></label>
             <div style="display:flex;gap:6px;align-items:stretch">
                 <div id="pb-company-select" style="flex:1"></div>
-                <button type="button" id="pb-company-add" class="btn-primary" style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900" title="افزودن شرکت جدید">+</button>
+                <button type="button" id="pb-company-add" class="btn-primary"
+                        style="min-width:46px;padding:0 14px;font-size:1.2rem;font-weight:900"
+                        title="افزودن شرکت جدید">+</button>
             </div>
         </div>
 
@@ -841,7 +880,6 @@
     </div>
 </section>
 
-<!-- ✅ voucher-list: select vl-period-filter حذف شد — دوره از تاپ‌بار انتخاب می‌شود -->
 <section id="page-voucher-list" class="page">
     <div class="card">
         <div class="list-header" data-col-table="voucher-table-list" data-hide-key="voucher-list" style="display: flex; justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -1498,6 +1536,16 @@
             <summary class="settings-summary">📱 پیامک</summary>
             <label class="checkbox-item"><input type="checkbox" id="set-sms-auto-read"> <span>خواندن خودکار کلیپ‌بورد</span></label>
         </details>
+        
+        <details class="settings-details">
+            <summary class="settings-summary">🔐 قفل بیومتریک (اثر انگشت / چهره)</summary>
+            <label class="checkbox-item" style="margin-top:10px">
+                <input type="checkbox" id="set-biometric"> <span>فعال‌سازی ورود با اثر انگشت / چهره</span>
+            </label>
+            <p class="muted" style="font-size:0.72rem;margin-top:8px;line-height:1.7">💡 با فعال‌سازی این گزینه، در ورود بعدی می‌توانید بدون وارد کردن رمز عبور، با اثر انگشت خود وارد شوید.</p>
+            <div id="bio-settings-status" style="font-size:0.75rem;margin-top:8px;font-weight:bold"></div>
+        </details>
+
         <details class="settings-details">
             <summary class="settings-summary">👁 گزارش و مبالغ</summary>
             <label class="checkbox-item"><input type="checkbox" id="set-hide-numbers"> <span>مخفی کردن مبالغ در همه فهرست‌ها/گزارش‌ها/ویجت‌ها</span></label>
@@ -1741,6 +1789,5 @@
     });
   }
 </script>
-
 </body>
 </html>
