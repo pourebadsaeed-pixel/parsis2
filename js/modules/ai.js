@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — دستیار هوشمند
    مسیر: js/modules/ai.js
-   وابستگی: core/* + ui/* + reports/*
+   ✅ رفع باگ خالی بارگذاری شدن سند در فرم صدور سند
    ============================================================ */
 'use strict';
 
@@ -16,7 +16,6 @@
         'ai.failedModels', 'ai.creditLastUpdate'
     ];
     var cleaned = 0;
-    /* پاک‌سازی localStorage قدیمی */
     keysToCheck.forEach(function (k) {
         try {
             var raw = localStorage.getItem('parsis.' + k);
@@ -26,7 +25,6 @@
             }
         } catch (e) {}
     });
-    /* پاک‌سازی کش IndexedDB */
     keysToCheck.forEach(function (k) {
         try {
             var v = DB.load(k, undefined);
@@ -1669,13 +1667,11 @@ function aiFindDetailId(linkType, nameHint) {
     var q = aiNormalizeStr(nameHint);
     if (!q) return { id: '', candidates: [] };
 
-    /* تطابق دقیق */
     for (var i = 0; i < items.length; i++) {
         var label = aiNormalizeStr(getLinkedItemLabel(linkType, items[i]));
         if (label === q) return { id: items[i].id, candidates: [] };
     }
 
-    /* تطابق جزئی */
     var candidates = [];
     for (var j = 0; j < items.length; j++) {
         var l2 = aiNormalizeStr(getLinkedItemLabel(linkType, items[j]));
@@ -1685,7 +1681,6 @@ function aiFindDetailId(linkType, nameHint) {
     }
     if (candidates.length === 1) return { id: candidates[0].id, candidates: [] };
 
-    /* جستجوی کلمه‌ای */
     if (candidates.length === 0) {
         var qWords = q.split(' ').filter(function (w) { return w.length > 1; });
         var scored = [];
@@ -1810,7 +1805,6 @@ function aiHandleNavigateReport(args) {
     return { action: '✅ صفحه «' + label + '» باز و اجرا شد.' };
 }
 
-/* ✅ اصلاح: اگر معین چند تفصیلی دارد، فقط یکی باید پر شود */
 function aiHandleVoucherDraft(args) {
     if (!args.lines || !Array.isArray(args.lines) || args.lines.length < 2) {
         return { error: 'سند حداقل دو قلم دارد.' };
@@ -1860,7 +1854,6 @@ function aiHandleVoucherDraft(args) {
         var resolvedDetails = {};
         var detailsInput = L.details || {};
 
-        /* ✅ فقط یکی از تفصیلی‌های مرتبط باید انتخاب شود */
         if (acc.links && acc.links.length > 0) {
             var validLinks = acc.links.filter(function (lt) {
                 return getLinkedItems(lt).length > 0;
@@ -2211,16 +2204,42 @@ function aiLoadDraftIntoForm(draft) {
         alert('پیش‌نویس خالی است.');
         return;
     }
-    document.getElementById('v-id').value = '';
-    document.getElementById('v-number').value = getNextVoucherNumberForPeriod(state.activePeriodId || '');
-    document.getElementById('v-date').value = draft.date || todayJalaliStr();
-    document.getElementById('v-type').value = draft.type || 'general';
-    document.getElementById('v-desc').value = draft.desc || '';
-    currentVoucherStatus = 'draft';
-    voucherLines = JSON.parse(JSON.stringify(draft.lines));
-    renderVoucherLines();
-    goToPage('voucher-new');
+    
+    // ساخت یک آبجکت سند برای ارسال به تابع استاندارد بارگذاری سند
+    var vObj = {
+        id: '',
+        number: (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(state.activePeriodId || '') : '',
+        date: draft.date || todayJalaliStr(),
+        time: (typeof getCurrentTimeHHMM === 'function') ? getCurrentTimeHHMM() : '08:00',
+        type: draft.type || 'general',
+        periodId: state.activePeriodId || '',
+        desc: draft.desc || '',
+        lines: JSON.parse(JSON.stringify(draft.lines)),
+        status: 'draft'
+    };
+
     aiClose();
+    
+    // استفاده از تابع استاندارد loadVoucherForEdit که در برابر باز شدن تب جدید مقاوم است
+    if (typeof loadVoucherForEdit === 'function') {
+        loadVoucherForEdit(vObj);
+    } else {
+        // در صورتی که تابع استاندارد در دسترس نبود
+        goToPage('voucher-new');
+        setTimeout(function() {
+            document.getElementById('v-id').value = '';
+            document.getElementById('v-number').value = vObj.number;
+            document.getElementById('v-date').value = vObj.date;
+            document.getElementById('v-time').value = vObj.time;
+            document.getElementById('v-type').value = vObj.type;
+            document.getElementById('v-desc').value = vObj.desc;
+            if (typeof currentVoucherStatus !== 'undefined') currentVoucherStatus = 'draft';
+            if (typeof voucherLines !== 'undefined') voucherLines = JSON.parse(JSON.stringify(vObj.lines));
+            if (typeof renderVoucherLines === 'function') renderVoucherLines();
+            if (typeof setVoucherStatusBar === 'function') setVoucherStatusBar('draft', '');
+        }, 300);
+    }
+    
     showToast('🤖 پیش‌نویس سند آماده شد');
 }
 
@@ -2506,7 +2525,6 @@ function aiOpenSettings() {
 
     updateAiModelSelectUI();
 
-    /* نمایش/مخفی بخش اعتبار بر اساس provider */
     var creditSection = document.getElementById('avalai-credit-section');
     if (creditSection) {
         creditSection.style.display = (AI.provider === 'avalai') ? '' : 'none';
@@ -2519,7 +2537,6 @@ function aiOpenSettings() {
                     creditBox.innerHTML = '<div class="widget-empty">⚠️ ابتدا کلید API را وارد کنید.</div>';
                 }
             } else {
-                /* ۱) اگر کش هست فوری نشون بده */
                 var cached = DB.load('ai.creditCached', null);
                 if (creditBox && cached && cached.data && cached.ts) {
                     var ageMin = Math.floor((Date.now() - cached.ts) / 60000);
@@ -2530,7 +2547,6 @@ function aiOpenSettings() {
                     renderAvalaiCreditBox(creditBox, cached.data, 'cached', ageText);
                 }
 
-                /* ۲) بعد fetch تازه در پس‌زمینه */
                 setTimeout(function () {
                     aiFetchAvalaiCredit();
                 }, 200);
@@ -2577,7 +2593,6 @@ async function aiFetchAvalaiCredit() {
         return;
     }
 
-    /* شکست → از کش استفاده کن */
     var cached = DB.load('ai.creditCached', null);
     if (cached && cached.data && cached.ts) {
         var ageMin = Math.floor((Date.now() - cached.ts) / 60000);
@@ -2596,7 +2611,6 @@ async function aiFetchAvalaiCredit() {
         + '</span></div>';
 }
 
-/* ---------- نمایش داده — ۴ باکس + ۱ ردیف سقف ---------- */
 function renderAvalaiCreditBox(box, data, mode, extra) {
     var limit         = Number(data.limit) || 0;
     var remainingIrt  = Number(data.remaining_irt) || 0;
@@ -2615,7 +2629,6 @@ function renderAvalaiCreditBox(box, data, mode, extra) {
         sourceBadge = '<div style="grid-column:1/-1;padding:6px 12px;background:#d1fae5;color:#065f46;border-radius:8px;font-size:0.72rem;font-weight:700;text-align:center">✅ دریافت خودکار موفق</div>';
     }
 
-    /* ردیف سقف اعتبار */
     var limitRow = '<div style="grid-column:1/-1;padding:8px 12px;background:var(--card-alt);'
                  + 'border:1px solid var(--border);border-radius:10px;font-size:0.78rem;'
                  + 'display:flex;justify-content:space-between;align-items:center">'
@@ -2665,13 +2678,10 @@ function renderAvalaiCreditBox(box, data, mode, extra) {
     try { DB.save('ai.creditCached', { data: data, ts: Date.now() }); } catch (e) {}
 }
 
-/* ---------- تلاش برای دریافت (مستقیم + پروکسی) ---------- */
 async function _tryFetchCredit(url, apiKey) {
-    /* ۱) تلاش مستقیم */
     var data = await _tryFetchCreditOnce(url, apiKey);
     if (data) return data;
 
-    /* ۲) تلاش با CORS proxy ها (از widgets.js) */
     if (typeof CORS_PROXIES !== 'undefined' && Array.isArray(CORS_PROXIES)) {
         for (var i = 0; i < CORS_PROXIES.length; i++) {
             try {
@@ -2724,7 +2734,6 @@ async function _tryFetchCreditOnce(url, apiKey) {
     }
 }
 
-/* ---------- کش قدیمی (نگه‌داشته شده برای سازگاری) ---------- */
 function loadCachedAvalaiCredit() {
     var box = document.getElementById('avalai-credit-result');
     if (!box) return;
@@ -3253,4 +3262,4 @@ window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
 
-console.log('✅ [modules/ai.js] loaded — 3 parts complete + Calendar Tool');
+console.log('✅ [modules/ai.js] loaded — 3 parts complete + Calendar Tool + Voucher Load Fix');
