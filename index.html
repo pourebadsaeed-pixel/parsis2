@@ -11,6 +11,94 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>پارسیس — حسابداری هوشمند</title>
 <link rel="icon" href="data:,">
+<style>
+  /* ============ Critical Boot Loader — inline for instant paint ============ */
+  html, body { background: #0f172a; margin: 0; padding: 0; }
+
+  #boot-loader {
+    position: fixed; inset: 0; z-index: 9999999;
+    background: radial-gradient(circle at 25% 20%, #1e3a8a 0%, #0f172a 45%, #4c1d95 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 16px; color: #fff; font-family: Tahoma, sans-serif;
+    direction: rtl; overflow: hidden;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+  }
+  #boot-loader.boot-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  #boot-loader::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.13) 1px, transparent 0);
+    background-size: 32px 32px; opacity: 0.5; pointer-events: none;
+  }
+  .boot-logo {
+    font-size: 4rem; line-height: 1; margin-bottom: 12px;
+    filter: drop-shadow(0 8px 30px rgba(129,140,248,0.6));
+    animation: bootPop 0.8s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative; z-index: 1;
+  }
+  .boot-title {
+    font-size: 2.3rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px;
+    background: linear-gradient(135deg, #fff 0%, #a5b4fc 50%, #f0abfc 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    position: relative; z-index: 1;
+  }
+  .boot-subtitle {
+    font-size: 0.92rem; color: rgba(255,255,255,0.7);
+    margin-bottom: 26px; position: relative; z-index: 1;
+  }
+  .boot-spinner {
+    position: relative; width: 60px; height: 60px;
+    margin-bottom: 20px; z-index: 1;
+  }
+  .boot-spinner div {
+    position: absolute; inset: 0; border: 3px solid transparent;
+    border-top-color: #818cf8; border-radius: 50%;
+    animation: bootSpin 1.2s linear infinite;
+  }
+  .boot-spinner div:nth-child(2) { border-top-color: #a855f7; animation-delay: -0.4s; transform: scale(0.75); }
+  .boot-spinner div:nth-child(3) { border-top-color: #22d3ee; animation-delay: -0.8s; transform: scale(0.5); }
+  .boot-status {
+    font-size: 0.92rem; font-weight: 800; color: #fff;
+    margin-bottom: 12px; text-align: center; min-height: 22px;
+    position: relative; z-index: 1;
+  }
+  .boot-progress {
+    width: 100%; max-width: 420px; height: 6px;
+    background: rgba(255,255,255,0.1); border-radius: 3px;
+    overflow: hidden; margin-bottom: 18px;
+    position: relative; z-index: 1;
+  }
+  .boot-progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #818cf8, #a855f7, #22d3ee);
+    border-radius: 3px; transition: width 0.3s ease;
+    box-shadow: 0 0 12px rgba(129,140,248,0.7);
+  }
+  .boot-log {
+    width: 100%; max-width: 500px; max-height: 140px;
+    overflow-y: auto; padding: 10px 14px;
+    background: rgba(0,0,0,0.35); border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    font-family: 'Courier New', monospace; font-size: 0.72rem;
+    color: rgba(255,255,255,0.78); direction: ltr; text-align: left;
+    line-height: 1.6; position: relative; z-index: 1;
+    scrollbar-width: thin;
+  }
+  .boot-log::-webkit-scrollbar { width: 4px; }
+  .boot-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+  .boot-log .bl-line { animation: bootLogIn 0.3s ease; }
+  .boot-log .bl-ok   { color: #34d399; }
+  .boot-log .bl-err  { color: #f87171; }
+  .boot-log .bl-info { color: #60a5fa; }
+  .boot-log .bl-warn { color: #fbbf24; }
+  .boot-hint {
+    margin-top: 12px; font-size: 0.72rem;
+    color: rgba(255,255,255,0.45); text-align: center;
+    position: relative; z-index: 1;
+  }
+  @keyframes bootSpin { to { transform: rotate(360deg); } }
+  @keyframes bootPop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+  @keyframes bootLogIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+</style>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#4a90e2">
 <meta name="mobile-web-app-capable" content="yes">
@@ -24,7 +112,17 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="theme-sky font-tahoma">
-
+<!-- 🚀 Boot Loader (پوشش صفحه سفید در زمان بارگذاری) -->
+<div id="boot-loader">
+  <div class="boot-logo">📊</div>
+  <div class="boot-title">پارسیس</div>
+  <div class="boot-subtitle">حسابداری هوشمند</div>
+  <div class="boot-spinner"><div></div><div></div><div></div></div>
+  <div class="boot-status" id="boot-status">در حال راه‌اندازی...</div>
+  <div class="boot-progress"><div class="boot-progress-bar" id="boot-progress-bar"></div></div>
+  <div class="boot-log" id="boot-log"></div>
+  <div class="boot-hint" id="boot-hint">⏳ لطفاً چند لحظه صبر کنید...</div>
+</div>
 <div id="login-overlay" style="position:fixed; inset:0; background:var(--bg-grad); z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
     <!-- اضافه کردن autocomplete="off" به کل فرم -->
     <form class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;" autocomplete="off" onsubmit="event.preventDefault(); login();">
@@ -1750,8 +1848,59 @@
 <script src="./js/core/db.js"></script>
 <script>
 (async function loadApp() {
+    var _logBox = document.getElementById('boot-log');
+    var _statusEl = document.getElementById('boot-status');
+    var _progressEl = document.getElementById('boot-progress-bar');
+    var _hintEl = document.getElementById('boot-hint');
+
+    function bootLog(msg, type) {
+        if (!_logBox) return;
+        var line = document.createElement('div');
+        line.className = 'bl-line' + (type ? ' bl-' + type : '');
+        var d = new Date();
+        var t = String(d.getHours()).padStart(2,'0') + ':' +
+                String(d.getMinutes()).padStart(2,'0') + ':' +
+                String(d.getSeconds()).padStart(2,'0');
+        line.textContent = '[' + t + '] ' + msg;
+        _logBox.appendChild(line);
+        _logBox.scrollTop = _logBox.scrollHeight;
+    }
+
+    function bootStatus(msg)   { if (_statusEl)   _statusEl.textContent = msg; }
+    function bootProgress(pct) { if (_progressEl) _progressEl.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
+
+    function bootHide() {
+        var loader = document.getElementById('boot-loader');
+        if (!loader) return;
+        loader.classList.add('boot-hidden');
+        setTimeout(function () {
+            if (loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 700);
+    }
+
+    window._bootLog      = bootLog;
+    window._bootStatus   = bootStatus;
+    window._bootProgress = bootProgress;
+    window._bootHide     = bootHide;
+
+    var hintTimer = setTimeout(function () {
+        if (_hintEl) _hintEl.textContent = '⏳ هنوز در حال بارگذاری... صبر کنید';
+    }, 6000);
+    var slowTimer = setTimeout(function () {
+        if (_hintEl) _hintEl.textContent = '⚠️ بارگذاری کندتر از معمول است...';
+        bootLog('بارگذاری بیش از ۱۵ ثانیه طول کشید', 'warn');
+    }, 15000);
+
     try {
+        bootLog('شروع راه‌اندازی پارسیس', 'info');
+        bootStatus('اتصال به پایگاه داده...');
+        bootProgress(2);
+
         await DB.ready();
+        bootLog('✓ پایگاه داده آماده شد', 'ok');
+        bootProgress(5);
+        bootStatus('بارگذاری ماژول‌ها...');
+
         var modules = [
             './js/core/constants.js', './js/core/utils.js', './js/core/state.js', './js/core/router.js',
             './js/core/calendar-popup.js', './js/core/hide.js', './js/core/lookups.js',
@@ -1769,22 +1918,52 @@
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
             './js/modules/users.js', './js/modules/auth.js', './js/app.js'
         ];
-        for (var i = 0; i < modules.length; i++) {
+        var total = modules.length;
+
+        for (var i = 0; i < total; i++) {
+            var mod = modules[i];
+            var shortName = mod.replace('./js/', '').replace('.js', '');
             await new Promise(function (resolve) {
                 var s = document.createElement('script');
-                s.src = modules[i];
-                s.onload = resolve;
-                s.onerror = function () { console.warn('Failed to load: ' + modules[i]); resolve(); };
+                s.src = mod;
+                s.onload = function () { bootLog('✓ ' + shortName, 'ok'); resolve(); };
+                s.onerror = function () {
+                    bootLog('✗ ' + shortName + ' (خطا)', 'err');
+                    console.warn('Failed to load: ' + mod);
+                    resolve();
+                };
                 document.body.appendChild(s);
             });
+            bootProgress(5 + ((i + 1) / total) * 90);
+            bootStatus('بارگذاری ماژول ' + (i + 1) + ' از ' + total);
         }
+
+        clearTimeout(hintTimer); clearTimeout(slowTimer);
+
+        bootLog('✓ همه ماژول‌ها بارگذاری شدند', 'ok');
+        bootStatus('راه‌اندازی رابط کاربری...');
+        bootProgress(97);
+
+        await new Promise(function (r) { setTimeout(r, 300); });
+
+        bootProgress(100);
+        bootStatus('آماده!');
+        bootLog('🚀 پارسیس آماده است', 'ok');
+        await new Promise(function (r) { setTimeout(r, 500); });
+        bootHide();
+
     } catch (e) {
+        clearTimeout(hintTimer); clearTimeout(slowTimer);
         console.error('[bootstrap]', e);
-        alert('خطا در بارگذاری برنامه. لطفاً صفحه را رفرش کنید.');
+        bootLog('✗ خطای بحرانی: ' + (e.message || e), 'err');
+        bootStatus('❌ خطا در بارگذاری');
+        bootProgress(100);
+        if (_hintEl) {
+            _hintEl.innerHTML = '<button onclick="location.reload()" style="padding:10px 20px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:800;cursor:pointer;font-size:0.9rem;margin-top:8px">🔄 تلاش مجدد</button>';
+        }
     }
 })();
 </script>
-
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
