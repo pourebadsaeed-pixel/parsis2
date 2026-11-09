@@ -2,7 +2,7 @@
    پارسیس — Service Worker (بروزرسانی خودکار کش)
    نسخه v83 — phonebook module
    ============================================================ */
-var CACHE_NAME = 'parsis-v93-ai-voucher-load-fix';
+var CACHE_NAME = 'parsis-v94-boot-loader';
 
 var ASSETS = [
   './index.html',
