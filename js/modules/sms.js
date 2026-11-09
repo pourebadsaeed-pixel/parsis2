@@ -1,11 +1,15 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۲ — Exact Account Match)
+   پارسیس — پیامک بانکی (نسخه ۱۳)
    مسیر: js/modules/sms.js
-   
-   تغییرات v12:
-     ✅ signatureMatch: اگر شماره حساب دقیقاً یکی → تطبیق قطعی (بدون شرط jaccard)
-     ✅ extractCardKey: با smsNormalizeForPattern (حذف ZWNJ، کاما، فاصله‌های خاص)
-     ✅ runSmsMigrations: بازاستخراج cardKey با نسخه جدید
+
+   تغییرات v13:
+     ✅ رفع باگ تاریخ (پشتیبانی از MMDD-HH:MM مثل 0818-12:28)
+     ✅ استخراج ساعت از پیامک
+     ✅ دکمه «انتخاب همه» برای pending
+     ✅ دکمه «تکمیل جزئیات» روی هر کارت pending
+     ✅ مودال تکمیل جزئیات (معین + تفصیلی + شرح + پیگیری + مبلغ + ...)
+     ✅ ذخیره جزئیات در pending و pattern
+     ✅ سند گروهی با استفاده از counterAccount
    ============================================================ */
 'use strict';
 
@@ -14,12 +18,12 @@
    ============================================================ */
 function matchBankAccountByBankName(text) {
     if (!text) return null;
-    var t = String(text);
+    var t = String(text).replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک');
     var ba = DB.load('bankAccounts', []);
     var best = null, bestScore = 0;
     for (var i = 0; i < ba.length; i++) {
         var b = ba[i];
-        var bankName = String(b.bank || '').trim();
+        var bankName = String(b.bank || '').trim().replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک');
         if (bankName.length < 3) continue;
         if (t.indexOf(bankName) !== -1) {
             var score = bankName.length * 2;
@@ -256,24 +260,12 @@ function runSmsMigrations() {
             if (typeof p.lineDesc === 'undefined') { p.lineDesc = p.label || ''; changed = true; }
             if (typeof p.blocked === 'undefined') { p.blocked = false; changed = true; }
             if (typeof p.keywords === 'undefined') { p.keywords = extractKeywords(p.raw || ''); changed = true; }
-
-            /* ✅ v12: بازاستخراج cardKey از raw برای الگوهای قدیمی */
-            if (p.raw) {
-                var newCard = extractCardKey(p.raw);
-                if (newCard) {
-                    var oldNorm = normalizeAccountKey(p.cardKey || '');
-                    var newNorm = normalizeAccountKey(newCard);
-                    if (oldNorm !== newNorm) {
-                        p.cardKey = newCard;
-                        changed = true;
-                    }
-                }
-            }
+            if (typeof p.counterAccount === 'undefined') { p.counterAccount = ''; changed = true; }
+            if (typeof p.counterDetails === 'undefined') { p.counterDetails = {}; changed = true; }
         });
         if (changed) saveSmsPatterns(patterns);
     } catch (e) { console.warn('[sms migrations]', e); }
 
-    /* پاک‌سازی inbox 'new' */
     try {
         var inbox = getSmsInbox();
         var inboxChanged = false;
@@ -290,7 +282,6 @@ function runSmsMigrations() {
         if (inboxChanged) {
             var cleaned = inbox.filter(function (s) { return s.status !== '_delete_'; });
             saveSmsInbox(cleaned);
-            console.log('[sms migration] cleaned inbox: ' + inbox.length + ' → ' + cleaned.length);
         }
     } catch (e) { console.warn('[sms inbox migration]', e); }
 }
@@ -394,29 +385,30 @@ function tokensShapeCollapsed(tokens) {
     return out;
 }
 
-/* ============================================================
-   ✅ بخش ۷ — استخراج شناسه حساب (نسخه ۱۲)
-   ============================================================ */
 function extractCardKey(raw) {
     var t = smsNormalizeForPattern(raw);
 
-    /* Priority 1: حساب:X */
-    var mAcc = t.match(/(?:حساب|کارت)\s*(?:شماره)?\s*[:ـ]?\s*(\d{3,})/);
-    if (mAcc) return 'ACC:' + mAcc[1];
-
-    /* Priority 2: IBAN */
-    var mIban = t.match(/IR\s*(\d{22,26})/i);
-    if (mIban) return 'IBAN:' + mIban[1];
-
-    /* Priority 3: legacy — توالی طولانی ارقام */
-    var matches = t.match(/\d[\d.\-_]{8,}/g);
-    if (matches && matches.length > 0) {
-        for (var i = 0; i < matches.length; i++) {
-            var digits = matches[i].replace(/[^\d]/g, '');
-            if (digits.length >= 8) return 'CARD:' + digits.slice(-8);
-        }
+    var mAcc = t.match(/(?:حساب|کارت|سپرده|شماره\s*حساب|شماره\s*کارت)\s*(?:شماره)?\s*[:ـ]?\s*([\d*.\-_٫ـ]{4,})/i);
+    if (mAcc) {
+        var digits = mAcc[1].replace(/[^\d]/g, '');
+        if (digits.length >= 4) return 'ACC:' + digits;
     }
 
+    var mIban = t.match(/IR\s*([\d*]{22,26})/i);
+    if (mIban) {
+        var ib = mIban[1].replace(/[^\d]/g, '');
+        if (ib.length >= 4) return 'IBAN:' + ib;
+    }
+
+    var groups = t.match(/\d[\d.\-_٫ـ]{6,}/g);
+    if (groups && groups.length) {
+        var best = '', bestLen = 0;
+        for (var i = 0; i < groups.length; i++) {
+            var d = groups[i].replace(/[^\d]/g, '');
+            if (d.length > bestLen) { bestLen = d.length; best = d; }
+        }
+        if (bestLen >= 6) return 'CARD:' + (best.length > 10 ? best.slice(-10) : best);
+    }
     return '';
 }
 
@@ -449,8 +441,24 @@ function countNumberGroups(tokens) {
 }
 
 /* ============================================================
-   ✅ بخش ۸ — signatureMatch (نسخه ۱۲ — تطبیق قطعی بر اساس حساب)
+   بخش ۷ — signatureMatch
    ============================================================ */
+function compareAccountKeys(norm1, norm2) {
+    if (!norm1 || !norm2) return { match: false, score: 0, reason: 'empty' };
+    if (norm1 === norm2) return { match: true, score: 1.0, reason: 'exact' };
+
+    var shorter = norm1.length <= norm2.length ? norm1 : norm2;
+    var longer  = norm1.length <= norm2.length ? norm2 : norm1;
+
+    if (shorter.length >= 5 && longer.slice(-shorter.length) === shorter) {
+        return { match: true, score: 1.0, reason: 'suffix' };
+    }
+    if (shorter.length === 4 && longer.slice(-4) === shorter) {
+        return { match: true, score: 0.85, reason: 'last4' };
+    }
+    return { match: false, score: 0, reason: 'mismatch' };
+}
+
 function signatureMatch(sig1, sig2) {
     var norm1 = normalizeAccountKey(sig1.card);
     var norm2 = normalizeAccountKey(sig2.card);
@@ -458,11 +466,12 @@ function signatureMatch(sig1, sig2) {
     var cardScore, cardReason = '';
 
     if (norm1 && norm2) {
-        if (norm1 !== norm2) {
-            return { match: false, score: 0, reason: 'account-mismatch(' + norm1 + '≠' + norm2 + ')' };
+        var cmp = compareAccountKeys(norm1, norm2);
+        if (!cmp.match) {
+            return { match: false, score: 0, reason: 'account-' + cmp.reason };
         }
-        cardScore = 1.0;
-        cardReason = 'account-exact';
+        cardScore = cmp.score;
+        cardReason = 'account-' + cmp.reason;
     } else if (!norm1 && !norm2) {
         cardScore = 0.5;
         cardReason = 'no-accounts';
@@ -485,7 +494,6 @@ function signatureMatch(sig1, sig2) {
     var numScore = numDiff <= 1 ? 1.0 : (numDiff === 2 ? 0.5 : 0.0);
     var totalScore = cardScore * 0.5 + jaccard * 0.4 + numScore * 0.1;
 
-    /* ✅ v12: اگر شماره حساب دقیقاً یکی → تطبیق قطعی */
     var isMatch = false;
     if (cardScore >= 1.0) {
         isMatch = true;
@@ -531,7 +539,7 @@ function findMatchingSmsPattern(raw) {
 }
 
 /* ============================================================
-   بخش ۹ — فیلتر
+   بخش ۸ — فیلتر
    ============================================================ */
 function isBankSms(text) {
     if (!text) return false;
@@ -556,7 +564,7 @@ function isBankSms(text) {
 }
 
 /* ============================================================
-   بخش ۱۰ — پیشنهادها
+   بخش ۹ — پیشنهادها
    ============================================================ */
 function suggestAmount(text) {
     var t = normalizeDigits(String(text || ''));
@@ -569,18 +577,100 @@ function suggestAmount(text) {
     return 0;
 }
 
+/* ============================================================
+   ✅ suggestDate — نسخه جدید با پشتیبانی MMDD-HH:MM
+   ============================================================ */
 function suggestDate(text) {
     var t = normalizeDigits(String(text || ''));
-    var m = t.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (m) return m[1] + '/' + pad2(m[2]) + '/' + pad2(m[3]);
-    var m2 = t.match(/(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (m2) {
-        var y = Number(m2[1]);
-        var cy = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())[0];
-        if (y < 100) y += Math.floor(cy / 100) * 100;
-        return y + '/' + pad2(m2[2]) + '/' + pad2(m2[3]);
+
+    // ۱. تاریخ کامل: YYYY/MM/DD یا YYYY-MM-DD
+    var m1 = t.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if (m1) {
+        var y1 = Number(m1[1]), mo1 = Number(m1[2]), d1 = Number(m1[3]);
+        if (y1 > 1300 && y1 < 1500 && mo1 >= 1 && mo1 <= 12 && d1 >= 1 && d1 <= 31) {
+            return y1 + '/' + pad2(mo1) + '/' + pad2(d1);
+        }
     }
+
+    // ۲. سال دو رقمی: YY/MM/DD
+    var m2 = t.match(/(?:^|[^\d])(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})(?![\d\/\-])/);
+    if (m2) {
+        var y2 = Number(m2[1]);
+        var mo2 = Number(m2[2]), d2 = Number(m2[3]);
+        if (mo2 >= 1 && mo2 <= 12 && d2 >= 1 && d2 <= 31) {
+            var cy2 = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())[0];
+            if (y2 < 100) y2 += Math.floor(cy2 / 100) * 100;
+            if (y2 > 1300 && y2 < 1500) return y2 + '/' + pad2(mo2) + '/' + pad2(d2);
+        }
+    }
+
+    // ۳. MMDD-HH:MM (بانک ملی و بعضی بانک‌ها)
+    var m3 = t.match(/(?:^|[^\d])(\d{2})(\d{2})[\-\s]+(\d{1,2}):(\d{2})(?![\d:])/);
+    if (m3) {
+        var mm = Number(m3[1]), dd = Number(m3[2]);
+        if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+            return _smsBuildDateFromMMDD(mm, dd);
+        }
+    }
+
+    // ۴. MM/DD بدون سال
+    var m4 = t.match(/(?:^|[^\d])(\d{1,2})[\/\-](\d{1,2})(?![\d\/\-:])/);
+    if (m4) {
+        var a = Number(m4[1]), b = Number(m4[2]);
+        if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return _smsBuildDateFromMMDD(a, b);
+        if (b >= 1 && b <= 12 && a >= 1 && a <= 31) return _smsBuildDateFromMMDD(b, a);
+    }
+
     return todayJalaliStr();
+}
+
+function _smsBuildDateFromMMDD(mm, dd) {
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return todayJalaliStr();
+
+    var today = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    var cy = today[0];
+    var todayStr = cy + '/' + pad2(today[1]) + '/' + pad2(today[2]);
+    var cand = cy + '/' + pad2(mm) + '/' + pad2(dd);
+
+    if (cand > todayStr) {
+        var diff = jalaliDiff(today[0], today[1], today[2], cy, mm, dd);
+        var daysAhead = Math.abs(diff);
+        if (daysAhead > 15) {
+            return (cy - 1) + '/' + pad2(mm) + '/' + pad2(dd);
+        }
+    }
+
+    return cand;
+}
+
+/* ============================================================
+   ✅ suggestTime — استخراج ساعت از پیامک
+   ============================================================ */
+function suggestTime(text) {
+    var t = normalizeDigits(String(text || ''));
+
+    // ۱. با MMDD-HH:MM
+    var m1 = t.match(/(?:^|[^\d])\d{4}[\-\s]+(\d{1,2}):(\d{2})(?![\d:])/);
+    if (m1) {
+        var h = Number(m1[1]), mn = Number(m1[2]);
+        if (h >= 0 && h <= 23 && mn >= 0 && mn <= 59) return pad2(h) + ':' + pad2(mn);
+    }
+
+    // ۲. با کلمه «ساعت»
+    var m2 = t.match(/(?:ساعت|ساعت\s*:?)\s*(\d{1,2})\s*[:.]\s*(\d{1,2})/);
+    if (m2) {
+        var h2 = Number(m2[1]), mn2 = Number(m2[2]);
+        if (h2 >= 0 && h2 <= 23 && mn2 >= 0 && mn2 <= 59) return pad2(h2) + ':' + pad2(mn2);
+    }
+
+    // ۳. HH:MM عمومی
+    var m3 = t.match(/(?:^|[^\d:])(\d{1,2}):(\d{2})(?![\d:])/);
+    if (m3) {
+        var h3 = Number(m3[1]), mn3 = Number(m3[2]);
+        if (h3 >= 0 && h3 <= 23 && mn3 >= 0 && mn3 <= 59) return pad2(h3) + ':' + pad2(mn3);
+    }
+
+    return '';
 }
 
 function suggestDescription(text) {
@@ -606,7 +696,7 @@ function suggestLabel(text, bankName, dir) {
 }
 
 /* ============================================================
-   بخش ۱۱ — CRUD الگو
+   بخش ۱۰ — CRUD الگو
    ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
@@ -626,7 +716,8 @@ function addSmsPattern(opts) {
             var pCard = p.cardKey || extractCardKey(p.raw || '');
             var normP = normalizeAccountKey(pCard);
             var normN = normalizeAccountKey(newCardKey);
-            if (normP !== normN) return false;
+            var cmp = compareAccountKeys(normP, normN);
+            if (!cmp.match) return false;
 
             var pKw = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
             var common = 0;
@@ -648,6 +739,10 @@ function addSmsPattern(opts) {
         if (opts.slots) existing.slots = opts.slots;
         if (typeof opts.voucherDesc !== 'undefined') existing.voucherDesc = opts.voucherDesc;
         if (typeof opts.lineDesc !== 'undefined') existing.lineDesc = opts.lineDesc;
+        if (opts.counterAccount) {
+            existing.counterAccount = opts.counterAccount;
+            existing.counterDetails = JSON.parse(JSON.stringify(opts.counterDetails || {}));
+        }
         if (!existing.cardKey && newCardKey) existing.cardKey = newCardKey;
         if ((!existing.keywords || existing.keywords.length === 0) && newKeywords.length > 0) {
             existing.keywords = newKeywords;
@@ -664,6 +759,8 @@ function addSmsPattern(opts) {
         cardKey: newCardKey, keywords: newKeywords, numberGroups: newNumGroups,
         voucherDesc: (typeof opts.voucherDesc === 'string') ? opts.voucherDesc : (opts.label || ''),
         lineDesc:    (typeof opts.lineDesc    === 'string') ? opts.lineDesc    : (opts.label || ''),
+        counterAccount: opts.counterAccount || '',
+        counterDetails: JSON.parse(JSON.stringify(opts.counterDetails || {})),
         uses: 1, createdAt: Date.now(), lastUsed: Date.now()
     };
     patterns.push(rec);
@@ -685,7 +782,7 @@ function deleteSmsPattern(id) {
 }
 
 /* ============================================================
-   بخش ۱۲ — pending CRUD
+   بخش ۱۱ — pending CRUD
    ============================================================ */
 function addPendingSms(raw, source, force, extraData) {
     var text = String(raw || '').trim();
@@ -697,6 +794,7 @@ function addPendingSms(raw, source, force, extraData) {
     var amount    = suggestAmount(text);
     var direction = detectSmsDirection(text) || '';
     var date      = suggestDate(text);
+    var time      = suggestTime(text);
     var desc      = suggestDescription(text);
     var matched   = findMatchingBankAccount(text);
     var bankM     = text.match(/بانک\s+([^\s*،,\n]+)/);
@@ -708,11 +806,20 @@ function addPendingSms(raw, source, force, extraData) {
         createdAt: Date.now(),
         forced: !!force,
         suggestion: {
-            amount: amount, direction: direction, date: date, description: desc,
+            amount: amount,
+            direction: direction,
+            date: date,
+            time: time,
+            description: desc,
             bankName: bankM ? 'بانک ' + bankM[1] : '',
             linkedAccountId: matched ? matched.id : '',
             voucherDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction),
-            lineDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction)
+            lineDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction),
+            counterAccount: '',
+            counterDetails: {},
+            trackingNumber: '',
+            trackingDate: '',
+            detailComplete: false
         }
     };
 
@@ -724,6 +831,14 @@ function addPendingSms(raw, source, force, extraData) {
         if (extraData.linkedAccountId) rec.suggestion.linkedAccountId = extraData.linkedAccountId;
         if (typeof extraData.voucherDesc !== 'undefined') rec.suggestion.voucherDesc = extraData.voucherDesc;
         if (typeof extraData.lineDesc !== 'undefined')    rec.suggestion.lineDesc    = extraData.lineDesc;
+        if (extraData.counterAccount) {
+            rec.suggestion.counterAccount = extraData.counterAccount;
+            rec.suggestion.counterDetails = JSON.parse(JSON.stringify(extraData.counterDetails || {}));
+            if (extraData.counterAccount) rec.suggestion.detailComplete = true;
+        }
+        if (extraData.trackingNumber) rec.suggestion.trackingNumber = extraData.trackingNumber;
+        if (extraData.trackingDate) rec.suggestion.trackingDate = extraData.trackingDate;
+        if (typeof extraData.detailComplete !== 'undefined') rec.suggestion.detailComplete = !!extraData.detailComplete;
     }
 
     list.push(rec);
@@ -738,7 +853,7 @@ function removePendingSms(id) {
 function clearPendingSms() { savePendingSms([]); }
 
 /* ============================================================
-   بخش ۱۳ — splitMultipleSms
+   بخش ۱۲ — splitMultipleSms
    ============================================================ */
 function splitMultipleSms(text) {
     var t = String(text || '').trim();
@@ -763,7 +878,7 @@ function splitMultipleSms(text) {
 }
 
 /* ============================================================
-   بخش ۱۴ — handleMultipleIncomingSms
+   بخش ۱۳ — handleMultipleIncomingSms
    ============================================================ */
 function handleMultipleIncomingSms(text, source, force) {
     var blocks = splitMultipleSms(text);
@@ -814,7 +929,7 @@ function handleMultipleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۱۵ — رندر pending
+   بخش ۱۴ — رندر pending
    ============================================================ */
 function _buildMatchedCardHtml(p, s) {
     var pid = p.id;
@@ -826,26 +941,27 @@ function _buildMatchedCardHtml(p, s) {
     var accountLabel = account ? ((account.bank || '') + ' — ' + (account.account || '')) : '—';
     var date = s.date || todayJalaliStr();
     var dirLabel = liveDir === 'in' ? '📥 واریز' : (liveDir === 'out' ? '📤 برداشت' : '❔ نامشخص');
-    var dirCls = (liveDir === 'in') ? ' active-in' : (liveDir === 'out' ? ' active-out' : '');
-
-    var accountOpts = '<option value="">— انتخاب —</option>';
-    for (var ai = 0; ai < accounts.length; ai++) {
-        var acc = accounts[ai];
-        var sel = (accountId === acc.id) ? ' selected' : '';
-        accountOpts += '<option value="' + acc.id + '"' + sel + '>' + esc((acc.bank || '') + ' — ' + (acc.account || '')) + '</option>';
-    }
-
     var patternLabel = p.patternLabel || 'شناسایی‌شده';
+
+    // نمایش وضعیت تکمیل
+    var isComplete = !!s.detailComplete && !!s.counterAccount;
+    var completeBadge = isComplete
+        ? '<span style="background:#fff; color:#059669; padding:2px 8px; border-radius:8px; font-size:.68rem; font-weight:800">✅ تکمیل شد</span>'
+        : '<span style="background:rgba(255,255,255,0.25); color:#fff; padding:2px 8px; border-radius:8px; font-size:.68rem; font-weight:800">⏳ تکمیل نشده</span>';
 
     return '<div class="pending-sms-card psm-matched" data-pid="' + pid + '" ' +
         'style="border:2px solid #10b981; background:linear-gradient(180deg,#ecfdf5 0%,#ffffff 100%); border-radius:16px; overflow:hidden; margin-bottom:14px; box-shadow:0 4px 16px rgba(16,185,129,0.12);">' +
-        '<div style="background:linear-gradient(135deg,#10b981,#059669); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px;">' +
+        '<div style="background:linear-gradient(135deg,#10b981,#059669); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
             '<input type="checkbox" class="psm-select-cb" data-pid="' + pid + '" ' +
             'style="width:20px; height:20px; cursor:pointer; accent-color:#fff; flex-shrink:0;">' +
             '<div style="flex:1; min-width:0;">' +
-                '<div style="font-weight:900; font-size:.95rem;">🧠 الگو: «' + esc(patternLabel) + '»</div>' +
+                '<div style="font-weight:900; font-size:.95rem; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">🧠 الگو: «' + esc(patternLabel) + '» ' + completeBadge + '</div>' +
                 '<div style="font-size:.72rem; opacity:.9; margin-top:2px;">📅 ' + toFa(tsToJalaliDate(p.createdAt)) + ' — ' + toFa(tsToJalaliTime(p.createdAt)) + '</div>' +
             '</div>' +
+            '<button type="button" class="psm-detail-btn" data-action="open-detail" data-id="' + pid + '" ' +
+                'style="background:#fff; color:#059669; border:none; padding:8px 14px; border-radius:10px; font-family:inherit; font-weight:800; font-size:.82rem; cursor:pointer; flex-shrink:0">' +
+                (isComplete ? '✏️ ویرایش' : '📝 تکمیل جزئیات') +
+            '</button>' +
         '</div>' +
         '<div style="padding:14px;">' +
             '<details style="margin-bottom:10px;">' +
@@ -857,20 +973,23 @@ function _buildMatchedCardHtml(p, s) {
                 '<div><b>' + dirLabel + '</b></div>' +
                 '<div style="grid-column:1/-1;"><b>🏦 حساب:</b> ' + esc(accountLabel) + '</div>' +
                 '<div style="grid-column:1/-1;"><b>📅 تاریخ:</b> ' + toFa(date) + '</div>' +
+                (s.counterAccount
+                    ? '<div style="grid-column:1/-1; color:#059669;"><b>🎯 معین طرف مقابل:</b> ' + esc(getAccountLabel(s.counterAccount, DB.load('accounts', []))) + '</div>'
+                    : '') +
             '</div>' +
             '<details style="margin-top:10px;">' +
-                '<summary style="cursor:pointer; font-size:.8rem; font-weight:700; color:#1e40af; padding:4px 0; user-select:none;">✎ ویرایش جزئیات (اختیاری)</summary>' +
+                '<summary style="cursor:pointer; font-size:.8rem; font-weight:700; color:#1e40af; padding:4px 0; user-select:none;">✎ ویرایش سریع (اختیاری)</summary>' +
                 '<div style="margin-top:10px; padding:10px; background:#f8fafc; border:1px solid var(--border); border-radius:10px;">' +
                     '<div class="psm-dir-box">' +
-                        '<button type="button" class="psm-dir-btn' + dirCls + '" data-dir="in" data-pid="' + pid + '"><span class="icon">📥</span><span class="lbl">واریز</span></button>' +
-                        '<button type="button" class="psm-dir-btn" data-dir="out" data-pid="' + pid + '"><span class="icon">📤</span><span class="lbl">برداشت</span></button>' +
+                        '<button type="button" class="psm-dir-btn' + (liveDir === 'in' ? ' active-in' : '') + '" data-dir="in" data-pid="' + pid + '"><span class="icon">📥</span><span class="lbl">واریز</span></button>' +
+                        '<button type="button" class="psm-dir-btn' + (liveDir === 'out' ? ' active-out' : '') + '" data-dir="out" data-pid="' + pid + '"><span class="icon">📤</span><span class="lbl">برداشت</span></button>' +
                     '</div>' +
                     '<input type="hidden" data-field="direction" value="' + liveDir + '">' +
                     '<div class="psm-field"><label>💰 مبلغ (ریال)</label>' +
                         '<input type="text" class="amount-input" inputmode="numeric" dir="ltr" data-field="amount" value="' + (liveAmt ? formatRaw(liveAmt) : '') + '">' +
                     '</div>' +
                     '<div class="psm-field"><label>🏦 حساب بانکی</label>' +
-                        '<select data-field="account">' + accountOpts + '</select>' +
+                        '<select data-field="account">' + _buildPendingBankOptions(accountId) + '</select>' +
                     '</div>' +
                     '<div class="psm-row-2">' +
                         '<div class="psm-field"><label>📅 تاریخ</label>' +
@@ -900,13 +1019,6 @@ function _buildUnmatchedCardHtml(p, s) {
     var liveAmt = extractAmountWithSign(p.raw);
     var accounts = DB.load('bankAccounts', []);
 
-    var accountOpts = '<option value="">— انتخاب حساب —</option>';
-    for (var a = 0; a < accounts.length; a++) {
-        var acc = accounts[a];
-        var sel = (s.linkedAccountId === acc.id) ? ' selected' : '';
-        accountOpts += '<option value="' + acc.id + '"' + sel + '>' + esc((acc.bank || '') + ' — ' + (acc.account || '')) + '</option>';
-    }
-
     var clsIn = (effectiveDir === 'in') ? ' active-in' : '';
     var clsOut = (effectiveDir === 'out') ? ' active-out' : '';
     var forcedBadge = p.forced ? '<span class="badge">دستی</span>' : '';
@@ -915,15 +1027,24 @@ function _buildUnmatchedCardHtml(p, s) {
     var voucherDescVal = (typeof s.voucherDesc === 'string') ? s.voucherDesc : suggestLabel(p.raw, s.bankName, effectiveDir);
     var lineDescVal    = (typeof s.lineDesc    === 'string') ? s.lineDesc    : suggestLabel(p.raw, s.bankName, effectiveDir);
 
+    var isComplete = !!s.detailComplete && !!s.counterAccount;
+    var completeBadge = isComplete
+        ? '<span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:8px; font-size:.68rem; font-weight:800">✅ تکمیل شد</span>'
+        : '<span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:8px; font-size:.68rem; font-weight:800">⏳ تکمیل نشده</span>';
+
     return '<div class="pending-sms-card psm-new" data-pid="' + pid + '">' +
         '<div class="psm-head">' +
             '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">' +
                 '<input type="checkbox" class="psm-select-cb" data-pid="' + pid + '" style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer">' +
                 '<div style="flex:1">' +
-                    '<div class="title">🔔 پیامک جدید' + forcedBadge + '</div>' +
+                    '<div class="title">🔔 پیامک جدید' + forcedBadge + ' ' + completeBadge + '</div>' +
                     '<div class="meta">' + esc(meta) + '</div>' +
                 '</div>' +
             '</label>' +
+            '<button type="button" class="psm-detail-btn" data-action="open-detail" data-id="' + pid + '" ' +
+                'style="background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; border:none; padding:8px 14px; border-radius:10px; font-family:inherit; font-weight:800; font-size:.82rem; cursor:pointer; flex-shrink:0">' +
+                (isComplete ? '✏️ ویرایش' : '📝 تکمیل جزئیات') +
+            '</button>' +
         '</div>' +
         '<div class="psm-text-wrap">' +
             '<div class="psm-text-toggle" data-toggle="text"><span>📄 متن پیامک</span><span class="arrow">◀</span></div>' +
@@ -939,7 +1060,7 @@ function _buildUnmatchedCardHtml(p, s) {
                 '<input type="text" class="amount-input" inputmode="numeric" dir="ltr" data-field="amount" value="' + ((liveAmt.amount || s.amount) ? formatRaw(liveAmt.amount || s.amount) : '') + '">' +
             '</div>' +
             '<div class="psm-field"><label>🏦 حساب بانکی</label>' +
-                '<select data-field="account">' + accountOpts + '</select>' +
+                '<select data-field="account">' + _buildPendingBankOptions(s.linkedAccountId || '') + '</select>' +
             '</div>' +
             '<div class="psm-row-2">' +
                 '<div class="psm-field"><label>📅 تاریخ</label>' +
@@ -960,6 +1081,16 @@ function _buildUnmatchedCardHtml(p, s) {
             '<button class="psm-btn-danger" data-action="drop" data-id="' + pid + '">🗑</button>' +
         '</div>' +
     '</div>';
+}
+
+function _buildPendingBankOptions(selectedId) {
+    var accounts = DB.load('bankAccounts', []);
+    var html = '<option value="">— انتخاب —</option>';
+    accounts.forEach(function (acc) {
+        var sel = (selectedId === acc.id) ? ' selected' : '';
+        html += '<option value="' + acc.id + '"' + sel + '>' + esc((acc.bank || '') + ' — ' + (acc.account || '')) + '</option>';
+    });
+    return html;
 }
 
 function renderPendingSmsBox() {
@@ -1042,6 +1173,7 @@ function bindPendingEventsNew(box) {
         btn.onclick = function () {
             var action = this.getAttribute('data-action');
             var pid = this.getAttribute('data-id');
+            if (action === 'open-detail') { openPendingSmsDetailModal(pid); return; }
             if (action === 'drop') {
                 if (!confirm('این پیامک حذف شود؟')) return;
                 removePendingSms(pid); renderPendingSmsBox(); return;
@@ -1053,27 +1185,367 @@ function bindPendingEventsNew(box) {
 }
 
 /* ============================================================
+   ✅ بخش ۱۵ — مودال تکمیل جزئیات
+   ============================================================ */
+function openPendingSmsDetailModal(pid) {
+    var pending = getPendingSms().find(function (p) { return p.id === pid; });
+    if (!pending) { alert('پیامک یافت نشد'); return; }
+
+    var s = pending.suggestion || {};
+    var ctx = {
+        pid: pid,
+        account: s.counterAccount || '',
+        details: JSON.parse(JSON.stringify(s.counterDetails || {})),
+        lineDesc: s.lineDesc || '',
+        voucherDesc: s.voucherDesc || '',
+        trackingNumber: s.trackingNumber || '',
+        trackingDate: s.trackingDate || '',
+        date: s.date || todayJalaliStr(),
+        time: s.time || '',
+        amount: Number(s.amount) || 0,
+        direction: s.direction || detectSmsDirection(pending.raw) || '',
+        bankAccountId: s.linkedAccountId || ''
+    };
+    window._pmsDetailCtx = ctx;
+
+    var old = document.getElementById('pms-detail-modal');
+    if (old) old.remove();
+    var oldO = document.getElementById('pms-detail-overlay');
+    if (oldO) oldO.remove();
+
+    var html = ''
+        + '<div id="pms-detail-overlay" class="overlay show" style="z-index:2500"></div>'
+        + '<div id="pms-detail-modal" class="modal show" style="max-width:680px;z-index:2510">'
+        +   '<div class="modal-head" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">'
+        +     '<h2>📝 تکمیل جزئیات سند</h2>'
+        +     '<button class="close-btn" id="pms-detail-close" type="button">×</button>'
+        +   '</div>'
+        +   '<div class="modal-body" style="max-height:75vh;overflow-y:auto" id="pms-detail-body"></div>'
+        +   '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'
+        +     '<button class="btn-secondary" id="pms-detail-cancel" type="button">انصراف</button>'
+        +     '<button class="btn-primary" id="pms-detail-save" type="button">💾 ذخیره</button>'
+        +   '</div>'
+        + '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    renderPendingSmsDetailBody();
+
+    document.getElementById('pms-detail-close').onclick = closePendingSmsDetailModal;
+    document.getElementById('pms-detail-cancel').onclick = closePendingSmsDetailModal;
+    document.getElementById('pms-detail-overlay').onclick = closePendingSmsDetailModal;
+    document.getElementById('pms-detail-save').onclick = function () {
+        savePendingSmsDetail(pid);
+    };
+
+    setTimeout(function () {
+        if (typeof attachDatePickers === 'function') attachDatePickers();
+        if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
+    }, 100);
+}
+
+function renderPendingSmsDetailBody() {
+    var ctx = window._pmsDetailCtx;
+    if (!ctx) return;
+
+    var box = document.getElementById('pms-detail-body');
+    if (!box) return;
+
+    var accounts = DB.load('accounts', []);
+    var leaves = accounts.filter(function (a) {
+        return !accounts.some(function (x) { return x.parent === a.id; });
+    });
+    var accItems = leaves.map(function (a) {
+        return { value: a.id, text: getAccountLabel(a.id, accounts) };
+    });
+
+    var html = '';
+
+    var pending = getPendingSms().find(function (p) { return p.id === ctx.pid; });
+    if (pending) {
+        html += '<details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.8rem;color:var(--primary-dark);font-weight:700;padding:6px 0">📄 متن اصلی پیامک</summary>'
+             +  '<div style="background:var(--card-alt);padding:10px;border-radius:8px;font-size:.75rem;margin-top:6px;direction:rtl;white-space:pre-wrap;border:1px solid var(--border);max-height:100px;overflow-y:auto">' + esc(pending.raw) + '</div></details>';
+    }
+
+    // جهت
+    html += '<div class="field"><label>جهت تراکنش</label>'
+         +  '<div style="display:flex;gap:8px">'
+         +    '<button type="button" class="pms-dir-btn2" data-dir2="in" style="flex:1;padding:12px;border:2px solid ' + (ctx.direction === 'in' ? '#059669' : 'var(--border)') + ';border-radius:10px;background:' + (ctx.direction === 'in' ? '#d1fae5' : '#fff') + ';font-family:inherit;font-weight:800;cursor:pointer;color:' + (ctx.direction === 'in' ? '#065f46' : 'inherit') + '">📥 واریز</button>'
+         +    '<button type="button" class="pms-dir-btn2" data-dir2="out" style="flex:1;padding:12px;border:2px solid ' + (ctx.direction === 'out' ? '#dc2626' : 'var(--border)') + ';border-radius:10px;background:' + (ctx.direction === 'out' ? '#fee2e2' : '#fff') + ';font-family:inherit;font-weight:800;cursor:pointer;color:' + (ctx.direction === 'out' ? '#991b1b' : 'inherit') + '">📤 برداشت</button>'
+         +  '</div></div>';
+
+    // مبلغ + بانک
+    html += '<div class="grid-2">'
+         +    '<div class="field"><label>مبلغ (ریال)</label>'
+         +      '<input type="text" id="pms-d-amount" inputmode="numeric" dir="ltr" value="' + (ctx.amount ? formatRaw(ctx.amount) : '') + '" style="text-align:center;font-weight:800">'
+         +    '</div>'
+         +    '<div class="field"><label>حساب بانکی</label>'
+         +      '<select id="pms-d-bank">' + _buildPendingBankOptions(ctx.bankAccountId) + '</select>'
+         +    '</div>'
+         +  '</div>';
+
+    // تاریخ و ساعت
+    html += '<div class="grid-2">'
+         +    '<div class="field"><label>تاریخ</label>'
+         +      '<input type="text" id="pms-d-date" class="date-picker" dir="ltr" value="' + esc(ctx.date) + '">'
+         +    '</div>'
+         +    '<div class="field"><label>ساعت</label>'
+         +      '<input type="text" id="pms-d-time" dir="ltr" placeholder="HH:MM" value="' + esc(ctx.time) + '" style="text-align:center;font-family:monospace">'
+         +    '</div>'
+         +  '</div>';
+
+    // حساب معین طرف مقابل (searchable)
+    html += '<div class="field" style="padding:12px;background:#eef2ff;border:1.5px solid #818cf8;border-radius:12px">'
+         +    '<label style="color:#3730a3;font-weight:900;font-size:.88rem;margin-bottom:8px">🎯 حساب معین طرف مقابل * <span style="font-size:.72rem;font-weight:600;color:#64748b">(طرف بدهکار/بستانکار سند)</span></label>'
+         +    '<div id="pms-d-account-wrap"></div>'
+         +  '</div>';
+
+    // تفصیلی
+    html += '<div id="pms-d-details-wrap"></div>';
+
+    // شرح قلم
+    html += '<div class="field"><label>شرح قلم *</label>'
+         +  '<input type="text" id="pms-d-linedesc" value="' + esc(ctx.lineDesc) + '" list="std-desc-list" placeholder="مثلاً: خرید ملزومات">'
+         +  '</div>';
+
+    // شرح سند
+    html += '<div class="field"><label>شرح سند</label>'
+         +  '<input type="text" id="pms-d-voucherdesc" value="' + esc(ctx.voucherDesc) + '" list="std-desc-list" placeholder="مثلاً: برداشت از بانک ملی">'
+         +  '</div>';
+
+    // پیگیری
+    html += '<div class="grid-2">'
+         +    '<div class="field"><label>شماره پیگیری</label>'
+         +      '<input type="text" id="pms-d-tracking" dir="ltr" value="' + esc(ctx.trackingNumber) + '" placeholder="اختیاری">'
+         +    '</div>'
+         +    '<div class="field"><label>تاریخ پیگیری</label>'
+         +      '<input type="text" id="pms-d-trackingdate" class="date-picker" dir="ltr" value="' + esc(ctx.trackingDate) + '">'
+         +    '</div>'
+         +  '</div>';
+
+    box.innerHTML = html;
+
+    // رندر searchable حساب
+    setTimeout(function () {
+        _renderPmsAccountSearchable(accItems);
+        _renderPmsDetailsSearchable(accounts);
+        if (typeof attachDatePickers === 'function') attachDatePickers();
+    }, 50);
+
+    // بایند دکمه‌های جهت
+    box.querySelectorAll('.pms-dir-btn2').forEach(function (btn) {
+        btn.onclick = function () {
+            ctx.direction = this.getAttribute('data-dir2');
+            renderPendingSmsDetailBody();
+        };
+    });
+
+    // مبلغ
+    var amtInp = document.getElementById('pms-d-amount');
+    if (amtInp) {
+        amtInp.addEventListener('input', function () {
+            var v = normalizeDigits(this.value).replace(/[^\d]/g, '');
+            this.value = v;
+            ctx.amount = Number(v) || 0;
+        });
+        amtInp.addEventListener('blur', function () {
+            var v = Number(normalizeDigits(this.value).replace(/[^\d]/g, '')) || 0;
+            this.value = v ? formatRaw(v) : '';
+            ctx.amount = v;
+        });
+    }
+
+    var bankSel = document.getElementById('pms-d-bank');
+    if (bankSel) bankSel.onchange = function () { ctx.bankAccountId = this.value; };
+
+    var dInp = document.getElementById('pms-d-date');
+    if (dInp) dInp.addEventListener('input', function () { ctx.date = normalizeDigits(this.value); });
+    var tInp = document.getElementById('pms-d-time');
+    if (tInp) tInp.addEventListener('input', function () { ctx.time = this.value; });
+
+    var lInp = document.getElementById('pms-d-linedesc');
+    if (lInp) lInp.addEventListener('input', function () { ctx.lineDesc = this.value; });
+    var vInp = document.getElementById('pms-d-voucherdesc');
+    if (vInp) vInp.addEventListener('input', function () { ctx.voucherDesc = this.value; });
+
+    var trInp = document.getElementById('pms-d-tracking');
+    if (trInp) trInp.addEventListener('input', function () { ctx.trackingNumber = this.value; });
+    var trdInp = document.getElementById('pms-d-trackingdate');
+    if (trdInp) trdInp.addEventListener('input', function () { ctx.trackingDate = normalizeDigits(this.value); });
+}
+
+function _renderPmsAccountSearchable(accItems) {
+    var wrap = document.getElementById('pms-d-account-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var ctx = window._pmsDetailCtx;
+
+    if (typeof createSearchableSelect === 'function') {
+        var sel = createSearchableSelect(accItems, ctx.account, '— انتخاب معین —', function (val) {
+            ctx.account = val;
+            ctx.details = {};
+            _renderPmsDetailsSearchable(DB.load('accounts', []));
+        });
+        wrap.appendChild(sel);
+    } else {
+        var nativeSel = document.createElement('select');
+        nativeSel.innerHTML = '<option value="">— انتخاب معین —</option>';
+        accItems.forEach(function (it) {
+            var o = document.createElement('option');
+            o.value = it.value; o.textContent = it.text;
+            if (it.value === ctx.account) o.selected = true;
+            nativeSel.appendChild(o);
+        });
+        nativeSel.style.cssText = 'width:100%;padding:11px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit';
+        nativeSel.addEventListener('change', function () {
+            ctx.account = this.value;
+            ctx.details = {};
+            _renderPmsDetailsSearchable(DB.load('accounts', []));
+        });
+        wrap.appendChild(nativeSel);
+    }
+}
+
+function _renderPmsDetailsSearchable(accounts) {
+    var wrap = document.getElementById('pms-d-details-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var ctx = window._pmsDetailCtx;
+    if (!ctx || !ctx.account) return;
+
+    var acc = accounts.find(function (a) { return a.id === ctx.account; });
+    if (!acc || !acc.links || acc.links.length === 0) return;
+
+    var uniqueLinks = [];
+    acc.links.forEach(function (lt) { if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt); });
+
+    var combined = [];
+    uniqueLinks.forEach(function (lt) {
+        getLinkedItems(lt).forEach(function (it) {
+            combined.push({
+                value: lt + '::' + it.id,
+                text: linkTypeName(lt) + ': ' + getLinkedItemLabel(lt, it)
+            });
+        });
+    });
+
+    if (combined.length === 0) return;
+
+    var curVal = null;
+    uniqueLinks.forEach(function (lt) { if (ctx.details[lt]) curVal = lt + '::' + ctx.details[lt]; });
+
+    var fieldDiv = document.createElement('div');
+    fieldDiv.className = 'field';
+    var lbl = document.createElement('label');
+    lbl.textContent = '🏷 تفصیلی (' + uniqueLinks.map(linkTypeName).join(' / ') + ')';
+    fieldDiv.appendChild(lbl);
+
+    if (typeof createSearchableSelect === 'function') {
+        var detSel = createSearchableSelect(combined, curVal, '— انتخاب تفصیلی —', function (val) {
+            ctx.details = {};
+            if (val) {
+                var parts = val.split('::');
+                ctx.details[parts[0]] = parts[1];
+            }
+        });
+        fieldDiv.appendChild(detSel);
+    } else {
+        var nativeSel = document.createElement('select');
+        nativeSel.innerHTML = '<option value="">— انتخاب تفصیلی —</option>';
+        combined.forEach(function (it) {
+            var o = document.createElement('option');
+            o.value = it.value; o.textContent = it.text;
+            if (it.value === curVal) o.selected = true;
+            nativeSel.appendChild(o);
+        });
+        nativeSel.style.cssText = 'width:100%;padding:11px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit';
+        nativeSel.addEventListener('change', function () {
+            ctx.details = {};
+            if (this.value) {
+                var parts = this.value.split('::');
+                ctx.details[parts[0]] = parts[1];
+            }
+        });
+        fieldDiv.appendChild(nativeSel);
+    }
+    wrap.appendChild(fieldDiv);
+}
+
+function savePendingSmsDetail(pid) {
+    var ctx = window._pmsDetailCtx;
+    if (!ctx) return;
+
+    if (!ctx.amount || ctx.amount <= 0) { alert('⚠️ مبلغ را وارد کنید'); return; }
+    if (!ctx.direction) { alert('⚠️ جهت تراکنش را انتخاب کنید'); return; }
+    if (!ctx.account) { alert('⚠️ حساب معین طرف مقابل را انتخاب کنید'); return; }
+
+    var list = getPendingSms();
+    var pending = list.find(function (p) { return p.id === pid; });
+    if (!pending) { alert('پیامک یافت نشد'); return; }
+
+    if (!pending.suggestion) pending.suggestion = {};
+    pending.suggestion.counterAccount = ctx.account;
+    pending.suggestion.counterDetails = JSON.parse(JSON.stringify(ctx.details));
+    pending.suggestion.lineDesc = ctx.lineDesc;
+    pending.suggestion.voucherDesc = ctx.voucherDesc;
+    pending.suggestion.trackingNumber = ctx.trackingNumber;
+    pending.suggestion.trackingDate = ctx.trackingDate;
+    pending.suggestion.date = ctx.date;
+    pending.suggestion.time = ctx.time;
+    pending.suggestion.amount = ctx.amount;
+    pending.suggestion.direction = ctx.direction;
+    pending.suggestion.linkedAccountId = ctx.bankAccountId;
+    pending.suggestion.detailComplete = true;
+
+    savePendingSms(list);
+    closePendingSmsDetailModal();
+    renderPendingSmsBox();
+    showToast('✅ جزئیات ذخیره شد — آماده سند گروهی');
+}
+
+function closePendingSmsDetailModal() {
+    var m = document.getElementById('pms-detail-modal');
+    if (m) m.remove();
+    var o = document.getElementById('pms-detail-overlay');
+    if (o) o.remove();
+    window._pmsDetailCtx = null;
+}
+
+/* ============================================================
    بخش ۱۶ — ذخیره pending
    ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
-    if (!card) return;
     var pending = getPendingSms().find(function (p) { return p.id === pid; });
     if (!pending) return;
 
-    var accountId   = (card.querySelector('[data-field="account"]') || {}).value || '';
-    var amountStr   = (card.querySelector('[data-field="amount"]') || {}).value || '';
-    var dirHidden   = (card.querySelector('[data-field="direction"]') || {}).value || '';
-    var dateStr     = (card.querySelector('[data-field="date"]') || {}).value || '';
-    var voucherDesc = (card.querySelector('[data-field="voucherDesc"]') || {}).value || '';
-    var lineDesc    = (card.querySelector('[data-field="lineDesc"]') || {}).value || '';
-    var labelStr    = (card.querySelector('[data-field="label"]') || {}).value || '';
+    var accountId   = '';
+    var amountStr   = '';
+    var dirHidden   = '';
+    var dateStr     = '';
+    var voucherDesc = '';
+    var lineDesc    = '';
+    var labelStr    = '';
 
-    var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || 0;
-    var direction = dirHidden;
+    if (card) {
+        accountId   = (card.querySelector('[data-field="account"]') || {}).value || '';
+        amountStr   = (card.querySelector('[data-field="amount"]') || {}).value || '';
+        dirHidden   = (card.querySelector('[data-field="direction"]') || {}).value || '';
+        dateStr     = (card.querySelector('[data-field="date"]') || {}).value || '';
+        voucherDesc = (card.querySelector('[data-field="voucherDesc"]') || {}).value || '';
+        lineDesc    = (card.querySelector('[data-field="lineDesc"]') || {}).value || '';
+        labelStr    = (card.querySelector('[data-field="label"]') || {}).value || '';
+    }
 
+    var s = pending.suggestion || {};
+    var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(s.amount) || 0;
+    var direction = dirHidden || s.direction || '';
     if (!amount)    { alert('⚠️ مبلغ را وارد کنید.'); return; }
     if (!direction) { alert('⚠️ واریز یا برداشت را انتخاب کنید.'); return; }
+    if (withVoucher && !accountId) {
+        // اگه از طریق مودال تعیین شده، از suggestion بگیر
+        accountId = s.linkedAccountId || '';
+    }
     if (withVoucher && !accountId) { alert('⚠️ برای ساخت سند، حساب بانکی را انتخاب کنید.'); return; }
 
     if (pending.patternMatchedId) {
@@ -1083,25 +1555,46 @@ function savePendingAsPattern(pid, withVoucher) {
             if (labelStr.trim()) matched.label = labelStr.trim();
             matched.direction = direction;
             matched.linkedAccountId = accountId;
-            matched.voucherDesc = voucherDesc.trim();
-            matched.lineDesc    = lineDesc.trim();
+            matched.voucherDesc = voucherDesc.trim() || s.voucherDesc || '';
+            matched.lineDesc    = lineDesc.trim() || s.lineDesc || '';
             matched.lastUsed = Date.now();
             matched.uses = (matched.uses || 0) + 1;
+
+            // ذخیره counterAccount در pattern
+            if (s.counterAccount) {
+                matched.counterAccount = s.counterAccount;
+                matched.counterDetails = JSON.parse(JSON.stringify(s.counterDetails || {}));
+            }
+
+            // یادگیری slot مبلغ
+            var built = buildSmsPattern(pending.raw);
+            var amountSlot = null;
+            for (var slot in built.mapping) {
+                var numVal = Number(String(built.mapping[slot]).replace(/[^\d]/g, ''));
+                if (numVal === amount) { amountSlot = parseInt(slot.slice(1), 10); break; }
+            }
+            if (amountSlot !== null) {
+                matched.slots = matched.slots || {};
+                matched.slots.amount = amountSlot;
+            }
+
             saveSmsPatterns(allPatterns);
         }
     } else if (labelStr.trim()) {
-        var built = buildSmsPattern(pending.raw);
-        var amountSlot = null;
-        for (var slot in built.mapping) {
-            var numVal = Number(String(built.mapping[slot]).replace(/[^\d]/g, ''));
-            if (numVal === amount) { amountSlot = parseInt(slot.slice(1), 10); break; }
+        var built2 = buildSmsPattern(pending.raw);
+        var amountSlot2 = null;
+        for (var slot2 in built2.mapping) {
+            var numVal2 = Number(String(built2.mapping[slot2]).replace(/[^\d]/g, ''));
+            if (numVal2 === amount) { amountSlot2 = parseInt(slot2.slice(1), 10); break; }
         }
         addSmsPattern({
-            raw: pending.raw, key: built.key, tokens: built.tokens, mapping: built.mapping,
-            slots: { amount: amountSlot },
+            raw: pending.raw, key: built2.key, tokens: built2.tokens, mapping: built2.mapping,
+            slots: { amount: amountSlot2 },
             label: labelStr.trim(), direction: direction, linkedAccountId: accountId,
             voucherDesc: voucherDesc.trim(),
-            lineDesc: lineDesc.trim()
+            lineDesc: lineDesc.trim(),
+            counterAccount: s.counterAccount || '',
+            counterDetails: s.counterDetails || {}
         });
     }
 
@@ -1126,8 +1619,14 @@ function savePendingAsPattern(pid, withVoucher) {
 
         var voucherResult = _createVoucherSmart({
             bankAccountId: accountId, amount: amount, direction: direction,
-            date: normalizeDigits(dateStr).trim() || todayJalaliStr(),
-            voucherDesc: voucherDesc.trim(), lineDesc: lineDesc.trim()
+            date: normalizeDigits(dateStr).trim() || s.date || todayJalaliStr(),
+            time: s.time || '',
+            voucherDesc: voucherDesc.trim() || s.voucherDesc || '',
+            lineDesc: lineDesc.trim() || s.lineDesc || '',
+            counterAccount: s.counterAccount || '',
+            counterDetails: s.counterDetails || {},
+            trackingNumber: s.trackingNumber || '',
+            trackingDate: s.trackingDate || ''
         });
 
         if (voucherResult && voucherResult.voucher) inboxItem.voucherId = voucherResult.voucher.id;
@@ -1180,12 +1679,27 @@ function _createVoucherSmart(data) {
     var vDesc = (typeof data.voucherDesc === 'string') ? data.voucherDesc : '';
     var lDesc = (typeof data.lineDesc    === 'string') ? data.lineDesc    : vDesc;
 
+    var counterAccount = data.counterAccount || '';
+    var counterDetails = data.counterDetails || {};
+
     if (data.direction === 'out') {
-        lines.push({ id: uid(), account: '', details: {}, debit: data.amount, credit: 0, description: lDesc });
+        lines.push({
+            id: uid(), account: counterAccount,
+            details: JSON.parse(JSON.stringify(counterDetails)),
+            debit: data.amount, credit: 0, description: lDesc,
+            trackingNumber: data.trackingNumber || '',
+            trackingDate: data.trackingDate || ''
+        });
         lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: data.amount, description: lDesc, locked: true });
     } else {
         lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: data.amount, credit: 0, description: lDesc, locked: true });
-        lines.push({ id: uid(), account: '', details: {}, debit: 0, credit: data.amount, description: lDesc });
+        lines.push({
+            id: uid(), account: counterAccount,
+            details: JSON.parse(JSON.stringify(counterDetails)),
+            debit: 0, credit: data.amount, description: lDesc,
+            trackingNumber: data.trackingNumber || '',
+            trackingDate: data.trackingDate || ''
+        });
     }
 
     var vl = DB.load('vouchers', []);
@@ -1196,6 +1710,7 @@ function _createVoucherSmart(data) {
     var v = {
         id: uid(), number: num,
         date: data.date || todayJalaliStr(),
+        time: data.time || '',
         type: 'general', periodId: state.activePeriodId || '',
         desc: vDesc, lines: lines, status: 'draft'
     };
@@ -1210,7 +1725,7 @@ function _createVoucherSmart(data) {
 }
 
 /* ============================================================
-   بخش ۱۹ — سند ترکیبی از pending
+   ✅ بخش ۱۹ — سند ترکیبی از pending
    ============================================================ */
 function convertMultiplePendingToVoucher() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
@@ -1229,18 +1744,36 @@ function convertMultiplePendingToVoucher() {
         if (!s) continue;
 
         var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
-        if (!card) { skippedCount++; continue; }
+        var sug = s.suggestion || {};
 
-        var amountStr = (card.querySelector('[data-field="amount"]') || {}).value || '';
-        var dirHidden = (card.querySelector('[data-field="direction"]') || {}).value || '';
-        var accountId = (card.querySelector('[data-field="account"]') || {}).value || '';
-        var lineDescEl = card.querySelector('[data-field="lineDesc"]');
-        var voucherDescEl = card.querySelector('[data-field="voucherDesc"]');
-        var lineDesc = lineDescEl ? lineDescEl.value.trim() : '';
-        var voucherDesc = voucherDescEl ? voucherDescEl.value.trim() : '';
+        var amountStr = '';
+        var dirHidden = '';
+        var accountId = '';
+        var lineDescEl = null;
+        var voucherDescEl = null;
 
-        var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || 0;
-        var direction = dirHidden;
+        if (card) {
+            amountStr = (card.querySelector('[data-field="amount"]') || {}).value || '';
+            dirHidden = (card.querySelector('[data-field="direction"]') || {}).value || '';
+            accountId = (card.querySelector('[data-field="account"]') || {}).value || '';
+            lineDescEl = card.querySelector('[data-field="lineDesc"]');
+            voucherDescEl = card.querySelector('[data-field="voucherDesc"]');
+        }
+
+        var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(sug.amount) || 0;
+        var direction = dirHidden || sug.direction || detectSmsDirection(s.raw);
+        var lineDesc = lineDescEl ? lineDescEl.value.trim() : (sug.lineDesc || '');
+        var voucherDesc = voucherDescEl ? voucherDescEl.value.trim() : (sug.voucherDesc || '');
+        var counterAccount = sug.counterAccount || '';
+        var counterDetails = sug.counterDetails || {};
+        var dateVal = sug.date || todayJalaliStr();
+        var timeVal = sug.time || '';
+
+        if (card) {
+            var dateEl = card.querySelector('[data-field="date"]');
+            if (dateEl && dateEl.value) dateVal = normalizeDigits(dateEl.value.trim());
+        }
+
         if (!amount) { skippedCount++; continue; }
         if (!direction) direction = detectSmsDirection(s.raw);
         if (!direction) { skippedCount++; continue; }
@@ -1249,11 +1782,23 @@ function convertMultiplePendingToVoucher() {
         var desc = lineDesc || voucherDesc;
 
         if (direction === 'out') {
-            lines.push({ id: uid(), account: '', details: {}, debit: amount, credit: 0, description: desc });
+            lines.push({
+                id: uid(), account: counterAccount,
+                details: JSON.parse(JSON.stringify(counterDetails)),
+                debit: amount, credit: 0, description: desc,
+                trackingNumber: sug.trackingNumber || '',
+                trackingDate: sug.trackingDate || ''
+            });
             lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: amount, description: desc, locked: true });
         } else {
             lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: amount, credit: 0, description: desc, locked: true });
-            lines.push({ id: uid(), account: '', details: {}, debit: 0, credit: amount, description: desc });
+            lines.push({
+                id: uid(), account: counterAccount,
+                details: JSON.parse(JSON.stringify(counterDetails)),
+                debit: 0, credit: amount, description: desc,
+                trackingNumber: sug.trackingNumber || '',
+                trackingDate: sug.trackingDate || ''
+            });
         }
 
         if (voucherDesc) descSet[voucherDesc] = true;
@@ -1263,12 +1808,12 @@ function convertMultiplePendingToVoucher() {
     if (lines.length === 0) { alert('⚠️ هیچ‌کدام قابل تبدیل نیستند.'); return; }
 
     var descArr = Object.keys(descSet);
-    var voucherDesc = (descArr.length > 0 && descArr.length <= 3) ? descArr.join(' + ') : '';
+    var voucherDescFinal = (descArr.length > 0 && descArr.length <= 3) ? descArr.join(' + ') : '';
 
     var vl = DB.load('vouchers', []);
     var num = (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(state.activePeriodId || '') : String(vl.length + 1);
 
-    var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDesc, lines: lines, status: 'draft' };
+    var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDescFinal, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
     vl.push(v); DB.save('vouchers', vl);
 
@@ -1311,7 +1856,17 @@ function convertMultiplePendingToVoucher() {
    ============================================================ */
 function extractValuesFromPattern(newRaw, pattern) {
     var built = buildSmsPattern(newRaw);
-    var result = { amount: 0, direction: '', date: '', bankAccountId: pattern.linkedAccountId || '' };
+    var result = {
+        amount: 0,
+        direction: '',
+        date: '',
+        time: '',
+        bankAccountId: pattern.linkedAccountId || '',
+        counterAccount: pattern.counterAccount || '',
+        counterDetails: JSON.parse(JSON.stringify(pattern.counterDetails || {})),
+        trackingNumber: '',
+        trackingDate: ''
+    };
     if (pattern.slots && pattern.slots.amount) {
         var rawVal = built.mapping['#' + pattern.slots.amount];
         if (rawVal) result.amount = Number(String(rawVal).replace(/[^\d]/g, '')) || 0;
@@ -1319,6 +1874,7 @@ function extractValuesFromPattern(newRaw, pattern) {
     if (!result.amount) result.amount = suggestAmount(newRaw);
     result.direction = pattern.direction || detectSmsDirection(newRaw);
     result.date = suggestDate(newRaw);
+    result.time = suggestTime(newRaw);
     return result;
 }
 
@@ -1347,7 +1903,10 @@ function handleIncomingSms(text, source, force) {
             direction: vals.direction,
             linkedAccountId: vals.bankAccountId,
             voucherDesc: (typeof m.pattern.voucherDesc === 'string') ? m.pattern.voucherDesc : '',
-            lineDesc:    (typeof m.pattern.lineDesc    === 'string') ? m.pattern.lineDesc    : ''
+            lineDesc:    (typeof m.pattern.lineDesc    === 'string') ? m.pattern.lineDesc    : '',
+            counterAccount: vals.counterAccount,
+            counterDetails: vals.counterDetails,
+            detailComplete: !!vals.counterAccount
         };
         bumpSmsPatternUsage(m.pattern.id);
     }
@@ -1621,6 +2180,7 @@ function renderSmsPatternsTab() {
         var cardKeyShow = p.cardKey || extractCardKey(p.raw || '') || '—';
         var kwList = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
         var kwStr = kwList.length > 0 ? kwList.join(' ، ') : '—';
+        var counterAccShow = p.counterAccount ? getAccountLabel(p.counterAccount, DB.load('accounts', [])) : '—';
 
         html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
             + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
@@ -1646,6 +2206,7 @@ function renderSmsPatternsTab() {
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
             +   '<div><span style="color:var(--text-muted);font-weight:700">شرح سند:</span> ' + vDescShow + '</div>'
             +   '<div><span style="color:var(--text-muted);font-weight:700">شرح قلم:</span> ' + lDescShow + '</div>'
+            +   '<div style="grid-column:1/-1"><span style="color:var(--text-muted);font-weight:700">🎯 معین طرف مقابل:</span> ' + esc(counterAccShow) + '</div>'
             + '</div>'
             + '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted)">'
             +   '<span>📊 ' + toFa(p.uses || 0) + ' بار</span>'
@@ -1784,12 +2345,14 @@ function convertSmsToVoucher(smsId) {
         }
 
         var matched = findMatchingSmsPattern(item.rawText);
-        var voucherDesc = '', lineDesc = '';
+        var voucherDesc = '', lineDesc = '', counterAccount = '', counterDetails = {};
         if (matched && matched.pattern) {
             if (!direction && matched.pattern.direction) direction = matched.pattern.direction;
             if (!bankAccountId && matched.pattern.linkedAccountId) bankAccountId = matched.pattern.linkedAccountId;
             voucherDesc = (typeof matched.pattern.voucherDesc === 'string') ? matched.pattern.voucherDesc : '';
             lineDesc    = (typeof matched.pattern.lineDesc    === 'string') ? matched.pattern.lineDesc    : voucherDesc;
+            counterAccount = matched.pattern.counterAccount || '';
+            counterDetails = matched.pattern.counterDetails || {};
         }
 
         if (!direction) direction = detectSmsDirection(raw);
@@ -1818,7 +2381,8 @@ function convertSmsToVoucher(smsId) {
         var res = _createVoucherSmart({
             bankAccountId: bankAccountId, amount: amount, direction: direction,
             date: todayJalaliStr(),
-            voucherDesc: voucherDesc, lineDesc: lineDesc || voucherDesc
+            voucherDesc: voucherDesc, lineDesc: lineDesc || voucherDesc,
+            counterAccount: counterAccount, counterDetails: counterDetails
         });
 
         if (!res) return;
@@ -1834,7 +2398,41 @@ function convertSmsToVoucher(smsId) {
 }
 
 /* ============================================================
-   بخش ۲۸ — Delegation
+   ✅ بخش ۲۸ — دکمه انتخاب همه
+   ============================================================ */
+function _injectPendingSelectAllBtn() {
+    var tab = document.getElementById('tab-sms-pending');
+    if (!tab) return;
+    var header = tab.querySelector('.list-header');
+    if (!header) return;
+    if (header.querySelector('#pending-sms-select-all')) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'pending-sms-select-all';
+    btn.className = 'export-btn';
+    btn.type = 'button';
+    btn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;font-weight:800;padding:9px 14px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:0.8rem';
+    btn.textContent = '☑️ انتخاب همه';
+    btn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var cbs = document.querySelectorAll('#pending-sms-list .psm-select-cb');
+        if (cbs.length === 0) { showToast('پیامکی برای انتخاب نیست.'); return; }
+        var allChecked = Array.from(cbs).every(function (c) { return c.checked; });
+        cbs.forEach(function (cb) { cb.checked = !allChecked; });
+        btn.textContent = !allChecked ? '☐ لغو انتخاب' : '☑️ انتخاب همه';
+    };
+
+    var bulkBtn = header.querySelector('#pending-sms-bulk-voucher');
+    if (bulkBtn && bulkBtn.parentNode) {
+        bulkBtn.parentNode.insertBefore(btn, bulkBtn);
+    } else {
+        header.appendChild(btn);
+    }
+}
+
+/* ============================================================
+   بخش ۲۹ — Delegation
    ============================================================ */
 function bindSmsDelegation() {
     if (window._smsDelegationBound) return;
@@ -1864,7 +2462,7 @@ function bindSmsDelegation() {
         if (tab) {
             var tn = tab.getAttribute('data-tab');
             setTimeout(function () {
-                if (tn === 'sms-pending') renderPendingSmsBox();
+                if (tn === 'sms-pending') { _injectPendingSelectAllBtn(); renderPendingSmsBox(); }
                 else if (tn === 'sms-inbox') renderSmsInbox();
                 else if (tn === 'sms-patterns') renderSmsPatternsTab();
             }, 50);
@@ -1934,7 +2532,7 @@ function bindSmsDelegation() {
 }
 
 /* ============================================================
-   بخش ۲۹ — Init
+   بخش ۳۰ — Init
    ============================================================ */
 function initSmsPatternSystem() {
     runSmsMigrations();
@@ -1958,6 +2556,8 @@ function initSmsPatternSystem() {
         }
     } catch (e) {}
 
+    _injectPendingSelectAllBtn();
+
     renderPendingSmsBox();
     renderSmsInbox();
     renderSmsPatternsTab();
@@ -1967,7 +2567,7 @@ function initSmsPatternSystem() {
     var autoEl = document.getElementById('sms-auto-read');
     if (autoEl) autoEl.checked = !!state.smsAutoRead;
 
-    console.log('🧠 SMS — patterns:', loadSmsPatterns().length, '| pending:', getPendingSmsCount());
+    console.log('🧠 SMS v13 — patterns:', loadSmsPatterns().length, '| pending:', getPendingSmsCount());
 }
 
 (function () {
@@ -2008,11 +2608,13 @@ window.extractCardKey              = extractCardKey;
 window.normalizeAccountKey         = normalizeAccountKey;
 window.extractKeywords             = extractKeywords;
 window.countNumberGroups           = countNumberGroups;
+window.compareAccountKeys          = compareAccountKeys;
 window.signatureMatch              = signatureMatch;
 window.findMatchingSmsPattern      = findMatchingSmsPattern;
 window.isBankSms                   = isBankSms;
 window.suggestAmount               = suggestAmount;
 window.suggestDate                 = suggestDate;
+window.suggestTime                 = suggestTime;
 window.suggestDescription          = suggestDescription;
 window.suggestLabel                = suggestLabel;
 window.addSmsPattern               = addSmsPattern;
@@ -2034,5 +2636,9 @@ window.convertMultiplePendingToVoucher = convertMultiplePendingToVoucher;
 window.renderSmsPatternsTab        = renderSmsPatternsTab;
 window.initSmsPatternSystem        = initSmsPatternSystem;
 window.bindSmsDelegation           = bindSmsDelegation;
+window.openPendingSmsDetailModal   = openPendingSmsDetailModal;
+window.savePendingSmsDetail        = savePendingSmsDetail;
+window.closePendingSmsDetailModal  = closePendingSmsDetailModal;
+window._injectPendingSelectAllBtn  = _injectPendingSelectAllBtn;
 
-console.log('✅ [modules/sms.js] loaded — v12 (exact account match)');
+console.log('✅ [modules/sms.js] loaded — v13 (detail modal + select-all + date fix)');
