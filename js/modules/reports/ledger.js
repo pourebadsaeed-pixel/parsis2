@@ -18,10 +18,10 @@ var _RL = {
     var s = document.createElement('style');
     s.id = 'ledger-style';
     s.textContent = `
-        .ms-wrapper { position: relative; width: 100%; }
+        .ms-wrapper { position: relative; width: 100%; z-index: 99; }
         .ms-btn { width: 100%; padding: 10px 14px; background: var(--card-solid); border: 1.5px solid var(--border); border-radius: 12px; text-align: right; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 700; color: var(--text); }
         .ms-btn:hover { border-color: var(--primary); }
-        .ms-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--card-solid); border: 1.5px solid var(--primary); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 100; display: none; flex-direction: column; }
+        .ms-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--card-solid); border: 1.5px solid var(--primary); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 99999 !important; display: none; flex-direction: column; }
         .ms-dropdown.show { display: flex; }
         .ms-actions { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--card-alt); }
         .ms-actions button { flex: 1; padding: 6px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: 6px; font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.78rem; }
@@ -34,9 +34,17 @@ var _RL = {
     document.head.appendChild(s);
 })();
 
-function buildMultiSelect(containerId, items, selectedValues, onChange) {
+// ✅ تابع اصلاح‌شده برای حفظ لیبل و نمایش صحیح
+function buildMultiSelect(containerId, labelText, items, selectedValues, onChange) {
     var container = document.getElementById(containerId);
     if (!container) return;
+
+    container.innerHTML = ''; 
+
+    var lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    lbl.style.cssText = 'display:block; font-size:0.8rem; font-weight:700; color:var(--text-muted); margin-bottom:6px;';
+    container.appendChild(lbl);
 
     var wrapper = document.createElement('div');
     wrapper.className = 'ms-wrapper';
@@ -47,8 +55,8 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
     
     function updateBtn() {
         var count = selectedValues.length;
-        var txt = count === 0 ? 'هیچ‌کدام' : (count === items.length ? 'همه' : (count + ' مورد'));
-        btn.innerHTML = '<span>' + txt + '</span><span>▼</span>';
+        var statusTxt = count === 0 ? 'هیچ‌کدام' : (count === items.length ? 'همه' : (count + ' مورد'));
+        btn.innerHTML = '<span>' + labelText + ' (' + statusTxt + ')</span><span>▼</span>';
     }
     updateBtn();
 
@@ -60,7 +68,8 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
     
     var btnAll = document.createElement('button');
     btnAll.type = 'button'; btnAll.textContent = '✓ انتخاب همه';
-    btnAll.onclick = function() {
+    btnAll.onclick = function(e) {
+        e.stopPropagation();
         selectedValues.length = 0;
         items.forEach(function(x) { selectedValues.push(x.value); });
         renderItems(); updateBtn(); onChange(selectedValues);
@@ -68,7 +77,8 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
     
     var btnNone = document.createElement('button');
     btnNone.type = 'button'; btnNone.textContent = '✗ لغو همه';
-    btnNone.onclick = function() {
+    btnNone.onclick = function(e) {
+        e.stopPropagation();
         selectedValues.length = 0;
         renderItems(); updateBtn(); onChange(selectedValues);
     };
@@ -84,8 +94,8 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
     function renderItems() {
         list.innerHTML = '';
         items.forEach(function(item) {
-            var lbl = document.createElement('label');
-            lbl.className = 'ms-item';
+            var lblItem = document.createElement('label');
+            lblItem.className = 'ms-item';
 
             var cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -102,9 +112,9 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
                 updateBtn();
                 onChange(selectedValues);
             };
-            lbl.appendChild(cb);
-            lbl.appendChild(document.createTextNode(item.text));
-            list.appendChild(lbl);
+            lblItem.appendChild(cb);
+            lblItem.appendChild(document.createTextNode(item.text));
+            list.appendChild(lblItem);
         });
     }
     renderItems();
@@ -123,7 +133,6 @@ function buildMultiSelect(containerId, items, selectedValues, onChange) {
 
     wrapper.appendChild(btn);
     wrapper.appendChild(dropdown);
-    container.innerHTML = '';
     container.appendChild(wrapper);
 }
 
@@ -155,10 +164,10 @@ function initLedgerFilters() {
         { value: 'none', text: 'بدون تفصیل' }
     ];
 
-    buildMultiSelect('rl-ms-acccat', accCatItems, _RL.filters.accCat, function() {});
-    buildMultiSelect('rl-ms-nature', natureItems, _RL.filters.nature, function() {});
-    buildMultiSelect('rl-ms-vtype', vTypeItems, _RL.filters.vType, function() {});
-    buildMultiSelect('rl-ms-dettype', detTypeItems, _RL.filters.detType, function() {});
+    buildMultiSelect('rl-ms-acccat', 'نوع حساب', accCatItems, _RL.filters.accCat, function() {});
+    buildMultiSelect('rl-ms-nature', 'ماهیت حساب', natureItems, _RL.filters.nature, function() {});
+    buildMultiSelect('rl-ms-vtype', 'نوع سند', vTypeItems, _RL.filters.vType, function() {});
+    buildMultiSelect('rl-ms-dettype', 'نوع تفصیل', detTypeItems, _RL.filters.detType, function() {});
 }
 
 function getAccHierarchy(id, accounts) {
@@ -168,7 +177,6 @@ function getAccHierarchy(id, accounts) {
     var k = m.parent ? accounts.find(function(a) { return a.id === m.parent; }) : null;
     var g = k && k.parent ? accounts.find(function(a) { return a.id === k.parent; }) : null;
     
-    // نرمال‌سازی بر اساس سطح
     if (m.level === 2) { k = m; m = {}; }
     else if (m.level === 1) { g = m; k = {}; m = {}; }
 
@@ -182,8 +190,11 @@ function runLedgerReport() {
 
     var fromD = normalizeDigits((document.getElementById('rl-from').value || '').trim());
     var toD = normalizeDigits((document.getElementById('rl-to').value || '').trim());
-    if (!fromD) fromD = getActiveFiscalYearStart() || todayJalaliStr();
+    
+    // ✅ تاریخ پیش‌فرض: امروز
+    if (!fromD) fromD = todayJalaliStr();
     if (!toD) toD = todayJalaliStr();
+    
     document.getElementById('rl-from').value = fromD;
     document.getElementById('rl-to').value = toD;
 
@@ -229,7 +240,7 @@ function runLedgerReport() {
                 Object.keys(l.details).forEach(function(lt) {
                     if (l.details[lt] && _RL.filters.detType.indexOf(lt) !== -1) {
                         detTypeMatch = true;
-                        detCode = '—'; // سیستم کد تفصیلی ندارد
+                        detCode = '—';
                         detTitle = linkTypeName(lt) + ': ' + getDetailLabel(lt, l.details[lt]);
                     }
                 });
@@ -265,7 +276,6 @@ function runLedgerReport() {
         });
     });
 
-    // مرتب‌سازی: تاریخ، شماره سند، نوع
     rows.sort(function(a, b) {
         var c = compareVals(b.vDate, a.vDate);
         if (c !== 0) return c;
@@ -353,10 +363,10 @@ function bindLedgerButtons() {
         };
     }
     
-    // پر کردن تاریخ پیش‌فرض هنگام باز شدن
+    // ✅ تنظیم تاریخ پیش‌فرض به امروز
     var fromEl = document.getElementById('rl-from');
     var toEl = document.getElementById('rl-to');
-    if (fromEl && !fromEl.value) fromEl.value = getActiveFiscalYearStart() || todayJalaliStr();
+    if (fromEl && !fromEl.value) fromEl.value = todayJalaliStr();
     if (toEl && !toEl.value) toEl.value = todayJalaliStr();
     
     if (typeof attachDatePickers === 'function') attachDatePickers();
