@@ -322,7 +322,6 @@ function runLedgerReport() {
         return compareVals(a.vType, b.vType);
     });
 
-    // ✅ حذف colgroup و اجازه دادن به جدول برای کشیده شدن داینامیک
     var html = '<div class="table-wrap"><table class="report-table data-table" id="rl-table" data-table-id="rl-table">';
     html += '<thead><tr>';
     html += '<th>نوع سند</th><th>شماره سند</th><th>دوره مالی</th><th>تاریخ سند</th><th>ساعت</th><th>شرح سند</th>';
@@ -331,10 +330,7 @@ function runLedgerReport() {
     html += '<th>بدهکار</th><th>بستانکار</th><th>ش پیگیری</th><th>تاریخ پیگیری</th><th>شرح قلم</th>';
     html += '</tr></thead><tbody>';
 
-    var tD = 0, tC = 0;
     rows.forEach(function(r) {
-        tD += r.debit;
-        tC += r.credit;
         html += '<tr>';
         html += '<td>' + esc(r.vType) + '</td>';
         html += '<td dir="ltr">' + toFa(esc(r.vNum)) + '</td>';
@@ -362,12 +358,8 @@ function runLedgerReport() {
         html += '<tr><td colspan="19" class="empty-row">داده‌ای یافت نشد.</td></tr>';
     }
 
-    html += '</tbody><tfoot><tr>';
-    html += '<td colspan="14" style="text-align:left;font-weight:bold">جمع کل</td>';
-    html += '<td class="num dr">' + (hide ? '—' : formatMoney(tD)) + '</td>';
-    html += '<td class="num cr">' + (hide ? '—' : formatMoney(tC)) + '</td>';
-    html += '<td colspan="3"></td>';
-    html += '</tr></tfoot></table></div>';
+    // ✅ حذف کامل tfoot (ردیف جمع کل)
+    html += '</tbody></table></div>';
 
     document.getElementById('rl-result').innerHTML = html;
     document.getElementById('rl-count').textContent = toFa(rows.length) + ' ردیف';
@@ -410,7 +402,7 @@ function printLedgerReport(selector, title, orientation) {
     }
     var visibleCount = originalThs.length - hiddenIndices.length;
 
-    // ✅ 2. حذف ستون‌های مخفی از تمام سطرهای کپی شده تا فضای خالی نماند
+    // ✅ 2. حذف ستون‌های مخفی از تمام سطرهای کپی شده
     var cloneRows = clone.querySelectorAll('tr');
     cloneRows.forEach(function(tr) {
         for (var k = hiddenIndices.length - 1; k >= 0; k--) {
@@ -419,9 +411,19 @@ function printLedgerReport(selector, title, orientation) {
         }
     });
 
-    // ✅ 3. تنظیم عرض داینامیک و مساوی برای ستون‌های باقی‌مانده جهت پر کردن صفحه
+    // ✅ 3. رفع مشکل فضای خالی در چاپ: حذف کلاس table-wrap از کانتینر چاپ
+    var tableWrap = clone.querySelector('.table-wrap');
+    if (tableWrap) {
+        tableWrap.style.overflow = 'visible';
+        tableWrap.style.display = 'block';
+        tableWrap.style.width = '100%';
+    }
+
+    // ✅ 4. تنظیم عرض داینامیک و مساوی
     var table = clone.querySelector('table');
     if (table) {
+        table.style.tableLayout = 'fixed';
+        table.style.width = '100%';
         var oldColgroup = table.querySelector('colgroup');
         if (oldColgroup) oldColgroup.remove();
         
@@ -434,41 +436,8 @@ function printLedgerReport(selector, title, orientation) {
         table.insertBefore(newColgroup, table.firstChild);
     }
 
-    // ✅ 4. اصلاح colspan در فوتر (قبل از انتقال به tbody)
-    var tfootTr = clone.querySelector('tfoot tr');
-    if (tfootTr && tfootTr.children.length >= 4) {
-        var visSpan1 = 0, visSpan2 = 0;
-        for (var i = 0; i < 14; i++) { if (hiddenIndices.indexOf(i) === -1) visSpan1++; }
-        for (var i = 16; i < 19; i++) { if (hiddenIndices.indexOf(i) === -1) visSpan2++; }
-        tfootTr.children[0].colSpan = visSpan1;
-        tfootTr.children[3].colSpan = visSpan2;
-    }
-
     var toRemove = clone.querySelectorAll('button, .row-actions, .no-print, .print-hide, .col-resizer, .col-filter-btn');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
-
-    // انتقال فوتر به بدنه برای چاپ بهتر در بعضی مرورگرها
-    clone.querySelectorAll('table').forEach(function (table) {
-        var tfoot = table.querySelector('tfoot');
-        var tbody = table.querySelector('tbody');
-        if (tfoot && tbody) {
-            var footRow = tfoot.querySelector('tr');
-            if (footRow) {
-                footRow.style.backgroundColor = '#f1f5f9';
-                footRow.style.color = '#0f172a';
-                footRow.style.fontWeight = 'bold';
-                footRow.style.pageBreakInside = 'avoid';
-                var tds = footRow.querySelectorAll('td');
-                for (var i=0; i<tds.length; i++) {
-                    tds[i].style.borderTop = '2px solid #1e40af';
-                    tds[i].style.borderBottom = '2px solid #1e40af';
-                    tds[i].style.padding = '4px 2px';
-                }
-                tbody.appendChild(footRow);
-            }
-            tfoot.remove();
-        }
-    });
 
     var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
 
@@ -477,21 +446,22 @@ function printLedgerReport(selector, title, orientation) {
         '<style>' +
         '@page { ' +
             'size: ' + pageSize + '; ' +
-            'margin: 8mm; ' + // حاشیه استاندارد برای چاپ
-            '@bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 8pt; color: #475569; font-weight: bold; } ' +
-            '@top-center { content: "' + esc(title) + '"; font-family: Tahoma; font-size: 8pt; color: #94a3b8; } ' +
+            'margin: 4mm 4mm 8mm 4mm; ' + // کاهش حاشیه‌ها برای فضای بیشتر
+            '@bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 7pt; color: #475569; font-weight: bold; } ' +
+            '@top-center { content: "' + esc(title) + '"; font-family: Tahoma; font-size: 7pt; color: #94a3b8; } ' +
         '}' +
         'body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; }' +
-        '.header { text-align: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2.5px solid #1e40af; }' +
-        '.header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; font-weight: 900; }' +
-        '.date-range { font-size: 9pt; color: #475569; font-weight: bold; }' +
-        'table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; margin-bottom: 10px; }' +
-        'th, td { border: 1px solid #64748b; padding: 4px 2px !important; text-align: center; vertical-align: middle; font-size: 7.5pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.4; }' +
-        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 8pt !important; }' +
+        '.header { text-align: center; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 2px solid #1e40af; }' +
+        '.header h1 { font-size: 12pt; margin: 0 0 3px 0; color: #1e40af; font-weight: 900; }' +
+        '.date-range { font-size: 8pt; color: #475569; font-weight: bold; }' +
+        '.table-wrap { overflow: visible !important; width: 100% !important; }' +
+        'table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; margin-bottom: 0 !important; page-break-inside: auto !important; }' +
+        'th, td { border: 1px solid #64748b; padding: 2px 1px !important; text-align: center; vertical-align: middle; font-size: 6.5pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.2; }' +
+        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 7pt !important; }' +
         '.num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }' +
         '.dr { color: #dc2626 !important; font-weight: bold; }' +
         '.cr { color: #059669 !important; font-weight: bold; }' +
-        'tr { page-break-inside: avoid !important; }' +
+        'tr { page-break-inside: avoid !important; page-break-after: auto !important; }' +
         'thead { display: table-header-group; }' +
         '.row-actions, button, .print-hide { display: none !important; }' +
         '</style></head><body>' +
