@@ -44,13 +44,19 @@ function renderFrequentNav() {
     };
     container.appendChild(clearBtn);
 
-    var meta = { 'voucher-new': '✏️ صدور سند', 'voucher-list': '📄 فهرست اسناد', 'persons': '👥 اشخاص', 'companies': '🏢 شرکت‌ها', 'bank-accounts': '🏦 حساب‌ها', 'notes': '📔 یادداشت‌ها', 'dashboard': '🎯 داشبورد' };
-    
     entries.forEach(function (e) {
-        var m = meta[e.page] || '📄 ' + e.page;
+        var m = '';
+        // ✅ استفاده از PAGE_TITLES_FA برای نام فارسی
+        if (typeof PAGE_TITLES_FA !== 'undefined' && PAGE_TITLES_FA[e.page]) {
+            m = PAGE_TITLES_FA[e.page].icon + ' ' + PAGE_TITLES_FA[e.page].title;
+        } else if (typeof NAVIGABLE_PAGES !== 'undefined' && NAVIGABLE_PAGES[e.page]) {
+            m = '📄 ' + NAVIGABLE_PAGES[e.page];
+        } else {
+            m = '📄 ' + e.page;
+        }
+        
         var b = document.createElement('button');
         b.innerHTML = '<span>' + m + '</span>';
-        // ✅ قابلیت باز کردن تب جدید با true
         b.onclick = function () { if (typeof goToPage === 'function') goToPage(e.page, true); };
         container.appendChild(b);
     });
