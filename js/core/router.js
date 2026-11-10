@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — ناوبری بین صفحات
    مسیر: js/core/router.js
-   ✅ v6: تاپ‌بار فقط عنوان دوره را نشان می‌دهد (بدون بازه تاریخ)
+   ✅ v7: اضافه شدن گزارش دفاتر
    ============================================================ */
 'use strict';
 
@@ -99,6 +99,11 @@ function runPageRenderer(name) {
             if (typeof rebuildAccountFilterPanel === 'function') rebuildAccountFilterPanel();
             if (typeof renderAccountReview === 'function') setTimeout(renderAccountReview, 50);
         },
+        'report-ledger':        function () {
+            if (typeof updateUnitChips === 'function') updateUnitChips();
+            if (typeof bindLedgerButtons === 'function') bindLedgerButtons();
+            if (typeof runLedgerReport === 'function') setTimeout(runLedgerReport, 50);
+        },
         'report-trial':         function () {
             if (typeof refreshReportPeriodSelects === 'function') refreshReportPeriodSelects();
             if (typeof updateUnitChips === 'function') updateUnitChips();
@@ -159,9 +164,6 @@ function getActiveFiscalYearStart() {
     return parts[0] + '/01/01';
 }
 
-/* ============================================================
-   ✅ تاپ‌بار — کمبو باکس انتخاب دوره فعال (فقط عنوان، بدون بازه)
-   ============================================================ */
 function updateTopbarPeriod() {
     var el = document.getElementById('topbar-period');
     if (!el) return;
@@ -169,12 +171,10 @@ function updateTopbarPeriod() {
     var list = DB.load('fiscalPeriods', []);
     if (!Array.isArray(list)) list = [];
 
-    // مرتب‌سازی: جدیدترین سال در ابتدا (بر اساس تاریخ شروع)
     list = list.slice().sort(function (a, b) {
         return String(b.from || '').localeCompare(String(a.from || ''));
     });
 
-    // اگر دوره فعال وجود نداشت یا از لیست حذف شده، جدیدترین را انتخاب کن
     var current = state.activePeriodId || '';
     if (list.length > 0 && !list.some(function (x) { return x.id === current; })) {
         current = list[0].id;
@@ -189,7 +189,6 @@ function updateTopbarPeriod() {
         } else {
             list.forEach(function (p) {
                 var sel = (p.id === current) ? ' selected' : '';
-                // ✅ فقط عنوان دوره — بدون بازه تاریخ
                 var label = p.title || 'دوره';
                 html += '<option value="' + esc(p.id) + '"' + sel + '>' + esc(label) + '</option>';
             });
@@ -204,7 +203,6 @@ function updateTopbarPeriod() {
                 state.activePeriodId = newId;
                 saveState(LS_KEYS.ACTIVE_PERIOD);
 
-                // رفرش لیست اسناد
                 if (typeof window.renderVoucherList === 'function') {
                     window._vlistPg = window._vlistPg || { page: 1 };
                     window._vlistPg.page = 1;
@@ -220,7 +218,6 @@ function updateTopbarPeriod() {
             });
         }
     } else {
-        // پشتیبانی از div (اگر HTML هنوز آپدیت نشده)
         var p = list.find(function (x) { return x.id === current; });
         el.textContent = p ? p.title : 'دوره: —';
     }
@@ -231,6 +228,7 @@ function rerenderCurrentPage() {
     if (!active) return;
     var id = active.id.replace('page-', '').split('-').slice(0, 2).join('-');
     if (active.id.indexOf('page-report-account') === 0) id = 'report-account';
+    if (active.id.indexOf('page-report-ledger') === 0) id = 'report-ledger';
     if (active.id.indexOf('page-report-cashflow') === 0) id = 'report-cashflow';
     if (active.id.indexOf('page-report-cashflow-desc') === 0) id = 'report-cashflow-desc';
     if (active.id.indexOf('page-report-trial') === 0) id = 'report-trial';
@@ -255,6 +253,7 @@ function rerenderCurrentPage() {
         'report-cashflow':      'runCashFlowReport',
         'report-cashflow-desc': 'runCashFlowByDescReport',
         'report-account':       'renderAccountReview',
+        'report-ledger':        'runLedgerReport',
         'report-trial':         'runTrialBalance',
         'report-incomplete':    'runIncompleteReport',
         'report-facility':      'runFacilityReport',
@@ -276,4 +275,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded — v6 (title only in topbar period select)');
+console.log('✅ [core/router.js] loaded — v7 (ledger report added)');
