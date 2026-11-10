@@ -40,6 +40,10 @@ var _RL = {
         .ms-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .ms-item:hover { background: var(--primary-soft); }
         .ms-item input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+        /* ✅ استایل برای داینامیک شدن عرض جدول در صفحه */
+        #rl-table { width: 100% !important; table-layout: auto !important; }
+        #rl-table th, #rl-table td { min-width: 50px; }
     `;
     document.head.appendChild(s);
 })();
@@ -318,15 +322,8 @@ function runLedgerReport() {
         return compareVals(a.vType, b.vType);
     });
 
+    // ✅ حذف colgroup و اجازه دادن به جدول برای کشیده شدن داینامیک
     var html = '<div class="table-wrap"><table class="report-table data-table" id="rl-table" data-table-id="rl-table">';
-    // ✅ تعریف درصد عرض ستون‌ها برای فیت شدن در چاپ
-    html += '<colgroup>';
-    html += '<col style="width:5%"><col style="width:4%"><col style="width:5%"><col style="width:5%"><col style="width:3%"><col style="width:8%">'; // 6 cols
-    html += '<col style="width:3%"><col style="width:6%"><col style="width:3%"><col style="width:6%">'; // 4 cols
-    html += '<col style="width:3%"><col style="width:6%"><col style="width:3%"><col style="width:7%">'; // 4 cols
-    html += '<col style="width:6%"><col style="width:6%"><col style="width:4%"><col style="width:4%"><col style="width:9%">'; // 5 cols
-    html += '</colgroup>';
-    
     html += '<thead><tr>';
     html += '<th>نوع سند</th><th>شماره سند</th><th>دوره مالی</th><th>تاریخ سند</th><th>ساعت</th><th>شرح سند</th>';
     html += '<th>کد گروه</th><th>عنوان گروه</th><th>کد کل</th><th>عنوان کل</th>';
@@ -402,18 +399,60 @@ function printLedgerReport(selector, title, orientation) {
     }
 
     var clone = targetEl.cloneNode(true);
+    
+    // ✅ 1. پیدا کردن ستون‌های مخفی شده
+    var originalThs = targetEl.querySelectorAll('thead th');
+    var hiddenIndices = [];
+    for (var i = 0; i < originalThs.length; i++) {
+        if (originalThs[i].style.display === 'none') {
+            hiddenIndices.push(i);
+        }
+    }
+    var visibleCount = originalThs.length - hiddenIndices.length;
+
+    // ✅ 2. حذف ستون‌های مخفی از تمام سطرهای کپی شده تا فضای خالی نماند
+    var cloneRows = clone.querySelectorAll('tr');
+    cloneRows.forEach(function(tr) {
+        for (var k = hiddenIndices.length - 1; k >= 0; k--) {
+            var idx = hiddenIndices[k];
+            if (tr.children[idx]) tr.children[idx].remove();
+        }
+    });
+
+    // ✅ 3. تنظیم عرض داینامیک و مساوی برای ستون‌های باقی‌مانده جهت پر کردن صفحه
+    var table = clone.querySelector('table');
+    if (table) {
+        var oldColgroup = table.querySelector('colgroup');
+        if (oldColgroup) oldColgroup.remove();
+        
+        var newColgroup = document.createElement('colgroup');
+        for (var c = 0; c < visibleCount; c++) {
+            var col = document.createElement('col');
+            col.style.width = (100 / visibleCount).toFixed(2) + '%';
+            newColgroup.appendChild(col);
+        }
+        table.insertBefore(newColgroup, table.firstChild);
+    }
+
+    // ✅ 4. اصلاح colspan در فوتر (قبل از انتقال به tbody)
+    var tfootTr = clone.querySelector('tfoot tr');
+    if (tfootTr && tfootTr.children.length >= 4) {
+        var visSpan1 = 0, visSpan2 = 0;
+        for (var i = 0; i < 14; i++) { if (hiddenIndices.indexOf(i) === -1) visSpan1++; }
+        for (var i = 16; i < 19; i++) { if (hiddenIndices.indexOf(i) === -1) visSpan2++; }
+        tfootTr.children[0].colSpan = visSpan1;
+        tfootTr.children[3].colSpan = visSpan2;
+    }
 
     var toRemove = clone.querySelectorAll('button, .row-actions, .no-print, .print-hide, .col-resizer, .col-filter-btn');
     for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
 
+    // انتقال فوتر به بدنه برای چاپ بهتر در بعضی مرورگرها
     clone.querySelectorAll('table').forEach(function (table) {
-        var thead = table.querySelector('thead');
         var tfoot = table.querySelector('tfoot');
         var tbody = table.querySelector('tbody');
-
-        var footRow = null;
         if (tfoot && tbody) {
-            footRow = tfoot.querySelector('tr');
+            var footRow = tfoot.querySelector('tr');
             if (footRow) {
                 footRow.style.backgroundColor = '#f1f5f9';
                 footRow.style.color = '#0f172a';
@@ -438,7 +477,7 @@ function printLedgerReport(selector, title, orientation) {
         '<style>' +
         '@page { ' +
             'size: ' + pageSize + '; ' +
-            'margin: 5mm; ' +
+            'margin: 8mm; ' + // حاشیه استاندارد برای چاپ
             '@bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 8pt; color: #475569; font-weight: bold; } ' +
             '@top-center { content: "' + esc(title) + '"; font-family: Tahoma; font-size: 8pt; color: #94a3b8; } ' +
         '}' +
@@ -447,8 +486,8 @@ function printLedgerReport(selector, title, orientation) {
         '.header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; font-weight: 900; }' +
         '.date-range { font-size: 9pt; color: #475569; font-weight: bold; }' +
         'table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; margin-bottom: 10px; }' +
-        'th, td { border: 1px solid #64748b; padding: 3px 2px !important; text-align: center; vertical-align: middle; font-size: 7pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.3; }' +
-        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 7.5pt !important; }' +
+        'th, td { border: 1px solid #64748b; padding: 4px 2px !important; text-align: center; vertical-align: middle; font-size: 7.5pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.4; }' +
+        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 8pt !important; }' +
         '.num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }' +
         '.dr { color: #dc2626 !important; font-weight: bold; }' +
         '.cr { color: #059669 !important; font-weight: bold; }' +
@@ -487,7 +526,6 @@ function bindLedgerButtons() {
 
     var printBtn = document.getElementById('rl-print');
     if (printBtn) {
-        // ✅ افزودن منوی انتخاب حالت پرینت (افقی / عمودی)
         if (!document.getElementById('rl-print-orientation')) {
             var sel = document.createElement('select');
             sel.id = 'rl-print-orientation';
