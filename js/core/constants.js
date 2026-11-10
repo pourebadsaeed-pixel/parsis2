@@ -80,6 +80,7 @@ var NAVIGABLE_PAGES = {
     'report-cashflow':      'پیش‌بینی روزانه نقدینگی',
     'report-cashflow-desc': 'گردش وجه نقد',
     'report-account':       'مرور حساب‌ها',
+    'report-ledger':        'گزارش دفاتر',
     'report-trial':         'تراز آزمایشی',
     'report-incomplete':    'تراکنش‌های تکمیل نشده',
     'report-facility':      'خلاصه تسهیلات',
@@ -115,6 +116,7 @@ var PAGE_TITLES_FA = {
     'report-cashflow':      { icon: '💵', title: 'پیش‌بینی روزانه نقدینگی' },
     'report-cashflow-desc': { icon: '💸', title: 'گردش وجه نقد' },
     'report-account':       { icon: '📒', title: 'مرور حساب‌ها' },
+    'report-ledger':        { icon: '📚', title: 'گزارش دفاتر' },
     'report-trial':         { icon: '⚖️', title: 'تراز آزمایشی' },
     'report-incomplete':    { icon: '🔍', title: 'تراکنش‌های تکمیل نشده' },
     'report-facility':      { icon: '🏦', title: 'خلاصه تسهیلات' },
@@ -180,4 +182,4 @@ window.NOTE_CATEGORIES      = NOTE_CATEGORIES;
 window.CHECKLIST_CATEGORIES = CHECKLIST_CATEGORIES;
 window.MAX_HOME_PAGES       = MAX_HOME_PAGES;
 
-console.log('✅ [core/constants.js] loaded — Biometric keys added');
+console.log('✅ [core/constants.js] loaded — ledger report added');
