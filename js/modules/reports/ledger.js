@@ -18,23 +18,33 @@ var _RL = {
     var s = document.createElement('style');
     s.id = 'ledger-style';
     s.textContent = `
-        .ms-wrapper { position: relative; width: 100%; z-index: 99; }
+        .ms-wrapper { width: 100%; }
         .ms-btn { width: 100%; padding: 10px 14px; background: var(--card-solid); border: 1.5px solid var(--border); border-radius: 12px; text-align: right; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 700; color: var(--text); }
         .ms-btn:hover { border-color: var(--primary); }
-        .ms-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--card-solid); border: 1.5px solid var(--primary); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 99999 !important; display: none; flex-direction: column; }
+        
+        /* منو به صورت Fixed ساخته می‌شود تا از کارت بیرون بزند */
+        .ms-dropdown { 
+            position: fixed; 
+            background: var(--card-solid); 
+            border: 1.5px solid var(--primary); 
+            border-radius: 12px; 
+            box-shadow: var(--shadow-lg); 
+            z-index: 999999 !important; 
+            display: none; 
+            flex-direction: column; 
+        }
         .ms-dropdown.show { display: flex; }
-        .ms-actions { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--card-alt); }
+        .ms-actions { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--card-alt); border-radius: 12px 12px 0 0; }
         .ms-actions button { flex: 1; padding: 6px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: 6px; font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.78rem; }
         .ms-actions button:hover { background: var(--primary); color: #fff; }
-        .ms-list { max-height: 200px; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
-        .ms-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .ms-list { max-height: 220px; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+        .ms-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .ms-item:hover { background: var(--primary-soft); }
-        .ms-item input { width: 16px; height: 16px; accent-color: var(--primary); }
+        .ms-item input { width: 18px; height: 18px; accent-color: var(--primary); }
     `;
     document.head.appendChild(s);
 })();
 
-// ✅ تابع اصلاح‌شده برای حفظ لیبل و نمایش صحیح
 function buildMultiSelect(containerId, labelText, items, selectedValues, onChange) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -119,20 +129,49 @@ function buildMultiSelect(containerId, labelText, items, selectedValues, onChang
     }
     renderItems();
 
+    // ✅ نکته کلیدی: منو را به Body اضافه می‌کنیم تا از کارت بیرون بزند و بریده نشود
+    document.body.appendChild(dropdown);
+
+    function positionDropdown() {
+        var rect = btn.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + 4) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = rect.width + 'px';
+        
+        // اگر فضای کافی در پایین نبود، به سمت بالا باز شود
+        var spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 250) {
+            dropdown.style.top = 'auto';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+        } else {
+            dropdown.style.bottom = 'auto';
+        }
+    }
+
     btn.onclick = function(e) {
         e.stopPropagation();
-        document.querySelectorAll('.ms-dropdown').forEach(function(d) {
-            if (d !== dropdown) d.classList.remove('show');
-        });
-        dropdown.classList.toggle('show');
+        var isOpen = dropdown.classList.contains('show');
+        document.querySelectorAll('.ms-dropdown').forEach(function(d) { d.classList.remove('show'); });
+        
+        if (!isOpen) {
+            positionDropdown();
+            dropdown.classList.add('show');
+        }
     };
 
     document.addEventListener('click', function(e) {
-        if (!wrapper.contains(e.target)) dropdown.classList.remove('show');
+        if (!dropdown.contains(e.target) && !wrapper.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
     });
 
+    // بستن منو هنگام اسکرول یا تغییر سایز
+    window.addEventListener('resize', function() { dropdown.classList.remove('show'); });
+    window.addEventListener('scroll', function(e) { 
+        if (!dropdown.contains(e.target)) dropdown.classList.remove('show'); 
+    }, true);
+
     wrapper.appendChild(btn);
-    wrapper.appendChild(dropdown);
     container.appendChild(wrapper);
 }
 
