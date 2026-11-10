@@ -225,6 +225,7 @@
                 <button data-page="report-facility">🏦 خلاصه تسهیلات</button>
                 <button data-page="report-facility-full">📊 گزارش جامع تسهیلات</button>
                 <button data-page="report-compare">📊 گزارش مقایسه‌ای</button>
+                <button data-page="report-ledger">📚 گزارش دفاتر</button>
             </div>
         </div>
     </nav>
@@ -1338,6 +1339,42 @@
     </div>
 </section>
 
+<section id="page-report-ledger" class="page">
+    <h2>📚 گزارش دفاتر</h2>
+    <div class="card cf-filter-card" id="rl-filter-card">
+        <button type="button" class="cf-filter-toggle" id="rl-filter-toggle" title="باز/بستن فیلترها">
+            <span class="cf-toggle-icon">▼</span>
+            <span class="cf-toggle-label">فیلترها</span>
+        </button>
+        <div class="cf-filter-body" id="rl-filter-body">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+                <button id="rl-run" class="btn-primary">🔍 اجرا</button>
+                <button id="rl-print" class="btn-secondary">🖨 چاپ</button>
+                <button id="rl-export" class="btn-secondary">📊 اکسل</button>
+            </div>
+            <div class="grid-2">
+                <div class="field"><label>از تاریخ</label><input type="text" id="rl-from" class="date-picker" dir="ltr"></div>
+                <div class="field"><label>تا تاریخ</label><input type="text" id="rl-to" class="date-picker" dir="ltr"></div>
+            </div>
+            <div class="grid-2">
+                <div class="field" id="rl-ms-acccat"><label>نوع حساب</label></div>
+                <div class="field" id="rl-ms-nature"><label>ماهیت حساب</label></div>
+            </div>
+            <div class="grid-2">
+                <div class="field" id="rl-ms-vtype"><label>نوع سند</label></div>
+                <div class="field" id="rl-ms-dettype"><label>نوع تفصیل</label></div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="list-header" data-col-table="rl-table" data-hide-key="rl">
+            <span class="count-badge" id="rl-count">۰</span>
+            <span class="unit-chip" id="rl-unit"></span>
+        </div>
+        <div id="rl-result" style="overflow-x:auto"></div>
+    </div>
+</section>
+  
 <section id="page-report-trial" class="page">
     <h2>⚖️ تراز آزمایشی</h2>
     <div class="card cf-filter-card" id="rt-filter-card">
@@ -1912,7 +1949,7 @@
             './js/modules/accounts/projects.js', './js/modules/accounts/templates.js',
             './js/modules/vouchers/form.js', './js/modules/vouchers/list.js', './js/modules/vouchers/estimates.js',
             './js/modules/vouchers/sources.js', './js/modules/vouchers/facilities.js',
-            './js/modules/reports/cashflow.js', './js/modules/reports/account.js', './js/modules/reports/trial.js',
+            './js/modules/reports/cashflow.js', './js/modules/reports/account.js','./js/modules/reports/ledger.js', './js/modules/reports/trial.js',
             './js/modules/reports/facility.js', './js/modules/reports/rates.js',
             './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/calendar.js',
             './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js', './js/modules/ai.js',
