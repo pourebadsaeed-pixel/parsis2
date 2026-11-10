@@ -22,7 +22,6 @@ var _RL = {
         .ms-btn { width: 100%; padding: 10px 14px; background: var(--card-solid); border: 1.5px solid var(--border); border-radius: 12px; text-align: right; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 700; color: var(--text); }
         .ms-btn:hover { border-color: var(--primary); }
         
-        /* منو به صورت Fixed ساخته می‌شود تا از کارت بیرون بزند */
         .ms-dropdown { 
             position: fixed; 
             background: var(--card-solid); 
@@ -129,7 +128,6 @@ function buildMultiSelect(containerId, labelText, items, selectedValues, onChang
     }
     renderItems();
 
-    // ✅ نکته کلیدی: منو را به Body اضافه می‌کنیم تا از کارت بیرون بزند و بریده نشود
     document.body.appendChild(dropdown);
 
     function positionDropdown() {
@@ -138,7 +136,6 @@ function buildMultiSelect(containerId, labelText, items, selectedValues, onChang
         dropdown.style.left = rect.left + 'px';
         dropdown.style.width = rect.width + 'px';
         
-        // اگر فضای کافی در پایین نبود، به سمت بالا باز شود
         var spaceBelow = window.innerHeight - rect.bottom;
         if (spaceBelow < 250) {
             dropdown.style.top = 'auto';
@@ -165,7 +162,6 @@ function buildMultiSelect(containerId, labelText, items, selectedValues, onChang
         }
     });
 
-    // بستن منو هنگام اسکرول یا تغییر سایز
     window.addEventListener('resize', function() { dropdown.classList.remove('show'); });
     window.addEventListener('scroll', function(e) { 
         if (!dropdown.contains(e.target)) dropdown.classList.remove('show'); 
@@ -230,7 +226,6 @@ function runLedgerReport() {
     var fromD = normalizeDigits((document.getElementById('rl-from').value || '').trim());
     var toD = normalizeDigits((document.getElementById('rl-to').value || '').trim());
     
-    // ✅ تاریخ پیش‌فرض: امروز
     if (!fromD) fromD = todayJalaliStr();
     if (!toD) toD = todayJalaliStr();
     
@@ -323,7 +318,16 @@ function runLedgerReport() {
         return compareVals(a.vType, b.vType);
     });
 
-    var html = '<div class="table-wrap"><table class="report-table data-table" id="rl-table" data-table-id="rl-table"><thead><tr>';
+    var html = '<div class="table-wrap"><table class="report-table data-table" id="rl-table" data-table-id="rl-table">';
+    // ✅ تعریف درصد عرض ستون‌ها برای فیت شدن در چاپ
+    html += '<colgroup>';
+    html += '<col style="width:5%"><col style="width:4%"><col style="width:5%"><col style="width:5%"><col style="width:3%"><col style="width:8%">'; // 6 cols
+    html += '<col style="width:3%"><col style="width:6%"><col style="width:3%"><col style="width:6%">'; // 4 cols
+    html += '<col style="width:3%"><col style="width:6%"><col style="width:3%"><col style="width:7%">'; // 4 cols
+    html += '<col style="width:6%"><col style="width:6%"><col style="width:4%"><col style="width:4%"><col style="width:9%">'; // 5 cols
+    html += '</colgroup>';
+    
+    html += '<thead><tr>';
     html += '<th>نوع سند</th><th>شماره سند</th><th>دوره مالی</th><th>تاریخ سند</th><th>ساعت</th><th>شرح سند</th>';
     html += '<th>کد گروه</th><th>عنوان گروه</th><th>کد کل</th><th>عنوان کل</th>';
     html += '<th>کد معین</th><th>عنوان معین</th><th>کد تفصیل</th><th>عنوان تفصیل</th>';
@@ -381,19 +385,127 @@ function runLedgerReport() {
     }, 50);
 }
 
+/* ============================================================
+   ✅ تابع اختصاصی چاپ با پشتیبانی از افقی/عمودی و Fit to Page
+   ============================================================ */
+function printLedgerReport(selector, title, orientation) {
+    var activePage = document.querySelector('.page.active');
+    var targetEl = activePage ? activePage.querySelector(selector) : null;
+    if (!targetEl) targetEl = document.querySelector(selector);
+    if (!targetEl) { alert('محتوایی برای چاپ یافت نشد.'); return; }
+
+    var fromVal = (document.getElementById('rl-from') || {}).value || '';
+    var toVal = (document.getElementById('rl-to') || {}).value || '';
+    var dateRange = '';
+    if (fromVal || toVal) {
+        dateRange = 'از تاریخ: ' + toFa(fromVal) + (toVal ? ' | تا تاریخ: ' + toFa(toVal) : '');
+    }
+
+    var clone = targetEl.cloneNode(true);
+
+    var toRemove = clone.querySelectorAll('button, .row-actions, .no-print, .print-hide, .col-resizer, .col-filter-btn');
+    for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
+
+    clone.querySelectorAll('table').forEach(function (table) {
+        var thead = table.querySelector('thead');
+        var tfoot = table.querySelector('tfoot');
+        var tbody = table.querySelector('tbody');
+
+        var footRow = null;
+        if (tfoot && tbody) {
+            footRow = tfoot.querySelector('tr');
+            if (footRow) {
+                footRow.style.backgroundColor = '#f1f5f9';
+                footRow.style.color = '#0f172a';
+                footRow.style.fontWeight = 'bold';
+                footRow.style.pageBreakInside = 'avoid';
+                var tds = footRow.querySelectorAll('td');
+                for (var i=0; i<tds.length; i++) {
+                    tds[i].style.borderTop = '2px solid #1e40af';
+                    tds[i].style.borderBottom = '2px solid #1e40af';
+                    tds[i].style.padding = '4px 2px';
+                }
+                tbody.appendChild(footRow);
+            }
+            tfoot.remove();
+        }
+    });
+
+    var pageSize = (orientation === 'landscape') ? 'A4 landscape' : 'A4 portrait';
+
+    var htmlContent =
+        '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
+        '<style>' +
+        '@page { ' +
+            'size: ' + pageSize + '; ' +
+            'margin: 5mm; ' +
+            '@bottom-center { content: "صفحه " counter(page) " از " counter(pages); font-family: Tahoma; font-size: 8pt; color: #475569; font-weight: bold; } ' +
+            '@top-center { content: "' + esc(title) + '"; font-family: Tahoma; font-size: 8pt; color: #94a3b8; } ' +
+        '}' +
+        'body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #000; margin: 0; padding: 0; }' +
+        '.header { text-align: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2.5px solid #1e40af; }' +
+        '.header h1 { font-size: 16pt; margin: 0 0 5px 0; color: #1e40af; font-weight: 900; }' +
+        '.date-range { font-size: 9pt; color: #475569; font-weight: bold; }' +
+        'table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; margin-bottom: 10px; }' +
+        'th, td { border: 1px solid #64748b; padding: 3px 2px !important; text-align: center; vertical-align: middle; font-size: 7pt !important; white-space: normal !important; word-wrap: break-word !important; line-height: 1.3; }' +
+        'th { background-color: #e2e8f0 !important; font-weight: bold !important; color: #1e40af; font-size: 7.5pt !important; }' +
+        '.num { direction: ltr; font-family: Arial, Tahoma, sans-serif; font-variant-numeric: tabular-nums; }' +
+        '.dr { color: #dc2626 !important; font-weight: bold; }' +
+        '.cr { color: #059669 !important; font-weight: bold; }' +
+        'tr { page-break-inside: avoid !important; }' +
+        'thead { display: table-header-group; }' +
+        '.row-actions, button, .print-hide { display: none !important; }' +
+        '</style></head><body>' +
+        '<div class="header">' +
+            '<h1>' + esc(title) + '</h1>' +
+            (dateRange ? '<div class="date-range">' + esc(dateRange) + '</div>' : '') +
+        '</div>' +
+        '<div>' + clone.innerHTML + '</div>' +
+        '</body></html>';
+
+    var printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+
+    setTimeout(function () {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.onafterprint = function () { printWindow.close(); };
+    }, 500);
+}
+
 function bindLedgerButtons() {
     var runBtn = document.getElementById('rl-run');
     if (runBtn && !runBtn.dataset.bound) {
         runBtn.dataset.bound = '1';
         runBtn.onclick = runLedgerReport;
     }
+
     var printBtn = document.getElementById('rl-print');
-    if (printBtn && !printBtn.dataset.bound) {
-        printBtn.dataset.bound = '1';
-        printBtn.onclick = function() {
-            if (typeof printHtmlReport === 'function') printHtmlReport('#rl-result', 'گزارش دفاتر');
-        };
+    if (printBtn) {
+        // ✅ افزودن منوی انتخاب حالت پرینت (افقی / عمودی)
+        if (!document.getElementById('rl-print-orientation')) {
+            var sel = document.createElement('select');
+            sel.id = 'rl-print-orientation';
+            sel.style.cssText = 'padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--primary); background: var(--primary-light); color: var(--primary-dark); font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; height: 42px; display: inline-flex; align-items: center; outline: none;';
+            sel.innerHTML = '<option value="landscape">🖨 افقی (Fit to Page)</option><option value="portrait">🖨 عمودی (Portrait)</option>';
+            printBtn.parentNode.insertBefore(sel, printBtn);
+        }
+
+        if (!printBtn.dataset.bound) {
+            printBtn.dataset.bound = '1';
+            printBtn.onclick = function() {
+                var orientEl = document.getElementById('rl-print-orientation');
+                var orient = orientEl ? orientEl.value : 'landscape';
+                printLedgerReport('#rl-result', 'گزارش دفاتر', orient);
+            };
+        }
     }
+
     var exportBtn = document.getElementById('rl-export');
     if (exportBtn && !exportBtn.dataset.bound) {
         exportBtn.dataset.bound = '1';
@@ -402,7 +514,6 @@ function bindLedgerButtons() {
         };
     }
     
-    // ✅ تنظیم تاریخ پیش‌فرض به امروز
     var fromEl = document.getElementById('rl-from');
     var toEl = document.getElementById('rl-to');
     if (fromEl && !fromEl.value) fromEl.value = todayJalaliStr();
