@@ -1,8 +1,9 @@
 /* ============================================================
    پارسیس — Service Worker (بروزرسانی خودکار کش)
-   نسخه v83 — phonebook module
+   نسخه v99 — Ledger Report
    ============================================================ */
-var CACHE_NAME = 'parsis-v98-sms-v14';
+var CACHE_NAME = 'parsis-v99-ledger-report';
+
 var ASSETS = [
   './index.html',
   './manifest.json',
@@ -42,6 +43,7 @@ var ASSETS = [
   './js/modules/vouchers/facilities.js',
   './js/modules/reports/cashflow.js',
   './js/modules/reports/account.js',
+  './js/modules/reports/ledger.js',
   './js/modules/reports/trial.js',
   './js/modules/reports/facility.js',
   './js/modules/reports/rates.js',
@@ -49,7 +51,7 @@ var ASSETS = [
   './js/modules/widgets.js',
   './js/modules/calendar.js',
   './js/modules/notes.js',
-  './js/modules/sms.js',
+  './js/modules/sms.js?v=14',
   './js/modules/phonebook.js',
   './js/modules/ai.js',
   './js/modules/welcome.js',
@@ -61,6 +63,7 @@ var ASSETS = [
 ];
 
 self.addEventListener('install', function (event) {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       return Promise.all(
@@ -69,13 +72,9 @@ self.addEventListener('install', function (event) {
             .then(function (res) {
               if (res && res.ok) return cache.put(url, res);
             })
-            .catch(function (e) {
-              console.warn('[SW] fetch failed for:', url, e);
-            });
+            .catch(function (e) { console.warn('[SW] fetch failed:', url, e); });
         })
       );
-    }).then(function () {
-      return self.skipWaiting();
     })
   );
 });
