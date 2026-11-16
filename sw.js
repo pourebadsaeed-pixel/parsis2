@@ -1,7 +1,7 @@
 /* ============================================================
    پارسیس — Service Worker
    مسیر: sw.js
-   نسخه: v18.4
+   نسخه: v18.5
 
    استراتژی کش:
      • HTML       → Network-First (فوری به‌روز، آفلاین fallback)
@@ -15,7 +15,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v18.4';
+const CACHE_VERSION = 'v18.5';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
