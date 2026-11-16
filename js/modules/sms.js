@@ -1,12 +1,12 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۸.۴)
+   پارسیس — پیامک بانکی (نسخه ۱۸.۵)
    مسیر: js/modules/sms.js
 
-   تغییرات v18.4:
-     ✅ FIX: حل قطعی مشکل رندر نشدن فرم (پشتیبانی از DOM تکراری)
-     ✅ FIX: رفع مشکل پر نشدن سطح ۴ بانک در سند تکی (fallback به linkedAccountId)
-     ✅ FIX: رفع مشکل پیش‌نویس ماندن اسناد
-     ✅ FIX: سوییچ خودکار به تب "ثبت نشده" هنگام خواندن کلیپ‌بورد
+   تغییرات v18.5:
+     ✅ FIX: رفرش خودکار ویجت‌های داشبورد (بانک و صندوق) بعد از صدور سند
+     ✅ FIX: رفع مشکل پر نشدن سطح ۴ بانک در سند تکی
+     ✅ FIX: هدایت خودکار به تب "ثبت نشده" هنگام خواندن کلیپ‌بورد
+     ✅ FIX: پشتیبانی از DOM تکراری و جلوگیری از اجرای همزمان (Multi-Click)
    ============================================================ */
 'use strict';
 
@@ -820,7 +820,6 @@ function _afterSmsIncoming(results) {
     var totalAdded = results.matched + results.unmatched;
     if (totalAdded > 0) {
         showToast('✅ ' + toFa(totalAdded) + ' پیامک اضافه شد', 4500);
-        // ✅ هدایت خودکار به تب پیامک‌های ثبت نشده
         var pendingTab = document.querySelector('[data-tab="sms-pending"]');
         if (pendingTab && !pendingTab.classList.contains('active')) {
             pendingTab.click();
@@ -1008,7 +1007,6 @@ function _buildPendingBankOptions(selectedId) {
     return html;
 }
 
-// ✅ FIX: پشتیبانی از DOM تکراری
 function renderPendingSmsBox() {
     var boxes = document.querySelectorAll('#pending-sms-list');
     if (boxes.length === 0) return;
@@ -1192,7 +1190,6 @@ function renderPendingSmsDetailBody() {
 
     html += '<div id="pms-d-details-wrap"></div>';
 
-    /* شرح قلم‌ها زیر هم */
     html += '<div style="margin-top:12px">'
          +    _smsBuildDescField({ id: 'pms-d-counterdesc', value: ctx.counterLineDesc, label: '📝 شرح قلم (طرف مقابل) *', placeholder: 'مثلاً: خرید ملزومات' })
          +    _smsBuildDescField({ id: 'pms-d-bankdesc', value: ctx.bankLineDesc, label: '📝 شرح قلم (حساب بانک)', placeholder: 'مثلاً: برداشت از بانک ملی' })
@@ -1365,7 +1362,6 @@ function savePendingAsPattern(pid, withVoucher) {
         bankLineDesc = (card.querySelector('[data-field="bankLineDesc"]') || {}).value || '';
         labelStr = (card.querySelector('[data-field="label"]') || {}).value || '';
     }
-    // ✅ FIX: استفاده از بانک پیش‌فرض در صورت خالی بودن
     if (!accountId) accountId = s.linkedAccountId || '';
 
     var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(s.amount) || 0;
@@ -1494,6 +1490,9 @@ function _createVoucherSmart(data) {
     var v = { id: uid(), number: num, date: data.date || todayJalaliStr(), time: data.time || '', type: 'general', periodId: state.activePeriodId || '', desc: vDesc, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
     vl.push(v); DB.save('vouchers', vl);
+    
+    // ✅ FIX v18.5: رفرش ویجت‌ها
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 
     if (res.approved) setTimeout(function () { goToPage('voucher-list'); }, 100);
     else setTimeout(function () { if (typeof loadVoucherForEdit === 'function') loadVoucherForEdit(v); }, 100);
@@ -1574,6 +1573,9 @@ function convertMultiplePendingToVoucher() {
         var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDescFinal, lines: lines, status: 'draft' };
         var res = _tryCreateApprovedVoucher(v);
         vl.push(v); DB.save('vouchers', vl);
+        
+        // ✅ FIX v18.5: رفرش ویجت‌ها
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 
         var inbox = getSmsInbox();
         usedIds.forEach(function (pid) {
@@ -1683,6 +1685,10 @@ function convertSelectedPendingToIndividualVouchers() {
         if (created === 0) { alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک ناقص رد شد.'); return; }
 
         DB.save('vouchers', vl);
+        
+        // ✅ FIX v18.5: رفرش ویجت‌ها
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+        
         saveSmsInbox(inbox);
         savePendingSms(allPending.filter(function (p) { return usedIds.indexOf(p.id) === -1; }));
         renderPendingSmsBox(); renderSmsInbox(); updateSmsBadge();
@@ -1927,6 +1933,9 @@ function convertMultipleSmsToVoucher() {
         var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: state.activePeriodId || '', desc: voucherDescFinal, lines: lines, status: 'draft' };
         var res = _tryCreateApprovedVoucher(v);
         vl.push(v); DB.save('vouchers', vl);
+        
+        // ✅ FIX v18.5: رفرش ویجت‌ها
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
 
         var inbox = getSmsInbox();
         for (var i = 0; i < inbox.length; i++) {
@@ -2008,6 +2017,10 @@ function convertSelectedInboxToIndividualVouchers() {
         if (created === 0) { alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک رد شد.'); return; }
 
         DB.save('vouchers', vl);
+        
+        // ✅ FIX v18.5: رفرش ویجت‌ها
+        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+        
         if (updatedInbox) saveSmsInbox(allInbox);
         renderSmsInbox(); updateSmsBadge();
 
@@ -2021,7 +2034,6 @@ function convertSelectedInboxToIndividualVouchers() {
     } finally { window._smsProcessing = false; }
 }
 
-// ✅ FIX: پشتیبانی از DOM تکراری
 function renderSmsPatternsTab() {
     var boxes = document.querySelectorAll('#sms-patterns-list');
     if (boxes.length === 0) return;
@@ -2481,11 +2493,11 @@ function initSmsModule() {
     }
 
     setTimeout(function () { try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search #2]', e); } }, 500);
-    console.log('✅ [sms] initSmsModule done — v18.4');
+    console.log('✅ [sms] initSmsModule done — v18.5');
 }
 
 function _smsDiagnose() {
-    console.group('=== SMS Module Diagnostics v18.4 ===');
+    console.group('=== SMS Module Diagnostics v18.5 ===');
     console.log('patterns count:', loadSmsPatterns().length);
     console.log('patterns boxes:', document.querySelectorAll('#sms-patterns-list').length);
     console.log('edit buttons in DOM:', document.querySelectorAll('.sms-pat-edit').length);
@@ -2565,10 +2577,10 @@ if (document.readyState === 'loading') {
     initSmsModule();
 }
 
-console.log('✅ [modules/sms.js] loaded — v18.4 (Fixed duplicates & clipboard + search)');
+console.log('✅ [modules/sms.js] loaded — v18.5 (Fixed widgets refresh + duplicates + clipboard)');
 
 /* ============================================================
-   ✅ v18.4 — Auto-rebind watcher
+   ✅ v18.5 — Auto-rebind watcher
    ============================================================ */
 (function _smsWatchForSmsPage() {
     if (window._smsWatchBound) return;
