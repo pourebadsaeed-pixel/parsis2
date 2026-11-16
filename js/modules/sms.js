@@ -1,15 +1,18 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۵)
+   پارسیس — پیامک بانکی (نسخه ۱۶)
    مسیر: js/modules/sms.js
 
-   تغییرات v15:
-     ✅ رفع باگ: معین طرف مقابل در الگو قابل ویرایش شد
-        (سلکت حساب معین + تفصیلی در openEditSmsPattern)
-     ✅ افزودن «صدور سند تکی» در کنار «صدور سند تجمیعی»
-        (دو تابع جدید برای pending و inbox)
-     ✅ تغییر نام دکمه‌ها: «صدور سند تکی» و «صدور سند تجمیعی»
-     ✅ آیکن‌های 🧹 (پاک کردن شرح) و ＋ (افزودن به شرح استاندارد)
-        در تمام فیلدهای شرح (ویرایش الگو + ویرایش تراکنش)
+   تغییرات v16:
+     ✅ FIX: تب الگوها (sms-patterns) هنگام کلیک رندر می‌شود
+     ✅ FIX: رندر اولیه الگوها در initSmsModule
+     ✅ FIX: دکمه‌های ویرایش/حذف/مسدود الگو با addEventListener
+     ✅ FIX: حفظ counterDetails در openEditSmsPattern
+     ✅ FIX: هر سه تب SMS پس از کلیک رندر می‌شوند (نه فقط pending)
+     ✅ v15: معین طرف مقابل در الگو قابل ویرایش (سلکت + تفصیلی)
+     ✅ v15: صدور سند تکی + صدور سند تجمیعی (در pending و inbox)
+     ✅ v15: تغییر نام دکمه‌های قبلی به «صدور سند تجمیعی»
+     ✅ v15: آیکن‌های 🧹 (پاک کردن شرح) و ＋ (افزودن به شرح استاندارد)
+        در تمام فیلدهای شرح (مودال تکمیل جزئیات + ویرایش الگو)
    ============================================================ */
 'use strict';
 
@@ -896,7 +899,7 @@ function handleMultipleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   ✅ NEW v15 — کمکی: فیلد شرح با آیکن‌های 🧹 و ＋
+   بخش ۱۴ — helpers: فیلد شرح با آیکن + فیلد بانک
    ============================================================ */
 function _smsBuildDescField(opts) {
     var inputId     = opts.id;
@@ -958,7 +961,7 @@ function _smsBindDescIcons(container) {
 }
 
 /* ============================================================
-   بخش ۱۴ — رندر pending
+   بخش ۱۵ — رندر pending
    ============================================================ */
 function _buildMatchedCardHtml(p, s) {
     var pid = p.id;
@@ -1180,7 +1183,7 @@ function bindPendingEventsNew(box) {
 }
 
 /* ============================================================
-   بخش ۱۵ — مودال تکمیل جزئیات
+   بخش ۱۶ — مودال تکمیل جزئیات
    ============================================================ */
 function openPendingSmsDetailModal(pid) {
     var pending = getPendingSms().find(function (p) { return p.id === pid; });
@@ -1294,7 +1297,6 @@ function renderPendingSmsDetailBody() {
 
     html += '<div id="pms-d-details-wrap"></div>';
 
-    /* ✅ v15: شرح‌ها با آیکن‌های 🧹/＋ */
     html += '<div class="grid-2" style="margin-top:12px">'
          +    _smsBuildDescField({ id: 'pms-d-counterdesc', value: ctx.counterLineDesc, label: '📝 شرح قلم (طرف مقابل) *', placeholder: 'مثلاً: خرید ملزومات' })
          +    _smsBuildDescField({ id: 'pms-d-bankdesc', value: ctx.bankLineDesc, label: '📝 شرح قلم (حساب بانک)', placeholder: 'مثلاً: برداشت از بانک ملی' })
@@ -1481,7 +1483,7 @@ function closePendingSmsDetailModal() {
 }
 
 /* ============================================================
-   بخش ۱۶ — ذخیره pending
+   بخش ۱۷ — ذخیره pending
    ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
@@ -1596,7 +1598,7 @@ function savePendingAsPattern(pid, withVoucher) {
 }
 
 /* ============================================================
-   بخش ۱۷ — Try Approve
+   بخش ۱۸ — Try Approve
    ============================================================ */
 function _tryCreateApprovedVoucher(voucher) {
     try {
@@ -1612,7 +1614,7 @@ function _tryCreateApprovedVoucher(voucher) {
 }
 
 /* ============================================================
-   بخش ۱۸ — _createVoucherSmart
+   بخش ۱۹ — _createVoucherSmart
    ============================================================ */
 function _createVoucherSmart(data) {
     var bankMoein = getBankMoeinId();
@@ -1659,7 +1661,7 @@ function _createVoucherSmart(data) {
 }
 
 /* ============================================================
-   بخش ۱۹ — سند تجمیعی از pending
+   بخش ۲۰ — صدور سند تجمیعی از pending
    ============================================================ */
 function convertMultiplePendingToVoucher() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
@@ -1766,8 +1768,7 @@ function convertMultiplePendingToVoucher() {
 }
 
 /* ============================================================
-   ✅ NEW v15 — صدور سند تکی از pending
-   برای هر پیامک انتخاب‌شده یک سند جداگانه می‌سازد
+   بخش ۲۱ — صدور سند تکی از pending
    ============================================================ */
 function convertSelectedPendingToIndividualVouchers() {
     var checked = document.querySelectorAll('.psm-select-cb:checked');
@@ -1783,7 +1784,6 @@ function convertSelectedPendingToIndividualVouchers() {
     var activePeriodId = state.activePeriodId || '';
     var usedIds = [];
     var created = 0, approvedCount = 0, draftCount = 0, skipped = 0;
-    var createdVouchers = [];
 
     var checkedArr = Array.prototype.slice.call(checked);
     for (var i = 0; i < checkedArr.length; i++) {
@@ -1832,7 +1832,6 @@ function convertSelectedPendingToIndividualVouchers() {
                 trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
         }
 
-        // Ensure DB is fresh for correct numbering
         DB.save('vouchers', vl);
         var num = (typeof getNextVoucherNumberForPeriod === 'function')
             ? getNextVoucherNumberForPeriod(activePeriodId)
@@ -1865,7 +1864,6 @@ function convertSelectedPendingToIndividualVouchers() {
         usedIds.push(pid);
         created++;
         if (res.approved) approvedCount++; else draftCount++;
-        createdVouchers.push(v);
     }
 
     if (created === 0) {
@@ -1888,7 +1886,7 @@ function convertSelectedPendingToIndividualVouchers() {
 }
 
 /* ============================================================
-   بخش ۲۰ — استخراج از الگو
+   بخش ۲۲ — استخراج از الگو
    ============================================================ */
 function extractValuesFromPattern(newRaw, pattern) {
     var built = buildSmsPattern(newRaw);
@@ -1911,7 +1909,7 @@ function extractValuesFromPattern(newRaw, pattern) {
 }
 
 /* ============================================================
-   بخش ۲۱ — ورودی تک پیامک
+   بخش ۲۳ — ورودی تک پیامک
    ============================================================ */
 function handleIncomingSms(text, source, force) {
     var t = String(text || '').trim();
@@ -1950,7 +1948,7 @@ function handleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۲۲ — کلیپ‌بورد
+   بخش ۲۴ — کلیپ‌بورد
    ============================================================ */
 var _lastClipboardText = '';
 
@@ -1979,7 +1977,7 @@ function readClipboardAndAdd(auto) {
 }
 
 /* ============================================================
-   بخش ۲۳ — رندر inbox
+   بخش ۲۵ — رندر inbox
    ============================================================ */
 function renderSmsInbox() {
     var box = document.getElementById('sms-inbox-list');
@@ -2083,7 +2081,7 @@ function renderSmsInbox() {
 }
 
 /* ============================================================
-   بخش ۲۴ — سند تجمیعی از inbox
+   بخش ۲۶ — صدور سند تجمیعی از inbox
    ============================================================ */
 function convertMultipleSmsToVoucher() {
     var checked = document.querySelectorAll('.sms-select-cb:checked');
@@ -2162,7 +2160,7 @@ function convertMultipleSmsToVoucher() {
 }
 
 /* ============================================================
-   ✅ NEW v15 — صدور سند تکی از inbox
+   بخش ۲۷ — صدور سند تکی از inbox
    ============================================================ */
 function convertSelectedInboxToIndividualVouchers() {
     var checked = document.querySelectorAll('.sms-select-cb:checked');
@@ -2245,22 +2243,37 @@ function convertSelectedInboxToIndividualVouchers() {
 }
 
 /* ============================================================
-   بخش ۲۵ — رندر الگوها
+   بخش ۲۸ — رندر الگوها (نسخه مقاوم v16)
    ============================================================ */
 function renderSmsPatternsTab() {
     var box = document.getElementById('sms-patterns-list');
-    if (!box) return;
-    var patterns = loadSmsPatterns();
+    if (!box) { console.warn('[renderSmsPatternsTab] box not found'); return; }
+
+    var patterns;
+    try { patterns = loadSmsPatterns(); }
+    catch (e) {
+        console.error('[renderSmsPatternsTab] loadSmsPatterns failed:', e);
+        box.innerHTML = '<div class="widget-empty">⚠️ خطا در خواندن الگوها</div>';
+        return;
+    }
+
     var countEl = document.getElementById('sms-patterns-count');
     if (countEl) countEl.textContent = toFa(patterns.length);
 
     var searchEl = document.getElementById('sms-patterns-search');
     var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
 
-    if (patterns.length === 0) { box.innerHTML = '<div class="widget-empty">هنوز الگویی ثبت نشده.</div>'; return; }
+    if (patterns.length === 0) {
+        box.innerHTML = '<div class="widget-empty">📭 هنوز الگویی ثبت نشده.<br><span style="font-size:.72rem;opacity:.8">با تأیید یک پیامک، الگو ذخیره می‌شود.</span></div>';
+        return;
+    }
 
-    var accounts = DB.load('bankAccounts', []);
-    var accMap = {}; accounts.forEach(function (a) { accMap[a.id] = a; });
+    var accounts, allAccounts;
+    try { accounts = DB.load('bankAccounts', []) || []; } catch (e) { accounts = []; }
+    try { allAccounts = DB.load('accounts', []) || []; } catch (e) { allAccounts = []; }
+
+    var accMap = {};
+    accounts.forEach(function (a) { accMap[a.id] = a; });
 
     var sorted = patterns.slice().sort(function (a, b) {
         if (a.blocked !== b.blocked) return a.blocked ? 1 : -1;
@@ -2272,67 +2285,98 @@ function renderSmsPatternsTab() {
 
     for (var i = 0; i < sorted.length; i++) {
         var p = sorted[i];
-        var linkedAcc = accMap[p.linkedAccountId];
-        var accLabel = linkedAcc ? ((linkedAcc.bank || '') + ' — ' + (linkedAcc.account || '')) : '— (تعیین نشده)';
-        var dirLabel = p.direction === 'out' ? '🔴 برداشت' : p.direction === 'in' ? '🟢 واریز' : '❔ نامشخص';
-        var dirCls = p.direction === 'out' ? 'badge-draft' : p.direction === 'in' ? 'badge-approved' : '';
+        try {
+            var linkedAcc = accMap[p.linkedAccountId];
+            var accLabel = linkedAcc
+                ? ((linkedAcc.bank || '') + ' — ' + (linkedAcc.account || ''))
+                : '— (تعیین نشده)';
+            var dirLabel = p.direction === 'out' ? '🔴 برداشت'
+                         : p.direction === 'in'  ? '🟢 واریز'
+                         : '❔ نامشخص';
+            var dirCls = p.direction === 'out' ? 'badge-draft'
+                       : p.direction === 'in'  ? 'badge-approved'
+                       : '';
 
-        if (q) {
-            var hay = ((p.label || '') + ' ' + (accLabel || '') + ' ' + (p.voucherDesc || '') + ' ' + (p.counterLineDesc || '')).toLowerCase();
-            if (hay.indexOf(q) === -1) continue;
+            if (q) {
+                var hay = ((p.label || '') + ' ' + accLabel + ' ' + (p.voucherDesc || '') + ' ' + (p.counterLineDesc || '')).toLowerCase();
+                if (hay.indexOf(q) === -1) continue;
+            }
+            shown++;
+
+            var preview = (p.tokens || []).join(' ');
+            if (preview.length > 140) preview = preview.slice(0, 140) + '…';
+            var blockedBadge = p.blocked
+                ? ' <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:8px;font-size:.66rem;font-weight:800">🚫 مسدود</span>'
+                : '';
+            var opacity = p.blocked ? 'opacity:.65;' : '';
+
+            var vDescShow = (typeof p.voucherDesc === 'string' && p.voucherDesc !== '') ? esc(p.voucherDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
+            var cDescShow = (typeof p.counterLineDesc === 'string' && p.counterLineDesc !== '') ? esc(p.counterLineDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
+            var bDescShow = (typeof p.bankLineDesc === 'string' && p.bankLineDesc !== '') ? esc(p.bankLineDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
+            var cardKeyShow = p.cardKey || extractCardKey(p.raw || '') || '—';
+            var kwList = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
+            var kwStr = kwList.length > 0 ? kwList.join(' ، ') : '—';
+            var counterAccShow = '—';
+            try {
+                counterAccShow = p.counterAccount
+                    ? getAccountLabel(p.counterAccount, allAccounts)
+                    : '—';
+            } catch (e) { /* ignore */ }
+
+            html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
+                + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
+                +   '<div style="flex:1;min-width:0">'
+                +     '<div style="font-weight:800;color:var(--primary-dark);font-size:.95rem">' + esc(p.label || 'بدون نام') + blockedBadge + '</div>'
+                +     '<div style="font-size:.74rem;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">'
+                +       '<span>🏦 ' + esc(accLabel) + '</span>'
+                +       '<span class="badge ' + dirCls + '">' + dirLabel + '</span>'
+                +     '</div>'
+                +   '</div>'
+                +   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+                +     '<button type="button" class="sms-pat-edit" data-id="' + p.id + '" style="background:#dbeafe;color:#1e40af;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">✏️ ویرایش</button>'
+                +     '<button type="button" data-pattern-block="' + p.id + '" style="background:' + (p.blocked ? '#d1fae5;color:#065f46' : '#fef3c7;color:#92400e') + ';border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">' + (p.blocked ? '✅ رفع' : '🚫 مسدود') + '</button>'
+                +     '<button type="button" data-pattern-del="' + p.id + '" style="background:#fee2e2;color:#dc2626;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">🗑</button>'
+                +   '</div>'
+                + '</div>'
+                + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
+                +   '<div style="color:var(--text-muted);margin-bottom:4px;font-weight:700">نمونهٔ الگو:</div>'
+                +   '<div style="font-family:monospace;direction:rtl;white-space:pre-wrap;word-break:break-word;color:var(--primary-dark)">' + esc(preview) + '</div>'
+                +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>شناسه حساب:</b> <span style="font-family:monospace">' + esc(cardKeyShow) + '</span></div>'
+                +   '<div style="margin-top:2px;color:var(--text-muted)"><b>کلمات کلیدی:</b> ' + esc(kwStr) + '</div>'
+                + '</div>'
+                + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
+                +   '<div style="grid-column:1/-1"><span style="color:var(--text-muted);font-weight:700">شرح سند:</span> ' + vDescShow + '</div>'
+                +   '<div><span style="color:var(--text-muted);font-weight:700">شرح قلم (مقابل):</span> ' + cDescShow + '</div>'
+                +   '<div><span style="color:var(--text-muted);font-weight:700">شرح قلم (بانک):</span> ' + bDescShow + '</div>'
+                +   '<div style="grid-column:1/-1"><span style="color:var(--text-muted);font-weight:700">🎯 معین طرف مقابل:</span> ' + esc(counterAccShow) + '</div>'
+                + '</div>'
+                + '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted)">'
+                +   '<span>📊 ' + toFa(p.uses || 0) + ' بار</span>'
+                +   '<span>📅 ' + (p.lastUsed ? toFa(tsToJalaliDate(p.lastUsed)) + ' ' + toFa(tsToJalaliTime(p.lastUsed)) : '—') + '</span>'
+                + '</div>'
+                + '</div>';
+        } catch (perr) {
+            console.warn('[renderSmsPatternsTab] card render failed for', p && p.id, perr);
         }
-        shown++;
-
-        var preview = (p.tokens || []).join(' ');
-        if (preview.length > 140) preview = preview.slice(0, 140) + '…';
-        var blockedBadge = p.blocked ? ' <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:8px;font-size:.66rem;font-weight:800">🚫 مسدود</span>' : '';
-        var opacity = p.blocked ? 'opacity:.65;' : '';
-
-        var vDescShow = (typeof p.voucherDesc === 'string' && p.voucherDesc !== '') ? esc(p.voucherDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
-        var cDescShow = (typeof p.counterLineDesc === 'string' && p.counterLineDesc !== '') ? esc(p.counterLineDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
-        var bDescShow = (typeof p.bankLineDesc === 'string' && p.bankLineDesc !== '') ? esc(p.bankLineDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
-        var cardKeyShow = p.cardKey || extractCardKey(p.raw || '') || '—';
-        var kwList = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
-        var kwStr = kwList.length > 0 ? kwList.join(' ، ') : '—';
-        var counterAccShow = p.counterAccount ? getAccountLabel(p.counterAccount, DB.load('accounts', [])) : '—';
-
-        html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
-            + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
-            +   '<div style="flex:1;min-width:0">'
-            +     '<div style="font-weight:800;color:var(--primary-dark);font-size:.95rem">' + esc(p.label || 'بدون نام') + blockedBadge + '</div>'
-            +     '<div style="font-size:.74rem;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">'
-            +       '<span>🏦 ' + esc(accLabel) + '</span>'
-            +       '<span class="badge ' + dirCls + '">' + dirLabel + '</span>'
-            +     '</div>'
-            +   '</div>'
-            +   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
-            +     '<button type="button" onclick="window.openEditSmsPattern(\'' + p.id + '\')" style="background:#dbeafe;color:#1e40af;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">✏️ ویرایش</button>'
-            +     '<button type="button" data-pattern-block="' + p.id + '" style="background:' + (p.blocked ? '#d1fae5;color:#065f46' : '#fef3c7;color:#92400e') + ';border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">' + (p.blocked ? '✅ رفع' : '🚫 مسدود') + '</button>'
-            +     '<button type="button" data-pattern-del="' + p.id + '" style="background:#fee2e2;color:#dc2626;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">🗑</button>'
-            +   '</div>'
-            + '</div>'
-            + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
-            +   '<div style="color:var(--text-muted);margin-bottom:4px;font-weight:700">نمونهٔ الگو:</div>'
-            +   '<div style="font-family:monospace;direction:rtl;white-space:pre-wrap;word-break:break-word;color:var(--primary-dark)">' + esc(preview) + '</div>'
-            +   '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:var(--text-muted)"><b>شناسه حساب:</b> <span style="font-family:monospace">' + esc(cardKeyShow) + '</span></div>'
-            +   '<div style="margin-top:2px;color:var(--text-muted)"><b>کلمات کلیدی:</b> ' + esc(kwStr) + '</div>'
-            + '</div>'
-            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:.78rem">'
-            +   '<div style="grid-column:1/-1"><span style="color:var(--text-muted);font-weight:700">شرح سند:</span> ' + vDescShow + '</div>'
-            +   '<div><span style="color:var(--text-muted);font-weight:700">شرح قلم (مقابل):</span> ' + cDescShow + '</div>'
-            +   '<div><span style="color:var(--text-muted);font-weight:700">شرح قلم (بانک):</span> ' + bDescShow + '</div>'
-            +   '<div style="grid-column:1/-1"><span style="color:var(--text-muted);font-weight:700">🎯 معین طرف مقابل:</span> ' + esc(counterAccShow) + '</div>'
-            + '</div>'
-            + '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted)">'
-            +   '<span>📊 ' + toFa(p.uses || 0) + ' بار</span>'
-            +   '<span>📅 ' + (p.lastUsed ? toFa(tsToJalaliDate(p.lastUsed)) + ' ' + toFa(tsToJalaliTime(p.lastUsed)) : '—') + '</span>'
-            + '</div>'
-            + '</div>';
     }
     html += '</div>';
 
     if (shown === 0) html = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>';
     box.innerHTML = html;
+
+    /* ✅ v16: دکمه‌های ویرایش با addEventListener (نه inline onclick) */
+    box.querySelectorAll('.sms-pat-edit').forEach(function (b) {
+        b.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id = this.getAttribute('data-id');
+            try { openEditSmsPattern(id); }
+            catch (err) {
+                console.error('[openEditSmsPattern click]', err);
+                alert('خطا در باز کردن ویرایش:\n' + (err.message || err));
+            }
+        };
+    });
 
     box.querySelectorAll('[data-pattern-del]').forEach(function (b) {
         b.onclick = function () {
@@ -2340,21 +2384,28 @@ function renderSmsPatternsTab() {
             var pat = loadSmsPatterns().find(function (x) { return x.id === id; });
             if (!pat) return;
             if (!confirm('الگوی «' + (pat.label || '') + '» حذف شود؟')) return;
-            deleteSmsPattern(id); renderSmsPatternsTab(); showToast('🗑 حذف شد');
+            deleteSmsPattern(id);
+            renderSmsPatternsTab();
+            showToast('🗑 حذف شد');
         };
     });
+
     box.querySelectorAll('[data-pattern-block]').forEach(function (b) {
         b.onclick = function () {
             var id = this.getAttribute('data-pattern-block');
             var all = loadSmsPatterns();
-            for (var j = 0; j < all.length; j++) if (all[j].id === id) { all[j].blocked = !all[j].blocked; break; }
-            saveSmsPatterns(all); renderSmsPatternsTab(); showToast('✅ ذخیره شد');
+            for (var j = 0; j < all.length; j++) {
+                if (all[j].id === id) { all[j].blocked = !all[j].blocked; break; }
+            }
+            saveSmsPatterns(all);
+            renderSmsPatternsTab();
+            showToast('✅ ذخیره شد');
         };
     });
 }
 
 /* ============================================================
-   ✅ بخش ۲۶ — ویرایش الگو (v15: افزودن معین طرف مقابل + آیکن‌های شرح)
+   بخش ۲۹ — ویرایش الگو
    ============================================================ */
 function openEditSmsPattern(patternId) {
     try {
@@ -2371,7 +2422,7 @@ function openEditSmsPattern(patternId) {
             accOpts += '<option value="' + a.id + '"' + sel + '>' + esc((a.bank || '') + ' — ' + (a.account || '')) + '</option>';
         });
 
-        // ✅ v15: counter account dropdown
+        /* counter account options (leaf accounts) */
         var allAccounts = DB.load('accounts', []);
         var leaves = allAccounts.filter(function (a) {
             return !allAccounts.some(function (x) { return x.parent === a.id; });
@@ -2404,13 +2455,11 @@ function openEditSmsPattern(patternId) {
             +       '<label style="flex:1;padding:10px;background:var(--card-alt);border-radius:10px;cursor:pointer;border:1.5px solid var(--border);text-align:center"><input type="radio" name="se_dir" value="in" ' + dirIn + '> 📥 واریز</label>'
             +       '<label style="flex:1;padding:10px;background:var(--card-alt);border-radius:10px;cursor:pointer;border:1.5px solid var(--border);text-align:center"><input type="radio" name="se_dir" value="out" ' + dirOut + '> 📤 برداشت</label>'
             +     '</div></div>'
-            // ✅ v15: Counter account
             +     '<div class="field" style="padding:12px;background:#eef2ff;border:1.5px solid #818cf8;border-radius:12px">'
             +       '<label style="color:#3730a3;font-weight:900;font-size:.88rem;margin-bottom:8px">🎯 حساب معین طرف مقابل</label>'
             +       '<select id="se-counter-acc">' + counterAccOpts + '</select>'
             +     '</div>'
             +     '<div id="se-counter-details-wrap"></div>'
-            // ✅ v15: desc fields with icons
             +     _smsBuildDescField({ id: 'se-voucherDesc', value: voucherDescValue, label: '📝 شرح سند', placeholder: '(اختیاری)' })
             +     '<div class="grid-2">'
             +       _smsBuildDescField({ id: 'se-counterDesc', value: counterLineDescValue, label: '📝 شرح قلم (طرف مقابل)', placeholder: '(اختیاری)' })
@@ -2427,8 +2476,11 @@ function openEditSmsPattern(patternId) {
 
         document.body.insertAdjacentHTML('beforeend', html);
 
-        // ✅ v15: render counter details
-        var pCtx = { counterAccount: p.counterAccount || '', counterDetails: JSON.parse(JSON.stringify(p.counterDetails || {})) };
+        /* context برای نگهداری counterDetails */
+        var pCtx = {
+            counterAccount: p.counterAccount || '',
+            counterDetails: JSON.parse(JSON.stringify(p.counterDetails || {}))
+        };
         window._seCtx = pCtx;
 
         function renderSeDetails() {
@@ -2496,16 +2548,19 @@ function openEditSmsPattern(patternId) {
             all[idx].counterLineDesc = document.getElementById('se-counterDesc').value.trim();
             all[idx].bankLineDesc = document.getElementById('se-bankDesc').value.trim();
 
-            // ✅ v15: save counter account & details
+            /* ✅ FIX v16: حفظ counterDetails اگر فیلد رندر نشده */
             var counterAccEl = document.getElementById('se-counter-acc');
             all[idx].counterAccount = counterAccEl ? (counterAccEl.value || '') : '';
             var detSel = document.getElementById('se-counter-details');
-            if (detSel && detSel.value) {
-                var parts = detSel.value.split('::');
-                all[idx].counterDetails = {};
-                all[idx].counterDetails[parts[0]] = parts[1];
+            if (detSel) {
+                var newDetails = {};
+                if (detSel.value) {
+                    var parts = detSel.value.split('::');
+                    newDetails[parts[0]] = parts[1];
+                }
+                all[idx].counterDetails = newDetails;
             } else {
-                all[idx].counterDetails = {};
+                all[idx].counterDetails = JSON.parse(JSON.stringify(pCtx.counterDetails || {}));
             }
 
             all[idx].lastEdited = Date.now();
@@ -2518,10 +2573,10 @@ function openEditSmsPattern(patternId) {
 }
 
 /* ============================================================
-   ✅ NEW v15 — تزریق دکمه‌های «صدور سند تکی» و «صدور سند تجمیعی»
+   بخش ۳۰ — تزریق دکمه‌های «صدور سند تکی» و «صدور سند تجمیعی»
    ============================================================ */
 function _injectSmsActionButtons() {
-    // Pending tab
+    /* Pending */
     var pendingAggBtn = document.getElementById('pending-sms-bulk-voucher');
     if (pendingAggBtn && !pendingAggBtn.dataset.v15Renamed) {
         pendingAggBtn.textContent = '📝 صدور سند تجمیعی';
@@ -2539,7 +2594,7 @@ function _injectSmsActionButtons() {
         pendingAggBtn.parentNode.insertBefore(indBtn, pendingAggBtn);
     }
 
-    // Inbox tab
+    /* Inbox */
     var inboxAggBtn = document.getElementById('sms-bulk-create-voucher');
     if (inboxAggBtn && !inboxAggBtn.dataset.v15Renamed) {
         inboxAggBtn.textContent = '📝 صدور سند تجمیعی';
@@ -2578,10 +2633,9 @@ function _injectPendingSelectAllBtn() {
 }
 
 /* ============================================================
-   ✅ NEW v15 — بایندهای سراسری صفحه پیامک
+   بخش ۳۱ — بایندهای سراسری
    ============================================================ */
 function bindSmsGlobalButtons() {
-    // Pending tab
     var parseBtn = document.getElementById('parse-sms');
     if (parseBtn && !parseBtn.dataset.v15Bound) {
         parseBtn.dataset.v15Bound = '1';
@@ -2630,7 +2684,6 @@ function bindSmsGlobalButtons() {
     var searchPend = document.getElementById('pending-sms-search');
     if (searchPend) searchPend.oninput = renderPendingSmsBox;
 
-    // Inbox tab
     var searchInbox = document.getElementById('sms-inbox-search');
     if (searchInbox) searchInbox.oninput = renderSmsInbox;
     var statusInbox = document.getElementById('sms-inbox-status-filter');
@@ -2647,7 +2700,6 @@ function bindSmsGlobalButtons() {
         };
     }
 
-    // Patterns tab
     var searchPat = document.getElementById('sms-patterns-search');
     if (searchPat) searchPat.oninput = renderSmsPatternsTab;
 
@@ -2663,78 +2715,108 @@ function bindSmsGlobalButtons() {
 }
 
 /* ============================================================
-   ✅ NEW v15 — راه‌اندازی ماژول
+   ✅ بخش ۳۲ — راه‌اندازی ماژول (v16 — با رندر همه تب‌ها)
    ============================================================ */
 function initSmsModule() {
-    runSmsMigrations();
-    bindSmsGlobalButtons();
-    _injectSmsActionButtons();
-    _injectPendingSelectAllBtn();
-    updateSmsBadge();
+    try { runSmsMigrations(); }           catch (e) { console.warn('[sms init: migrations]', e); }
+    try { bindSmsGlobalButtons(); }       catch (e) { console.warn('[sms init: bindings]', e); }
+    try { _injectSmsActionButtons(); }    catch (e) { console.warn('[sms init: buttons]', e); }
+    try { _injectPendingSelectAllBtn(); } catch (e) { console.warn('[sms init: selectall]', e); }
+    try { updateSmsBadge(); }             catch (e) { console.warn('[sms init: badge]', e); }
+
+    /* ✅ v16: کلیک روی تب‌های SMS → رندر خودکار */
+    try {
+        document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
+            var tabId = btn.getAttribute('data-tab');
+            if (!tabId || tabId.indexOf('sms-') !== 0) return;
+            if (btn.dataset.smsTabBound) return;
+            btn.dataset.smsTabBound = '1';
+            btn.addEventListener('click', function () {
+                setTimeout(function () {
+                    try {
+                        if (tabId === 'sms-pending')       renderPendingSmsBox();
+                        else if (tabId === 'sms-inbox')    renderSmsInbox();
+                        else if (tabId === 'sms-patterns') renderSmsPatternsTab();
+                    } catch (e) { console.warn('[sms tab render]', tabId, e); }
+                }, 80);
+            });
+        });
+    } catch (e) { console.warn('[sms init: tab bindings]', e); }
+
+    /* ✅ v16: رندر اولیه همه تب‌ها */
+    try { renderPendingSmsBox(); }
+    catch (e) { console.warn('[sms init: render pending]', e); }
+    try { renderSmsInbox(); }
+    catch (e) { console.warn('[sms init: render inbox]', e); }
+    try { renderSmsPatternsTab(); }
+    catch (e) { console.warn('[sms init: render patterns]', e); }
+
     if (typeof refreshStdDescDatalist === 'function') {
         try { refreshStdDescDatalist(); } catch (e) {}
     }
 }
 
 /* ============================================================
-   ✅ صادرسازی روی window
+   ✅ صادرسازی
    ============================================================ */
-window.matchBankAccountByBankName           = matchBankAccountByBankName;
-window.findMatchingBankAccount              = findMatchingBankAccount;
-window.parseBankSms                         = parseBankSms;
-window.getSmsInbox                          = getSmsInbox;
-window.saveSmsInbox                         = saveSmsInbox;
-window.getUnreadSmsCount                    = getUnreadSmsCount;
-window.updateSmsBadge                       = updateSmsBadge;
-window.addSmsToInbox                        = addSmsToInbox;
-window.loadSmsPatterns                      = loadSmsPatterns;
-window.saveSmsPatterns                      = saveSmsPatterns;
-window.getPendingSms                        = getPendingSms;
-window.savePendingSms                       = savePendingSms;
-window.getPendingSmsCount                   = getPendingSmsCount;
-window.runSmsMigrations                     = runSmsMigrations;
-window.extractAmountWithSign                = extractAmountWithSign;
-window.detectSmsDirection                   = detectSmsDirection;
-window.buildSmsPattern                      = buildSmsPattern;
-window.extractCardKey                       = extractCardKey;
-window.extractKeywords                      = extractKeywords;
-window.findMatchingSmsPattern               = findMatchingSmsPattern;
-window.isBankSms                            = isBankSms;
-window.suggestAmount                        = suggestAmount;
-window.suggestDate                          = suggestDate;
-window.suggestTime                          = suggestTime;
-window.suggestDescription                   = suggestDescription;
-window.suggestLabel                         = suggestLabel;
-window.addSmsPattern                        = addSmsPattern;
-window.bumpSmsPatternUsage                  = bumpSmsPatternUsage;
-window.deleteSmsPattern                     = deleteSmsPattern;
-window.addPendingSms                        = addPendingSms;
-window.removePendingSms                     = removePendingSms;
-window.clearPendingSms                      = clearPendingSms;
-window.splitMultipleSms                     = splitMultipleSms;
-window.handleMultipleIncomingSms            = handleMultipleIncomingSms;
-window.renderPendingSmsBox                  = renderPendingSmsBox;
-window.openPendingSmsDetailModal            = openPendingSmsDetailModal;
-window.renderPendingSmsDetailBody           = renderPendingSmsDetailBody;
-window.savePendingSmsDetail                 = savePendingSmsDetail;
-window.closePendingSmsDetailModal           = closePendingSmsDetailModal;
-window.savePendingAsPattern                 = savePendingAsPattern;
-window._tryCreateApprovedVoucher            = _tryCreateApprovedVoucher;
-window._createVoucherSmart                  = _createVoucherSmart;
-window.convertMultiplePendingToVoucher      = convertMultiplePendingToVoucher;
-window.convertSelectedPendingToIndividualVouchers = convertSelectedPendingToIndividualVouchers; // ✅ v15
-window.extractValuesFromPattern             = extractValuesFromPattern;
-window.handleIncomingSms                    = handleIncomingSms;
-window.readClipboardAndAdd                  = readClipboardAndAdd;
-window.renderSmsInbox                       = renderSmsInbox;
-window.convertMultipleSmsToVoucher          = convertMultipleSmsToVoucher;
-window.convertSelectedInboxToIndividualVouchers = convertSelectedInboxToIndividualVouchers; // ✅ v15
-window.renderSmsPatternsTab                 = renderSmsPatternsTab;
-window.openEditSmsPattern                   = openEditSmsPattern;
-window._smsBuildDescField                   = _smsBuildDescField;      // ✅ v15
-window._smsBindDescIcons                    = _smsBindDescIcons;       // ✅ v15
-window._injectSmsActionButtons              = _injectSmsActionButtons; // ✅ v15
-window.initSmsModule                        = initSmsModule;           // ✅ v15
+window.matchBankAccountByBankName                 = matchBankAccountByBankName;
+window.findMatchingBankAccount                    = findMatchingBankAccount;
+window.parseBankSms                               = parseBankSms;
+window.getSmsInbox                                = getSmsInbox;
+window.saveSmsInbox                               = saveSmsInbox;
+window.getUnreadSmsCount                          = getUnreadSmsCount;
+window.updateSmsBadge                             = updateSmsBadge;
+window.addSmsToInbox                              = addSmsToInbox;
+window.loadSmsPatterns                            = loadSmsPatterns;
+window.saveSmsPatterns                            = saveSmsPatterns;
+window.getPendingSms                              = getPendingSms;
+window.savePendingSms                             = savePendingSms;
+window.getPendingSmsCount                         = getPendingSmsCount;
+window.runSmsMigrations                           = runSmsMigrations;
+window.extractAmountWithSign                      = extractAmountWithSign;
+window.detectSmsDirection                         = detectSmsDirection;
+window.buildSmsPattern                            = buildSmsPattern;
+window.extractCardKey                             = extractCardKey;
+window.extractKeywords                            = extractKeywords;
+window.findMatchingSmsPattern                     = findMatchingSmsPattern;
+window.isBankSms                                  = isBankSms;
+window.suggestAmount                              = suggestAmount;
+window.suggestDate                                = suggestDate;
+window.suggestTime                                = suggestTime;
+window.suggestDescription                         = suggestDescription;
+window.suggestLabel                               = suggestLabel;
+window.addSmsPattern                              = addSmsPattern;
+window.bumpSmsPatternUsage                        = bumpSmsPatternUsage;
+window.deleteSmsPattern                           = deleteSmsPattern;
+window.addPendingSms                              = addPendingSms;
+window.removePendingSms                           = removePendingSms;
+window.clearPendingSms                            = clearPendingSms;
+window.splitMultipleSms                           = splitMultipleSms;
+window.handleMultipleIncomingSms                  = handleMultipleIncomingSms;
+window.renderPendingSmsBox                        = renderPendingSmsBox;
+window.openPendingSmsDetailModal                  = openPendingSmsDetailModal;
+window.renderPendingSmsDetailBody                 = renderPendingSmsDetailBody;
+window.savePendingSmsDetail                       = savePendingSmsDetail;
+window.closePendingSmsDetailModal                 = closePendingSmsDetailModal;
+window.savePendingAsPattern                       = savePendingAsPattern;
+window._tryCreateApprovedVoucher                  = _tryCreateApprovedVoucher;
+window._createVoucherSmart                        = _createVoucherSmart;
+window.convertMultiplePendingToVoucher            = convertMultiplePendingToVoucher;
+window.convertSelectedPendingToIndividualVouchers = convertSelectedPendingToIndividualVouchers;
+window.extractValuesFromPattern                   = extractValuesFromPattern;
+window.handleIncomingSms                          = handleIncomingSms;
+window.readClipboardAndAdd                        = readClipboardAndAdd;
+window.renderSmsInbox                             = renderSmsInbox;
+window.convertMultipleSmsToVoucher                = convertMultipleSmsToVoucher;
+window.convertSelectedInboxToIndividualVouchers   = convertSelectedInboxToIndividualVouchers;
+window.renderSmsPatternsTab                       = renderSmsPatternsTab;
+window.openEditSmsPattern                         = openEditSmsPattern;
+window._smsBuildDescField                         = _smsBuildDescField;
+window._smsBindDescIcons                          = _smsBindDescIcons;
+window._injectSmsActionButtons                    = _injectSmsActionButtons;
+window._injectPendingSelectAllBtn                 = _injectPendingSelectAllBtn;
+window.bindSmsGlobalButtons                       = bindSmsGlobalButtons;
+window.initSmsModule                              = initSmsModule;
 
 /* ✅ Auto-init */
 if (document.readyState === 'loading') {
@@ -2743,4 +2825,4 @@ if (document.readyState === 'loading') {
     initSmsModule();
 }
 
-console.log('✅ [modules/sms.js] loaded — v15 (معین طرف مقابل قابل ویرایش + سند تکی/تجمیعی + آیکن‌های شرح)');
+console.log('✅ [modules/sms.js] loaded — v16 (farms tab auto-render + edit buttons direct bind)');
