@@ -1,24 +1,15 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۸.۳)
+   پارسیس — پیامک بانکی (نسخه ۱۸.۴)
    مسیر: js/modules/sms.js
 
-   تغییرات v18.3:
-     ✅ FIX: جلوگیری از ساخت سند تکراری (Deduplication + Lock)
-     ✅ FIX: اتصال قطعی دکمه‌های تجزیه و کلیپ‌بورد به Delegation
-     ✅ FIX: هشدار در صورت عدم دسترسی به کلیپ‌بورد در HTTP
-     ✅ FIX: شرح قلم طرف مقابل و بانک در مودال تکمیل جزئیات زیر هم
-     ✅ FIX: جستجو در هر سه تب با ۶ روش موازی + polling قطعی
-     ✅ v17: Event Delegation در فاز Capture برای همه دکمه‌ها
-     ✅ v17: مودال ویرایش با z-index بسیار بالا (99995)
-     ✅ v15: معین طرف مقابل در الگو قابل ویرایش
-     ✅ v15: صدور سند تکی + صدور سند تجمیعی
-     ✅ v15: آیکن‌های 🧹/＋ در تمام فیلدهای شرح
+   تغییرات v18.4:
+     ✅ FIX: حل قطعی مشکل رندر نشدن فرم (پشتیبانی از DOM تکراری)
+     ✅ FIX: رفع مشکل پر نشدن سطح ۴ بانک در سند تکی (fallback به linkedAccountId)
+     ✅ FIX: رفع مشکل پیش‌نویس ماندن اسناد
+     ✅ FIX: سوییچ خودکار به تب "ثبت نشده" هنگام خواندن کلیپ‌بورد
    ============================================================ */
 'use strict';
 
-/* ============================================================
-   بخش ۱ — تطبیق بانک با نام
-   ============================================================ */
 function matchBankAccountByBankName(text) {
     if (!text) return null;
     var t = String(text).replace(/[يى]/g, 'ی').replace(/[ك]/g, 'ک');
@@ -77,9 +68,6 @@ function findMatchingBankAccount(text) {
     return best;
 }
 
-/* ============================================================
-   بخش ۲ — پارس پیامک
-   ============================================================ */
 function parseBankSms(text) {
     var result = {
         amount: 0, direction: '', balance: 0,
@@ -199,9 +187,6 @@ function parseBankSms(text) {
     return result;
 }
 
-/* ============================================================
-   بخش ۳ — inbox + badge
-   ============================================================ */
 function getSmsInbox() { var l = DB.load('smsInbox', []); return Array.isArray(l) ? l : []; }
 function saveSmsInbox(list) { DB.save('smsInbox', list); }
 function getUnreadSmsCount() {
@@ -212,10 +197,11 @@ function getUnreadSmsCount() {
 
 function updateSmsBadge() {
     var total = getPendingSmsCount();
-    var b = document.getElementById('sms-nav-badge');
-    if (!b) return;
-    if (total > 0) { b.textContent = toFa(total); b.classList.remove('hidden'); }
-    else { b.classList.add('hidden'); }
+    var b = document.querySelectorAll('#sms-nav-badge');
+    b.forEach(function(el) {
+        if (total > 0) { el.textContent = toFa(total); el.classList.remove('hidden'); }
+        else { el.classList.add('hidden'); }
+    });
 }
 
 function addSmsToInbox(rawText, source) {
@@ -240,9 +226,6 @@ function addSmsToInbox(rawText, source) {
     return { ok: true, item: item };
 }
 
-/* ============================================================
-   بخش ۴ — الگوها و pending
-   ============================================================ */
 var SMS_PATTERNS_KEY = 'smsPatterns';
 var SMS_PENDING_KEY = 'smsPending';
 var SMS_PENDING_MAX = 200;
@@ -291,9 +274,6 @@ function runSmsMigrations() {
     } catch (e) { console.warn('[sms inbox migration]', e); }
 }
 
-/* ============================================================
-   بخش ۵ — جهت و مبلغ
-   ============================================================ */
 function parseSignNumber(str) {
     var s = String(str).replace(/\s+/g, '').trim();
     var sign = '';
@@ -340,9 +320,6 @@ function detectSmsDirection(text) {
     return '';
 }
 
-/* ============================================================
-   بخش ۶ — نرمال‌سازی + توکن
-   ============================================================ */
 function smsNormalizeForPattern(text) {
     var s = normalizeDigits(String(text || ''));
     s = s.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u061C\uFEFF\u00AD]/g, '');
@@ -392,19 +369,16 @@ function tokensShapeCollapsed(tokens) {
 
 function extractCardKey(raw) {
     var t = smsNormalizeForPattern(raw);
-
     var mAcc = t.match(/(?:حساب|کارت|سپرده|شماره\s*حساب|شماره\s*کارت)\s*(?:شماره)?\s*[:ـ]?\s*([\d*.\-_٫ـ]{4,})/i);
     if (mAcc) {
         var digits = mAcc[1].replace(/[^\d]/g, '');
         if (digits.length >= 4) return 'ACC:' + digits;
     }
-
     var mIban = t.match(/IR\s*([\d*]{22,26})/i);
     if (mIban) {
         var ib = mIban[1].replace(/[^\d]/g, '');
         if (ib.length >= 4) return 'IBAN:' + ib;
     }
-
     var groups = t.match(/\d[\d.\-_٫ـ]{6,}/g);
     if (groups && groups.length) {
         var best = '', bestLen = 0;
@@ -445,9 +419,6 @@ function countNumberGroups(tokens) {
     return count;
 }
 
-/* ============================================================
-   بخش ۷ — signatureMatch
-   ============================================================ */
 function compareAccountKeys(norm1, norm2) {
     if (!norm1 || !norm2) return { match: false, score: 0, reason: 'empty' };
     if (norm1 === norm2) return { match: true, score: 1.0, reason: 'exact' };
@@ -467,14 +438,11 @@ function compareAccountKeys(norm1, norm2) {
 function signatureMatch(sig1, sig2) {
     var norm1 = normalizeAccountKey(sig1.card);
     var norm2 = normalizeAccountKey(sig2.card);
-
     var cardScore, cardReason = '';
 
     if (norm1 && norm2) {
         var cmp = compareAccountKeys(norm1, norm2);
-        if (!cmp.match) {
-            return { match: false, score: 0, reason: 'account-' + cmp.reason };
-        }
+        if (!cmp.match) return { match: false, score: 0, reason: 'account-' + cmp.reason };
         cardScore = cmp.score;
         cardReason = 'account-' + cmp.reason;
     } else if (!norm1 && !norm2) {
@@ -500,13 +468,9 @@ function signatureMatch(sig1, sig2) {
     var totalScore = cardScore * 0.5 + jaccard * 0.4 + numScore * 0.1;
 
     var isMatch = false;
-    if (cardScore >= 1.0) {
-        isMatch = true;
-    } else if (cardScore >= 0.5) {
-        isMatch = jaccard >= 0.7;
-    } else {
-        isMatch = jaccard >= 0.9;
-    }
+    if (cardScore >= 1.0) isMatch = true;
+    else if (cardScore >= 0.5) isMatch = jaccard >= 0.7;
+    else isMatch = jaccard >= 0.9;
 
     return { match: isMatch, score: totalScore, reason: cardReason + '|kw=' + jaccard.toFixed(2) + '|ng=' + numScore };
 }
@@ -543,9 +507,6 @@ function findMatchingSmsPattern(raw) {
     return best ? { pattern: best, score: bestScore, built: built, reason: bestReason } : null;
 }
 
-/* ============================================================
-   بخش ۸ — فیلتر
-   ============================================================ */
 function isBankSms(text) {
     if (!text) return false;
     var t = String(text).trim();
@@ -568,9 +529,6 @@ function isBankSms(text) {
     return false;
 }
 
-/* ============================================================
-   بخش ۹ — پیشنهادها
-   ============================================================ */
 function suggestAmount(text) {
     var t = normalizeDigits(String(text || ''));
     var m1 = t.match(/مبلغ\s*[:ـ]?\s*([\d,]+)/);
@@ -584,41 +542,31 @@ function suggestAmount(text) {
 
 function suggestDate(text) {
     var t = normalizeDigits(String(text || ''));
-
     var m1 = t.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
     if (m1) {
         var y1 = Number(m1[1]), mo1 = Number(m1[2]), d1 = Number(m1[3]);
-        if (y1 > 1300 && y1 < 1500 && mo1 >= 1 && mo1 <= 12 && d1 >= 1 && d1 <= 31) {
-            return y1 + '/' + pad2(mo1) + '/' + pad2(d1);
-        }
+        if (y1 > 1300 && y1 < 1500 && mo1 >= 1 && mo1 <= 12 && d1 >= 1 && d1 <= 31) return y1 + '/' + pad2(mo1) + '/' + pad2(d1);
     }
-
     var m2 = t.match(/(?:^|[^\d])(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})(?![\d\/\-])/);
     if (m2) {
-        var y2 = Number(m2[1]);
-        var mo2 = Number(m2[2]), d2 = Number(m2[3]);
+        var y2 = Number(m2[1]), mo2 = Number(m2[2]), d2 = Number(m2[3]);
         if (mo2 >= 1 && mo2 <= 12 && d2 >= 1 && d2 <= 31) {
             var cy2 = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())[0];
             if (y2 < 100) y2 += Math.floor(cy2 / 100) * 100;
             if (y2 > 1300 && y2 < 1500) return y2 + '/' + pad2(mo2) + '/' + pad2(d2);
         }
     }
-
     var m3 = t.match(/(?:^|[^\d])(\d{2})(\d{2})[\-\s]+(\d{1,2}):(\d{2})(?![\d:])/);
     if (m3) {
         var mm = Number(m3[1]), dd = Number(m3[2]);
-        if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
-            return _smsBuildDateFromMMDD(mm, dd);
-        }
+        if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) return _smsBuildDateFromMMDD(mm, dd);
     }
-
     var m4 = t.match(/(?:^|[^\d])(\d{1,2})[\/\-](\d{1,2})(?![\d\/\-:])/);
     if (m4) {
         var a = Number(m4[1]), b = Number(m4[2]);
         if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return _smsBuildDateFromMMDD(a, b);
         if (b >= 1 && b <= 12 && a >= 1 && a <= 31) return _smsBuildDateFromMMDD(b, a);
     }
-
     return todayJalaliStr();
 }
 
@@ -678,9 +626,6 @@ function suggestLabel(text, bankName, dir) {
     return (bank ? bank + ' — ' : '') + dirLabel;
 }
 
-/* ============================================================
-   بخش ۱۰ — CRUD الگو
-   ============================================================ */
 function addSmsPattern(opts) {
     var patterns = loadSmsPatterns();
     var built = buildSmsPattern(opts.raw || '');
@@ -764,9 +709,6 @@ function deleteSmsPattern(id) {
     saveSmsPatterns(loadSmsPatterns().filter(function (p) { return p.id !== id; }));
 }
 
-/* ============================================================
-   بخش ۱۱ — pending CRUD
-   ============================================================ */
 function addPendingSms(raw, source, force, extraData) {
     var text = String(raw || '').trim();
     if (!text) return null;
@@ -789,21 +731,13 @@ function addPendingSms(raw, source, force, extraData) {
         createdAt: Date.now(),
         forced: !!force,
         suggestion: {
-            amount: amount,
-            direction: direction,
-            date: date,
-            time: time,
-            description: desc,
+            amount: amount, direction: direction, date: date, time: time, description: desc,
             bankName: bankM ? 'بانک ' + bankM[1] : '',
             linkedAccountId: matched ? matched.id : '',
             voucherDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction),
             counterLineDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction),
             bankLineDesc: suggestLabel(text, bankM ? 'بانک ' + bankM[1] : '', direction),
-            counterAccount: '',
-            counterDetails: {},
-            trackingNumber: '',
-            trackingDate: '',
-            detailComplete: false
+            counterAccount: '', counterDetails: {}, trackingNumber: '', trackingDate: '', detailComplete: false
         }
     };
 
@@ -837,15 +771,10 @@ function removePendingSms(id) {
 
 function clearPendingSms() { savePendingSms([]); }
 
-/* ============================================================
-   بخش ۱۲ — splitMultipleSms
-   ============================================================ */
 function splitMultipleSms(text) {
     var t = String(text || '').trim();
     if (!t) return [];
-    var blocks = t.split(/\r?\n\s*\r?\n+/)
-        .map(function (b) { return b.trim(); })
-        .filter(Boolean);
+    var blocks = t.split(/\r?\n\s*\r?\n+/).map(function (b) { return b.trim(); }).filter(Boolean);
     var result = [];
     var headerRe = /\r?\n(?=\s*(?:\d{3}[.\-\s]?\d{3}[.\-\s]?\d{5,}|\d{16}|IR\s*\d{24}|\*{3,}\d{4}))/;
     blocks.forEach(function (block) {
@@ -856,25 +785,22 @@ function splitMultipleSms(text) {
     return result;
 }
 
-/* ============================================================
-   بخش ۱۳ — handleMultipleIncomingSms
-   ============================================================ */
 function handleMultipleIncomingSms(text, source, force) {
     var blocks = splitMultipleSms(text);
-    if (blocks.length === 0) {
-        return { ok: false, reason: 'empty', total: 0, matched: 0, unmatched: 0, duplicate: 0, notBank: 0 };
-    }
+    if (blocks.length === 0) return { ok: false, reason: 'empty', total: 0, matched: 0, unmatched: 0, duplicate: 0, notBank: 0 };
+    
     if (blocks.length === 1) {
         var single = handleIncomingSms(blocks[0], source, force);
-        return {
+        var resSingle = {
             ok: single.ok, reason: single.reason, total: 1,
-            matched: single.ok && single.matched ? 1 : 0,
-            unmatched: single.ok && !single.matched ? 1 : 0,
-            duplicate: single.reason === 'duplicate' ? 1 : 0,
-            notBank: single.reason === 'not-bank' ? 1 : 0,
+            matched: single.ok && single.matched ? 1 : 0, unmatched: single.ok && !single.matched ? 1 : 0,
+            duplicate: single.reason === 'duplicate' ? 1 : 0, notBank: single.reason === 'not-bank' ? 1 : 0,
             items: single.ok ? [single] : []
         };
+        _afterSmsIncoming(resSingle);
+        return resSingle;
     }
+    
     var results = { ok: true, total: blocks.length, matched: 0, unmatched: 0, duplicate: 0, notBank: 0, items: [] };
     blocks.forEach(function (block) {
         var r = handleIncomingSms(block, source || 'paste-multi', force);
@@ -885,22 +811,30 @@ function handleMultipleIncomingSms(text, source, force) {
         } else if (r.reason === 'duplicate') results.duplicate++;
         else if (r.reason === 'not-bank') results.notBank++;
     });
-    try { renderPendingSmsBox(); } catch (e) {}
-    try { updateSmsBadge(); } catch (e) {}
+
+    _afterSmsIncoming(results);
+    return results;
+}
+
+function _afterSmsIncoming(results) {
     var totalAdded = results.matched + results.unmatched;
     if (totalAdded > 0) {
         showToast('✅ ' + toFa(totalAdded) + ' پیامک اضافه شد', 4500);
+        // ✅ هدایت خودکار به تب پیامک‌های ثبت نشده
+        var pendingTab = document.querySelector('[data-tab="sms-pending"]');
+        if (pendingTab && !pendingTab.classList.contains('active')) {
+            pendingTab.click();
+        } else {
+            renderPendingSmsBox();
+        }
     } else if (results.duplicate > 0) {
         showToast('⚠️ همه پیامک‌ها قبلاً ثبت شده بودند');
     } else if (results.notBank > 0) {
         showToast('❌ هیچ پیامک بانکی معتبری یافت نشد');
     }
-    return results;
+    updateSmsBadge();
 }
 
-/* ============================================================
-   بخش ۱۴ — helpers: فیلد شرح با آیکن
-   ============================================================ */
 function _smsBuildDescField(opts) {
     var inputId     = opts.id;
     var value       = opts.value || '';
@@ -910,63 +844,47 @@ function _smsBuildDescField(opts) {
         +  '<label>' + labelText + '</label>'
         +  '<div style="display:flex;gap:6px;align-items:stretch">'
         +    '<input type="text" id="' + inputId + '" value="' + esc(value) + '" list="std-desc-list" placeholder="' + esc(placeholder) + '" style="flex:1;min-width:0">'
-        +    '<button type="button" class="sms-desc-clear" data-target="' + inputId + '" title="پاک کردن شرح" '
-        +      'style="min-width:38px;padding:0 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-size:1rem;cursor:pointer;flex-shrink:0">🧹</button>'
-        +    '<button type="button" class="sms-desc-add" data-target="' + inputId + '" title="افزودن به شرح‌های استاندارد" '
-        +      'style="min-width:38px;padding:0 10px;background:#d1fae5;color:#065f46;border:none;border-radius:10px;font-size:1.15rem;font-weight:900;cursor:pointer;flex-shrink:0">＋</button>'
+        +    '<button type="button" class="sms-desc-clear" data-target="' + inputId + '" title="پاک کردن شرح" style="min-width:38px;padding:0 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-size:1rem;cursor:pointer;flex-shrink:0">🧹</button>'
+        +    '<button type="button" class="sms-desc-add" data-target="' + inputId + '" title="افزودن به شرح‌های استاندارد" style="min-width:38px;padding:0 10px;background:#d1fae5;color:#065f46;border:none;border-radius:10px;font-size:1.15rem;font-weight:900;cursor:pointer;flex-shrink:0">＋</button>'
         +  '</div>'
         +  '</div>';
 }
 
-function _smsBindDescIcons(container) {
+function _smsBindDescIcons() {
     if (window._smsDescDelegationBound) return;
     window._smsDescDelegationBound = true;
 
     document.addEventListener('click', function (e) {
         var clearBtn = e.target.closest && e.target.closest('.sms-desc-clear');
         if (clearBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var t = document.getElementById(clearBtn.getAttribute('data-target'));
-            if (!t) return;
-            t.value = '';
-            try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (er) {}
-            t.focus();
-            if (typeof showToast === 'function') showToast('🧹 پاک شد');
+            if (t) { t.value = ''; try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (er) {} t.focus(); showToast('🧹 پاک شد'); }
             return;
         }
         var addBtn = e.target.closest && e.target.closest('.sms-desc-add');
         if (addBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var t2 = document.getElementById(addBtn.getAttribute('data-target'));
             if (!t2) return;
             var v = (t2.value || '').trim();
-            if (!v) { if (typeof showToast === 'function') showToast('⚠️ ابتدا شرح را وارد کنید'); return; }
-            if (typeof addDescriptionToStandard === 'function') {
-                addDescriptionToStandard(v);
-            } else {
-                try {
-                    var list = DB.load('standardDescriptions', []);
-                    if (list.indexOf(v) === -1) {
-                        list.push(v);
-                        DB.save('standardDescriptions', list);
-                        if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
-                        if (typeof renderStdDescChips === 'function') renderStdDescChips();
-                        if (typeof showToast === 'function') showToast('✅ به شرح‌های استاندارد اضافه شد');
-                    } else {
-                        if (typeof showToast === 'function') showToast('قبلاً در لیست است');
-                    }
-                } catch (er) { if (typeof showToast === 'function') showToast('⚠️ خطا'); }
+            if (!v) { showToast('⚠️ ابتدا شرح را وارد کنید'); return; }
+            if (typeof addDescriptionToStandard === 'function') addDescriptionToStandard(v);
+            else {
+                var list = DB.load('standardDescriptions', []);
+                if (list.indexOf(v) === -1) {
+                    list.push(v);
+                    DB.save('standardDescriptions', list);
+                    if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
+                    if (typeof renderStdDescChips === 'function') renderStdDescChips();
+                    showToast('✅ به شرح‌های استاندارد اضافه شد');
+                } else showToast('قبلاً در لیست است');
             }
             return;
         }
     }, true);
 }
 
-/* ============================================================
-   بخش ۱۵ — رندر pending
-   ============================================================ */
 function _buildMatchedCardHtml(p, s) {
     var pid = p.id;
     var liveDir = detectSmsDirection(p.raw) || s.direction || '';
@@ -1017,16 +935,13 @@ function _buildUnmatchedCardHtml(p, s) {
     var liveDir = detectSmsDirection(p.raw);
     var effectiveDir = liveDir || s.direction || '';
     var liveAmt = extractAmountWithSign(p.raw);
-
     var clsIn = (effectiveDir === 'in') ? ' active-in' : '';
     var clsOut = (effectiveDir === 'out') ? ' active-out' : '';
     var forcedBadge = p.forced ? '<span class="badge">دستی</span>' : '';
     var meta = '📅 ' + toFa(tsToJalaliDate(p.createdAt)) + ' — ' + toFa(tsToJalaliTime(p.createdAt));
-
     var voucherDescVal = (typeof s.voucherDesc === 'string') ? s.voucherDesc : suggestLabel(p.raw, s.bankName, effectiveDir);
     var counterLineDescVal = (typeof s.counterLineDesc === 'string') ? s.counterLineDesc : suggestLabel(p.raw, s.bankName, effectiveDir);
     var bankLineDescVal = (typeof s.bankLineDesc === 'string') ? s.bankLineDesc : suggestLabel(p.raw, s.bankName, effectiveDir);
-
     var isComplete = !!s.detailComplete && !!s.counterAccount;
     var completeBadge = isComplete
         ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:8px;font-size:.68rem;font-weight:800">✅ تکمیل شد</span>'
@@ -1093,19 +1008,22 @@ function _buildPendingBankOptions(selectedId) {
     return html;
 }
 
+// ✅ FIX: پشتیبانی از DOM تکراری
 function renderPendingSmsBox() {
-    var box = document.getElementById('pending-sms-list');
-    if (!box) return;
+    var boxes = document.querySelectorAll('#pending-sms-list');
+    if (boxes.length === 0) return;
 
     var list = getPendingSms();
-    var countEl = document.getElementById('pending-sms-count');
-    if (countEl) countEl.textContent = toFa(list.length);
+    var countEls = document.querySelectorAll('#pending-sms-count');
+    countEls.forEach(function(el) { el.textContent = toFa(list.length); });
 
     var searchEl = document.getElementById('pending-sms-search');
     var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
 
     if (list.length === 0) {
-        box.innerHTML = '<div class="widget-empty">📭 پیامک ثبت‌نشده‌ای وجود ندارد.<br><span style="font-size:.72rem;opacity:.8">یک یا چند پیامک را در کادر بالا پیست کن.</span></div>';
+        boxes.forEach(function(box) {
+            box.innerHTML = '<div class="widget-empty">📭 پیامک ثبت‌نشده‌ای وجود ندارد.<br><span style="font-size:.72rem;opacity:.8">یک یا چند پیامک را در کادر بالا پیست کن.</span></div>';
+        });
         updateSmsBadge();
         _injectSmsActionButtons();
         return;
@@ -1128,9 +1046,12 @@ function renderPendingSmsBox() {
 
     if (shown === 0) html = '<div class="widget-empty">🔍 نتیجه‌ای با این جستجو یافت نشد.</div>';
 
-    box.innerHTML = html;
-    if (typeof attachDatePickers === 'function') attachDatePickers();
-    bindPendingEventsNew(box);
+    boxes.forEach(function(box) {
+        box.innerHTML = html;
+        if (typeof attachDatePickers === 'function') attachDatePickers();
+        bindPendingEventsNew(box);
+    });
+
     updateSmsBadge();
     _injectSmsActionButtons();
     _injectPendingSelectAllBtn();
@@ -1186,35 +1107,22 @@ function bindPendingEventsNew(box) {
     });
 }
 
-/* ============================================================
-   بخش ۱۶ — مودال تکمیل جزئیات
-   ============================================================ */
 function openPendingSmsDetailModal(pid) {
     var pending = getPendingSms().find(function (p) { return p.id === pid; });
     if (!pending) { alert('پیامک یافت نشد'); return; }
 
     var s = pending.suggestion || {};
     var ctx = {
-        pid: pid,
-        account: s.counterAccount || '',
-        details: JSON.parse(JSON.stringify(s.counterDetails || {})),
-        counterLineDesc: s.counterLineDesc || '',
-        bankLineDesc: s.bankLineDesc || '',
-        voucherDesc: s.voucherDesc || '',
-        trackingNumber: s.trackingNumber || '',
-        trackingDate: s.trackingDate || '',
-        date: s.date || todayJalaliStr(),
-        time: s.time || '',
-        amount: Number(s.amount) || 0,
-        direction: s.direction || detectSmsDirection(pending.raw) || '',
+        pid: pid, account: s.counterAccount || '', details: JSON.parse(JSON.stringify(s.counterDetails || {})),
+        counterLineDesc: s.counterLineDesc || '', bankLineDesc: s.bankLineDesc || '', voucherDesc: s.voucherDesc || '',
+        trackingNumber: s.trackingNumber || '', trackingDate: s.trackingDate || '', date: s.date || todayJalaliStr(),
+        time: s.time || '', amount: Number(s.amount) || 0, direction: s.direction || detectSmsDirection(pending.raw) || '',
         bankAccountId: s.linkedAccountId || ''
     };
     window._pmsDetailCtx = ctx;
 
-    var old = document.getElementById('pms-detail-modal');
-    if (old) old.remove();
-    var oldO = document.getElementById('pms-detail-overlay');
-    if (oldO) oldO.remove();
+    var old = document.getElementById('pms-detail-modal'); if (old) old.remove();
+    var oldO = document.getElementById('pms-detail-overlay'); if (oldO) oldO.remove();
 
     var html = ''
         + '<div id="pms-detail-overlay" class="overlay show" style="z-index:99990"></div>'
@@ -1231,15 +1139,12 @@ function openPendingSmsDetailModal(pid) {
         + '</div>';
 
     document.body.insertAdjacentHTML('beforeend', html);
-
     renderPendingSmsDetailBody();
 
     document.getElementById('pms-detail-close').onclick = closePendingSmsDetailModal;
     document.getElementById('pms-detail-cancel').onclick = closePendingSmsDetailModal;
     document.getElementById('pms-detail-overlay').onclick = closePendingSmsDetailModal;
-    document.getElementById('pms-detail-save').onclick = function () {
-        savePendingSmsDetail(pid);
-    };
+    document.getElementById('pms-detail-save').onclick = function () { savePendingSmsDetail(pid); };
 
     setTimeout(function () {
         if (typeof attachDatePickers === 'function') attachDatePickers();
@@ -1254,15 +1159,10 @@ function renderPendingSmsDetailBody() {
     if (!box) return;
 
     var accounts = DB.load('accounts', []);
-    var leaves = accounts.filter(function (a) {
-        return !accounts.some(function (x) { return x.parent === a.id; });
-    });
-    var accItems = leaves.map(function (a) {
-        return { value: a.id, text: getAccountLabel(a.id, accounts) };
-    });
+    var leaves = accounts.filter(function (a) { return !accounts.some(function (x) { return x.parent === a.id; }); });
+    var accItems = leaves.map(function (a) { return { value: a.id, text: getAccountLabel(a.id, accounts) }; });
 
     var html = '';
-
     var pending = getPendingSms().find(function (p) { return p.id === ctx.pid; });
     if (pending) {
         html += '<details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.8rem;color:var(--primary-dark);font-weight:700;padding:6px 0">📄 متن اصلی پیامک</summary>'
@@ -1276,21 +1176,13 @@ function renderPendingSmsDetailBody() {
          +  '</div></div>';
 
     html += '<div class="grid-2">'
-         +    '<div class="field"><label>مبلغ (ریال)</label>'
-         +      '<input type="text" id="pms-d-amount" inputmode="numeric" dir="ltr" value="' + (ctx.amount ? formatRaw(ctx.amount) : '') + '" style="text-align:center;font-weight:800">'
-         +    '</div>'
-         +    '<div class="field"><label>حساب بانکی</label>'
-         +      '<select id="pms-d-bank">' + _buildPendingBankOptions(ctx.bankAccountId) + '</select>'
-         +    '</div>'
+         +    '<div class="field"><label>مبلغ (ریال)</label><input type="text" id="pms-d-amount" inputmode="numeric" dir="ltr" value="' + (ctx.amount ? formatRaw(ctx.amount) : '') + '" style="text-align:center;font-weight:800"></div>'
+         +    '<div class="field"><label>حساب بانکی</label><select id="pms-d-bank">' + _buildPendingBankOptions(ctx.bankAccountId) + '</select></div>'
          +  '</div>';
 
     html += '<div class="grid-2">'
-         +    '<div class="field"><label>تاریخ</label>'
-         +      '<input type="text" id="pms-d-date" class="date-picker" dir="ltr" value="' + esc(ctx.date) + '">'
-         +    '</div>'
-         +    '<div class="field"><label>ساعت</label>'
-         +      '<input type="text" id="pms-d-time" dir="ltr" placeholder="HH:MM" value="' + esc(ctx.time) + '" style="text-align:center;font-family:monospace">'
-         +    '</div>'
+         +    '<div class="field"><label>تاریخ</label><input type="text" id="pms-d-date" class="date-picker" dir="ltr" value="' + esc(ctx.date) + '"></div>'
+         +    '<div class="field"><label>ساعت</label><input type="text" id="pms-d-time" dir="ltr" placeholder="HH:MM" value="' + esc(ctx.time) + '" style="text-align:center;font-family:monospace"></div>'
          +  '</div>';
 
     html += '<div class="field" style="padding:12px;background:#eef2ff;border:1.5px solid #818cf8;border-radius:12px">'
@@ -1300,7 +1192,7 @@ function renderPendingSmsDetailBody() {
 
     html += '<div id="pms-d-details-wrap"></div>';
 
-    /* شرح قلم‌ها زیر هم (نه grid-2) */
+    /* شرح قلم‌ها زیر هم */
     html += '<div style="margin-top:12px">'
          +    _smsBuildDescField({ id: 'pms-d-counterdesc', value: ctx.counterLineDesc, label: '📝 شرح قلم (طرف مقابل) *', placeholder: 'مثلاً: خرید ملزومات' })
          +    _smsBuildDescField({ id: 'pms-d-bankdesc', value: ctx.bankLineDesc, label: '📝 شرح قلم (حساب بانک)', placeholder: 'مثلاً: برداشت از بانک ملی' })
@@ -1309,12 +1201,8 @@ function renderPendingSmsDetailBody() {
     html += _smsBuildDescField({ id: 'pms-d-voucherdesc', value: ctx.voucherDesc, label: '📝 شرح سند (بالای سند)', placeholder: 'مثلاً: هزینه‌های جاری' });
 
     html += '<div class="grid-2">'
-         +    '<div class="field"><label>شماره پیگیری</label>'
-         +      '<input type="text" id="pms-d-tracking" dir="ltr" value="' + esc(ctx.trackingNumber) + '" placeholder="اختیاری">'
-         +    '</div>'
-         +    '<div class="field"><label>تاریخ پیگیری</label>'
-         +      '<input type="text" id="pms-d-trackingdate" class="date-picker" dir="ltr" value="' + esc(ctx.trackingDate) + '">'
-         +    '</div>'
+         +    '<div class="field"><label>شماره پیگیری</label><input type="text" id="pms-d-tracking" dir="ltr" value="' + esc(ctx.trackingNumber) + '" placeholder="اختیاری"></div>'
+         +    '<div class="field"><label>تاریخ پیگیری</label><input type="text" id="pms-d-trackingdate" class="date-picker" dir="ltr" value="' + esc(ctx.trackingDate) + '"></div>'
          +  '</div>';
 
     box.innerHTML = html;
@@ -1334,33 +1222,18 @@ function renderPendingSmsDetailBody() {
 
     var amtInp = document.getElementById('pms-d-amount');
     if (amtInp) {
-        amtInp.addEventListener('input', function () {
-            var v = normalizeDigits(this.value).replace(/[^\d]/g, '');
-            this.value = v; ctx.amount = Number(v) || 0;
-        });
-        amtInp.addEventListener('blur', function () {
-            var v = Number(normalizeDigits(this.value).replace(/[^\d]/g, '')) || 0;
-            this.value = v ? formatRaw(v) : ''; ctx.amount = v;
-        });
+        amtInp.addEventListener('input', function () { var v = normalizeDigits(this.value).replace(/[^\d]/g, ''); this.value = v; ctx.amount = Number(v) || 0; });
+        amtInp.addEventListener('blur', function () { var v = Number(normalizeDigits(this.value).replace(/[^\d]/g, '')) || 0; this.value = v ? formatRaw(v) : ''; ctx.amount = v; });
     }
 
-    var bankSel = document.getElementById('pms-d-bank');
-    if (bankSel) bankSel.onchange = function () { ctx.bankAccountId = this.value; };
-
-    var dInp = document.getElementById('pms-d-date');
-    if (dInp) dInp.addEventListener('input', function () { ctx.date = normalizeDigits(this.value); });
-    var tInp = document.getElementById('pms-d-time');
-    if (tInp) tInp.addEventListener('input', function () { ctx.time = this.value; });
-    var cInp = document.getElementById('pms-d-counterdesc');
-    if (cInp) cInp.addEventListener('input', function () { ctx.counterLineDesc = this.value; });
-    var bInp = document.getElementById('pms-d-bankdesc');
-    if (bInp) bInp.addEventListener('input', function () { ctx.bankLineDesc = this.value; });
-    var vInp = document.getElementById('pms-d-voucherdesc');
-    if (vInp) vInp.addEventListener('input', function () { ctx.voucherDesc = this.value; });
-    var trInp = document.getElementById('pms-d-tracking');
-    if (trInp) trInp.addEventListener('input', function () { ctx.trackingNumber = this.value; });
-    var trdInp = document.getElementById('pms-d-trackingdate');
-    if (trdInp) trdInp.addEventListener('input', function () { ctx.trackingDate = normalizeDigits(this.value); });
+    var bankSel = document.getElementById('pms-d-bank'); if (bankSel) bankSel.onchange = function () { ctx.bankAccountId = this.value; };
+    var dInp = document.getElementById('pms-d-date'); if (dInp) dInp.addEventListener('input', function () { ctx.date = normalizeDigits(this.value); });
+    var tInp = document.getElementById('pms-d-time'); if (tInp) tInp.addEventListener('input', function () { ctx.time = this.value; });
+    var cInp = document.getElementById('pms-d-counterdesc'); if (cInp) cInp.addEventListener('input', function () { ctx.counterLineDesc = this.value; });
+    var bInp = document.getElementById('pms-d-bankdesc'); if (bInp) bInp.addEventListener('input', function () { ctx.bankLineDesc = this.value; });
+    var vInp = document.getElementById('pms-d-voucherdesc'); if (vInp) vInp.addEventListener('input', function () { ctx.voucherDesc = this.value; });
+    var trInp = document.getElementById('pms-d-tracking'); if (trInp) trInp.addEventListener('input', function () { ctx.trackingNumber = this.value; });
+    var trdInp = document.getElementById('pms-d-trackingdate'); if (trdInp) trdInp.addEventListener('input', function () { ctx.trackingDate = normalizeDigits(this.value); });
 }
 
 function _renderPmsAccountSearchable(accItems) {
@@ -1370,25 +1243,20 @@ function _renderPmsAccountSearchable(accItems) {
     var ctx = window._pmsDetailCtx;
 
     if (typeof createSearchableSelect === 'function') {
-        var sel = createSearchableSelect(accItems, ctx.account, '— انتخاب معین —', function (val) {
+        wrap.appendChild(createSearchableSelect(accItems, ctx.account, '— انتخاب معین —', function (val) {
             ctx.account = val; ctx.details = {};
             _renderPmsDetailsSearchable(DB.load('accounts', []));
-        });
-        wrap.appendChild(sel);
+        }));
     } else {
         var nativeSel = document.createElement('select');
         nativeSel.innerHTML = '<option value="">— انتخاب معین —</option>';
         accItems.forEach(function (it) {
-            var o = document.createElement('option');
-            o.value = it.value; o.textContent = it.text;
+            var o = document.createElement('option'); o.value = it.value; o.textContent = it.text;
             if (it.value === ctx.account) o.selected = true;
             nativeSel.appendChild(o);
         });
         nativeSel.style.cssText = 'width:100%;padding:11px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit';
-        nativeSel.addEventListener('change', function () {
-            ctx.account = this.value; ctx.details = {};
-            _renderPmsDetailsSearchable(DB.load('accounts', []));
-        });
+        nativeSel.addEventListener('change', function () { ctx.account = this.value; ctx.details = {}; _renderPmsDetailsSearchable(DB.load('accounts', [])); });
         wrap.appendChild(nativeSel);
     }
 }
@@ -1407,9 +1275,7 @@ function _renderPmsDetailsSearchable(accounts) {
     acc.links.forEach(function (lt) { if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt); });
     var combined = [];
     uniqueLinks.forEach(function (lt) {
-        getLinkedItems(lt).forEach(function (it) {
-            combined.push({ value: lt + '::' + it.id, text: linkTypeName(lt) + ': ' + getLinkedItemLabel(lt, it) });
-        });
+        getLinkedItems(lt).forEach(function (it) { combined.push({ value: lt + '::' + it.id, text: linkTypeName(lt) + ': ' + getLinkedItemLabel(lt, it) }); });
     });
     if (combined.length === 0) return;
 
@@ -1423,25 +1289,20 @@ function _renderPmsDetailsSearchable(accounts) {
     fieldDiv.appendChild(lbl);
 
     if (typeof createSearchableSelect === 'function') {
-        var detSel = createSearchableSelect(combined, curVal, '— انتخاب تفصیلی —', function (val) {
+        fieldDiv.appendChild(createSearchableSelect(combined, curVal, '— انتخاب تفصیلی —', function (val) {
             ctx.details = {};
             if (val) { var parts = val.split('::'); ctx.details[parts[0]] = parts[1]; }
-        });
-        fieldDiv.appendChild(detSel);
+        }));
     } else {
         var nativeSel = document.createElement('select');
         nativeSel.innerHTML = '<option value="">— انتخاب تفصیلی —</option>';
         combined.forEach(function (it) {
-            var o = document.createElement('option');
-            o.value = it.value; o.textContent = it.text;
+            var o = document.createElement('option'); o.value = it.value; o.textContent = it.text;
             if (it.value === curVal) o.selected = true;
             nativeSel.appendChild(o);
         });
         nativeSel.style.cssText = 'width:100%;padding:11px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit';
-        nativeSel.addEventListener('change', function () {
-            ctx.details = {};
-            if (this.value) { var parts = this.value.split('::'); ctx.details[parts[0]] = parts[1]; }
-        });
+        nativeSel.addEventListener('change', function () { ctx.details = {}; if (this.value) { var parts = this.value.split('::'); ctx.details[parts[0]] = parts[1]; } });
         fieldDiv.appendChild(nativeSel);
     }
     wrap.appendChild(fieldDiv);
@@ -1485,9 +1346,6 @@ function closePendingSmsDetailModal() {
     window._pmsDetailCtx = null;
 }
 
-/* ============================================================
-   بخش ۱۷ — ذخیره pending
-   ============================================================ */
 function savePendingAsPattern(pid, withVoucher) {
     var card = document.querySelector('.pending-sms-card[data-pid="' + pid + '"]');
     var pending = getPendingSms().find(function (p) { return p.id === pid; });
@@ -1495,24 +1353,25 @@ function savePendingAsPattern(pid, withVoucher) {
 
     var accountId = '', amountStr = '', dirHidden = '', dateStr = '';
     var voucherDesc = '', counterLineDesc = '', bankLineDesc = '', labelStr = '';
+    var s = pending.suggestion || {};
 
     if (card) {
-        accountId       = (card.querySelector('[data-field="account"]') || {}).value || '';
-        amountStr       = (card.querySelector('[data-field="amount"]') || {}).value || '';
-        dirHidden       = (card.querySelector('[data-field="direction"]') || {}).value || '';
-        dateStr         = (card.querySelector('[data-field="date"]') || {}).value || '';
-        voucherDesc     = (card.querySelector('[data-field="voucherDesc"]') || {}).value || '';
+        amountStr = (card.querySelector('[data-field="amount"]') || {}).value || '';
+        dirHidden = (card.querySelector('[data-field="direction"]') || {}).value || '';
+        accountId = (card.querySelector('[data-field="account"]') || {}).value || '';
+        dateStr = (card.querySelector('[data-field="date"]') || {}).value || '';
+        voucherDesc = (card.querySelector('[data-field="voucherDesc"]') || {}).value || '';
         counterLineDesc = (card.querySelector('[data-field="counterLineDesc"]') || {}).value || '';
-        bankLineDesc    = (card.querySelector('[data-field="bankLineDesc"]') || {}).value || '';
-        labelStr        = (card.querySelector('[data-field="label"]') || {}).value || '';
+        bankLineDesc = (card.querySelector('[data-field="bankLineDesc"]') || {}).value || '';
+        labelStr = (card.querySelector('[data-field="label"]') || {}).value || '';
     }
+    // ✅ FIX: استفاده از بانک پیش‌فرض در صورت خالی بودن
+    if (!accountId) accountId = s.linkedAccountId || '';
 
-    var s = pending.suggestion || {};
     var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(s.amount) || 0;
     var direction = dirHidden || s.direction || '';
     if (!amount)    { alert('⚠️ مبلغ را وارد کنید.'); return; }
     if (!direction) { alert('⚠️ واریز یا برداشت را انتخاب کنید.'); return; }
-    if (withVoucher && !accountId) accountId = s.linkedAccountId || '';
     if (withVoucher && !accountId) { alert('⚠️ برای ساخت سند، حساب بانکی را انتخاب کنید.'); return; }
 
     if (pending.patternMatchedId) {
@@ -1553,8 +1412,7 @@ function savePendingAsPattern(pid, withVoucher) {
         var inbox = getSmsInbox();
         var parsed = parseBankSms(pending.raw);
         var inboxItem = {
-            id: uid(), rawText: pending.raw, source: pending.source,
-            receivedAt: pending.createdAt || Date.now(),
+            id: uid(), rawText: pending.raw, source: pending.source, receivedAt: pending.createdAt || Date.now(),
             parsed: {
                 amount: amount, direction: direction, balance: parsed.balance, bankName: parsed.bankName,
                 matchedAccountId: accountId,
@@ -1570,15 +1428,12 @@ function savePendingAsPattern(pid, withVoucher) {
 
         var voucherResult = _createVoucherSmart({
             bankAccountId: accountId, amount: amount, direction: direction,
-            date: normalizeDigits(dateStr).trim() || s.date || todayJalaliStr(),
-            time: s.time || '',
+            date: normalizeDigits(dateStr).trim() || s.date || todayJalaliStr(), time: s.time || '',
             voucherDesc: voucherDesc.trim() || s.voucherDesc || '',
             counterLineDesc: counterLineDesc.trim() || s.counterLineDesc || '',
             bankLineDesc: bankLineDesc.trim() || s.bankLineDesc || '',
-            counterAccount: s.counterAccount || '',
-            counterDetails: s.counterDetails || {},
-            trackingNumber: s.trackingNumber || '',
-            trackingDate: s.trackingDate || ''
+            counterAccount: s.counterAccount || '', counterDetails: s.counterDetails || {},
+            trackingNumber: s.trackingNumber || '', trackingDate: s.trackingDate || ''
         });
 
         if (voucherResult && voucherResult.voucher) inboxItem.voucherId = voucherResult.voucher.id;
@@ -1600,9 +1455,6 @@ function savePendingAsPattern(pid, withVoucher) {
     else showToast('✅ سند تأیید شد');
 }
 
-/* ============================================================
-   بخش ۱۸ — Try Approve
-   ============================================================ */
 function _tryCreateApprovedVoucher(voucher) {
     try {
         if (typeof getVoucherIssues === 'function') {
@@ -1616,9 +1468,6 @@ function _tryCreateApprovedVoucher(voucher) {
     return { approved: false, voucher: voucher };
 }
 
-/* ============================================================
-   بخش ۱۹ — _createVoucherSmart
-   ============================================================ */
 function _createVoucherSmart(data) {
     var bankMoein = getBankMoeinId();
     if (!bankMoein) { alert('⚠️ معین بانک تعریف نشده.'); return null; }
@@ -1632,28 +1481,17 @@ function _createVoucherSmart(data) {
     var counterDetails = data.counterDetails || {};
 
     if (data.direction === 'out') {
-        lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-            debit: data.amount, credit: 0, description: cDesc,
-            trackingNumber: data.trackingNumber || '', trackingDate: data.trackingDate || '' });
+        lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: data.amount, credit: 0, description: cDesc, trackingNumber: data.trackingNumber || '', trackingDate: data.trackingDate || '' });
         lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: data.amount, description: bDesc, locked: true });
     } else {
         lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: data.amount, credit: 0, description: bDesc, locked: true });
-        lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-            debit: 0, credit: data.amount, description: cDesc,
-            trackingNumber: data.trackingNumber || '', trackingDate: data.trackingDate || '' });
+        lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: 0, credit: data.amount, description: cDesc, trackingNumber: data.trackingNumber || '', trackingDate: data.trackingDate || '' });
     }
 
     var vl = DB.load('vouchers', []);
-    var num = (typeof getNextVoucherNumberForPeriod === 'function')
-        ? getNextVoucherNumberForPeriod(state.activePeriodId || '')
-        : String(vl.length + 1);
+    var num = (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(state.activePeriodId || '') : String(vl.length + 1);
 
-    var v = {
-        id: uid(), number: num, date: data.date || todayJalaliStr(), time: data.time || '',
-        type: 'general', periodId: state.activePeriodId || '',
-        desc: vDesc, lines: lines, status: 'draft'
-    };
-
+    var v = { id: uid(), number: num, date: data.date || todayJalaliStr(), time: data.time || '', type: 'general', periodId: state.activePeriodId || '', desc: vDesc, lines: lines, status: 'draft' };
     var res = _tryCreateApprovedVoucher(v);
     vl.push(v); DB.save('vouchers', vl);
 
@@ -1663,18 +1501,12 @@ function _createVoucherSmart(data) {
     return res;
 }
 
-/* ============================================================
-   بخش ۲۰ — صدور سند تجمیعی از pending
-   ============================================================ */
 function convertMultiplePendingToVoucher() {
     if (window._smsProcessing) return; window._smsProcessing = true;
     try {
         var checked = document.querySelectorAll('.psm-select-cb:checked');
         var uniquePids = [];
-        checked.forEach(function(cb) {
-            var pid = cb.getAttribute('data-pid');
-            if (pid && uniquePids.indexOf(pid) === -1) uniquePids.push(pid);
-        });
+        checked.forEach(function(cb) { var pid = cb.getAttribute('data-pid'); if (pid && uniquePids.indexOf(pid) === -1) uniquePids.push(pid); });
         
         if (uniquePids.length === 0) { alert('⚠️ ابتدا یک یا چند پیامک را تیک بزنید.'); return; }
 
@@ -1703,6 +1535,7 @@ function convertMultiplePendingToVoucher() {
                 bLineDescEl = card.querySelector('[data-field="bankLineDesc"]');
                 voucherDescEl = card.querySelector('[data-field="voucherDesc"]');
             }
+            if (!accountId) accountId = sug.linkedAccountId || '';
 
             var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(sug.amount) || 0;
             var direction = dirHidden || sug.direction || detectSmsDirection(s.raw);
@@ -1719,15 +1552,11 @@ function convertMultiplePendingToVoucher() {
             var bankDetail = accountId ? { bank: accountId } : {};
 
             if (direction === 'out') {
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: amount, credit: 0, description: counterLineDesc,
-                    trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: amount, credit: 0, description: counterLineDesc, trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: amount, description: bankLineDesc, locked: true });
             } else {
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: amount, credit: 0, description: bankLineDesc, locked: true });
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: 0, credit: amount, description: counterLineDesc,
-                    trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: 0, credit: amount, description: counterLineDesc, trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
             }
 
             if (voucherDesc) descSet[voucherDesc] = true;
@@ -1752,16 +1581,8 @@ function convertMultiplePendingToVoucher() {
             if (!p) return;
             var parsed = parseBankSms(p.raw);
             inbox.unshift({
-                id: uid(), rawText: p.raw, source: p.source,
-                receivedAt: p.createdAt || Date.now(),
-                parsed: {
-                    amount: parsed.amount, direction: parsed.direction, balance: parsed.balance,
-                    bankName: parsed.bankName,
-                    matchedAccountId: parsed.matchedAccount ? parsed.matchedAccount.id : '',
-                    matchedAccountTitle: parsed.matchedAccount ? ((parsed.matchedAccount.bank || '') + ' - ' + (parsed.matchedAccount.account || '')) : '',
-                    matchedField: parsed.matchedField || '',
-                    accountCandidates: parsed.accountCandidates
-                },
+                id: uid(), rawText: p.raw, source: p.source, receivedAt: p.createdAt || Date.now(),
+                parsed: { amount: parsed.amount, direction: parsed.direction, balance: parsed.balance, bankName: parsed.bankName, matchedAccountId: parsed.matchedAccount ? parsed.matchedAccount.id : '', matchedAccountTitle: parsed.matchedAccount ? ((parsed.matchedAccount.bank || '') + ' - ' + (parsed.matchedAccount.account || '')) : '', matchedField: parsed.matchedField || '', accountCandidates: parsed.accountCandidates },
                 status: 'converted', voucherId: v.id
             });
         });
@@ -1775,23 +1596,15 @@ function convertMultiplePendingToVoucher() {
 
         if (res.approved) setTimeout(function () { goToPage('voucher-list'); }, 200);
         else setTimeout(function () { if (typeof loadVoucherForEdit === 'function') loadVoucherForEdit(v); }, 200);
-    } finally {
-        window._smsProcessing = false;
-    }
+    } finally { window._smsProcessing = false; }
 }
 
-/* ============================================================
-   بخش ۲۱ — صدور سند تکی از pending
-   ============================================================ */
 function convertSelectedPendingToIndividualVouchers() {
     if (window._smsProcessing) return; window._smsProcessing = true;
     try {
         var checked = document.querySelectorAll('.psm-select-cb:checked');
         var uniquePids = [];
-        checked.forEach(function(cb) {
-            var pid = cb.getAttribute('data-pid');
-            if (pid && uniquePids.indexOf(pid) === -1) uniquePids.push(pid);
-        });
+        checked.forEach(function(cb) { var pid = cb.getAttribute('data-pid'); if (pid && uniquePids.indexOf(pid) === -1) uniquePids.push(pid); });
 
         if (uniquePids.length === 0) { alert('⚠️ ابتدا یک یا چند پیامک را تیک بزنید.'); return; }
         if (!confirm('برای هر ' + toFa(uniquePids.length) + ' پیامک، یک سند جداگانه ساخته می‌شود. ادامه؟')) return;
@@ -1820,17 +1633,18 @@ function convertSelectedPendingToIndividualVouchers() {
                 amountStr = (card.querySelector('[data-field="amount"]') || {}).value || '';
                 dirHidden = (card.querySelector('[data-field="direction"]') || {}).value || '';
                 accountId = (card.querySelector('[data-field="account"]') || {}).value || '';
-                cDescEl   = card.querySelector('[data-field="counterLineDesc"]');
-                bDescEl   = card.querySelector('[data-field="bankLineDesc"]');
-                vDescEl   = card.querySelector('[data-field="voucherDesc"]');
-                dateEl    = card.querySelector('[data-field="date"]');
+                cDescEl = card.querySelector('[data-field="counterLineDesc"]');
+                bDescEl = card.querySelector('[data-field="bankLineDesc"]');
+                vDescEl = card.querySelector('[data-field="voucherDesc"]');
+                dateEl = card.querySelector('[data-field="date"]');
             }
+            if (!accountId) accountId = sug.linkedAccountId || '';
 
-            var amount    = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(sug.amount) || 0;
+            var amount = Number(normalizeDigits(amountStr).replace(/[^\d]/g, '')) || Number(sug.amount) || 0;
             var direction = dirHidden || sug.direction || detectSmsDirection(s.raw);
-            var cDesc     = cDescEl ? cDescEl.value.trim() : (sug.counterLineDesc || '');
-            var bDesc     = bDescEl ? bDescEl.value.trim() : (sug.bankLineDesc || '');
-            var vDesc     = vDescEl ? vDescEl.value.trim() : (sug.voucherDesc || '');
+            var cDesc = cDescEl ? cDescEl.value.trim() : (sug.counterLineDesc || '');
+            var bDesc = bDescEl ? bDescEl.value.trim() : (sug.bankLineDesc || '');
+            var vDesc = vDescEl ? vDescEl.value.trim() : (sug.voucherDesc || '');
             var counterAcc = sug.counterAccount || '';
             var counterDetails = sug.counterDetails || {};
             var dateVal = sug.date || todayJalaliStr();
@@ -1841,55 +1655,32 @@ function convertSelectedPendingToIndividualVouchers() {
             var bankDetail = accountId ? { bank: accountId } : {};
             var lines = [];
             if (direction === 'out') {
-                lines.push({ id: uid(), account: counterAcc, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: amount, credit: 0, description: cDesc,
-                    trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
+                lines.push({ id: uid(), account: counterAcc, details: JSON.parse(JSON.stringify(counterDetails)), debit: amount, credit: 0, description: cDesc, trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: amount, description: bDesc, locked: true });
             } else {
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: amount, credit: 0, description: bDesc, locked: true });
-                lines.push({ id: uid(), account: counterAcc, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: 0, credit: amount, description: cDesc,
-                    trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
+                lines.push({ id: uid(), account: counterAcc, details: JSON.parse(JSON.stringify(counterDetails)), debit: 0, credit: amount, description: cDesc, trackingNumber: sug.trackingNumber || '', trackingDate: sug.trackingDate || '' });
             }
 
             DB.save('vouchers', vl);
-            var num = (typeof getNextVoucherNumberForPeriod === 'function')
-                ? getNextVoucherNumberForPeriod(activePeriodId)
-                : String(vl.length + 1);
+            var num = (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(activePeriodId) : String(vl.length + 1);
 
-            var v = {
-                id: uid(), number: num, date: dateVal, time: sug.time || '',
-                type: 'general', periodId: activePeriodId,
-                desc: vDesc, lines: lines, status: 'draft'
-            };
+            var v = { id: uid(), number: num, date: dateVal, time: sug.time || '', type: 'general', periodId: activePeriodId, desc: vDesc, lines: lines, status: 'draft' };
             var res = _tryCreateApprovedVoucher(v);
             vl.push(v);
 
             var parsed = parseBankSms(s.raw);
             inbox.unshift({
-                id: uid(), rawText: s.raw, source: s.source,
-                receivedAt: s.createdAt || Date.now(),
-                parsed: {
-                    amount: amount, direction: direction, balance: parsed.balance, bankName: parsed.bankName,
-                    matchedAccountId: accountId,
-                    matchedAccountTitle: (function () {
-                        var acc = DB.load('bankAccounts', []).find(function (b) { return b.id === accountId; });
-                        return acc ? ((acc.bank || '') + ' - ' + (acc.account || '')) : '';
-                    })(),
-                    matchedField: '', accountCandidates: parsed.accountCandidates
-                },
+                id: uid(), rawText: s.raw, source: s.source, receivedAt: s.createdAt || Date.now(),
+                parsed: { amount: amount, direction: direction, balance: parsed.balance, bankName: parsed.bankName, matchedAccountId: accountId, matchedAccountTitle: (function () { var acc = DB.load('bankAccounts', []).find(function (b) { return b.id === accountId; }); return acc ? ((acc.bank || '') + ' - ' + (acc.account || '')) : ''; })(), matchedField: '', accountCandidates: parsed.accountCandidates },
                 status: 'converted', voucherId: v.id
             });
 
-            usedIds.push(pid);
-            created++;
+            usedIds.push(pid); created++;
             if (res.approved) approvedCount++; else draftCount++;
         }
 
-        if (created === 0) {
-            alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک ناقص رد شد.');
-            return;
-        }
+        if (created === 0) { alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک ناقص رد شد.'); return; }
 
         DB.save('vouchers', vl);
         saveSmsInbox(inbox);
@@ -1898,28 +1689,17 @@ function convertSelectedPendingToIndividualVouchers() {
 
         var msg = '✅ ' + toFa(created) + ' سند تکی ساخته شد';
         if (approvedCount > 0) msg += '\n✔ ' + toFa(approvedCount) + ' تأیید';
-        if (draftCount > 0)    msg += '\n📝 ' + toFa(draftCount) + ' پیش‌نویس';
-        if (skipped > 0)       msg += '\n⚠️ ' + toFa(skipped) + ' رد شد';
+        if (draftCount > 0) msg += '\n📝 ' + toFa(draftCount) + ' پیش‌نویس';
+        if (skipped > 0) msg += '\n⚠️ ' + toFa(skipped) + ' رد شد';
         alert(msg);
 
         if (created > 0) setTimeout(function () { goToPage('voucher-list'); }, 300);
-    } finally {
-        window._smsProcessing = false;
-    }
+    } finally { window._smsProcessing = false; }
 }
 
-/* ============================================================
-   بخش ۲۲ — استخراج از الگو
-   ============================================================ */
 function extractValuesFromPattern(newRaw, pattern) {
     var built = buildSmsPattern(newRaw);
-    var result = {
-        amount: 0, direction: '', date: '', time: '',
-        bankAccountId: pattern.linkedAccountId || '',
-        counterAccount: pattern.counterAccount || '',
-        counterDetails: JSON.parse(JSON.stringify(pattern.counterDetails || {})),
-        trackingNumber: '', trackingDate: ''
-    };
+    var result = { amount: 0, direction: '', date: '', time: '', bankAccountId: pattern.linkedAccountId || '', counterAccount: pattern.counterAccount || '', counterDetails: JSON.parse(JSON.stringify(pattern.counterDetails || {})), trackingNumber: '', trackingDate: '' };
     if (pattern.slots && pattern.slots.amount) {
         var rawVal = built.mapping['#' + pattern.slots.amount];
         if (rawVal) result.amount = Number(String(rawVal).replace(/[^\d]/g, '')) || 0;
@@ -1931,9 +1711,6 @@ function extractValuesFromPattern(newRaw, pattern) {
     return result;
 }
 
-/* ============================================================
-   بخش ۲۳ — ورودی تک پیامک
-   ============================================================ */
 function handleIncomingSms(text, source, force) {
     var t = String(text || '').trim();
     if (!t) return { ok: false, reason: 'empty' };
@@ -1950,17 +1727,11 @@ function handleIncomingSms(text, source, force) {
         matched = true;
         var vals = extractValuesFromPattern(t, m.pattern);
         extraData = {
-            patternMatchedId: m.pattern.id,
-            patternLabel: m.pattern.label,
-            amount: vals.amount,
-            direction: vals.direction,
-            linkedAccountId: vals.bankAccountId,
-            voucherDesc: (typeof m.pattern.voucherDesc === 'string') ? m.pattern.voucherDesc : '',
+            patternMatchedId: m.pattern.id, patternLabel: m.pattern.label, amount: vals.amount, direction: vals.direction,
+            linkedAccountId: vals.bankAccountId, voucherDesc: (typeof m.pattern.voucherDesc === 'string') ? m.pattern.voucherDesc : '',
             counterLineDesc: (typeof m.pattern.counterLineDesc === 'string') ? m.pattern.counterLineDesc : '',
             bankLineDesc: (typeof m.pattern.bankLineDesc === 'string') ? m.pattern.bankLineDesc : '',
-            counterAccount: vals.counterAccount,
-            counterDetails: vals.counterDetails,
-            detailComplete: !!vals.counterAccount
+            counterAccount: vals.counterAccount, counterDetails: vals.counterDetails, detailComplete: !!vals.counterAccount
         };
         bumpSmsPatternUsage(m.pattern.id);
     }
@@ -1970,9 +1741,6 @@ function handleIncomingSms(text, source, force) {
     return { ok: true, matched: matched, pattern: m ? m.pattern : null, pending: added };
 }
 
-/* ============================================================
-   بخش ۲۴ — کلیپ‌بورد (با مدیریت خطای دسترسی)
-   ============================================================ */
 var _lastClipboardText = '';
 
 function readClipboardAndAdd(auto) {
@@ -2001,16 +1769,13 @@ function readClipboardAndAdd(auto) {
     });
 }
 
-/* ============================================================
-   بخش ۲۵ — رندر inbox
-   ============================================================ */
 function renderSmsInbox() {
-    var box = document.getElementById('sms-inbox-list');
-    if (!box) return;
+    var boxes = document.querySelectorAll('#sms-inbox-list');
+    if (boxes.length === 0) return;
 
     var list = getSmsInbox();
-    var countEl = document.getElementById('sms-inbox-count');
-    if (countEl) countEl.textContent = toFa(list.length);
+    var countEls = document.querySelectorAll('#sms-inbox-count');
+    countEls.forEach(function(el) { el.textContent = toFa(list.length); });
 
     var searchEl = document.getElementById('sms-inbox-search');
     var statusEl = document.getElementById('sms-inbox-status-filter');
@@ -2019,7 +1784,7 @@ function renderSmsInbox() {
     if (!statusF) statusF = 'converted';
 
     if (list.length === 0) {
-        box.innerHTML = '<div class="widget-empty">📭 هنوز پیامکی به سند تبدیل نشده.</div>';
+        boxes.forEach(function(box) { box.innerHTML = '<div class="widget-empty">📭 هنوز پیامکی به سند تبدیل نشده.</div>'; });
         _injectSmsActionButtons();
         return;
     }
@@ -2035,7 +1800,10 @@ function renderSmsInbox() {
     }
 
     filtered.sort(function (a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); });
-    if (filtered.length === 0) { box.innerHTML = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>'; _injectSmsActionButtons(); return; }
+    if (filtered.length === 0) {
+        boxes.forEach(function(box) { box.innerHTML = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>'; });
+        _injectSmsActionButtons(); return;
+    }
 
     var html = '';
     filtered.forEach(function (s) {
@@ -2064,8 +1832,7 @@ function renderSmsInbox() {
         html += '<div class="sms-item ' + statusClass + '">'
             +  '<div class="sms-item-head"><div style="display:flex;align-items:flex-start;gap:4px">'
             +    checkboxHtml
-            +    '<div><div class="title">' + statusBadge + '</div>'
-            +    '<div class="meta">' + esc(meta) + '</div></div>'
+            +    '<div><div class="title">' + statusBadge + '</div><div class="meta">' + esc(meta) + '</div></div>'
             +  '</div></div>'
             +  '<div class="sms-item-parsed">' + parsedHtml + '</div>'
             +  '<div class="sms-item-text">' + esc(s.rawText) + '</div>'
@@ -2077,47 +1844,38 @@ function renderSmsInbox() {
             +  '</div>';
     });
 
-    box.innerHTML = html;
-    _injectSmsActionButtons();
-
-    box.querySelectorAll('[data-action]').forEach(function (btn) {
-        btn.onclick = function () {
-            var action = this.getAttribute('data-action');
-            var id = this.getAttribute('data-id');
-            if (action === 'convert') {
-                if (typeof convertSmsToVoucher === 'function') {
-                    try { convertSmsToVoucher(id); }
-                    catch (e) { alert('خطا در ساخت سند:\n' + (e.message || e)); }
+    boxes.forEach(function(box) {
+        box.innerHTML = html;
+        _injectSmsActionButtons();
+        box.querySelectorAll('[data-action]').forEach(function (btn) {
+            btn.onclick = function () {
+                var action = this.getAttribute('data-action');
+                var id = this.getAttribute('data-id');
+                if (action === 'convert') {
+                    if (typeof convertSmsToVoucher === 'function') { try { convertSmsToVoucher(id); } catch (e) { alert('خطا در ساخت سند:\n' + (e.message || e)); } }
+                    return;
                 }
-                return;
-            }
-            if (action === 'ignore') {
-                var l = getSmsInbox();
-                for (var x = 0; x < l.length; x++) if (l[x].id === id) l[x].status = 'ignored';
-                saveSmsInbox(l); renderSmsInbox(); updateSmsBadge(); return;
-            }
-            if (action === 'delete') {
-                if (!confirm('این پیامک از صندوق حذف شود؟')) return;
-                var l2 = getSmsInbox().filter(function (x) { return x.id !== id; });
-                saveSmsInbox(l2); renderSmsInbox(); updateSmsBadge(); return;
-            }
-        };
+                if (action === 'ignore') {
+                    var l = getSmsInbox();
+                    for (var x = 0; x < l.length; x++) if (l[x].id === id) l[x].status = 'ignored';
+                    saveSmsInbox(l); renderSmsInbox(); updateSmsBadge(); return;
+                }
+                if (action === 'delete') {
+                    if (!confirm('این پیامک از صندوق حذف شود؟')) return;
+                    var l2 = getSmsInbox().filter(function (x) { return x.id !== id; });
+                    saveSmsInbox(l2); renderSmsInbox(); updateSmsBadge(); return;
+                }
+            };
+        });
     });
 }
 
-/* ============================================================
-   بخش ۲۶ — صدور سند تجمیعی از inbox
-   ============================================================ */
 function convertMultipleSmsToVoucher() {
     if (window._smsProcessing) return; window._smsProcessing = true;
     try {
         var checked = document.querySelectorAll('.sms-select-cb:checked');
         var uniqueSids = [];
-        checked.forEach(function(cb) {
-            var sid = cb.getAttribute('data-sid');
-            if (sid && uniqueSids.indexOf(sid) === -1) uniqueSids.push(sid);
-        });
-
+        checked.forEach(function(cb) { var sid = cb.getAttribute('data-sid'); if (sid && uniqueSids.indexOf(sid) === -1) uniqueSids.push(sid); });
         if (uniqueSids.length === 0) { alert('⚠️ ابتدا یک یا چند پیامک را انتخاب کنید.'); return; }
 
         var bankMoein = getBankMoeinId();
@@ -2148,13 +1906,11 @@ function convertMultipleSmsToVoucher() {
             var bankDetail = bankAccId ? { bank: bankAccId } : {};
 
             if (direction === 'out') {
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: amount, credit: 0, description: cLineDesc });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: amount, credit: 0, description: cLineDesc });
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: amount, description: bLineDesc, locked: true });
             } else {
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: amount, credit: 0, description: bLineDesc, locked: true });
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: 0, credit: amount, description: cLineDesc });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: 0, credit: amount, description: cLineDesc });
             }
 
             if (voucherDesc) descSet[voucherDesc] = true;
@@ -2162,7 +1918,6 @@ function convertMultipleSmsToVoucher() {
         });
 
         if (lines.length === 0) { alert('⚠️ هیچ‌کدام قابل تبدیل نیستند.'); return; }
-
         var descArr = Object.keys(descSet);
         var voucherDescFinal = descArr.length > 0 ? descArr.join(' - ') : '';
 
@@ -2175,10 +1930,7 @@ function convertMultipleSmsToVoucher() {
 
         var inbox = getSmsInbox();
         for (var i = 0; i < inbox.length; i++) {
-            if (usedIds.indexOf(inbox[i].id) !== -1) {
-                inbox[i].status = 'converted';
-                inbox[i].voucherId = v.id;
-            }
+            if (usedIds.indexOf(inbox[i].id) !== -1) { inbox[i].status = 'converted'; inbox[i].voucherId = v.id; }
         }
         saveSmsInbox(inbox);
         renderSmsInbox(); updateSmsBadge();
@@ -2189,23 +1941,15 @@ function convertMultipleSmsToVoucher() {
 
         if (res.approved) setTimeout(function () { goToPage('voucher-list'); }, 200);
         else setTimeout(function () { if (typeof loadVoucherForEdit === 'function') loadVoucherForEdit(v); }, 200);
-    } finally {
-        window._smsProcessing = false;
-    }
+    } finally { window._smsProcessing = false; }
 }
 
-/* ============================================================
-   بخش ۲۷ — صدور سند تکی از inbox
-   ============================================================ */
 function convertSelectedInboxToIndividualVouchers() {
     if (window._smsProcessing) return; window._smsProcessing = true;
     try {
         var checked = document.querySelectorAll('.sms-select-cb:checked');
         var uniqueSids = [];
-        checked.forEach(function(cb) {
-            var sid = cb.getAttribute('data-sid');
-            if (sid && uniqueSids.indexOf(sid) === -1) uniqueSids.push(sid);
-        });
+        checked.forEach(function(cb) { var sid = cb.getAttribute('data-sid'); if (sid && uniqueSids.indexOf(sid) === -1) uniqueSids.push(sid); });
 
         if (uniqueSids.length === 0) { alert('⚠️ ابتدا یک یا چند پیامک را انتخاب کنید.'); return; }
         if (!confirm('برای هر ' + toFa(uniqueSids.length) + ' پیامک، یک سند جداگانه ساخته می‌شود. ادامه؟')) return;
@@ -2240,22 +1984,17 @@ function convertSelectedInboxToIndividualVouchers() {
             var bankDetail = bankAccId ? { bank: bankAccId } : {};
             var lines = [];
             if (direction === 'out') {
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: amount, credit: 0, description: cLineDesc });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: amount, credit: 0, description: cLineDesc });
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: 0, credit: amount, description: bLineDesc, locked: true });
             } else {
                 lines.push({ id: uid(), account: bankMoein, details: bankDetail, debit: amount, credit: 0, description: bLineDesc, locked: true });
-                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)),
-                    debit: 0, credit: amount, description: cLineDesc });
+                lines.push({ id: uid(), account: counterAccount, details: JSON.parse(JSON.stringify(counterDetails)), debit: 0, credit: amount, description: cLineDesc });
             }
 
             DB.save('vouchers', vl);
-            var num = (typeof getNextVoucherNumberForPeriod === 'function')
-                ? getNextVoucherNumberForPeriod(activePeriodId)
-                : String(vl.length + 1);
+            var num = (typeof getNextVoucherNumberForPeriod === 'function') ? getNextVoucherNumberForPeriod(activePeriodId) : String(vl.length + 1);
 
-            var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general',
-                periodId: activePeriodId, desc: voucherDesc, lines: lines, status: 'draft' };
+            var v = { id: uid(), number: num, date: todayJalaliStr(), type: 'general', periodId: activePeriodId, desc: voucherDesc, lines: lines, status: 'draft' };
             var res = _tryCreateApprovedVoucher(v);
             vl.push(v);
 
@@ -2266,10 +2005,7 @@ function convertSelectedInboxToIndividualVouchers() {
             if (res.approved) approvedCount++; else draftCount++;
         });
 
-        if (created === 0) {
-            alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک رد شد.');
-            return;
-        }
+        if (created === 0) { alert('⚠️ هیچ پیامکی قابل تبدیل نبود.\n' + toFa(skipped) + ' پیامک رد شد.'); return; }
 
         DB.save('vouchers', vl);
         if (updatedInbox) saveSmsInbox(allInbox);
@@ -2277,39 +2013,30 @@ function convertSelectedInboxToIndividualVouchers() {
 
         var msg = '✅ ' + toFa(created) + ' سند تکی ساخته شد';
         if (approvedCount > 0) msg += '\n✔ ' + toFa(approvedCount) + ' تأیید';
-        if (draftCount > 0)    msg += '\n📝 ' + toFa(draftCount) + ' پیش‌نویس';
-        if (skipped > 0)       msg += '\n⚠️ ' + toFa(skipped) + ' رد شد';
+        if (draftCount > 0) msg += '\n📝 ' + toFa(draftCount) + ' پیش‌نویس';
+        if (skipped > 0) msg += '\n⚠️ ' + toFa(skipped) + ' رد شد';
         alert(msg);
 
         if (created > 0) setTimeout(function () { goToPage('voucher-list'); }, 300);
-    } finally {
-        window._smsProcessing = false;
-    }
+    } finally { window._smsProcessing = false; }
 }
 
-/* ============================================================
-   ✅ بخش ۲۸ — رندر الگوها
-   ============================================================ */
+// ✅ FIX: پشتیبانی از DOM تکراری
 function renderSmsPatternsTab() {
-    var box = document.getElementById('sms-patterns-list');
-    if (!box) { console.warn('[renderSmsPatternsTab] box not found'); return; }
+    var boxes = document.querySelectorAll('#sms-patterns-list');
+    if (boxes.length === 0) return;
 
     var patterns;
-    try { patterns = loadSmsPatterns(); }
-    catch (e) {
-        console.error('[renderSmsPatternsTab] loadSmsPatterns failed:', e);
-        box.innerHTML = '<div class="widget-empty">⚠️ خطا در خواندن الگوها</div>';
-        return;
-    }
+    try { patterns = loadSmsPatterns(); } catch (e) { console.error('[renderSmsPatternsTab] loadSmsPatterns failed:', e); return; }
 
-    var countEl = document.getElementById('sms-patterns-count');
-    if (countEl) countEl.textContent = toFa(patterns.length);
+    var countEls = document.querySelectorAll('#sms-patterns-count');
+    countEls.forEach(function(el) { el.textContent = toFa(patterns.length); });
 
     var searchEl = document.getElementById('sms-patterns-search');
     var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
 
     if (patterns.length === 0) {
-        box.innerHTML = '<div class="widget-empty">📭 هنوز الگویی ثبت نشده.<br><span style="font-size:.72rem;opacity:.8">با تأیید یک پیامک، الگو ذخیره می‌شود.</span></div>';
+        boxes.forEach(function(box) { box.innerHTML = '<div class="widget-empty">📭 هنوز الگویی ثبت نشده.<br><span style="font-size:.72rem;opacity:.8">با تأیید یک پیامک، الگو ذخیره می‌شود.</span></div>'; });
         return;
     }
 
@@ -2317,13 +2044,8 @@ function renderSmsPatternsTab() {
     try { accounts = DB.load('bankAccounts', []) || []; } catch (e) { accounts = []; }
     try { allAccounts = DB.load('accounts', []) || []; } catch (e) { allAccounts = []; }
 
-    var accMap = {};
-    accounts.forEach(function (a) { accMap[a.id] = a; });
-
-    var sorted = patterns.slice().sort(function (a, b) {
-        if (a.blocked !== b.blocked) return a.blocked ? 1 : -1;
-        return (b.lastUsed || 0) - (a.lastUsed || 0);
-    });
+    var accMap = {}; accounts.forEach(function (a) { accMap[a.id] = a; });
+    var sorted = patterns.slice().sort(function (a, b) { if (a.blocked !== b.blocked) return a.blocked ? 1 : -1; return (b.lastUsed || 0) - (a.lastUsed || 0); });
 
     var shown = 0;
     var html = '<div style="display:grid;gap:12px">';
@@ -2332,15 +2054,9 @@ function renderSmsPatternsTab() {
         var p = sorted[i];
         try {
             var linkedAcc = accMap[p.linkedAccountId];
-            var accLabel = linkedAcc
-                ? ((linkedAcc.bank || '') + ' — ' + (linkedAcc.account || ''))
-                : '— (تعیین نشده)';
-            var dirLabel = p.direction === 'out' ? '🔴 برداشت'
-                         : p.direction === 'in'  ? '🟢 واریز'
-                         : '❔ نامشخص';
-            var dirCls = p.direction === 'out' ? 'badge-draft'
-                       : p.direction === 'in'  ? 'badge-approved'
-                       : '';
+            var accLabel = linkedAcc ? ((linkedAcc.bank || '') + ' — ' + (linkedAcc.account || '')) : '— (تعیین نشده)';
+            var dirLabel = p.direction === 'out' ? '🔴 برداشت' : p.direction === 'in'  ? '🟢 واریز' : '❔ نامشخص';
+            var dirCls = p.direction === 'out' ? 'badge-draft' : p.direction === 'in'  ? 'badge-approved' : '';
 
             if (q) {
                 var hay = ((p.label || '') + ' ' + accLabel + ' ' + (p.voucherDesc || '') + ' ' + (p.counterLineDesc || '')).toLowerCase();
@@ -2350,9 +2066,7 @@ function renderSmsPatternsTab() {
 
             var preview = (p.tokens || []).join(' ');
             if (preview.length > 140) preview = preview.slice(0, 140) + '…';
-            var blockedBadge = p.blocked
-                ? ' <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:8px;font-size:.66rem;font-weight:800">🚫 مسدود</span>'
-                : '';
+            var blockedBadge = p.blocked ? ' <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:8px;font-size:.66rem;font-weight:800">🚫 مسدود</span>' : '';
             var opacity = p.blocked ? 'opacity:.65;' : '';
 
             var vDescShow = (typeof p.voucherDesc === 'string' && p.voucherDesc !== '') ? esc(p.voucherDesc) : '<span style="color:#cbd5e1;font-style:italic">(خالی)</span>';
@@ -2362,20 +2076,13 @@ function renderSmsPatternsTab() {
             var kwList = (p.keywords && p.keywords.length > 0) ? p.keywords : extractKeywords(p.raw || '');
             var kwStr = kwList.length > 0 ? kwList.join(' ، ') : '—';
             var counterAccShow = '—';
-            try {
-                counterAccShow = p.counterAccount
-                    ? getAccountLabel(p.counterAccount, allAccounts)
-                    : '—';
-            } catch (e) { /* ignore */ }
+            try { counterAccShow = p.counterAccount ? getAccountLabel(p.counterAccount, allAccounts) : '—'; } catch (e) { /* ignore */ }
 
             html += '<div class="card" style="margin:0;padding:14px;' + opacity + '">'
                 + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
                 +   '<div style="flex:1;min-width:0">'
                 +     '<div style="font-weight:800;color:var(--primary-dark);font-size:.95rem">' + esc(p.label || 'بدون نام') + blockedBadge + '</div>'
-                +     '<div style="font-size:.74rem;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">'
-                +       '<span>🏦 ' + esc(accLabel) + '</span>'
-                +       '<span class="badge ' + dirCls + '">' + dirLabel + '</span>'
-                +     '</div>'
+                +     '<div style="font-size:.74rem;color:var(--text-muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap"><span>🏦 ' + esc(accLabel) + '</span><span class="badge ' + dirCls + '">' + dirLabel + '</span></div>'
                 +   '</div>'
                 +   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
                 +     '<button type="button" class="sms-pat-edit" data-id="' + p.id + '" onclick="if(window.openEditSmsPattern)window.openEditSmsPattern(this.getAttribute(&quot;data-id&quot;))" style="background:#dbeafe;color:#1e40af;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">✏️ ویرایش</button>'
@@ -2400,48 +2107,30 @@ function renderSmsPatternsTab() {
                 +   '<span>📅 ' + (p.lastUsed ? toFa(tsToJalaliDate(p.lastUsed)) + ' ' + toFa(tsToJalaliTime(p.lastUsed)) : '—') + '</span>'
                 + '</div>'
                 + '</div>';
-        } catch (perr) {
-            console.warn('[renderSmsPatternsTab] card render failed for', p && p.id, perr);
-        }
+        } catch (perr) { console.warn('[renderSmsPatternsTab] card render failed for', p && p.id, perr); }
     }
     html += '</div>';
 
     if (shown === 0) html = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>';
-    box.innerHTML = html;
+    boxes.forEach(function(box) { box.innerHTML = html; });
 }
 
-/* ============================================================
-   ✅ بخش ۲۹ — ویرایش الگو (v18.3)
-   ============================================================ */
 function openEditSmsPattern(patternId) {
-    console.log('[openEditSmsPattern] called with id:', patternId);
     try {
         var p = loadSmsPatterns().find(function (x) { return x.id === patternId; });
-        if (!p) {
-            console.warn('[openEditSmsPattern] pattern not found:', patternId);
-            showToast('الگو یافت نشد.');
-            return;
-        }
+        if (!p) { showToast('الگو یافت نشد.'); return; }
 
         var old = document.getElementById('sms-edit-modal'); if (old) old.remove();
         var oldO = document.getElementById('sms-edit-overlay'); if (oldO) oldO.remove();
 
         var accounts = DB.load('bankAccounts', []);
         var accOpts = '<option value="">— تعیین نشده —</option>';
-        accounts.forEach(function (a) {
-            var sel = (p.linkedAccountId === a.id) ? ' selected' : '';
-            accOpts += '<option value="' + a.id + '"' + sel + '>' + esc((a.bank || '') + ' — ' + (a.account || '')) + '</option>';
-        });
+        accounts.forEach(function (a) { var sel = (p.linkedAccountId === a.id) ? ' selected' : ''; accOpts += '<option value="' + a.id + '"' + sel + '>' + esc((a.bank || '') + ' — ' + (a.account || '')) + '</option>'; });
 
         var allAccounts = DB.load('accounts', []);
-        var leaves = allAccounts.filter(function (a) {
-            return !allAccounts.some(function (x) { return x.parent === a.id; });
-        });
+        var leaves = allAccounts.filter(function (a) { return !allAccounts.some(function (x) { return x.parent === a.id; }); });
         var counterAccOpts = '<option value="">— بدون —</option>';
-        leaves.forEach(function (a) {
-            var sel = (p.counterAccount === a.id) ? ' selected' : '';
-            counterAccOpts += '<option value="' + a.id + '"' + sel + '>' + esc(getAccountLabel(a.id, allAccounts)) + '</option>';
-        });
+        leaves.forEach(function (a) { var sel = (p.counterAccount === a.id) ? ' selected' : ''; counterAccOpts += '<option value="' + a.id + '"' + sel + '>' + esc(getAccountLabel(a.id, allAccounts)) + '</option>'; });
 
         var dirIn = p.direction === 'in' ? 'checked' : '';
         var dirOut = p.direction === 'out' ? 'checked' : '';
@@ -2486,10 +2175,7 @@ function openEditSmsPattern(patternId) {
 
         document.body.insertAdjacentHTML('beforeend', html);
 
-        var pCtx = {
-            counterAccount: p.counterAccount || '',
-            counterDetails: JSON.parse(JSON.stringify(p.counterDetails || {}))
-        };
+        var pCtx = { counterAccount: p.counterAccount || '', counterDetails: JSON.parse(JSON.stringify(p.counterDetails || {})) };
         window._seCtx = pCtx;
 
         function renderSeDetails() {
@@ -2499,34 +2185,18 @@ function openEditSmsPattern(patternId) {
             if (!pCtx.counterAccount) return;
             var acc = allAccounts.find(function (a) { return a.id === pCtx.counterAccount; });
             if (!acc || !acc.links || acc.links.length === 0) return;
-            var uniqueLinks = [];
-            acc.links.forEach(function (lt) { if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt); });
+            var uniqueLinks = []; acc.links.forEach(function (lt) { if (uniqueLinks.indexOf(lt) === -1) uniqueLinks.push(lt); });
             var combined = [];
-            uniqueLinks.forEach(function (lt) {
-                getLinkedItems(lt).forEach(function (it) {
-                    combined.push({ value: lt + '::' + it.id, text: linkTypeName(lt) + ': ' + getLinkedItemLabel(lt, it) });
-                });
-            });
+            uniqueLinks.forEach(function (lt) { getLinkedItems(lt).forEach(function (it) { combined.push({ value: lt + '::' + it.id, text: linkTypeName(lt) + ': ' + getLinkedItemLabel(lt, it) }); }); });
             if (combined.length === 0) return;
-            var curVal = null;
-            uniqueLinks.forEach(function (lt) { if (pCtx.counterDetails[lt]) curVal = lt + '::' + pCtx.counterDetails[lt]; });
+            var curVal = null; uniqueLinks.forEach(function (lt) { if (pCtx.counterDetails[lt]) curVal = lt + '::' + pCtx.counterDetails[lt]; });
             var opts = '<option value="">— انتخاب تفصیلی —</option>';
-            combined.forEach(function (it) {
-                var sel = (it.value === curVal) ? ' selected' : '';
-                opts += '<option value="' + it.value + '"' + sel + '>' + esc(it.text) + '</option>';
-            });
-            wrap.innerHTML = '<div class="field"><label>🏷 تفصیلی (' + uniqueLinks.map(linkTypeName).join(' / ') + ')</label>'
-                + '<select id="se-counter-details">' + opts + '</select></div>';
+            combined.forEach(function (it) { var sel = (it.value === curVal) ? ' selected' : ''; opts += '<option value="' + it.value + '"' + sel + '>' + esc(it.text) + '</option>'; });
+            wrap.innerHTML = '<div class="field"><label>🏷 تفصیلی (' + uniqueLinks.map(linkTypeName).join(' / ') + ')</label><select id="se-counter-details">' + opts + '</select></div>';
         }
 
         var cAccSel = document.getElementById('se-counter-acc');
-        if (cAccSel) {
-            cAccSel.onchange = function () {
-                pCtx.counterAccount = this.value;
-                pCtx.counterDetails = {};
-                renderSeDetails();
-            };
-        }
+        if (cAccSel) cAccSel.onchange = function () { pCtx.counterAccount = this.value; pCtx.counterDetails = {}; renderSeDetails(); };
         renderSeDetails();
 
         var closeFn = function () {
@@ -2561,10 +2231,7 @@ function openEditSmsPattern(patternId) {
             var detSel = document.getElementById('se-counter-details');
             if (detSel) {
                 var newDetails = {};
-                if (detSel.value) {
-                    var parts = detSel.value.split('::');
-                    newDetails[parts[0]] = parts[1];
-                }
+                if (detSel.value) { var parts = detSel.value.split('::'); newDetails[parts[0]] = parts[1]; }
                 all[idx].counterDetails = newDetails;
             } else {
                 all[idx].counterDetails = JSON.parse(JSON.stringify(pCtx.counterDetails || {}));
@@ -2576,15 +2243,9 @@ function openEditSmsPattern(patternId) {
             renderSmsPatternsTab();
             showToast('✅ ذخیره شد');
         };
-    } catch (err) {
-        console.error('[openEditSmsPattern] ERROR:', err);
-        alert('خطا در باز کردن ویرایش:\n' + (err.message || err));
-    }
+    } catch (err) { console.error('[openEditSmsPattern] ERROR:', err); alert('خطا در باز کردن ویرایش:\n' + (err.message || err)); }
 }
 
-/* ============================================================
-   ✅ بخش ۳۰ — Delegation سراسری (capture-phase) برای دکمه‌ها
-   ============================================================ */
 function _smsBindGlobalDelegation() {
     if (window._smsGlobalDelegationBound) return;
     window._smsGlobalDelegationBound = true;
@@ -2594,68 +2255,43 @@ function _smsBindGlobalDelegation() {
 
         var editBtn = e.target.closest('.sms-pat-edit');
         if (editBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var id = editBtn.getAttribute('data-id');
-            console.log('[delegation] sms-pat-edit clicked:', id);
-            try {
-                if (typeof openEditSmsPattern === 'function') {
-                    openEditSmsPattern(id);
-                } else if (typeof window.openEditSmsPattern === 'function') {
-                    window.openEditSmsPattern(id);
-                } else {
-                    alert('تابع openEditSmsPattern تعریف نشده');
-                }
-            } catch (err) {
-                console.error('[delegation] openEditSmsPattern error:', err);
-                alert('خطا: ' + (err.message || err));
-            }
+            if (typeof openEditSmsPattern === 'function') openEditSmsPattern(id);
+            else if (typeof window.openEditSmsPattern === 'function') window.openEditSmsPattern(id);
+            else alert('تابع openEditSmsPattern تعریف نشده');
             return;
         }
 
         var blockBtn = e.target.closest('.sms-pat-block');
         if (blockBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var id2 = blockBtn.getAttribute('data-pattern-block');
             var all = loadSmsPatterns();
-            for (var j = 0; j < all.length; j++) {
-                if (all[j].id === id2) { all[j].blocked = !all[j].blocked; break; }
-            }
-            saveSmsPatterns(all);
-            renderSmsPatternsTab();
-            showToast('✅ ذخیره شد');
-            return;
+            for (var j = 0; j < all.length; j++) { if (all[j].id === id2) { all[j].blocked = !all[j].blocked; break; } }
+            saveSmsPatterns(all); renderSmsPatternsTab(); showToast('✅ ذخیره شد'); return;
         }
 
         var delBtn = e.target.closest('.sms-pat-del');
         if (delBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var id3 = delBtn.getAttribute('data-pattern-del');
             var pat = loadSmsPatterns().find(function (x) { return x.id === id3; });
             if (!pat) return;
             if (!confirm('الگوی «' + (pat.label || '') + '» حذف شود؟')) return;
-            deleteSmsPattern(id3);
-            renderSmsPatternsTab();
-            showToast('🗑 حذف شد');
-            return;
+            deleteSmsPattern(id3); renderSmsPatternsTab(); showToast('🗑 حذف شد'); return;
         }
 
         var delAllBtn = e.target.closest('#sms-patterns-del-all');
         if (delAllBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             if (!confirm('همه الگوها حذف شوند؟')) return;
-            saveSmsPatterns([]);
-            renderSmsPatternsTab();
-            return;
+            saveSmsPatterns([]); renderSmsPatternsTab(); return;
         }
 
         var selectAllBtn = e.target.closest('#pending-sms-select-all-btn');
         if (selectAllBtn) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             var cbs = document.querySelectorAll('#pending-sms-list .psm-select-cb');
             if (cbs.length === 0) return;
             var allChecked = Array.prototype.every.call(cbs, function (cb) { return cb.checked; });
@@ -2665,36 +2301,15 @@ function _smsBindGlobalDelegation() {
         }
 
         var indPending = e.target.closest('#pending-sms-individual-voucher');
-        if (indPending) {
-            e.preventDefault();
-            e.stopPropagation();
-            convertSelectedPendingToIndividualVouchers();
-            return;
-        }
+        if (indPending) { e.preventDefault(); e.stopPropagation(); convertSelectedPendingToIndividualVouchers(); return; }
         var aggPending = e.target.closest('#pending-sms-bulk-voucher');
-        if (aggPending) {
-            e.preventDefault();
-            e.stopPropagation();
-            convertMultiplePendingToVoucher();
-            return;
-        }
+        if (aggPending) { e.preventDefault(); e.stopPropagation(); convertMultiplePendingToVoucher(); return; }
 
         var indInbox = e.target.closest('#sms-individual-voucher');
-        if (indInbox) {
-            e.preventDefault();
-            e.stopPropagation();
-            convertSelectedInboxToIndividualVouchers();
-            return;
-        }
+        if (indInbox) { e.preventDefault(); e.stopPropagation(); convertSelectedInboxToIndividualVouchers(); return; }
         var aggInbox = e.target.closest('#sms-bulk-create-voucher');
-        if (aggInbox) {
-            e.preventDefault();
-            e.stopPropagation();
-            convertMultipleSmsToVoucher();
-            return;
-        }
+        if (aggInbox) { e.preventDefault(); e.stopPropagation(); convertMultipleSmsToVoucher(); return; }
 
-        /* ✅ v18.3: اتصال مستقیم دکمه‌های تجزیه و کلیپ‌بورد به Delegation */
         var parseBtn = e.target.closest('#parse-sms');
         if (parseBtn) {
             e.preventDefault(); e.stopPropagation();
@@ -2714,19 +2329,13 @@ function _smsBindGlobalDelegation() {
         }
 
         var readClip = e.target.closest('#sms-read-clip');
-        if (readClip) {
-            e.preventDefault(); e.stopPropagation();
-            readClipboardAndAdd(false);
-            return;
-        }
+        if (readClip) { e.preventDefault(); e.stopPropagation(); readClipboardAndAdd(false); return; }
 
         var clearPend = e.target.closest('#pending-sms-clear');
         if (clearPend) {
             e.preventDefault(); e.stopPropagation();
             if (!confirm('همه پیامک‌های ثبت‌نشده پاک شوند؟')) return;
-            clearPendingSms();
-            renderPendingSmsBox();
-            return;
+            clearPendingSms(); renderPendingSmsBox(); return;
         }
 
         var clearConv = e.target.closest('#sms-clear-converted');
@@ -2734,16 +2343,11 @@ function _smsBindGlobalDelegation() {
             e.preventDefault(); e.stopPropagation();
             if (!confirm('همه پیامک‌های تبدیل‌شده حذف شوند؟')) return;
             var list = getSmsInbox().filter(function (s) { return s.status !== 'converted'; });
-            saveSmsInbox(list);
-            renderSmsInbox();
-            return;
+            saveSmsInbox(list); renderSmsInbox(); return;
         }
     }, true);
 }
 
-/* ============================================================
-   ✅ بخش ۳۱ — تزریق دکمه‌ها
-   ============================================================ */
 function _injectSmsActionButtons() {
     var pendingAggBtn = document.getElementById('pending-sms-bulk-voucher');
     if (pendingAggBtn && !pendingAggBtn.dataset.v15Renamed) {
@@ -2752,9 +2356,7 @@ function _injectSmsActionButtons() {
     }
     if (pendingAggBtn && !document.getElementById('pending-sms-individual-voucher')) {
         var indBtn = document.createElement('button');
-        indBtn.type = 'button';
-        indBtn.id = 'pending-sms-individual-voucher';
-        indBtn.className = 'export-btn';
+        indBtn.type = 'button'; indBtn.id = 'pending-sms-individual-voucher'; indBtn.className = 'export-btn';
         indBtn.style.cssText = 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none';
         indBtn.textContent = '📝 صدور سند تکی';
         pendingAggBtn.parentNode.insertBefore(indBtn, pendingAggBtn);
@@ -2767,9 +2369,7 @@ function _injectSmsActionButtons() {
     }
     if (inboxAggBtn && !document.getElementById('sms-individual-voucher')) {
         var indBtn2 = document.createElement('button');
-        indBtn2.type = 'button';
-        indBtn2.id = 'sms-individual-voucher';
-        indBtn2.className = 'export-btn';
+        indBtn2.type = 'button'; indBtn2.id = 'sms-individual-voucher'; indBtn2.className = 'export-btn';
         indBtn2.style.cssText = 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none';
         indBtn2.textContent = '📝 صدور سند تکی';
         inboxAggBtn.parentNode.insertBefore(indBtn2, inboxAggBtn);
@@ -2781,29 +2381,21 @@ function _injectPendingSelectAllBtn() {
     var countEl = document.getElementById('pending-sms-count');
     if (!countEl) return;
     var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'pending-sms-select-all-btn';
-    btn.textContent = '☑ انتخاب همه';
+    btn.type = 'button'; btn.id = 'pending-sms-select-all-btn'; btn.textContent = '☑ انتخاب همه';
     btn.style.cssText = 'padding:6px 10px;background:var(--primary-light);color:var(--primary-dark);border:none;border-radius:8px;font-family:inherit;font-weight:700;font-size:0.75rem;cursor:pointer;margin-right:8px';
     countEl.parentNode.insertBefore(btn, countEl.nextSibling);
 }
 
-/* ============================================================
-   ✅ بخش ۳۲ — Binding قطعی جستجو (۶ روش + polling)
-   ============================================================ */
 function _smsBindSearchInputs() {
     var watchers = [
-        { id: 'pending-sms-search',    render: 'renderPendingSmsBox' },
-        { id: 'sms-inbox-search',      render: 'renderSmsInbox' },
-        { id: 'sms-patterns-search',   render: 'renderSmsPatternsTab' }
+        { id: 'pending-sms-search', render: 'renderPendingSmsBox' },
+        { id: 'sms-inbox-search', render: 'renderSmsInbox' },
+        { id: 'sms-patterns-search', render: 'renderSmsPatternsTab' }
     ];
 
     watchers.forEach(function (w) {
         var el = document.getElementById(w.id);
-        if (!el) {
-            console.warn('[sms search] ✗ input NOT found:', w.id);
-            return;
-        }
+        if (!el) return;
         if (el._smsV18Bound) return;
         el._smsV18Bound = true;
 
@@ -2816,56 +2408,41 @@ function _smsBindSearchInputs() {
                 if (now - lastFire < 80) return;
                 var cur = el.value || '';
                 if (cur === lastVal) return;
-                lastVal = cur;
-                lastFire = now;
+                lastVal = cur; lastFire = now;
                 console.log('[sms search] (' + source + ')', w.id, '→', cur);
                 var fn = window[w.render];
                 if (typeof fn === 'function') fn();
-            } catch (e) {
-                console.error('[sms search error]', w.id, e);
-            }
+            } catch (e) { console.error('[sms search error]', w.id, e); }
         }
 
-        el.oninput   = function () { trigger('input-prop'); };
-        el.onkeyup   = function () { trigger('keyup-prop'); };
-        el.onchange  = function () { trigger('change-prop'); };
-        el.onpaste   = function () { setTimeout(function () { trigger('paste'); }, 20); };
-        el.oncut     = function () { setTimeout(function () { trigger('cut'); }, 20); };
+        el.oninput = function () { trigger('input-prop'); };
+        el.onkeyup = function () { trigger('keyup-prop'); };
+        el.onchange = function () { trigger('change-prop'); };
+        el.onpaste = function () { setTimeout(function () { trigger('paste'); }, 20); };
+        el.oncut = function () { setTimeout(function () { trigger('cut'); }, 20); };
         el.addEventListener('input', function () { trigger('input-event'); });
         el.addEventListener('keyup', function () { trigger('keyup-event'); });
 
         if (el._smsPollId) clearInterval(el._smsPollId);
         el._smsPollId = setInterval(function () { trigger('poll'); }, 300);
-
         console.log('[sms search] ✓ watcher attached:', w.id);
     });
 
     var statusInbox = document.getElementById('sms-inbox-status-filter');
     if (statusInbox && !statusInbox._smsV18Bound) {
         statusInbox._smsV18Bound = true;
-        statusInbox.addEventListener('change', function () {
-            try { renderSmsInbox(); } catch (e) { console.warn('[status inbox]', e); }
-        }, true);
+        statusInbox.addEventListener('change', function () { try { renderSmsInbox(); } catch (e) { console.warn('[status inbox]', e); } }, true);
     }
 }
 
-/* ============================================================
-   بخش ۳۳ — بایندهای سراسری فرم‌ها
-   ============================================================ */
 function bindSmsGlobalButtons() {
     var autoRead = document.getElementById('sms-auto-read');
     if (autoRead) {
         autoRead.checked = !!state.smsAutoRead;
-        autoRead.onchange = function () {
-            state.smsAutoRead = this.checked;
-            saveState(LS_KEYS.SMS_AUTO_READ);
-        };
+        autoRead.onchange = function () { state.smsAutoRead = this.checked; saveState(LS_KEYS.SMS_AUTO_READ); };
     }
 }
 
-/* ============================================================
-   ✅ بخش ۳۴ — initSmsModule (v18.3)
-   ============================================================ */
 function initSmsModule() {
     try { runSmsMigrations(); } catch (e) { console.warn('[sms init: migrations]', e); }
     try { _smsBindGlobalDelegation(); } catch (e) { console.warn('[sms init: delegation]', e); }
@@ -2903,116 +2480,99 @@ function initSmsModule() {
         try { refreshStdDescDatalist(); } catch (e) {}
     }
 
-    setTimeout(function () {
-        try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search #2]', e); }
-    }, 500);
-
-    console.log('✅ [sms] initSmsModule done — v18.3');
+    setTimeout(function () { try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search #2]', e); } }, 500);
+    console.log('✅ [sms] initSmsModule done — v18.4');
 }
 
-/* ============================================================
-   ✅ بخش ۳۵ — تشخیص و debug
-   ============================================================ */
 function _smsDiagnose() {
-    console.group('=== SMS Module Diagnostics v18.3 ===');
+    console.group('=== SMS Module Diagnostics v18.4 ===');
     console.log('patterns count:', loadSmsPatterns().length);
-    console.log('patterns box:', !!document.getElementById('sms-patterns-list'));
+    console.log('patterns boxes:', document.querySelectorAll('#sms-patterns-list').length);
     console.log('edit buttons in DOM:', document.querySelectorAll('.sms-pat-edit').length);
-    console.log('delete buttons in DOM:', document.querySelectorAll('.sms-pat-del').length);
-    console.log('block buttons in DOM:', document.querySelectorAll('.sms-pat-block').length);
     ['pending-sms-search','sms-inbox-search','sms-patterns-search'].forEach(function (id) {
         var el = document.getElementById(id);
         console.log('🔍', id, ':', el ? '✅ EXISTS' : '❌ MISSING', '| bound:', el ? el._smsV18Bound : '—');
     });
     console.log('delegation bound:', !!window._smsGlobalDelegationBound);
-    console.log('desc icons bound:', !!window._smsDescDelegationBound);
-    console.log('openEditSmsPattern type:', typeof window.openEditSmsPattern);
     console.groupEnd();
 }
 window._smsDiagnose = _smsDiagnose;
 
-/* ============================================================
-   ✅ صادرسازی
-   ============================================================ */
-window.matchBankAccountByBankName                 = matchBankAccountByBankName;
-window.findMatchingBankAccount                    = findMatchingBankAccount;
-window.parseBankSms                               = parseBankSms;
-window.getSmsInbox                                = getSmsInbox;
-window.saveSmsInbox                               = saveSmsInbox;
-window.getUnreadSmsCount                          = getUnreadSmsCount;
-window.updateSmsBadge                             = updateSmsBadge;
-window.addSmsToInbox                              = addSmsToInbox;
-window.loadSmsPatterns                            = loadSmsPatterns;
-window.saveSmsPatterns                            = saveSmsPatterns;
-window.getPendingSms                              = getPendingSms;
-window.savePendingSms                             = savePendingSms;
-window.getPendingSmsCount                         = getPendingSmsCount;
-window.runSmsMigrations                           = runSmsMigrations;
-window.extractAmountWithSign                      = extractAmountWithSign;
-window.detectSmsDirection                         = detectSmsDirection;
-window.buildSmsPattern                            = buildSmsPattern;
-window.extractCardKey                             = extractCardKey;
-window.extractKeywords                            = extractKeywords;
-window.findMatchingSmsPattern                     = findMatchingSmsPattern;
-window.isBankSms                                  = isBankSms;
-window.suggestAmount                              = suggestAmount;
-window.suggestDate                                = suggestDate;
-window.suggestTime                                = suggestTime;
-window.suggestDescription                         = suggestDescription;
-window.suggestLabel                               = suggestLabel;
-window.addSmsPattern                              = addSmsPattern;
-window.bumpSmsPatternUsage                        = bumpSmsPatternUsage;
-window.deleteSmsPattern                           = deleteSmsPattern;
-window.addPendingSms                              = addPendingSms;
-window.removePendingSms                           = removePendingSms;
-window.clearPendingSms                            = clearPendingSms;
-window.splitMultipleSms                           = splitMultipleSms;
-window.handleMultipleIncomingSms                  = handleMultipleIncomingSms;
-window.renderPendingSmsBox                        = renderPendingSmsBox;
-window.openPendingSmsDetailModal                  = openPendingSmsDetailModal;
-window.renderPendingSmsDetailBody                 = renderPendingSmsDetailBody;
-window.savePendingSmsDetail                       = savePendingSmsDetail;
-window.closePendingSmsDetailModal                 = closePendingSmsDetailModal;
-window.savePendingAsPattern                       = savePendingAsPattern;
-window._tryCreateApprovedVoucher                  = _tryCreateApprovedVoucher;
-window._createVoucherSmart                        = _createVoucherSmart;
-window.convertMultiplePendingToVoucher            = convertMultiplePendingToVoucher;
+window.matchBankAccountByBankName = matchBankAccountByBankName;
+window.findMatchingBankAccount = findMatchingBankAccount;
+window.parseBankSms = parseBankSms;
+window.getSmsInbox = getSmsInbox;
+window.saveSmsInbox = saveSmsInbox;
+window.getUnreadSmsCount = getUnreadSmsCount;
+window.updateSmsBadge = updateSmsBadge;
+window.addSmsToInbox = addSmsToInbox;
+window.loadSmsPatterns = loadSmsPatterns;
+window.saveSmsPatterns = saveSmsPatterns;
+window.getPendingSms = getPendingSms;
+window.savePendingSms = savePendingSms;
+window.getPendingSmsCount = getPendingSmsCount;
+window.runSmsMigrations = runSmsMigrations;
+window.extractAmountWithSign = extractAmountWithSign;
+window.detectSmsDirection = detectSmsDirection;
+window.buildSmsPattern = buildSmsPattern;
+window.extractCardKey = extractCardKey;
+window.extractKeywords = extractKeywords;
+window.findMatchingSmsPattern = findMatchingSmsPattern;
+window.isBankSms = isBankSms;
+window.suggestAmount = suggestAmount;
+window.suggestDate = suggestDate;
+window.suggestTime = suggestTime;
+window.suggestDescription = suggestDescription;
+window.suggestLabel = suggestLabel;
+window.addSmsPattern = addSmsPattern;
+window.bumpSmsPatternUsage = bumpSmsPatternUsage;
+window.deleteSmsPattern = deleteSmsPattern;
+window.addPendingSms = addPendingSms;
+window.removePendingSms = removePendingSms;
+window.clearPendingSms = clearPendingSms;
+window.splitMultipleSms = splitMultipleSms;
+window.handleMultipleIncomingSms = handleMultipleIncomingSms;
+window.renderPendingSmsBox = renderPendingSmsBox;
+window.openPendingSmsDetailModal = openPendingSmsDetailModal;
+window.renderPendingSmsDetailBody = renderPendingSmsDetailBody;
+window.savePendingSmsDetail = savePendingSmsDetail;
+window.closePendingSmsDetailModal = closePendingSmsDetailModal;
+window.savePendingAsPattern = savePendingAsPattern;
+window._tryCreateApprovedVoucher = _tryCreateApprovedVoucher;
+window._createVoucherSmart = _createVoucherSmart;
+window.convertMultiplePendingToVoucher = convertMultiplePendingToVoucher;
 window.convertSelectedPendingToIndividualVouchers = convertSelectedPendingToIndividualVouchers;
-window.extractValuesFromPattern                   = extractValuesFromPattern;
-window.handleIncomingSms                          = handleIncomingSms;
-window.readClipboardAndAdd                        = readClipboardAndAdd;
-window.renderSmsInbox                             = renderSmsInbox;
-window.convertMultipleSmsToVoucher                = convertMultipleSmsToVoucher;
-window.convertSelectedInboxToIndividualVouchers   = convertSelectedInboxToIndividualVouchers;
-window.renderSmsPatternsTab                       = renderSmsPatternsTab;
-window.openEditSmsPattern                         = openEditSmsPattern;
-window._smsBuildDescField                         = _smsBuildDescField;
-window._smsBindDescIcons                          = _smsBindDescIcons;
-window._injectSmsActionButtons                    = _injectSmsActionButtons;
-window._injectPendingSelectAllBtn                 = _injectPendingSelectAllBtn;
-window.bindSmsGlobalButtons                       = bindSmsGlobalButtons;
-window.initSmsModule                              = initSmsModule;
-window._smsBindSearchInputs                       = _smsBindSearchInputs;
-window._smsBindGlobalDelegation                   = _smsBindGlobalDelegation;
+window.extractValuesFromPattern = extractValuesFromPattern;
+window.handleIncomingSms = handleIncomingSms;
+window.readClipboardAndAdd = readClipboardAndAdd;
+window.renderSmsInbox = renderSmsInbox;
+window.convertMultipleSmsToVoucher = convertMultipleSmsToVoucher;
+window.convertSelectedInboxToIndividualVouchers = convertSelectedInboxToIndividualVouchers;
+window.renderSmsPatternsTab = renderSmsPatternsTab;
+window.openEditSmsPattern = openEditSmsPattern;
+window._smsBuildDescField = _smsBuildDescField;
+window._smsBindDescIcons = _smsBindDescIcons;
+window._injectSmsActionButtons = _injectSmsActionButtons;
+window._injectPendingSelectAllBtn = _injectPendingSelectAllBtn;
+window.bindSmsGlobalButtons = bindSmsGlobalButtons;
+window.initSmsModule = initSmsModule;
+window._smsBindSearchInputs = _smsBindSearchInputs;
+window._smsBindGlobalDelegation = _smsBindGlobalDelegation;
 
-/* ✅ Auto-init */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSmsModule);
 } else {
     initSmsModule();
 }
 
-console.log('✅ [modules/sms.js] loaded — v18.3 (Fixed duplicates & clipboard + search)');
-
+console.log('✅ [modules/sms.js] loaded — v18.4 (Fixed duplicates & clipboard + search)');
 
 /* ============================================================
-   ✅ v18.3 — Auto-rebind watcher
+   ✅ v18.4 — Auto-rebind watcher
    ============================================================ */
 (function _smsWatchForSmsPage() {
     if (window._smsWatchBound) return;
     window._smsWatchBound = true;
-
-    console.log('🔍 [sms-watch] auto-rebind watcher فعال شد');
 
     setInterval(function () {
         try {
@@ -3025,14 +2585,10 @@ console.log('✅ [modules/sms.js] loaded — v18.3 (Fixed duplicates & clipboard
                 var el = document.getElementById(searchIds[i]);
                 if (el && !el._smsV18Bound) {
                     console.log('🔄 [sms-watch] rebinding:', searchIds[i]);
-                    if (typeof _smsBindSearchInputs === 'function') {
-                        _smsBindSearchInputs();
-                    }
+                    if (typeof _smsBindSearchInputs === 'function') _smsBindSearchInputs();
                     break;
                 }
             }
-        } catch (e) {
-            console.error('[sms-watch] error:', e);
-        }
+        } catch (e) { console.error('[sms-watch] error:', e); }
     }, 800);
 })();
