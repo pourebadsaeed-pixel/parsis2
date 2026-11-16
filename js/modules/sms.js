@@ -1,14 +1,16 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۷)
+   پارسیس — پیامک بانکی (نسخه ۱۸)
    مسیر: js/modules/sms.js
 
-   تغییرات v17:
-     ✅ FIX: استفاده از Event Delegation در فاز Capture برای همه دکمه‌ها
-     ✅ FIX: جستجوی هر سه تب با capture-phase addEventListener
-     ✅ FIX: مودال ویرایش الگو با z-index بسیار بالا (99999)
-     ✅ FIX: inline onclick به عنوان fallback دکمه‌های الگو
-     ✅ FIX: رندر خودکار الگوها روی هر کلیک تب + init
-     ✅ FIX: حفظ counterDetails در openEditSmsPattern
+   تغییرات v18:
+     ✅ FIX: شرح قلم طرف مقابل و بانک در مودال تکمیل جزئیات زیر هم (نه کنار هم)
+     ✅ FIX: شرح قلم‌ها در ویرایش الگو زیر هم
+     ✅ FIX: جستجو در هر سه تب با ۶ روش موازی + polling قطعی
+     ✅ FIX: initSmsModule دو بار _smsBindSearchInputs را صدا می‌زند
+     ✅ v17: Event Delegation در فاز Capture برای همه دکمه‌ها
+     ✅ v17: inline onclick به عنوان fallback دکمه‌های الگو
+     ✅ v17: مودال ویرایش با z-index بسیار بالا (99995)
+     ✅ v17: رندر خودکار الگوها روی هر کلیک تب + init
      ✅ v15: معین طرف مقابل در الگو قابل ویرایش
      ✅ v15: صدور سند تکی + صدور سند تجمیعی
      ✅ v15: آیکن‌های 🧹/＋ در تمام فیلدهای شرح
@@ -918,7 +920,7 @@ function _smsBuildDescField(opts) {
 }
 
 function _smsBindDescIcons(container) {
-    /* ✅ v17: خود این تابع به delegation سراسری واگذار می‌شود. */
+    /* ✅ v17: delegation سراسری برای 🧹 و ＋ */
     if (window._smsDescDelegationBound) return;
     window._smsDescDelegationBound = true;
 
@@ -1300,7 +1302,8 @@ function renderPendingSmsDetailBody() {
 
     html += '<div id="pms-d-details-wrap"></div>';
 
-    html += '<div class="grid-2" style="margin-top:12px">'
+    /* ✅ v18: شرح قلم‌ها زیر هم (نه grid-2) */
+    html += '<div style="margin-top:12px">'
          +    _smsBuildDescField({ id: 'pms-d-counterdesc', value: ctx.counterLineDesc, label: '📝 شرح قلم (طرف مقابل) *', placeholder: 'مثلاً: خرید ملزومات' })
          +    _smsBuildDescField({ id: 'pms-d-bankdesc', value: ctx.bankLineDesc, label: '📝 شرح قلم (حساب بانک)', placeholder: 'مثلاً: برداشت از بانک ملی' })
          +  '</div>';
@@ -2245,7 +2248,7 @@ function convertSelectedInboxToIndividualVouchers() {
 }
 
 /* ============================================================
-   ✅ بخش ۲۸ — رندر الگوها (v17: بدون per-button binding)
+   ✅ بخش ۲۸ — رندر الگوها
    ============================================================ */
 function renderSmsPatternsTab() {
     var box = document.getElementById('sms-patterns-list');
@@ -2365,12 +2368,10 @@ function renderSmsPatternsTab() {
 
     if (shown === 0) html = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>';
     box.innerHTML = html;
-
-    /* ✅ v17: بدون per-button binding — Delegation سراسری کار می‌کند */
 }
 
 /* ============================================================
-   ✅ بخش ۲۹ — ویرایش الگو (v17: با حفظ counterDetails + z-index)
+   ✅ بخش ۲۹ — ویرایش الگو (v18: شرح‌ها زیر هم)
    ============================================================ */
 function openEditSmsPattern(patternId) {
     console.log('[openEditSmsPattern] called with id:', patternId);
@@ -2430,7 +2431,8 @@ function openEditSmsPattern(patternId) {
             +     '</div>'
             +     '<div id="se-counter-details-wrap"></div>'
             +     _smsBuildDescField({ id: 'se-voucherDesc', value: voucherDescValue, label: '📝 شرح سند', placeholder: '(اختیاری)' })
-            +     '<div class="grid-2">'
+            /* ✅ v18: شرح قلم‌ها زیر هم (نه grid-2) */
+            +     '<div>'
             +       _smsBuildDescField({ id: 'se-counterDesc', value: counterLineDescValue, label: '📝 شرح قلم (طرف مقابل)', placeholder: '(اختیاری)' })
             +       _smsBuildDescField({ id: 'se-bankDesc', value: bankLineDescValue, label: '📝 شرح قلم (بانک)', placeholder: '(اختیاری)' })
             +     '</div>'
@@ -2515,7 +2517,7 @@ function openEditSmsPattern(patternId) {
             all[idx].counterLineDesc = document.getElementById('se-counterDesc').value.trim();
             all[idx].bankLineDesc = document.getElementById('se-bankDesc').value.trim();
 
-            /* ✅ v17: حفظ counterDetails اگر فیلد رندر نشده */
+            /* حفظ counterDetails اگر فیلد رندر نشده */
             var counterAccEl = document.getElementById('se-counter-acc');
             all[idx].counterAccount = counterAccEl ? (counterAccEl.value || '') : '';
             var detSel = document.getElementById('se-counter-details');
@@ -2543,8 +2545,7 @@ function openEditSmsPattern(patternId) {
 }
 
 /* ============================================================
-   ✅ بخش ۳۰ — Delegation سراسری برای همه دکمه‌های SMS
-   این تابع در فاز CAPTURE اجرا می‌شود → غیرقابل بلاک
+   ✅ بخش ۳۰ — Delegation سراسری (capture-phase) برای دکمه‌ها
    ============================================================ */
 function _smsBindGlobalDelegation() {
     if (window._smsGlobalDelegationBound) return;
@@ -2553,7 +2554,6 @@ function _smsBindGlobalDelegation() {
     document.addEventListener('click', function (e) {
         if (!e.target || !e.target.closest) return;
 
-        /* 📝 ویرایش الگو */
         var editBtn = e.target.closest('.sms-pat-edit');
         if (editBtn) {
             e.preventDefault();
@@ -2575,7 +2575,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* 🚫 مسدود/رفع */
         var blockBtn = e.target.closest('.sms-pat-block');
         if (blockBtn) {
             e.preventDefault();
@@ -2591,7 +2590,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* 🗑 حذف الگو */
         var delBtn = e.target.closest('.sms-pat-del');
         if (delBtn) {
             e.preventDefault();
@@ -2606,7 +2604,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* 🗑 حذف همه الگوها */
         var delAllBtn = e.target.closest('#sms-patterns-del-all');
         if (delAllBtn) {
             e.preventDefault();
@@ -2617,7 +2614,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* ☑ انتخاب همه pending */
         var selectAllBtn = e.target.closest('#pending-sms-select-all-btn');
         if (selectAllBtn) {
             e.preventDefault();
@@ -2630,7 +2626,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* 📝 صدور سند تکی/تجمیعی pending */
         var indPending = e.target.closest('#pending-sms-individual-voucher');
         if (indPending) {
             e.preventDefault();
@@ -2646,7 +2641,6 @@ function _smsBindGlobalDelegation() {
             return;
         }
 
-        /* 📝 صدور سند تکی/تجمیعی inbox */
         var indInbox = e.target.closest('#sms-individual-voucher');
         if (indInbox) {
             e.preventDefault();
@@ -2661,11 +2655,11 @@ function _smsBindGlobalDelegation() {
             convertMultipleSmsToVoucher();
             return;
         }
-    }, true);  /* ← CAPTURE */
+    }, true);
 }
 
 /* ============================================================
-   ✅ بخش ۳۱ — تزریق دکمه‌های «صدور سند تکی» و «تجمیعی»
+   ✅ بخش ۳۱ — تزریق دکمه‌ها
    ============================================================ */
 function _injectSmsActionButtons() {
     var pendingAggBtn = document.getElementById('pending-sms-bulk-voucher');
@@ -2712,42 +2706,65 @@ function _injectPendingSelectAllBtn() {
 }
 
 /* ============================================================
-   ✅ بخش ۳۲ — binding سرچ‌ها (capture phase)
+   ✅ بخش ۳۲ — Binding قطعی جستجو (۶ روش + polling)
    ============================================================ */
 function _smsBindSearchInputs() {
-    var searchPat = document.getElementById('sms-patterns-search');
-    if (searchPat && !searchPat.dataset.v17Bound) {
-        searchPat.dataset.v17Bound = '1';
-        searchPat.addEventListener('input', function () {
-            try { renderSmsPatternsTab(); }
-            catch (e) { console.warn('[search patterns]', e); }
-        }, true);
-    }
+    var watchers = [
+        { id: 'pending-sms-search',    render: 'renderPendingSmsBox' },
+        { id: 'sms-inbox-search',      render: 'renderSmsInbox' },
+        { id: 'sms-patterns-search',   render: 'renderSmsPatternsTab' }
+    ];
 
-    var searchPending = document.getElementById('pending-sms-search');
-    if (searchPending && !searchPending.dataset.v17Bound) {
-        searchPending.dataset.v17Bound = '1';
-        searchPending.addEventListener('input', function () {
-            try { renderPendingSmsBox(); }
-            catch (e) { console.warn('[search pending]', e); }
-        }, true);
-    }
+    watchers.forEach(function (w) {
+        var el = document.getElementById(w.id);
+        if (!el) {
+            console.warn('[sms search] ✗ input NOT found:', w.id);
+            return;
+        }
+        if (el._smsV18Bound) return;
+        el._smsV18Bound = true;
 
-    var searchInbox = document.getElementById('sms-inbox-search');
-    if (searchInbox && !searchInbox.dataset.v17Bound) {
-        searchInbox.dataset.v17Bound = '1';
-        searchInbox.addEventListener('input', function () {
-            try { renderSmsInbox(); }
-            catch (e) { console.warn('[search inbox]', e); }
-        }, true);
-    }
+        var lastVal = el.value || '';
+        var lastFire = 0;
 
+        function trigger(source) {
+            try {
+                var now = Date.now();
+                if (now - lastFire < 80) return;
+                var cur = el.value || '';
+                if (cur === lastVal) return;
+                lastVal = cur;
+                lastFire = now;
+                console.log('[sms search] (' + source + ')', w.id, '→', cur);
+                var fn = window[w.render];
+                if (typeof fn === 'function') fn();
+            } catch (e) {
+                console.error('[sms search error]', w.id, e);
+            }
+        }
+
+        /* ۵ روش binding */
+        el.oninput   = function () { trigger('input-prop'); };
+        el.onkeyup   = function () { trigger('keyup-prop'); };
+        el.onchange  = function () { trigger('change-prop'); };
+        el.onpaste   = function () { setTimeout(function () { trigger('paste'); }, 20); };
+        el.oncut     = function () { setTimeout(function () { trigger('cut'); }, 20); };
+        el.addEventListener('input', function () { trigger('input-event'); });
+        el.addEventListener('keyup', function () { trigger('keyup-event'); });
+
+        /* polling به‌عنوان fallback قطعی */
+        if (el._smsPollId) clearInterval(el._smsPollId);
+        el._smsPollId = setInterval(function () { trigger('poll'); }, 300);
+
+        console.log('[sms search] ✓ watcher attached:', w.id);
+    });
+
+    /* فیلتر وضعیت inbox */
     var statusInbox = document.getElementById('sms-inbox-status-filter');
-    if (statusInbox && !statusInbox.dataset.v17Bound) {
-        statusInbox.dataset.v17Bound = '1';
+    if (statusInbox && !statusInbox._smsV18Bound) {
+        statusInbox._smsV18Bound = true;
         statusInbox.addEventListener('change', function () {
-            try { renderSmsInbox(); }
-            catch (e) { console.warn('[status inbox]', e); }
+            try { renderSmsInbox(); } catch (e) { console.warn('[status inbox]', e); }
         }, true);
     }
 }
@@ -2814,28 +2831,19 @@ function bindSmsGlobalButtons() {
 }
 
 /* ============================================================
-   ✅ بخش ۳۴ — initSmsModule (v17)
+   ✅ بخش ۳۴ — initSmsModule (v18)
    ============================================================ */
 function initSmsModule() {
-    /* ۱. migration */
     try { runSmsMigrations(); } catch (e) { console.warn('[sms init: migrations]', e); }
-
-    /* ۲. Delegation سراسری (فقط یک بار) */
     try { _smsBindGlobalDelegation(); } catch (e) { console.warn('[sms init: delegation]', e); }
     try { _smsBindDescIcons(); } catch (e) { console.warn('[sms init: desc-icons]', e); }
-
-    /* ۳. بایند فرم‌ها و سرچ‌ها */
     try { bindSmsGlobalButtons(); } catch (e) { console.warn('[sms init: form-bindings]', e); }
-    try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search]', e); }
-
-    /* ۴. تزریق دکمه‌ها */
+    try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search #1]', e); }
     try { _injectSmsActionButtons(); } catch (e) { console.warn('[sms init: buttons]', e); }
     try { _injectPendingSelectAllBtn(); } catch (e) { console.warn('[sms init: selectall]', e); }
-
-    /* ۵. badge */
     try { updateSmsBadge(); } catch (e) { console.warn('[sms init: badge]', e); }
 
-    /* ۶. تب‌های SMS → رندر خودکار */
+    /* تب‌های SMS → رندر خودکار */
     try {
         document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
             var tabId = btn.getAttribute('data-tab');
@@ -2848,41 +2856,48 @@ function initSmsModule() {
                         if (tabId === 'sms-pending')       renderPendingSmsBox();
                         else if (tabId === 'sms-inbox')    renderSmsInbox();
                         else if (tabId === 'sms-patterns') renderSmsPatternsTab();
+                        _smsBindSearchInputs();
                     } catch (e) { console.warn('[sms tab render]', tabId, e); }
                 }, 100);
             });
         });
     } catch (e) { console.warn('[sms init: tab-bindings]', e); }
 
-    /* ۷. رندر اولیه */
+    /* رندر اولیه */
     try { renderPendingSmsBox(); } catch (e) { console.warn('[sms init: render-pending]', e); }
     try { renderSmsInbox(); } catch (e) { console.warn('[sms init: render-inbox]', e); }
     try { renderSmsPatternsTab(); } catch (e) { console.warn('[sms init: render-patterns]', e); }
 
-    /* ۸. شرح‌های استاندارد */
+    /* شرح‌های استاندارد */
     if (typeof refreshStdDescDatalist === 'function') {
         try { refreshStdDescDatalist(); } catch (e) {}
     }
 
-    console.log('✅ [sms] initSmsModule done');
+    /* ✅ v18: صدا زدن دوباره _smsBindSearchInputs پس از رندر */
+    setTimeout(function () {
+        try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search #2]', e); }
+    }, 500);
+
+    console.log('✅ [sms] initSmsModule done — v18');
 }
 
 /* ============================================================
    ✅ بخش ۳۵ — تشخیص و debug
    ============================================================ */
 function _smsDiagnose() {
-    console.group('=== SMS Module Diagnostics ===');
+    console.group('=== SMS Module Diagnostics v18 ===');
     console.log('patterns count:', loadSmsPatterns().length);
     console.log('patterns box:', !!document.getElementById('sms-patterns-list'));
-    console.log('patterns box innerHTML len:', (document.getElementById('sms-patterns-list') || {}).innerHTML ? document.getElementById('sms-patterns-list').innerHTML.length : 0);
     console.log('edit buttons in DOM:', document.querySelectorAll('.sms-pat-edit').length);
     console.log('delete buttons in DOM:', document.querySelectorAll('.sms-pat-del').length);
     console.log('block buttons in DOM:', document.querySelectorAll('.sms-pat-block').length);
-    console.log('search input exists:', !!document.getElementById('sms-patterns-search'));
+    ['pending-sms-search','sms-inbox-search','sms-patterns-search'].forEach(function (id) {
+        var el = document.getElementById(id);
+        console.log('🔍', id, ':', el ? '✅ EXISTS' : '❌ MISSING', '| bound:', el ? el._smsV18Bound : '—');
+    });
     console.log('delegation bound:', !!window._smsGlobalDelegationBound);
     console.log('desc icons bound:', !!window._smsDescDelegationBound);
     console.log('openEditSmsPattern type:', typeof window.openEditSmsPattern);
-    console.log('renderSmsPatternsTab type:', typeof window.renderSmsPatternsTab);
     console.groupEnd();
 }
 window._smsDiagnose = _smsDiagnose;
@@ -2948,6 +2963,8 @@ window._injectSmsActionButtons                    = _injectSmsActionButtons;
 window._injectPendingSelectAllBtn                 = _injectPendingSelectAllBtn;
 window.bindSmsGlobalButtons                       = bindSmsGlobalButtons;
 window.initSmsModule                              = initSmsModule;
+window._smsBindSearchInputs                       = _smsBindSearchInputs;
+window._smsBindGlobalDelegation                   = _smsBindGlobalDelegation;
 
 /* ✅ Auto-init */
 if (document.readyState === 'loading') {
@@ -2956,4 +2973,4 @@ if (document.readyState === 'loading') {
     initSmsModule();
 }
 
-console.log('✅ [modules/sms.js] loaded — v17 (global capture-phase delegation + inline onclick fallback)');
+console.log('✅ [modules/sms.js] loaded — v18 (desc fields stacked + search 6-method + polling)');
