@@ -1,18 +1,17 @@
 /* ============================================================
-   پارسیس — پیامک بانکی (نسخه ۱۶)
+   پارسیس — پیامک بانکی (نسخه ۱۷)
    مسیر: js/modules/sms.js
 
-   تغییرات v16:
-     ✅ FIX: تب الگوها (sms-patterns) هنگام کلیک رندر می‌شود
-     ✅ FIX: رندر اولیه الگوها در initSmsModule
-     ✅ FIX: دکمه‌های ویرایش/حذف/مسدود الگو با addEventListener
+   تغییرات v17:
+     ✅ FIX: استفاده از Event Delegation در فاز Capture برای همه دکمه‌ها
+     ✅ FIX: جستجوی هر سه تب با capture-phase addEventListener
+     ✅ FIX: مودال ویرایش الگو با z-index بسیار بالا (99999)
+     ✅ FIX: inline onclick به عنوان fallback دکمه‌های الگو
+     ✅ FIX: رندر خودکار الگوها روی هر کلیک تب + init
      ✅ FIX: حفظ counterDetails در openEditSmsPattern
-     ✅ FIX: هر سه تب SMS پس از کلیک رندر می‌شوند (نه فقط pending)
-     ✅ v15: معین طرف مقابل در الگو قابل ویرایش (سلکت + تفصیلی)
-     ✅ v15: صدور سند تکی + صدور سند تجمیعی (در pending و inbox)
-     ✅ v15: تغییر نام دکمه‌های قبلی به «صدور سند تجمیعی»
-     ✅ v15: آیکن‌های 🧹 (پاک کردن شرح) و ＋ (افزودن به شرح استاندارد)
-        در تمام فیلدهای شرح (مودال تکمیل جزئیات + ویرایش الگو)
+     ✅ v15: معین طرف مقابل در الگو قابل ویرایش
+     ✅ v15: صدور سند تکی + صدور سند تجمیعی
+     ✅ v15: آیکن‌های 🧹/＋ در تمام فیلدهای شرح
    ============================================================ */
 'use strict';
 
@@ -899,7 +898,7 @@ function handleMultipleIncomingSms(text, source, force) {
 }
 
 /* ============================================================
-   بخش ۱۴ — helpers: فیلد شرح با آیکن + فیلد بانک
+   بخش ۱۴ — helpers: فیلد شرح با آیکن
    ============================================================ */
 function _smsBuildDescField(opts) {
     var inputId     = opts.id;
@@ -919,26 +918,30 @@ function _smsBuildDescField(opts) {
 }
 
 function _smsBindDescIcons(container) {
-    var root = container || document;
-    root.querySelectorAll('.sms-desc-clear').forEach(function (b) {
-        if (b.dataset.v15Bound) return;
-        b.dataset.v15Bound = '1';
-        b.onclick = function () {
-            var t = document.getElementById(this.getAttribute('data-target'));
+    /* ✅ v17: خود این تابع به delegation سراسری واگذار می‌شود. */
+    if (window._smsDescDelegationBound) return;
+    window._smsDescDelegationBound = true;
+
+    document.addEventListener('click', function (e) {
+        var clearBtn = e.target.closest && e.target.closest('.sms-desc-clear');
+        if (clearBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var t = document.getElementById(clearBtn.getAttribute('data-target'));
             if (!t) return;
             t.value = '';
-            try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+            try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (er) {}
             t.focus();
             if (typeof showToast === 'function') showToast('🧹 پاک شد');
-        };
-    });
-    root.querySelectorAll('.sms-desc-add').forEach(function (b) {
-        if (b.dataset.v15Bound) return;
-        b.dataset.v15Bound = '1';
-        b.onclick = function () {
-            var t = document.getElementById(this.getAttribute('data-target'));
-            if (!t) return;
-            var v = (t.value || '').trim();
+            return;
+        }
+        var addBtn = e.target.closest && e.target.closest('.sms-desc-add');
+        if (addBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var t2 = document.getElementById(addBtn.getAttribute('data-target'));
+            if (!t2) return;
+            var v = (t2.value || '').trim();
             if (!v) { if (typeof showToast === 'function') showToast('⚠️ ابتدا شرح را وارد کنید'); return; }
             if (typeof addDescriptionToStandard === 'function') {
                 addDescriptionToStandard(v);
@@ -954,10 +957,11 @@ function _smsBindDescIcons(container) {
                     } else {
                         if (typeof showToast === 'function') showToast('قبلاً در لیست است');
                     }
-                } catch (e) { if (typeof showToast === 'function') showToast('⚠️ خطا'); }
+                } catch (er) { if (typeof showToast === 'function') showToast('⚠️ خطا'); }
             }
-        };
-    });
+            return;
+        }
+    }, true);
 }
 
 /* ============================================================
@@ -1213,8 +1217,8 @@ function openPendingSmsDetailModal(pid) {
     if (oldO) oldO.remove();
 
     var html = ''
-        + '<div id="pms-detail-overlay" class="overlay show" style="z-index:2500"></div>'
-        + '<div id="pms-detail-modal" class="modal show" style="max-width:680px;z-index:2510">'
+        + '<div id="pms-detail-overlay" class="overlay show" style="z-index:99990"></div>'
+        + '<div id="pms-detail-modal" class="modal show" style="max-width:680px;z-index:99995">'
         +   '<div class="modal-head" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">'
         +     '<h2>📝 تکمیل جزئیات سند</h2>'
         +     '<button class="close-btn" id="pms-detail-close" type="button">×</button>'
@@ -1240,7 +1244,6 @@ function openPendingSmsDetailModal(pid) {
     setTimeout(function () {
         if (typeof attachDatePickers === 'function') attachDatePickers();
         if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
-        _smsBindDescIcons(document.getElementById('pms-detail-body'));
     }, 100);
 }
 
@@ -1319,7 +1322,6 @@ function renderPendingSmsDetailBody() {
         _renderPmsAccountSearchable(accItems);
         _renderPmsDetailsSearchable(accounts);
         if (typeof attachDatePickers === 'function') attachDatePickers();
-        _smsBindDescIcons(box);
     }, 50);
 
     box.querySelectorAll('.pms-dir-btn2').forEach(function (btn) {
@@ -2243,7 +2245,7 @@ function convertSelectedInboxToIndividualVouchers() {
 }
 
 /* ============================================================
-   بخش ۲۸ — رندر الگوها (نسخه مقاوم v16)
+   ✅ بخش ۲۸ — رندر الگوها (v17: بدون per-button binding)
    ============================================================ */
 function renderSmsPatternsTab() {
     var box = document.getElementById('sms-patterns-list');
@@ -2333,9 +2335,9 @@ function renderSmsPatternsTab() {
                 +     '</div>'
                 +   '</div>'
                 +   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
-                +     '<button type="button" class="sms-pat-edit" data-id="' + p.id + '" style="background:#dbeafe;color:#1e40af;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">✏️ ویرایش</button>'
-                +     '<button type="button" data-pattern-block="' + p.id + '" style="background:' + (p.blocked ? '#d1fae5;color:#065f46' : '#fef3c7;color:#92400e') + ';border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">' + (p.blocked ? '✅ رفع' : '🚫 مسدود') + '</button>'
-                +     '<button type="button" data-pattern-del="' + p.id + '" style="background:#fee2e2;color:#dc2626;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">🗑</button>'
+                +     '<button type="button" class="sms-pat-edit" data-id="' + p.id + '" onclick="if(window.openEditSmsPattern)window.openEditSmsPattern(this.getAttribute(&quot;data-id&quot;))" style="background:#dbeafe;color:#1e40af;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">✏️ ویرایش</button>'
+                +     '<button type="button" class="sms-pat-block" data-pattern-block="' + p.id + '" style="background:' + (p.blocked ? '#d1fae5;color:#065f46' : '#fef3c7;color:#92400e') + ';border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">' + (p.blocked ? '✅ رفع' : '🚫 مسدود') + '</button>'
+                +     '<button type="button" class="sms-pat-del" data-pattern-del="' + p.id + '" style="background:#fee2e2;color:#dc2626;border:none;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:.8rem;cursor:pointer">🗑</button>'
                 +   '</div>'
                 + '</div>'
                 + '<div style="background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:.76rem;direction:rtl;line-height:1.8;margin-bottom:8px">'
@@ -2364,53 +2366,21 @@ function renderSmsPatternsTab() {
     if (shown === 0) html = '<div class="widget-empty">🔍 نتیجه‌ای یافت نشد.</div>';
     box.innerHTML = html;
 
-    /* ✅ v16: دکمه‌های ویرایش با addEventListener (نه inline onclick) */
-    box.querySelectorAll('.sms-pat-edit').forEach(function (b) {
-        b.onclick = function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var id = this.getAttribute('data-id');
-            try { openEditSmsPattern(id); }
-            catch (err) {
-                console.error('[openEditSmsPattern click]', err);
-                alert('خطا در باز کردن ویرایش:\n' + (err.message || err));
-            }
-        };
-    });
-
-    box.querySelectorAll('[data-pattern-del]').forEach(function (b) {
-        b.onclick = function () {
-            var id = this.getAttribute('data-pattern-del');
-            var pat = loadSmsPatterns().find(function (x) { return x.id === id; });
-            if (!pat) return;
-            if (!confirm('الگوی «' + (pat.label || '') + '» حذف شود؟')) return;
-            deleteSmsPattern(id);
-            renderSmsPatternsTab();
-            showToast('🗑 حذف شد');
-        };
-    });
-
-    box.querySelectorAll('[data-pattern-block]').forEach(function (b) {
-        b.onclick = function () {
-            var id = this.getAttribute('data-pattern-block');
-            var all = loadSmsPatterns();
-            for (var j = 0; j < all.length; j++) {
-                if (all[j].id === id) { all[j].blocked = !all[j].blocked; break; }
-            }
-            saveSmsPatterns(all);
-            renderSmsPatternsTab();
-            showToast('✅ ذخیره شد');
-        };
-    });
+    /* ✅ v17: بدون per-button binding — Delegation سراسری کار می‌کند */
 }
 
 /* ============================================================
-   بخش ۲۹ — ویرایش الگو
+   ✅ بخش ۲۹ — ویرایش الگو (v17: با حفظ counterDetails + z-index)
    ============================================================ */
 function openEditSmsPattern(patternId) {
+    console.log('[openEditSmsPattern] called with id:', patternId);
     try {
         var p = loadSmsPatterns().find(function (x) { return x.id === patternId; });
-        if (!p) { showToast('الگو یافت نشد.'); return; }
+        if (!p) {
+            console.warn('[openEditSmsPattern] pattern not found:', patternId);
+            showToast('الگو یافت نشد.');
+            return;
+        }
 
         var old = document.getElementById('sms-edit-modal'); if (old) old.remove();
         var oldO = document.getElementById('sms-edit-overlay'); if (oldO) oldO.remove();
@@ -2422,7 +2392,6 @@ function openEditSmsPattern(patternId) {
             accOpts += '<option value="' + a.id + '"' + sel + '>' + esc((a.bank || '') + ' — ' + (a.account || '')) + '</option>';
         });
 
-        /* counter account options (leaf accounts) */
         var allAccounts = DB.load('accounts', []);
         var leaves = allAccounts.filter(function (a) {
             return !allAccounts.some(function (x) { return x.parent === a.id; });
@@ -2445,8 +2414,8 @@ function openEditSmsPattern(patternId) {
         var bankLineDescValue = (typeof p.bankLineDesc === 'string') ? p.bankLineDesc : '';
 
         var html = ''
-            + '<div id="sms-edit-overlay" class="overlay show" style="z-index:1400"></div>'
-            + '<div id="sms-edit-modal" class="modal show" style="max-width:580px;z-index:1410">'
+            + '<div id="sms-edit-overlay" class="overlay show" style="z-index:99990"></div>'
+            + '<div id="sms-edit-modal" class="modal show" style="max-width:580px;z-index:99995">'
             +   '<div class="modal-head"><h2>✏️ ویرایش الگو</h2><button type="button" id="sms-edit-close" class="close-btn">×</button></div>'
             +   '<div class="modal-body">'
             +     '<div class="field"><label>نام الگو</label><input type="text" id="se-label" value="' + esc(p.label || '') + '"></div>'
@@ -2476,7 +2445,6 @@ function openEditSmsPattern(patternId) {
 
         document.body.insertAdjacentHTML('beforeend', html);
 
-        /* context برای نگهداری counterDetails */
         var pCtx = {
             counterAccount: p.counterAccount || '',
             counterDetails: JSON.parse(JSON.stringify(p.counterDetails || {}))
@@ -2519,7 +2487,6 @@ function openEditSmsPattern(patternId) {
             };
         }
         renderSeDetails();
-        _smsBindDescIcons(document.getElementById('sms-edit-modal'));
 
         var closeFn = function () {
             var m = document.getElementById('sms-edit-modal'); if (m) m.remove();
@@ -2548,7 +2515,7 @@ function openEditSmsPattern(patternId) {
             all[idx].counterLineDesc = document.getElementById('se-counterDesc').value.trim();
             all[idx].bankLineDesc = document.getElementById('se-bankDesc').value.trim();
 
-            /* ✅ FIX v16: حفظ counterDetails اگر فیلد رندر نشده */
+            /* ✅ v17: حفظ counterDetails اگر فیلد رندر نشده */
             var counterAccEl = document.getElementById('se-counter-acc');
             all[idx].counterAccount = counterAccEl ? (counterAccEl.value || '') : '';
             var detSel = document.getElementById('se-counter-details');
@@ -2569,19 +2536,142 @@ function openEditSmsPattern(patternId) {
             renderSmsPatternsTab();
             showToast('✅ ذخیره شد');
         };
-    } catch (err) { console.error(err); alert('خطا: ' + (err.message || err)); }
+    } catch (err) {
+        console.error('[openEditSmsPattern] ERROR:', err);
+        alert('خطا در باز کردن ویرایش:\n' + (err.message || err));
+    }
 }
 
 /* ============================================================
-   بخش ۳۰ — تزریق دکمه‌های «صدور سند تکی» و «صدور سند تجمیعی»
+   ✅ بخش ۳۰ — Delegation سراسری برای همه دکمه‌های SMS
+   این تابع در فاز CAPTURE اجرا می‌شود → غیرقابل بلاک
+   ============================================================ */
+function _smsBindGlobalDelegation() {
+    if (window._smsGlobalDelegationBound) return;
+    window._smsGlobalDelegationBound = true;
+
+    document.addEventListener('click', function (e) {
+        if (!e.target || !e.target.closest) return;
+
+        /* 📝 ویرایش الگو */
+        var editBtn = e.target.closest('.sms-pat-edit');
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id = editBtn.getAttribute('data-id');
+            console.log('[delegation] sms-pat-edit clicked:', id);
+            try {
+                if (typeof openEditSmsPattern === 'function') {
+                    openEditSmsPattern(id);
+                } else if (typeof window.openEditSmsPattern === 'function') {
+                    window.openEditSmsPattern(id);
+                } else {
+                    alert('تابع openEditSmsPattern تعریف نشده');
+                }
+            } catch (err) {
+                console.error('[delegation] openEditSmsPattern error:', err);
+                alert('خطا: ' + (err.message || err));
+            }
+            return;
+        }
+
+        /* 🚫 مسدود/رفع */
+        var blockBtn = e.target.closest('.sms-pat-block');
+        if (blockBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id2 = blockBtn.getAttribute('data-pattern-block');
+            var all = loadSmsPatterns();
+            for (var j = 0; j < all.length; j++) {
+                if (all[j].id === id2) { all[j].blocked = !all[j].blocked; break; }
+            }
+            saveSmsPatterns(all);
+            renderSmsPatternsTab();
+            showToast('✅ ذخیره شد');
+            return;
+        }
+
+        /* 🗑 حذف الگو */
+        var delBtn = e.target.closest('.sms-pat-del');
+        if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id3 = delBtn.getAttribute('data-pattern-del');
+            var pat = loadSmsPatterns().find(function (x) { return x.id === id3; });
+            if (!pat) return;
+            if (!confirm('الگوی «' + (pat.label || '') + '» حذف شود؟')) return;
+            deleteSmsPattern(id3);
+            renderSmsPatternsTab();
+            showToast('🗑 حذف شد');
+            return;
+        }
+
+        /* 🗑 حذف همه الگوها */
+        var delAllBtn = e.target.closest('#sms-patterns-del-all');
+        if (delAllBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!confirm('همه الگوها حذف شوند؟')) return;
+            saveSmsPatterns([]);
+            renderSmsPatternsTab();
+            return;
+        }
+
+        /* ☑ انتخاب همه pending */
+        var selectAllBtn = e.target.closest('#pending-sms-select-all-btn');
+        if (selectAllBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var cbs = document.querySelectorAll('#pending-sms-list .psm-select-cb');
+            if (cbs.length === 0) return;
+            var allChecked = Array.prototype.every.call(cbs, function (cb) { return cb.checked; });
+            cbs.forEach(function (cb) { cb.checked = !allChecked; });
+            selectAllBtn.textContent = allChecked ? '☑ انتخاب همه' : '☐ لغو انتخاب';
+            return;
+        }
+
+        /* 📝 صدور سند تکی/تجمیعی pending */
+        var indPending = e.target.closest('#pending-sms-individual-voucher');
+        if (indPending) {
+            e.preventDefault();
+            e.stopPropagation();
+            convertSelectedPendingToIndividualVouchers();
+            return;
+        }
+        var aggPending = e.target.closest('#pending-sms-bulk-voucher');
+        if (aggPending) {
+            e.preventDefault();
+            e.stopPropagation();
+            convertMultiplePendingToVoucher();
+            return;
+        }
+
+        /* 📝 صدور سند تکی/تجمیعی inbox */
+        var indInbox = e.target.closest('#sms-individual-voucher');
+        if (indInbox) {
+            e.preventDefault();
+            e.stopPropagation();
+            convertSelectedInboxToIndividualVouchers();
+            return;
+        }
+        var aggInbox = e.target.closest('#sms-bulk-create-voucher');
+        if (aggInbox) {
+            e.preventDefault();
+            e.stopPropagation();
+            convertMultipleSmsToVoucher();
+            return;
+        }
+    }, true);  /* ← CAPTURE */
+}
+
+/* ============================================================
+   ✅ بخش ۳۱ — تزریق دکمه‌های «صدور سند تکی» و «تجمیعی»
    ============================================================ */
 function _injectSmsActionButtons() {
-    /* Pending */
     var pendingAggBtn = document.getElementById('pending-sms-bulk-voucher');
     if (pendingAggBtn && !pendingAggBtn.dataset.v15Renamed) {
         pendingAggBtn.textContent = '📝 صدور سند تجمیعی';
         pendingAggBtn.dataset.v15Renamed = '1';
-        pendingAggBtn.onclick = convertMultiplePendingToVoucher;
     }
     if (pendingAggBtn && !document.getElementById('pending-sms-individual-voucher')) {
         var indBtn = document.createElement('button');
@@ -2590,16 +2680,13 @@ function _injectSmsActionButtons() {
         indBtn.className = 'export-btn';
         indBtn.style.cssText = 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none';
         indBtn.textContent = '📝 صدور سند تکی';
-        indBtn.onclick = convertSelectedPendingToIndividualVouchers;
         pendingAggBtn.parentNode.insertBefore(indBtn, pendingAggBtn);
     }
 
-    /* Inbox */
     var inboxAggBtn = document.getElementById('sms-bulk-create-voucher');
     if (inboxAggBtn && !inboxAggBtn.dataset.v15Renamed) {
         inboxAggBtn.textContent = '📝 صدور سند تجمیعی';
         inboxAggBtn.dataset.v15Renamed = '1';
-        inboxAggBtn.onclick = convertMultipleSmsToVoucher;
     }
     if (inboxAggBtn && !document.getElementById('sms-individual-voucher')) {
         var indBtn2 = document.createElement('button');
@@ -2608,7 +2695,6 @@ function _injectSmsActionButtons() {
         indBtn2.className = 'export-btn';
         indBtn2.style.cssText = 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none';
         indBtn2.textContent = '📝 صدور سند تکی';
-        indBtn2.onclick = convertSelectedInboxToIndividualVouchers;
         inboxAggBtn.parentNode.insertBefore(indBtn2, inboxAggBtn);
     }
 }
@@ -2622,18 +2708,52 @@ function _injectPendingSelectAllBtn() {
     btn.id = 'pending-sms-select-all-btn';
     btn.textContent = '☑ انتخاب همه';
     btn.style.cssText = 'padding:6px 10px;background:var(--primary-light);color:var(--primary-dark);border:none;border-radius:8px;font-family:inherit;font-weight:700;font-size:0.75rem;cursor:pointer;margin-right:8px';
-    btn.onclick = function () {
-        var all = document.querySelectorAll('#pending-sms-list .psm-select-cb');
-        if (all.length === 0) return;
-        var allChecked = Array.prototype.every.call(all, function (cb) { return cb.checked; });
-        all.forEach(function (cb) { cb.checked = !allChecked; });
-        btn.textContent = allChecked ? '☑ انتخاب همه' : '☐ لغو انتخاب';
-    };
     countEl.parentNode.insertBefore(btn, countEl.nextSibling);
 }
 
 /* ============================================================
-   بخش ۳۱ — بایندهای سراسری
+   ✅ بخش ۳۲ — binding سرچ‌ها (capture phase)
+   ============================================================ */
+function _smsBindSearchInputs() {
+    var searchPat = document.getElementById('sms-patterns-search');
+    if (searchPat && !searchPat.dataset.v17Bound) {
+        searchPat.dataset.v17Bound = '1';
+        searchPat.addEventListener('input', function () {
+            try { renderSmsPatternsTab(); }
+            catch (e) { console.warn('[search patterns]', e); }
+        }, true);
+    }
+
+    var searchPending = document.getElementById('pending-sms-search');
+    if (searchPending && !searchPending.dataset.v17Bound) {
+        searchPending.dataset.v17Bound = '1';
+        searchPending.addEventListener('input', function () {
+            try { renderPendingSmsBox(); }
+            catch (e) { console.warn('[search pending]', e); }
+        }, true);
+    }
+
+    var searchInbox = document.getElementById('sms-inbox-search');
+    if (searchInbox && !searchInbox.dataset.v17Bound) {
+        searchInbox.dataset.v17Bound = '1';
+        searchInbox.addEventListener('input', function () {
+            try { renderSmsInbox(); }
+            catch (e) { console.warn('[search inbox]', e); }
+        }, true);
+    }
+
+    var statusInbox = document.getElementById('sms-inbox-status-filter');
+    if (statusInbox && !statusInbox.dataset.v17Bound) {
+        statusInbox.dataset.v17Bound = '1';
+        statusInbox.addEventListener('change', function () {
+            try { renderSmsInbox(); }
+            catch (e) { console.warn('[status inbox]', e); }
+        }, true);
+    }
+}
+
+/* ============================================================
+   بخش ۳۳ — بایندهای سراسری فرم‌ها
    ============================================================ */
 function bindSmsGlobalButtons() {
     var parseBtn = document.getElementById('parse-sms');
@@ -2681,14 +2801,6 @@ function bindSmsGlobalButtons() {
         };
     }
 
-    var searchPend = document.getElementById('pending-sms-search');
-    if (searchPend) searchPend.oninput = renderPendingSmsBox;
-
-    var searchInbox = document.getElementById('sms-inbox-search');
-    if (searchInbox) searchInbox.oninput = renderSmsInbox;
-    var statusInbox = document.getElementById('sms-inbox-status-filter');
-    if (statusInbox) statusInbox.onchange = renderSmsInbox;
-
     var clearConv = document.getElementById('sms-clear-converted');
     if (clearConv && !clearConv.dataset.v15Bound) {
         clearConv.dataset.v15Bound = '1';
@@ -2699,32 +2811,31 @@ function bindSmsGlobalButtons() {
             renderSmsInbox();
         };
     }
-
-    var searchPat = document.getElementById('sms-patterns-search');
-    if (searchPat) searchPat.oninput = renderSmsPatternsTab;
-
-    var delAllPat = document.getElementById('sms-patterns-del-all');
-    if (delAllPat && !delAllPat.dataset.v15Bound) {
-        delAllPat.dataset.v15Bound = '1';
-        delAllPat.onclick = function () {
-            if (!confirm('همه الگوها حذف شوند؟')) return;
-            saveSmsPatterns([]);
-            renderSmsPatternsTab();
-        };
-    }
 }
 
 /* ============================================================
-   ✅ بخش ۳۲ — راه‌اندازی ماژول (v16 — با رندر همه تب‌ها)
+   ✅ بخش ۳۴ — initSmsModule (v17)
    ============================================================ */
 function initSmsModule() {
-    try { runSmsMigrations(); }           catch (e) { console.warn('[sms init: migrations]', e); }
-    try { bindSmsGlobalButtons(); }       catch (e) { console.warn('[sms init: bindings]', e); }
-    try { _injectSmsActionButtons(); }    catch (e) { console.warn('[sms init: buttons]', e); }
-    try { _injectPendingSelectAllBtn(); } catch (e) { console.warn('[sms init: selectall]', e); }
-    try { updateSmsBadge(); }             catch (e) { console.warn('[sms init: badge]', e); }
+    /* ۱. migration */
+    try { runSmsMigrations(); } catch (e) { console.warn('[sms init: migrations]', e); }
 
-    /* ✅ v16: کلیک روی تب‌های SMS → رندر خودکار */
+    /* ۲. Delegation سراسری (فقط یک بار) */
+    try { _smsBindGlobalDelegation(); } catch (e) { console.warn('[sms init: delegation]', e); }
+    try { _smsBindDescIcons(); } catch (e) { console.warn('[sms init: desc-icons]', e); }
+
+    /* ۳. بایند فرم‌ها و سرچ‌ها */
+    try { bindSmsGlobalButtons(); } catch (e) { console.warn('[sms init: form-bindings]', e); }
+    try { _smsBindSearchInputs(); } catch (e) { console.warn('[sms init: search]', e); }
+
+    /* ۴. تزریق دکمه‌ها */
+    try { _injectSmsActionButtons(); } catch (e) { console.warn('[sms init: buttons]', e); }
+    try { _injectPendingSelectAllBtn(); } catch (e) { console.warn('[sms init: selectall]', e); }
+
+    /* ۵. badge */
+    try { updateSmsBadge(); } catch (e) { console.warn('[sms init: badge]', e); }
+
+    /* ۶. تب‌های SMS → رندر خودکار */
     try {
         document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
             var tabId = btn.getAttribute('data-tab');
@@ -2738,23 +2849,43 @@ function initSmsModule() {
                         else if (tabId === 'sms-inbox')    renderSmsInbox();
                         else if (tabId === 'sms-patterns') renderSmsPatternsTab();
                     } catch (e) { console.warn('[sms tab render]', tabId, e); }
-                }, 80);
+                }, 100);
             });
         });
-    } catch (e) { console.warn('[sms init: tab bindings]', e); }
+    } catch (e) { console.warn('[sms init: tab-bindings]', e); }
 
-    /* ✅ v16: رندر اولیه همه تب‌ها */
-    try { renderPendingSmsBox(); }
-    catch (e) { console.warn('[sms init: render pending]', e); }
-    try { renderSmsInbox(); }
-    catch (e) { console.warn('[sms init: render inbox]', e); }
-    try { renderSmsPatternsTab(); }
-    catch (e) { console.warn('[sms init: render patterns]', e); }
+    /* ۷. رندر اولیه */
+    try { renderPendingSmsBox(); } catch (e) { console.warn('[sms init: render-pending]', e); }
+    try { renderSmsInbox(); } catch (e) { console.warn('[sms init: render-inbox]', e); }
+    try { renderSmsPatternsTab(); } catch (e) { console.warn('[sms init: render-patterns]', e); }
 
+    /* ۸. شرح‌های استاندارد */
     if (typeof refreshStdDescDatalist === 'function') {
         try { refreshStdDescDatalist(); } catch (e) {}
     }
+
+    console.log('✅ [sms] initSmsModule done');
 }
+
+/* ============================================================
+   ✅ بخش ۳۵ — تشخیص و debug
+   ============================================================ */
+function _smsDiagnose() {
+    console.group('=== SMS Module Diagnostics ===');
+    console.log('patterns count:', loadSmsPatterns().length);
+    console.log('patterns box:', !!document.getElementById('sms-patterns-list'));
+    console.log('patterns box innerHTML len:', (document.getElementById('sms-patterns-list') || {}).innerHTML ? document.getElementById('sms-patterns-list').innerHTML.length : 0);
+    console.log('edit buttons in DOM:', document.querySelectorAll('.sms-pat-edit').length);
+    console.log('delete buttons in DOM:', document.querySelectorAll('.sms-pat-del').length);
+    console.log('block buttons in DOM:', document.querySelectorAll('.sms-pat-block').length);
+    console.log('search input exists:', !!document.getElementById('sms-patterns-search'));
+    console.log('delegation bound:', !!window._smsGlobalDelegationBound);
+    console.log('desc icons bound:', !!window._smsDescDelegationBound);
+    console.log('openEditSmsPattern type:', typeof window.openEditSmsPattern);
+    console.log('renderSmsPatternsTab type:', typeof window.renderSmsPatternsTab);
+    console.groupEnd();
+}
+window._smsDiagnose = _smsDiagnose;
 
 /* ============================================================
    ✅ صادرسازی
@@ -2825,4 +2956,4 @@ if (document.readyState === 'loading') {
     initSmsModule();
 }
 
-console.log('✅ [modules/sms.js] loaded — v16 (farms tab auto-render + edit buttons direct bind)');
+console.log('✅ [modules/sms.js] loaded — v17 (global capture-phase delegation + inline onclick fallback)');
