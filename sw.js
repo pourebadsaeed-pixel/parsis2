@@ -1,150 +1,202 @@
 /* ============================================================
-   پارسیس — Service Worker (بروزرسانی خودکار کش)
-   نسخه v99 — Ledger Report
-   ============================================================ */
-var CACHE_NAME = 'parsis-v105-ledger-print-perfect';
+   پارسیس — Service Worker
+   مسیر: sw.js
+   نسخه: v16
 
-var ASSETS = [
-  './index.html',
-  './manifest.json',
-  './offline.html',
-  './css/base.css',
-  './css/layout.css',
-  './css/components.css',
-  './css/calendar.css',
-  './js/core/db.js',
-  './js/core/constants.js',
-  './js/core/utils.js',
-  './js/core/state.js',
-  './js/core/router.js',
-  './js/core/calendar-popup.js',
-  './js/core/hide.js',
-  './js/core/lookups.js',
-  './js/ui/toast.js',
-  './js/ui/nav.js',
-  './js/ui/theme.js',
-  './js/ui/table.js',
-  './js/ui/form.js',
-  './js/ui/time-picker.js',
-  './js/ui/share.js',
-  './js/ui/observers.js',
-  './js/modules/accounts/fiscal.js',
-  './js/modules/accounts/chart.js',
-  './js/modules/persons.js',
-  './js/modules/accounts/companies.js',
-  './js/modules/accounts/banks.js',
-  './js/modules/accounts/cashboxes.js',
-  './js/modules/accounts/projects.js',
-  './js/modules/accounts/templates.js',
-  './js/modules/vouchers/form.js',
-  './js/modules/vouchers/list.js',
-  './js/modules/vouchers/estimates.js',
-  './js/modules/vouchers/sources.js',
-  './js/modules/vouchers/facilities.js',
-  './js/modules/reports/cashflow.js',
-  './js/modules/reports/account.js',
-  './js/modules/reports/ledger.js',
-  './js/modules/reports/trial.js',
-  './js/modules/reports/facility.js',
-  './js/modules/reports/rates.js',
-  './js/modules/dashboard.js',
-  './js/modules/widgets.js',
-  './js/modules/calendar.js',
-  './js/modules/notes.js',
-  './js/modules/sms.js?v=14',
-  './js/modules/phonebook.js',
-  './js/modules/ai.js',
-  './js/modules/welcome.js',
-  './js/modules/backup.js',
-  './js/modules/fix-sidebar.js',
-  './js/modules/users.js',
-  './js/modules/auth.js',
-  './js/app.js'
+   استراتژی کش:
+     • HTML       → Network-First (فوری به‌روز، آفلاین fallback)
+     • JS / CSS   → Network-First (تغییرات فوری دیده می‌شوند)
+     • تصاویر/فونت → Cache-First (با پس‌زمینه-update)
+     • CDN خارجی   → Network-First با کش
+     • آفلاین      → offline.html
+
+   هر بار که نسخه اپ را آپدیت کردید، CACHE_VERSION را +1 کنید
+   تا کاربران نسخه جدید را ببینند.
+   ============================================================ */
+'use strict';
+
+const CACHE_VERSION = 'v16';
+const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
+const OFFLINE_URL   = './offline.html';
+
+/* فایل‌هایی که در نصب اولیه کش می‌شوند (فقط app shell) */
+const PRECACHE_ASSETS = [
+    './',
+    './index.html',
+    './offline.html',
+    './manifest.json',
+    './css/base.css',
+    './css/layout.css',
+    './css/components.css',
+    './css/calendar.css'
 ];
 
-self.addEventListener('install', function (event) {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return Promise.all(
-        ASSETS.map(function (url) {
-          return fetch(url, { cache: 'reload' })
-            .then(function (res) {
-              if (res && res.ok) return cache.put(url, res);
+/* ============================================================
+   INSTALL — نصب و precache
+   ============================================================ */
+self.addEventListener('install', (event) => {
+    console.log('[SW] 📥 نصب نسخه:', CACHE_VERSION);
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                return Promise.all(
+                    PRECACHE_ASSETS.map((url) => {
+                        return cache.add(new Request(url, { cache: 'reload' }))
+                            .catch((err) => {
+                                console.warn('[SW] ⚠️ precache failed:', url, err);
+                            });
+                    })
+                );
             })
-            .catch(function (e) { console.warn('[SW] fetch failed:', url, e); });
-        })
-      );
-    })
-  );
-});
-
-self.addEventListener('activate', function (event) {
-  event.waitUntil(
-    caches.keys().then(function (names) {
-      return Promise.all(
-        names.filter(function (n) { return n !== CACHE_NAME; })
-             .map(function (n) {
-               console.log('[SW] deleting old cache:', n);
-               return caches.delete(n);
-             })
-      );
-    }).then(function () {
-      return self.clients.claim();
-    })
-  );
-});
-
-self.addEventListener('fetch', function (event) {
-  if (event.request.method !== 'GET') return;
-  var url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
-
-  var isHTML = event.request.mode === 'navigate'
-            || (event.request.headers.get('accept') || '').indexOf('text/html') !== -1
-            || url.pathname.endsWith('.html')
-            || url.pathname === '/'
-            || url.pathname.endsWith('/');
-
-  if (isHTML) {
-    event.respondWith(
-      fetch(event.request).then(function (response) {
-        if (response && response.status === 200) {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(event.request, clone);
-          });
-        }
-        return response;
-      }).catch(function () {
-        return caches.match(event.request).then(function (cached) {
-          return cached || caches.match('./offline.html') || caches.match('./index.html');
-        });
-      })
+            .then(() => {
+                console.log('[SW] ✅ precache انجام شد — فعال‌سازی فوری');
+                return self.skipWaiting();
+            })
     );
-    return;
-  }
+});
 
-  event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      var fetchPromise = fetch(event.request).then(function (response) {
-        if (response && response.status === 200 && response.type === 'basic') {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(event.request, clone);
-          });
+/* ============================================================
+   ACTIVATE — پاک‌سازی کش‌های قدیمی و کنترل کلاینت‌ها
+   ============================================================ */
+self.addEventListener('activate', (event) => {
+    console.log('[SW] 🚀 فعال‌سازی نسخه:', CACHE_VERSION);
+    event.waitUntil(
+        caches.keys()
+            .then((keys) => {
+                return Promise.all(
+                    keys
+                        .filter((key) => key !== CACHE_NAME)
+                        .map((key) => {
+                            console.log('[SW] 🗑 حذف کش قدیمی:', key);
+                            return caches.delete(key);
+                        })
+                );
+            })
+            .then(() => {
+                console.log('[SW] ✅ کش‌های قدیمی پاک شدند');
+                return self.clients.claim();
+            })
+    );
+});
+
+/* ============================================================
+   FETCH — استراتژی‌های کش
+   ============================================================ */
+self.addEventListener('fetch', (event) => {
+    const req = event.request;
+
+    /* فقط GET */
+    if (req.method !== 'GET') return;
+
+    const url = new URL(req.url);
+
+    /* فایل‌های خارج از مبدأ (CDN مثل sheetjs) → Network-First با کش */
+    if (url.origin !== self.location.origin) {
+        event.respondWith(networkFirstWithCache(req));
+        return;
+    }
+
+    /* فایل‌های JS و CSS → Network-First (تغییرات فوری) */
+    if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+        event.respondWith(networkFirstWithCache(req));
+        return;
+    }
+
+    /* HTML Navigation → Network-First با fallback به offline */
+    if (req.mode === 'navigate' ||
+        (req.headers.get('accept') || '').includes('text/html')) {
+        event.respondWith(
+            fetch(req)
+                .then((res) => {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                    return res;
+                })
+                .catch(() => {
+                    return caches.match(req)
+                        .then((cached) => cached || caches.match(OFFLINE_URL))
+                        .then((fallback) => fallback || caches.match('./index.html'));
+                })
+        );
+        return;
+    }
+
+    /* بقیه (تصاویر، فونت، ...) → Cache-First با پس‌زمینه-revalidate */
+    event.respondWith(cacheFirstWithUpdate(req));
+});
+
+/* ============================================================
+   استراتژی ۱: Network-First (شبکه اول، کش fallback)
+   ============================================================ */
+function networkFirstWithCache(req) {
+    return fetch(req)
+        .then((res) => {
+            if (res && res.status === 200) {
+                const clone = res.clone();
+                caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+            }
+            return res;
+        })
+        .catch(() => {
+            return caches.match(req).then((cached) => {
+                if (cached) return cached;
+                /* برای JS از دست رفته، بگذار خطا بدهد بهتر از HTML جایگزین */
+                return new Response('', { status: 504, statusText: 'Offline' });
+            });
+        });
+}
+
+/* ============================================================
+   استراتژی ۲: Cache-First با پس‌زمینه-revalidate
+   ============================================================ */
+function cacheFirstWithUpdate(req) {
+    return caches.match(req).then((cached) => {
+        const fetchPromise = fetch(req)
+            .then((res) => {
+                if (res && res.status === 200) {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+                }
+                return res;
+            })
+            .catch(() => cached);
+        return cached || fetchPromise;
+    });
+}
+
+/* ============================================================
+   MESSAGE — کنترل از سمت کلاینت
+   ============================================================ */
+self.addEventListener('message', (event) => {
+    if (!event.data) return;
+
+    const type = event.data.type;
+
+    if (type === 'SKIP_WAITING') {
+        console.log('[SW] ⏭ SKIP_WAITING دستی');
+        self.skipWaiting();
+    }
+
+    if (type === 'CLEAR_CACHE') {
+        console.log('[SW] 🗑 پاک‌سازی کامل کش');
+        caches.keys()
+            .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+            .then(() => {
+                if (event.source) {
+                    event.source.postMessage({ type: 'CACHE_CLEARED' });
+                }
+            });
+    }
+
+    if (type === 'GET_VERSION') {
+        if (event.source) {
+            event.source.postMessage({
+                type: 'VERSION',
+                version: CACHE_VERSION,
+                cacheName: CACHE_NAME
+            });
         }
-        return response;
-      }).catch(function () {
-        return cached;
-      });
-      return cached || fetchPromise;
-    })
-  );
+    }
 });
 
-self.addEventListener('message', function (event) {
-  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
-});
-
-console.log('✅ [SW] Registered with CACHE_NAME =', CACHE_NAME);
+console.log('[SW] ✅ service worker v16 بارگذاری شد');
