@@ -2974,3 +2974,38 @@ if (document.readyState === 'loading') {
 }
 
 console.log('✅ [modules/sms.js] loaded — v18 (desc fields stacked + search 6-method + polling)');
+
+
+/* ============================================================
+   ✅ v18.1 — Auto-rebind watcher (رفع قطعی جستجو + ویرایش)
+   هر ۸۰۰ میلی‌ثانیه بررسی می‌کند اگر صفحه پیامک باز است
+   و search binding نشده بود، خودکار bind می‌کند
+   ============================================================ */
+(function _smsWatchForSmsPage() {
+    if (window._smsWatchBound) return;
+    window._smsWatchBound = true;
+
+    console.log('🔍 [sms-watch] auto-rebind watcher فعال شد');
+
+    setInterval(function () {
+        try {
+            var smsPage = document.getElementById('page-sms');
+            if (!smsPage) return;
+            if (!smsPage.classList.contains('active')) return;
+
+            var searchIds = ['pending-sms-search', 'sms-inbox-search', 'sms-patterns-search'];
+            for (var i = 0; i < searchIds.length; i++) {
+                var el = document.getElementById(searchIds[i]);
+                if (el && !el._smsV18Bound) {
+                    console.log('🔄 [sms-watch] rebinding:', searchIds[i]);
+                    if (typeof _smsBindSearchInputs === 'function') {
+                        _smsBindSearchInputs();
+                    }
+                    break;
+                }
+            }
+        } catch (e) {
+            console.error('[sms-watch] error:', e);
+        }
+    }, 800);
+})();
