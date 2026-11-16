@@ -2,7 +2,7 @@
    پارسیس — Service Worker (بروزرسانی خودکار کش)
    نسخه v99 — Ledger Report
    ============================================================ */
-var CACHE_NAME = 'parsis-v104-ledger-print-perfect';
+var CACHE_NAME = 'parsis-v105-ledger-print-perfect';
 
 var ASSETS = [
   './index.html',
