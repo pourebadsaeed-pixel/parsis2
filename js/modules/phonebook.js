@@ -1,12 +1,11 @@
 /* ============================================================
-   پارسیس — دفترچه تلفن (نسخه ۲)
+   پارسیس — دفترچه تلفن (نسخه ۲.۱)
    مسیر: js/modules/phonebook.js
    
-   تغییرات v2:
-     ✅ افزودن فیلد "واحد سازمانی" به فرم و جدول (تزریق خودکار)
-     ✅ افزودن ایمپورت هوشمند از اکسل
-     ✅ تطبیق دقیق نام و نام خانوادگی (اگر شخص نبود، ساخته می‌شود)
-     ✅ تطبیق شرکت (اگر شرکت نبود، ساخته می‌شود)
+   تغییرات v2.1:
+     ✅ رفع باگ کار نکردن دکمه اکسل (اتصال رویداد کلیک حتی اگر دکمه در HTML باشد)
+     ✅ ایجاد خودکار input file مخفی
+     ✅ واحد سازمانی و ایمپورت هوشمند اکسل
    ============================================================ */
 'use strict';
 
@@ -54,10 +53,10 @@ function _pbToast(msg, ms) {
 }
 
 /* ============================================================
-   ✅ تزریق فیلد واحد سازمانی و دکمه اکسل
+   ✅ تزریق فیلد واحد سازمانی و اتصال دکمه اکسل (اصلاح شده)
    ============================================================ */
 function _injectPBNewElements() {
-    // 1. تزریق فیلد واحد سازمانی در فرم
+    // 1. تزریق فیلد واحد سازمانی در فرم (اگر در HTML نبود)
     if (!document.getElementById('pb-org-unit')) {
         var roleEl = document.getElementById('pb-role');
         if (roleEl) {
@@ -71,31 +70,56 @@ function _injectPBNewElements() {
         }
     }
 
-    // 2. تزریق دکمه ایمپورت در هدر جدول
+    // 2. اطمینان از وجود input file و دکمه اکسل
     var header = document.querySelector('#page-phonebook .list-header');
-    if (header && !document.getElementById('pb-import-btn')) {
-        var importBtn = document.createElement('button');
-        importBtn.id = 'pb-import-btn';
-        importBtn.className = 'export-btn';
-        importBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none';
-        importBtn.innerHTML = '📤 دریافت از اکسل';
-        importBtn.onclick = function() { document.getElementById('pb-import-file').click(); };
-        
-        var fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.id = 'pb-import-file';
-        fileInput.accept = '.xlsx, .xls, .csv';
-        fileInput.style.display = 'none';
-        fileInput.onchange = function(e) { if (e.target.files[0]) importPhonebookFromExcel(e.target.files[0]); };
+    if (header) {
+        var importBtn = document.getElementById('pb-import-btn');
+        var fileInput = document.getElementById('pb-import-file');
 
-        // قرار دادن دکمه بعد از دکمه اکسل خروجی
-        var exportBtn = header.querySelector('[data-export="phonebook"]');
-        if (exportBtn) {
-            header.insertBefore(importBtn, exportBtn);
-        } else {
-            header.appendChild(importBtn);
+        // اگر input file وجود نداشت، بساز و مخفی کن
+        if (!fileInput) {
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'pb-import-file';
+            fileInput.accept = '.xlsx, .xls, .csv';
+            fileInput.style.display = 'none';
+            header.appendChild(fileInput);
         }
-        header.appendChild(fileInput);
+
+        // اگر دکمه وجود نداشت، بساز
+        if (!importBtn) {
+            importBtn = document.createElement('button');
+            importBtn.id = 'pb-import-btn';
+            importBtn.className = 'export-btn';
+            importBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none';
+            importBtn.innerHTML = '📤 دریافت از اکسل';
+            var exportBtn = header.querySelector('[data-export="phonebook"]');
+            if (exportBtn) {
+                header.insertBefore(importBtn, exportBtn);
+            } else {
+                header.appendChild(importBtn);
+            }
+        }
+
+        // ✅ حالا همیشه رویداد کلیک و change را متصل کن (بدون توجه به اینکه دکمه ساخته شده یا در HTML بوده)
+        if (!importBtn.dataset.bound) {
+            importBtn.dataset.bound = '1';
+            importBtn.onclick = function(e) {
+                e.preventDefault();
+                var fileInp = document.getElementById('pb-import-file');
+                if (fileInp) fileInp.click();
+            };
+        }
+
+        if (!fileInput.dataset.bound) {
+            fileInput.dataset.bound = '1';
+            fileInput.onchange = function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    importPhonebookFromExcel(e.target.files[0]);
+                    this.value = ''; // ریست کردن برای انتخاب فایل بعدی
+                }
+            };
+        }
     }
 }
 
@@ -622,7 +646,6 @@ function importPhonebookFromExcel(file) {
 
             var headers = rows[0].map(function(h) { return String(h || '').trim(); });
             
-            // پیدا کردن ستون‌ها با تطبیق کلمات کلیدی
             var idxFirst = headers.findIndex(function(h) { return h === 'نام'; });
             var idxLast = headers.findIndex(function(h) { return h === 'نام خانوادگی' || h === 'خانوادگی' || h === 'فامیلی'; });
             var idxOrg = headers.findIndex(function(h) { return h.indexOf('واحد') !== -1; });
@@ -692,7 +715,6 @@ function importPhonebookFromExcel(file) {
                 addedCount++;
             }
 
-            // ذخیره در دیتابیس
             if (addedPersonsCount > 0) DB.save('persons', persons);
             if (addedCompaniesCount > 0) DB.save('companies', companies);
             DB.save('phonebook', phonebook);
@@ -701,7 +723,6 @@ function importPhonebookFromExcel(file) {
                   '👤 اشخاص جدید: ' + _pbToFa(addedPersonsCount) + '\n' +
                   '🏢 شرکت‌های جدید: ' + _pbToFa(addedCompaniesCount));
 
-            // رفرش همه بخش‌ها
             if (typeof renderPersonsList === 'function') renderPersonsList();
             if (typeof renderCompaniesList === 'function') renderCompaniesList();
             refreshPhonebookCompanyFilter();
@@ -797,4 +818,4 @@ window.openQuickPersonModal       = openQuickPersonModal;
 window.openQuickCompanyModal      = openQuickCompanyModal;
 window.importPhonebookFromExcel   = importPhonebookFromExcel;
 
-console.log('✅ [modules/phonebook.js] loaded — v2 (Excel + OrgUnit)');
+console.log('✅ [modules/phonebook.js] loaded — v2.1 (Excel + OrgUnit Fixed)');
