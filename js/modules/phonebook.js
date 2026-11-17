@@ -1,13 +1,20 @@
 /* ============================================================
-   پارسیس — دفترچه تلفن (نسخه ۲.۲)
+   پارسیس — دفترچه تلفن (نسخه ۲.۳)
    مسیر: js/modules/phonebook.js
+   
+   تغییرات v2.3:
+     ✅ فایل نمونه اکسل: افزودن ستون‌های «موبایل» و «داخلی»
+     ✅ Import: خواندن موبایل و داخلی از اکسل
+     ✅ Import: به‌روزرسانی موبایل پروفایل شخص در صورت تفاوت
+     ✅ Import: ذخیره موبایل و داخلی در رکورد دفترچه
+     ✅ گزارش ۴ شمارنده (شامل موبایل‌های به‌روزرسانی‌شده)
    
    تغییرات v2.2:
      ✅ افزوده: دکمه و تابع دانلود فایل نمونه اکسل (Template)
      ✅ تزریق خودکار دکمه «📥 فایل نمونه» کنار «📤 دریافت از اکسل»
    
    تغییرات v2.1:
-     ✅ رفع باگ کار نکردن دکمه اکسل (اتصال رویداد کلیک حتی اگر دکمه در HTML باشد)
+     ✅ رفع باگ کار نکردن دکمه اکسل
      ✅ ایجاد خودکار input file مخفی
      ✅ واحد سازمانی و ایمپورت هوشمند اکسل
    ============================================================ */
@@ -57,7 +64,7 @@ function _pbToast(msg, ms) {
 }
 
 /* ============================================================
-   ✅ تزریق فیلد واحد سازمانی + دکمه‌های اکسل (ویرایش v2.2)
+   ✅ تزریق فیلد واحد سازمانی + دکمه‌های اکسل
    ============================================================ */
 function _injectPBNewElements() {
     // 1. تزریق فیلد واحد سازمانی در فرم (اگر در HTML نبود)
@@ -106,7 +113,7 @@ function _injectPBNewElements() {
             }
         }
 
-        // ✅ جدید v2.2: اگر دکمه «فایل نمونه» وجود نداشت، بساز و قبل از import قرار بده
+        // اگر دکمه «فایل نمونه» وجود نداشت، بساز و قبل از import قرار بده
         if (!templateBtn) {
             templateBtn = document.createElement('button');
             templateBtn.id = 'pb-template-btn';
@@ -126,7 +133,7 @@ function _injectPBNewElements() {
             }
         }
 
-        // ✅ اتصال رویداد دکمه «فایل نمونه»
+        // اتصال رویداد دکمه «فایل نمونه»
         if (!templateBtn.dataset.bound) {
             templateBtn.dataset.bound = '1';
             templateBtn.onclick = function (e) {
@@ -660,8 +667,7 @@ function savePhonebookEntry() {
 }
 
 /* ============================================================
-   ✅ جدید v2.2 — دانلود فایل نمونه اکسل
-   هدرها دقیقاً با فرمت importPhonebookFromExcel همخوان است
+   ✅ دانلود فایل نمونه اکسل (v2.3 — شامل موبایل و داخلی)
    ============================================================ */
 function downloadPhonebookTemplate() {
     if (typeof XLSX === 'undefined') {
@@ -670,15 +676,15 @@ function downloadPhonebookTemplate() {
     }
 
     var data = [
-        ['نام', 'نام خانوادگی', 'واحد سازمانی', 'سمت', 'شرکت'],
-        ['علی',  'رضایی',  'فنی و مهندسی', 'مدیر فروش', 'شرکت نمونه'],
-        ['مریم', 'احمدی',  'مالی',         'حسابدار',   ''],
-        ['حسین', 'کریمی',  'بازاریابی',    'کارشناس',   '']
+        ['نام', 'نام خانوادگی', 'موبایل', 'داخلی', 'واحد سازمانی', 'سمت', 'شرکت'],
+        ['علی',  'رضایی',  '09121234567', '123', 'فنی و مهندسی', 'مدیر فروش', 'شرکت نمونه'],
+        ['مریم', 'احمدی',  '09351234567', '456', 'مالی',         'حسابدار',   ''],
+        ['حسین', 'کریمی',  '',            '789', 'بازاریابی',    'کارشناس',   '']
     ];
 
     var ws = XLSX.utils.aoa_to_sheet(data);
     ws['!cols'] = [
-        { wch: 16 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 22 }
+        { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 10 }, { wch: 20 }, { wch: 18 }, { wch: 22 }
     ];
 
     var helpData = [
@@ -687,25 +693,29 @@ function downloadPhonebookTemplate() {
         ['📝 ستون‌های فایل:'],
         ['1) نام — اجباری (نام کوچک)'],
         ['2) نام خانوادگی — اجباری'],
-        ['3) واحد سازمانی — اختیاری (هر هدری که شامل کلمه «واحد» باشد)'],
-        ['4) سمت — اختیاری (هر هدری که شامل «سمت» یا «سِمت» باشد)'],
-        ['5) شرکت — اختیاری (هر هدری که شامل کلمه «شرکت» باشد)'],
+        ['3) موبایل — اختیاری (اگر خالی باشد از موبایل شخص استفاده می‌شود)'],
+        ['4) داخلی — اختیاری (شماره داخلی سازمانی)'],
+        ['5) واحد سازمانی — اختیاری'],
+        ['6) سمت — اختیاری'],
+        ['7) شرکت — اختیاری (اگر در «شرکت‌ها» نباشد، خودکار ساخته می‌شود)'],
         [''],
         ['💡 رفتار هوشمند سیستم:'],
         ['• اگر شخصی با همان «نام + نام خانوادگی» وجود داشته باشد → به آن متصل می‌شود'],
-        ['• اگر شخص وجود نداشته باشد → به‌صورت خودکار در صفحه «اشخاص» ایجاد می‌شود'],
-        ['• اگر شرکت وجود نداشته باشد → به‌صورت خودکار در صفحه «شرکت‌ها» ایجاد می‌شود'],
-        ['• اگر شخص قبلاً در دفترچه باشد → اطلاعات واحد/سمت/شرکت آن به‌روزرسانی می‌شود'],
+        ['• اگر شخص وجود نداشته باشد → خودکار در صفحه «اشخاص» ایجاد می‌شود'],
+        ['• اگر شرکت وجود نداشته باشد → خودکار در صفحه «شرکت‌ها» ایجاد می‌شود'],
+        ['• اگر «موبایل» در اکسل باشد → هم در دفترچه و هم در پروفایل شخص ذخیره می‌شود'],
+        ['• اگر شخص قبلاً در دفترچه باشد → واحد/سمت/داخلی/موبایل به‌روزرسانی می‌شوند'],
         [''],
         ['⚠️ نکات مهم:'],
         ['• ردیف اول فایل باید هدرها باشد (نباید حذف شود)'],
         ['• ردیف‌های خالی به‌طور خودکار نادیده گرفته می‌شوند'],
         ['• ستون‌های «نام» و «نام خانوادگی» باید دقیقاً با همین نام حفظ شوند'],
+        ['• بقیه ستون‌ها با جستجوی کلمات کلیدی پیدا می‌شوند (حساس به ترتیب نیستند)'],
         [''],
         ['🔢 نمونه فایل:'],
-        ['• ردیف ۱: علی رضایی — شخص جدید + شرکت جدید ایجاد می‌شود'],
-        ['• ردیف ۲: مریم احمدی — بدون شرکت'],
-        ['• ردیف ۳: حسین کریمی — کارشناس بازاریابی']
+        ['• ردیف ۱: علی رضایی + موبایل + داخلی + شرکت → شخص و شرکت جدید ایجاد می‌شوند'],
+        ['• ردیف ۲: مریم احمدی + موبایل + داخلی (بدون شرکت)'],
+        ['• ردیف ۳: حسین کریمی + داخلی (بدون موبایل — موبایل شخص دست نمی‌خورد)']
     ];
 
     var wsHelp = XLSX.utils.aoa_to_sheet(helpData);
@@ -720,7 +730,7 @@ function downloadPhonebookTemplate() {
 }
 
 /* ============================================================
-   ✅ Excel Import (بدون تغییر از v2.1)
+   ✅ Excel Import (v2.3 — شامل موبایل و داخلی)
    ============================================================ */
 function importPhonebookFromExcel(file) {
     if (typeof XLSX === 'undefined') {
@@ -740,10 +750,29 @@ function importPhonebookFromExcel(file) {
 
             var headers = rows[0].map(function (h) { return String(h || '').trim(); });
 
-            var idxFirst = headers.findIndex(function (h) { return h === 'نام'; });
-            var idxLast = headers.findIndex(function (h) { return h === 'نام خانوادگی' || h === 'خانوادگی' || h === 'فامیلی'; });
-            var idxOrg = headers.findIndex(function (h) { return h.indexOf('واحد') !== -1; });
-            var idxRole = headers.findIndex(function (h) { return h.indexOf('سمت') !== -1 || h.indexOf('سِمت') !== -1; });
+            /* ---------- پیدا کردن ایندکس ستون‌ها با کلمات کلیدی ---------- */
+            var idxFirst  = headers.findIndex(function (h) { return h === 'نام'; });
+            var idxLast   = headers.findIndex(function (h) {
+                return h === 'نام خانوادگی' || h === 'خانوادگی' || h === 'فامیلی';
+            });
+
+            /* ✅ موبایل و داخلی */
+            var idxMobile = headers.findIndex(function (h) {
+                return h.indexOf('موبایل') !== -1
+                    || h.indexOf('همراه') !== -1
+                    || h.indexOf('mobile') !== -1
+                    || h.indexOf('Mobile') !== -1;
+            });
+            var idxExt = headers.findIndex(function (h) {
+                return h.indexOf('داخلی') !== -1
+                    || h.indexOf('extension') !== -1
+                    || h.indexOf('Extension') !== -1;
+            });
+
+            var idxOrg  = headers.findIndex(function (h) { return h.indexOf('واحد') !== -1; });
+            var idxRole = headers.findIndex(function (h) {
+                return h.indexOf('سمت') !== -1 || h.indexOf('سِمت') !== -1;
+            });
             var idxComp = headers.findIndex(function (h) { return h.indexOf('شرکت') !== -1; });
 
             if (idxFirst === -1 || idxLast === -1) {
@@ -751,38 +780,47 @@ function importPhonebookFromExcel(file) {
                 return;
             }
 
-            var persons = DB.load('persons', []) || [];
+            var persons   = DB.load('persons', []) || [];
             var companies = DB.load('companies', []) || [];
             var phonebook = DB.load('phonebook', []) || [];
+
             var addedCount = 0;
             var addedPersonsCount = 0;
             var addedCompaniesCount = 0;
+            var updatedPersonsMobileCount = 0;
 
             for (var i = 1; i < rows.length; i++) {
                 var row = rows[i];
                 if (!row || row.length === 0) continue;
 
                 var first = String(row[idxFirst] || '').trim();
-                var last = String(row[idxLast] || '').trim();
+                var last  = String(row[idxLast]  || '').trim();
                 if (!first && !last) continue;
 
-                var orgUnit = idxOrg !== -1 ? String(row[idxOrg] || '').trim() : '';
-                var role = idxRole !== -1 ? String(row[idxRole] || '').trim() : '';
-                var compName = idxComp !== -1 ? String(row[idxComp] || '').trim() : '';
+                /* ✅ خواندن موبایل و داخلی */
+                var mobile    = idxMobile !== -1 ? _pbNormalizeDigits(String(row[idxMobile] || '').trim()) : '';
+                var extension = idxExt    !== -1 ? _pbNormalizeDigits(String(row[idxExt]    || '').trim()) : '';
+                var orgUnit   = idxOrg    !== -1 ? String(row[idxOrg]  || '').trim() : '';
+                var role      = idxRole   !== -1 ? String(row[idxRole] || '').trim() : '';
+                var compName  = idxComp   !== -1 ? String(row[idxComp] || '').trim() : '';
 
-                // 1. تطبیق یا ایجاد شخص
+                /* ---------- ۱) تطبیق یا ایجاد شخص ---------- */
                 var person = persons.find(function (p) { return p.first === first && p.last === last; });
+
                 if (!person) {
                     person = {
                         id: uid(), first: first, last: last, father: '', nationalId: '',
-                        birth: '', mobile: '', phone: '', email: '', bankTitle: '',
+                        birth: '', mobile: mobile, phone: '', email: '', bankTitle: '',
                         acc: '', iban: '', card: '', address: ''
                     };
                     persons.push(person);
                     addedPersonsCount++;
+                } else if (mobile && person.mobile !== mobile) {
+                    person.mobile = mobile;
+                    updatedPersonsMobileCount++;
                 }
 
-                // 2. تطبیق یا ایجاد شرکت
+                /* ---------- ۲) تطبیق یا ایجاد شرکت ---------- */
                 var companyId = '';
                 if (compName) {
                     var company = companies.find(function (c) { return c.name === compName; });
@@ -794,30 +832,47 @@ function importPhonebookFromExcel(file) {
                     companyId = company.id;
                 }
 
-                // 3. ثبت/بروزرسانی در دفترچه تلفن
+                /* ---------- ۳) ثبت/بروزرسانی در دفترچه تلفن ---------- */
                 var pb = phonebook.find(function (x) { return x.personId === person.id; });
+
                 if (pb) {
                     pb.orgUnit = orgUnit || pb.orgUnit || '';
-                    pb.role = role || pb.role || '';
+                    pb.role    = role    || pb.role    || '';
                     if (companyId) pb.companyId = companyId;
+                    if (mobile)    pb.mobile    = mobile;
+                    if (extension) pb.extension = extension;
                 } else {
                     phonebook.push({
-                        id: uid(), personId: person.id, companyId: companyId,
-                        orgUnit: orgUnit, role: role, extension: '', mobile: ''
+                        id: uid(),
+                        personId: person.id,
+                        companyId: companyId,
+                        orgUnit: orgUnit,
+                        role: role,
+                        extension: extension,
+                        mobile: mobile || (person.mobile || '')
                     });
                 }
                 addedCount++;
             }
 
-            if (addedPersonsCount > 0) DB.save('persons', persons);
+            /* ---------- ذخیره ---------- */
+            if (addedPersonsCount > 0 || updatedPersonsMobileCount > 0) {
+                DB.save('persons', persons);
+            }
             if (addedCompaniesCount > 0) DB.save('companies', companies);
             DB.save('phonebook', phonebook);
 
-            alert('✅ ' + _pbToFa(addedCount) + ' رکورد ایمپورت شد.\n' +
-                  '👤 اشخاص جدید: ' + _pbToFa(addedPersonsCount) + '\n' +
-                  '🏢 شرکت‌های جدید: ' + _pbToFa(addedCompaniesCount));
+            /* ---------- پیام نتیجه ---------- */
+            var msg = '✅ ' + _pbToFa(addedCount) + ' رکورد پردازش شد.\n\n'
+                    + '👤 اشخاص جدید: ' + _pbToFa(addedPersonsCount) + '\n'
+                    + '🏢 شرکت‌های جدید: ' + _pbToFa(addedCompaniesCount);
+            if (updatedPersonsMobileCount > 0) {
+                msg += '\n📱 موبایل اشخاص به‌روزرسانی‌شده: ' + _pbToFa(updatedPersonsMobileCount);
+            }
+            alert(msg);
 
-            if (typeof renderPersonsList === 'function') renderPersonsList();
+            /* ---------- بازسازی UI ---------- */
+            if (typeof renderPersonsList   === 'function') renderPersonsList();
             if (typeof renderCompaniesList === 'function') renderCompaniesList();
             refreshPhonebookCompanyFilter();
             renderPhonebookList();
@@ -911,6 +966,6 @@ window.initPhonebookPage             = initPhonebookPage;
 window.openQuickPersonModal          = openQuickPersonModal;
 window.openQuickCompanyModal         = openQuickCompanyModal;
 window.importPhonebookFromExcel      = importPhonebookFromExcel;
-window.downloadPhonebookTemplate     = downloadPhonebookTemplate;  /* ✅ جدید v2.2 */
+window.downloadPhonebookTemplate     = downloadPhonebookTemplate;
 
-console.log('✅ [modules/phonebook.js] loaded — v2.2 (Excel Template + OrgUnit)');
+console.log('✅ [modules/phonebook.js] loaded — v2.3 (Excel Template + Mobile + Extension + OrgUnit)');
