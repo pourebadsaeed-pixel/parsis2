@@ -683,10 +683,15 @@
                 <option value="">همه شرکت‌ها</option>
             </select>
             <input type="text" class="filter-input" id="pb-list-search" placeholder="🔍 جستجو">
+            
+            <!-- ✅ دکمه دریافت از اکسل اضافه شد -->
+            <button id="pb-import-btn" class="export-btn" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none">📤 دریافت از اکسل</button>
+            <button class="export-btn" data-export="phonebook">📊 اکسل</button>
         </div>
         <div class="table-wrap"><table class="data-table" id="pb-table"><thead><tr>
             <th>نام و نام خانوادگی</th>
             <th>موبایل</th>
+            <th>واحد سازمانی</th> <!-- ✅ ستون جدید -->
             <th>سمت</th>
             <th>داخلی</th>
             <th>شرکت</th>
@@ -723,9 +728,16 @@
             </div>
         </div>
 
-        <div class="field">
-            <label>سمت</label>
-            <input type="text" id="pb-role" placeholder="مثلاً: مدیر فروش">
+        <!-- ✅ فیلد واحد سازمانی اضافه شد -->
+        <div class="grid-2">
+            <div class="field">
+                <label>واحد سازمانی</label>
+                <input type="text" id="pb-org-unit" placeholder="مثلاً: فنی و مهندسی">
+            </div>
+            <div class="field">
+                <label>سمت</label>
+                <input type="text" id="pb-role" placeholder="مثلاً: مدیر فروش">
+            </div>
         </div>
 
         <div class="field">
