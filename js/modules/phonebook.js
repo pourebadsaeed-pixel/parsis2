@@ -1,16 +1,12 @@
 /* ============================================================
-   پارسیس — دفترچه تلفن (نسخه ۱)
+   پارسیس — دفترچه تلفن (نسخه ۲)
    مسیر: js/modules/phonebook.js
    
-   ویژگی‌ها:
-     ✅ فیلد نام = ارجاع به اشخاص (searchable)
-     ✅ "+" برای افزودن سریع شخص بدون ترک صفحه
-     ✅ موبایل از شخص خوانده و به آن نوشته می‌شود
-     ✅ فیلد شرکت = ارجاع به شرکت‌ها (searchable)
-     ✅ "+" برای افزودن سریع شرکت
-     ✅ تب‌های فهرست + تعریف/ویرایش
-     ✅ فیلتر شرکت در فهرست
-     ✅ همگام با حذف اشخاص/شرکت‌ها
+   تغییرات v2:
+     ✅ افزودن فیلد "واحد سازمانی" به فرم و جدول (تزریق خودکار)
+     ✅ افزودن ایمپورت هوشمند از اکسل
+     ✅ تطبیق دقیق نام و نام خانوادگی (اگر شخص نبود، ساخته می‌شود)
+     ✅ تطبیق شرکت (اگر شرکت نبود، ساخته می‌شود)
    ============================================================ */
 'use strict';
 
@@ -58,12 +54,57 @@ function _pbToast(msg, ms) {
 }
 
 /* ============================================================
-   ساخت searchable select (پشتیبان از window.createSearchableSelect)
+   ✅ تزریق فیلد واحد سازمانی و دکمه اکسل
+   ============================================================ */
+function _injectPBNewElements() {
+    // 1. تزریق فیلد واحد سازمانی در فرم
+    if (!document.getElementById('pb-org-unit')) {
+        var roleEl = document.getElementById('pb-role');
+        if (roleEl) {
+            var roleField = roleEl.closest('.field');
+            if (roleField) {
+                var orgField = document.createElement('div');
+                orgField.className = 'field';
+                orgField.innerHTML = '<label>واحد سازمانی</label><input type="text" id="pb-org-unit" placeholder="مثلاً: فنی و مهندسی">';
+                roleField.parentNode.insertBefore(orgField, roleField.nextSibling);
+            }
+        }
+    }
+
+    // 2. تزریق دکمه ایمپورت در هدر جدول
+    var header = document.querySelector('#page-phonebook .list-header');
+    if (header && !document.getElementById('pb-import-btn')) {
+        var importBtn = document.createElement('button');
+        importBtn.id = 'pb-import-btn';
+        importBtn.className = 'export-btn';
+        importBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none';
+        importBtn.innerHTML = '📤 دریافت از اکسل';
+        importBtn.onclick = function() { document.getElementById('pb-import-file').click(); };
+        
+        var fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'pb-import-file';
+        fileInput.accept = '.xlsx, .xls, .csv';
+        fileInput.style.display = 'none';
+        fileInput.onchange = function(e) { if (e.target.files[0]) importPhonebookFromExcel(e.target.files[0]); };
+
+        // قرار دادن دکمه بعد از دکمه اکسل خروجی
+        var exportBtn = header.querySelector('[data-export="phonebook"]');
+        if (exportBtn) {
+            header.insertBefore(importBtn, exportBtn);
+        } else {
+            header.appendChild(importBtn);
+        }
+        header.appendChild(fileInput);
+    }
+}
+
+/* ============================================================
+   ساخت searchable select
    ============================================================ */
 function _pbMakeSearchableSelect(containerEl, items, selectedValue, placeholder, onChangeFn) {
     if (!containerEl) return;
 
-    /* اگر تابع اصلی موجود است، از آن استفاده کن */
     if (typeof window.createSearchableSelect === 'function') {
         containerEl.innerHTML = '';
         try {
@@ -75,7 +116,6 @@ function _pbMakeSearchableSelect(containerEl, items, selectedValue, placeholder,
         }
     }
 
-    /* Fallback: <select> ساده */
     containerEl.innerHTML = '';
     var sel = document.createElement('select');
     sel.style.cssText = 'width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-solid);font-family:inherit;font-size:0.88rem;color:var(--text)';
@@ -131,8 +171,6 @@ function onPbPersonChange(personId) {
     var person = persons.find(function(p) { return p.id === personId; });
     if (!person) return;
 
-    /* فقط اگه فیلد موبایل خالیه، مقدار شخص رو کپی کن
-       (تا اگه کاربر قبلاً چیزی تایپ کرده، از دست نره) */
     var mobileEl = _pbEl('pb-mobile');
     if (mobileEl && !mobileEl.value && person.mobile) {
         mobileEl.value = person.mobile;
@@ -201,7 +239,7 @@ function openQuickPersonModal() {
             '</div>' +
             '<div class="modal-body">' +
                 '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;line-height:1.9">' +
-                    'پس از ذخیره، شخص به‌طور خودکار در فرم دفترچه تلفن انتخاب می‌شود.' +
+                    'پس از ذخیره، شخص به‌طور خودکار در فرم انتخاب می‌شود.' +
                 '</p>' +
                 '<div class="grid-2">' +
                     '<div class="field"><label>نام *</label><input type="text" id="pb-new-pr-first"></div>' +
@@ -269,10 +307,8 @@ function openQuickPersonModal() {
 
         closeFn();
 
-        /* انتخاب خودکار در فرم */
         refreshPhonebookPersonSelect(newPerson.id);
 
-        /* پر کردن موبایل */
         if (mobile) {
             var mobileEl = _pbEl('pb-mobile');
             if (mobileEl) mobileEl.value = mobile;
@@ -280,7 +316,6 @@ function openQuickPersonModal() {
 
         _pbToast('✅ شخص «' + first + ' ' + last + '» اضافه شد');
 
-        /* رفرش فهرست اشخاص اگه باز باشد */
         if (typeof renderPersonsList === 'function') {
             try { renderPersonsList(); } catch(e) {}
         }
@@ -358,7 +393,6 @@ function openQuickCompanyModal() {
 
         closeFn();
 
-        /* انتخاب خودکار + رفرش فیلتر فهرست */
         refreshPhonebookCompanySelect(newCompany.id);
         refreshPhonebookCompanyFilter();
 
@@ -394,13 +428,12 @@ function renderPhonebookList() {
         if (searchQ) {
             var person = pMap[item.personId];
             var name = person ? ((person.first || '') + ' ' + (person.last || '')) : '';
-            var hay = (name + ' ' + (item.mobile || '') + ' ' + (item.role || '') + ' ' + (item.extension || '')).toLowerCase();
+            var hay = (name + ' ' + (item.mobile || '') + ' ' + (item.role || '') + ' ' + (item.orgUnit || '') + ' ' + (item.extension || '')).toLowerCase();
             if (hay.indexOf(searchQ) === -1) return false;
         }
         return true;
     });
 
-    /* مرتب‌سازی بر اساس نام */
     filtered.sort(function(a, b) {
         var pA = pMap[a.personId];
         var pB = pMap[b.personId];
@@ -413,7 +446,7 @@ function renderPhonebookList() {
     if (countEl) countEl.textContent = _pbToFa(filtered.length);
 
     if (filtered.length === 0) {
-        box.innerHTML = '<tr><td colspan="6" class="empty-row">موردی یافت نشد.</td></tr>';
+        box.innerHTML = '<tr><td colspan="7" class="empty-row">موردی یافت نشد.</td></tr>';
         return;
     }
 
@@ -427,6 +460,7 @@ function renderPhonebookList() {
         tr.innerHTML =
             '<td>' + _pbEsc(name) + '</td>' +
             '<td dir="ltr">' + _pbToFa(_pbEsc(mobile)) + '</td>' +
+            '<td>' + _pbEsc(item.orgUnit || '—') + '</td>' +
             '<td>' + _pbEsc(item.role || '—') + '</td>' +
             '<td dir="ltr">' + _pbToFa(_pbEsc(item.extension || '—')) + '</td>' +
             '<td>' + _pbEsc(company) + '</td>' +
@@ -437,7 +471,6 @@ function renderPhonebookList() {
         box.appendChild(tr);
     });
 
-    /* بایند دکمه‌ها */
     box.querySelectorAll('.row-btn.edit').forEach(function(b) {
         b.onclick = function() {
             var id = this.getAttribute('data-id');
@@ -477,6 +510,7 @@ function loadPhonebookForEdit(id) {
         refreshPhonebookCompanySelect(item.companyId);
 
         var mEl = _pbEl('pb-mobile'); if (mEl) mEl.value = item.mobile || '';
+        var oEl = _pbEl('pb-org-unit'); if (oEl) oEl.value = item.orgUnit || '';
         var rEl = _pbEl('pb-role'); if (rEl) rEl.value = item.role || '';
         var eEl = _pbEl('pb-extension'); if (eEl) eEl.value = item.extension || '';
 
@@ -491,6 +525,7 @@ function loadPhonebookForEdit(id) {
 function clearPhonebookForm() {
     var idEl = _pbEl('pb-id'); if (idEl) idEl.value = '';
     var mEl = _pbEl('pb-mobile'); if (mEl) mEl.value = '';
+    var oEl = _pbEl('pb-org-unit'); if (oEl) oEl.value = '';
     var rEl = _pbEl('pb-role'); if (rEl) rEl.value = '';
     var eEl = _pbEl('pb-extension'); if (eEl) eEl.value = '';
 
@@ -509,12 +544,12 @@ function savePhonebookEntry() {
     var personId = _pbSelectedPersonId;
     var companyId = _pbSelectedCompanyId;
     var mobile = _pbNormalizeDigits(((_pbEl('pb-mobile') || {}).value || '').trim());
+    var orgUnit = ((_pbEl('pb-org-unit') || {}).value || '').trim();
     var role = ((_pbEl('pb-role') || {}).value || '').trim();
     var extension = _pbNormalizeDigits(((_pbEl('pb-extension') || {}).value || '').trim());
 
     if (!personId) { alert('⚠️ لطفاً شخص را انتخاب کنید.'); return; }
 
-    /* بررسی تکراری: آیا همین شخص قبلاً در دفترچه هست؟ */
     var list = getPhonebook();
     var dup = list.find(function(x) { return x.id !== id && x.personId === personId; });
     if (dup && !id) {
@@ -525,6 +560,7 @@ function savePhonebookEntry() {
         id: id || uid(),
         personId: personId,
         mobile: mobile,
+        orgUnit: orgUnit,
         role: role,
         extension: extension,
         companyId: companyId
@@ -539,7 +575,6 @@ function savePhonebookEntry() {
     }
     savePhonebook(list);
 
-    /* ✅ همگام‌سازی موبایل با شخص */
     var syncedMobile = false;
     if (mobile) {
         var persons = DB.load('persons', []) || [];
@@ -567,22 +602,135 @@ function savePhonebookEntry() {
 }
 
 /* ============================================================
+   ✅ Excel Import
+   ============================================================ */
+function importPhonebookFromExcel(file) {
+    if (typeof XLSX === 'undefined') {
+        alert('⚠️ کتابخانه اکسل (SheetJS) بارگذاری نشده است.');
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = new Uint8Array(e.target.result);
+            var workbook = XLSX.read(data, { type: 'array' });
+            var sheet = workbook.Sheets[workbook.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            if (rows.length < 2) { alert('فایل خالی است یا رکوردی ندارد.'); return; }
+
+            var headers = rows[0].map(function(h) { return String(h || '').trim(); });
+            
+            // پیدا کردن ستون‌ها با تطبیق کلمات کلیدی
+            var idxFirst = headers.findIndex(function(h) { return h === 'نام'; });
+            var idxLast = headers.findIndex(function(h) { return h === 'نام خانوادگی' || h === 'خانوادگی' || h === 'فامیلی'; });
+            var idxOrg = headers.findIndex(function(h) { return h.indexOf('واحد') !== -1; });
+            var idxRole = headers.findIndex(function(h) { return h.indexOf('سمت') !== -1 || h.indexOf('سِمت') !== -1; });
+            var idxComp = headers.findIndex(function(h) { return h.indexOf('شرکت') !== -1; });
+
+            if (idxFirst === -1 || idxLast === -1) {
+                alert('❌ ستون‌های "نام" و "نام خانوادگی" در فایل پیدا نشد.\nلطفاً هدرهای فایل را اصلاح کنید.');
+                return;
+            }
+
+            var persons = DB.load('persons', []) || [];
+            var companies = DB.load('companies', []) || [];
+            var phonebook = DB.load('phonebook', []) || [];
+            var addedCount = 0;
+            var addedPersonsCount = 0;
+            var addedCompaniesCount = 0;
+
+            for (var i = 1; i < rows.length; i++) {
+                var row = rows[i];
+                if (!row || row.length === 0) continue;
+
+                var first = String(row[idxFirst] || '').trim();
+                var last = String(row[idxLast] || '').trim();
+                if (!first && !last) continue;
+
+                var orgUnit = idxOrg !== -1 ? String(row[idxOrg] || '').trim() : '';
+                var role = idxRole !== -1 ? String(row[idxRole] || '').trim() : '';
+                var compName = idxComp !== -1 ? String(row[idxComp] || '').trim() : '';
+
+                // 1. تطبیق یا ایجاد شخص
+                var person = persons.find(function(p) { return p.first === first && p.last === last; });
+                if (!person) {
+                    person = {
+                        id: uid(), first: first, last: last, father: '', nationalId: '',
+                        birth: '', mobile: '', phone: '', email: '', bankTitle: '',
+                        acc: '', iban: '', card: '', address: ''
+                    };
+                    persons.push(person);
+                    addedPersonsCount++;
+                }
+
+                // 2. تطبیق یا ایجاد شرکت
+                var companyId = '';
+                if (compName) {
+                    var company = companies.find(function(c) { return c.name === compName; });
+                    if (!company) {
+                        company = { id: uid(), name: compName, phone: '', email: '', address: '' };
+                        companies.push(company);
+                        addedCompaniesCount++;
+                    }
+                    companyId = company.id;
+                }
+
+                // 3. ثبت/بروزرسانی در دفترچه تلفن
+                var pb = phonebook.find(function(x) { return x.personId === person.id; });
+                if (pb) {
+                    pb.orgUnit = orgUnit || pb.orgUnit || '';
+                    pb.role = role || pb.role || '';
+                    if (companyId) pb.companyId = companyId;
+                } else {
+                    phonebook.push({
+                        id: uid(), personId: person.id, companyId: companyId,
+                        orgUnit: orgUnit, role: role, extension: '', mobile: ''
+                    });
+                }
+                addedCount++;
+            }
+
+            // ذخیره در دیتابیس
+            if (addedPersonsCount > 0) DB.save('persons', persons);
+            if (addedCompaniesCount > 0) DB.save('companies', companies);
+            DB.save('phonebook', phonebook);
+
+            alert('✅ ' + _pbToFa(addedCount) + ' رکورد ایمپورت شد.\n' +
+                  '👤 اشخاص جدید: ' + _pbToFa(addedPersonsCount) + '\n' +
+                  '🏢 شرکت‌های جدید: ' + _pbToFa(addedCompaniesCount));
+
+            // رفرش همه بخش‌ها
+            if (typeof renderPersonsList === 'function') renderPersonsList();
+            if (typeof renderCompaniesList === 'function') renderCompaniesList();
+            refreshPhonebookCompanyFilter();
+            renderPhonebookList();
+
+        } catch (err) {
+            console.error(err);
+            alert('❌ خطا در پردازش فایل اکسل:\n' + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+/* ============================================================
    بایند فرم و دکمه‌ها
    ============================================================ */
 function bindPhonebookForm() {
-    /* رفرش اولیه */
+    _injectPBNewElements();
+
     refreshPhonebookPersonSelect(_pbSelectedPersonId || '');
     refreshPhonebookCompanySelect(_pbSelectedCompanyId || '');
     refreshPhonebookCompanyFilter();
 
-    /* دکمه ذخیره */
     var saveBtn = _pbEl('pb-save');
     if (saveBtn && !saveBtn.dataset.bound) {
         saveBtn.dataset.bound = '1';
         saveBtn.onclick = savePhonebookEntry;
     }
 
-    /* دکمه جدید */
     var newBtn = _pbEl('pb-new');
     if (newBtn && !newBtn.dataset.bound) {
         newBtn.dataset.bound = '1';
@@ -592,28 +740,24 @@ function bindPhonebookForm() {
         };
     }
 
-    /* دکمه + شخص */
     var addPersonBtn = _pbEl('pb-person-add');
     if (addPersonBtn && !addPersonBtn.dataset.bound) {
         addPersonBtn.dataset.bound = '1';
         addPersonBtn.onclick = openQuickPersonModal;
     }
 
-    /* دکمه + شرکت */
     var addCompanyBtn = _pbEl('pb-company-add');
     if (addCompanyBtn && !addCompanyBtn.dataset.bound) {
         addCompanyBtn.dataset.bound = '1';
         addCompanyBtn.onclick = openQuickCompanyModal;
     }
 
-    /* فیلتر شرکت */
     var companyFilter = _pbEl('pb-list-company-filter');
     if (companyFilter && !companyFilter.dataset.bound) {
         companyFilter.dataset.bound = '1';
         companyFilter.onchange = renderPhonebookList;
     }
 
-    /* جستجو */
     var searchInput = _pbEl('pb-list-search');
     if (searchInput && !searchInput.dataset.bound) {
         searchInput.dataset.bound = '1';
@@ -628,7 +772,6 @@ function initPhonebookPage() {
     bindPhonebookForm();
     renderPhonebookList();
 
-    /* در صورت باز شدن تب ذخیره‌شده، حالت فرم را ریست کن */
     var idEl = _pbEl('pb-id');
     if (idEl && !idEl.value) {
         var mobileEl = _pbEl('pb-mobile');
@@ -652,5 +795,6 @@ window.bindPhonebookForm          = bindPhonebookForm;
 window.initPhonebookPage          = initPhonebookPage;
 window.openQuickPersonModal       = openQuickPersonModal;
 window.openQuickCompanyModal      = openQuickCompanyModal;
+window.importPhonebookFromExcel   = importPhonebookFromExcel;
 
-console.log('✅ [modules/phonebook.js] loaded');
+console.log('✅ [modules/phonebook.js] loaded — v2 (Excel + OrgUnit)');
