@@ -2,10 +2,15 @@
    پارسیس — اشخاص (نسخه ضد باگ با فیلتر قیفی)
    مسیر: js/modules/persons.js
    
-   ✅ v2: افزودن فیلد showInBirthdayWidget (نمایش در ویجت تولدها)
-     • چک‌باکس قابل کلیک در فهرست (ستون اول، کنار نام)
+   ✅ v2.1:
+     • رفع باگ «نام اجباری» هنگام ذخیره با نام پر
+       علت: addEventListener بدون data-bound → listener تکراری
+       راه‌حل: data-bound guard + activePage.querySelector
+   
+   ✅ v2:
+     • فیلد showInBirthdayWidget (نمایش در ویجت تولدها)
+     • چک‌باکس قابل کلیک در فهرست (کنار نام)
      • چک‌باکس در فرم (بالای دکمه‌های ذخیره)
-     • ذخیره و بارگذاری خودکار
    ============================================================ */
 'use strict';
 
@@ -127,27 +132,30 @@ function renderPersonsList() {
     });
 
     attachRowActions(tb, 'persons', renderPersonsList, function (p) {
-        document.getElementById('pr-id').value = p.id;
-        document.getElementById('pr-first').value = p.first || '';
-        document.getElementById('pr-last').value = p.last || '';
-        document.getElementById('pr-father').value = p.father || '';
-        document.getElementById('pr-national-id').value = p.nationalId || '';
-        document.getElementById('pr-birth').value = p.birth || '';
-        document.getElementById('pr-mobile').value = p.mobile || '';
-        document.getElementById('pr-phone').value = p.phone || '';
-        document.getElementById('pr-email').value = p.email || '';
-        document.getElementById('pr-bank-title').value = p.bankTitle || '';
-        document.getElementById('pr-acc').value = p.acc || '';
-        document.getElementById('pr-iban').value = p.iban || '';
-        document.getElementById('pr-card').value = p.card || '';
-        document.getElementById('pr-address').value = p.address || '';
+        var activePage = document.querySelector('.page.active');
+        var base = activePage || document;
+
+        var idEl = base.querySelector('#pr-id'); if (idEl) idEl.value = p.id;
+        var el;
+        el = base.querySelector('#pr-first');        if (el) el.value = p.first || '';
+        el = base.querySelector('#pr-last');         if (el) el.value = p.last || '';
+        el = base.querySelector('#pr-father');       if (el) el.value = p.father || '';
+        el = base.querySelector('#pr-national-id');  if (el) el.value = p.nationalId || '';
+        el = base.querySelector('#pr-birth');        if (el) el.value = p.birth || '';
+        el = base.querySelector('#pr-mobile');       if (el) el.value = p.mobile || '';
+        el = base.querySelector('#pr-phone');        if (el) el.value = p.phone || '';
+        el = base.querySelector('#pr-email');        if (el) el.value = p.email || '';
+        el = base.querySelector('#pr-bank-title');   if (el) el.value = p.bankTitle || '';
+        el = base.querySelector('#pr-acc');          if (el) el.value = p.acc || '';
+        el = base.querySelector('#pr-iban');         if (el) el.value = p.iban || '';
+        el = base.querySelector('#pr-card');         if (el) el.value = p.card || '';
+        el = base.querySelector('#pr-address');      if (el) el.value = p.address || '';
 
         /* ✅ بارگذاری وضعیت چک‌باکس ویجت */
         _injectPersonsWidgetCheckbox();
-        var wEl = document.getElementById('pr-show-in-widget');
+        var wEl = base.querySelector('#pr-show-in-widget');
         if (wEl) wEl.checked = (p.showInBirthdayWidget !== false);
 
-        var activePage = document.querySelector('.page.active');
         var addTab = activePage ? activePage.querySelector('[data-tab="persons-add"]') : null;
         if (addTab) addTab.click();
     });
@@ -164,75 +172,94 @@ function renderPersonsList() {
    خالی کردن فرم
    ============================================================ */
 function clearPersonForm() {
+    var activePage = document.querySelector('.page.active');
+    var base = activePage || document;
+
     var ids = ['pr-id', 'pr-first', 'pr-last', 'pr-father', 'pr-national-id', 'pr-birth', 'pr-mobile', 'pr-phone', 'pr-email', 'pr-bank-title', 'pr-acc', 'pr-iban', 'pr-card', 'pr-address'];
-    ids.forEach(function (i) {
-        var el = document.getElementById(i);
+    ids.forEach(function (id) {
+        var el = base.querySelector('#' + id);
         if (el) el.value = '';
     });
 
     /* ✅ ریست چک‌باکس ویجت به «تیک‌خورده» (پیش‌فرض برای شخص جدید) */
     _injectPersonsWidgetCheckbox();
-    var wEl = document.getElementById('pr-show-in-widget');
+    var wEl = base.querySelector('#pr-show-in-widget');
     if (wEl) wEl.checked = true;
 }
 
 /* ============================================================
-   بایند فرم
+   ✅ بایند فرم — نسخه v2.1 (data-bound guard)
    ============================================================ */
 function bindPersonsForm() {
-    /* ✅ اطمینان از وجود چک‌باکس ویجت */
     _injectPersonsWidgetCheckbox();
 
+    /* ✅ data-bound: هر listener فقط یک بار متصل می‌شود */
     var saveBtn = document.getElementById('save-person');
-    if (saveBtn) saveBtn.addEventListener('click', function () {
-        var id = document.getElementById('pr-id').value;
-        var f = document.getElementById('pr-first').value.trim();
-        if (!f) { alert('نام اجباری.'); return; }
+    if (saveBtn && !saveBtn.dataset.bound) {
+        saveBtn.dataset.bound = '1';
+        saveBtn.addEventListener('click', function () {
+            var activePage = document.querySelector('.page.active');
+            if (!activePage) return;
 
-        /* ✅ خواندن وضعیت چک‌باکس ویجت (پیش‌فرض true) */
-        var wEl = document.getElementById('pr-show-in-widget');
-        var showInWidget = wEl ? wEl.checked : true;
+            function _val(sel) {
+                var el = activePage.querySelector('#' + sel);
+                return el ? el.value : '';
+            }
 
-        var o = {
-            id: id || uid(),
-            first: f,
-            last: document.getElementById('pr-last').value.trim(),
-            father: document.getElementById('pr-father').value.trim(),
-            nationalId: normalizeDigits(document.getElementById('pr-national-id').value.trim()),
-            birth: normalizeDigits(document.getElementById('pr-birth').value.trim()),
-            mobile: normalizeDigits(document.getElementById('pr-mobile').value.trim()),
-            phone: normalizeDigits(document.getElementById('pr-phone').value.trim()),
-            email: document.getElementById('pr-email').value.trim(),
-            bankTitle: document.getElementById('pr-bank-title').value.trim(),
-            acc: normalizeDigits(document.getElementById('pr-acc').value.trim()),
-            iban: document.getElementById('pr-iban').value.trim(),
-            card: normalizeDigits(document.getElementById('pr-card').value.trim()),
-            address: document.getElementById('pr-address').value.trim(),
-            showInBirthdayWidget: showInWidget   /* ✅ جدید */
-        };
+            var f = _val('pr-first').trim();
+            if (!f) { alert('نام اجباری.'); return; }
 
-        var l = DB.load('persons', []);
-        if (!Array.isArray(l)) l = [];
-        if (id) {
-            for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; }
-        } else {
-            l.push(o);
-        }
-        DB.save('persons', l);
-        showToast('✅ شخص ذخیره شد.');
-        clearPersonForm();
-        renderPersonsList();
-        if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+            var id = _val('pr-id');
+            var wEl = activePage.querySelector('#pr-show-in-widget');
+            var showInWidget = wEl ? wEl.checked : true;
 
-        var activePage = document.querySelector('.page.active');
-        var listTab = activePage ? activePage.querySelector('[data-tab="persons-list"]') : null;
-        if (listTab) listTab.click();
-    });
+            var o = {
+                id: id || uid(),
+                first: f,
+                last: _val('pr-last').trim(),
+                father: _val('pr-father').trim(),
+                nationalId: normalizeDigits(_val('pr-national-id').trim()),
+                birth: normalizeDigits(_val('pr-birth').trim()),
+                mobile: normalizeDigits(_val('pr-mobile').trim()),
+                phone: normalizeDigits(_val('pr-phone').trim()),
+                email: _val('pr-email').trim(),
+                bankTitle: _val('pr-bank-title').trim(),
+                acc: normalizeDigits(_val('pr-acc').trim()),
+                iban: _val('pr-iban').trim(),
+                card: normalizeDigits(_val('pr-card').trim()),
+                address: _val('pr-address').trim(),
+                showInBirthdayWidget: showInWidget
+            };
+
+            var l = DB.load('persons', []);
+            if (!Array.isArray(l)) l = [];
+            if (id) {
+                for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; }
+            } else {
+                l.push(o);
+            }
+            DB.save('persons', l);
+            showToast('✅ شخص ذخیره شد.');
+            clearPersonForm();
+            renderPersonsList();
+            if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+
+            var listTab = activePage.querySelector('[data-tab="persons-list"]');
+            if (listTab) listTab.click();
+        });
+    }
 
     var newBtn = document.getElementById('new-person');
-    if (newBtn) newBtn.addEventListener('click', clearPersonForm);
+    if (newBtn && !newBtn.dataset.bound) {
+        newBtn.dataset.bound = '1';
+        newBtn.addEventListener('click', clearPersonForm);
+    }
+
     var filterEl = document.getElementById('persons-filter');
-    if (filterEl) filterEl.addEventListener('input', renderPersonsList);
+    if (filterEl && !filterEl.dataset.bound) {
+        filterEl.dataset.bound = '1';
+        filterEl.addEventListener('input', renderPersonsList);
+    }
 }
 
 /* ============================================================
@@ -242,4 +269,4 @@ window.renderPersonsList  = renderPersonsList;
 window.clearPersonForm    = clearPersonForm;
 window.bindPersonsForm    = bindPersonsForm;
 
-console.log('✅ [modules/persons.js] loaded — + showInBirthdayWidget');
+console.log('✅ [modules/persons.js] loaded — v2.1 (fixed duplicate save listener + widget toggle)');
