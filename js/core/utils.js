@@ -199,6 +199,75 @@ function getJalaliMonthName(m) {
 }
 
 /* ============================================================
+   ✅ بخش ۳.۵ — محاسبه سن به سال و ماه و روز (شمسی)
+   ============================================================ */
+
+/**
+ * سن شمسی را به اجزای سال/ماه/روز محاسبه می‌کند.
+ * @param {string} birthStr — تاریخ تولد شمسی (YYYY/MM/DD)
+ * @param {string} [refStr] — تاریخ مرجع (پیش‌فرض: امروز)
+ * @returns {{years:number, months:number, days:number}|null}
+ */
+function jalaliAgeParts(birthStr, refStr) {
+    if (!birthStr) return null;
+    var b = normalizeDigits(String(birthStr)).split('/').map(Number);
+    if (b.length !== 3 || isNaN(b[0]) || isNaN(b[1]) || isNaN(b[2])) return null;
+
+    var ref;
+    if (refStr) {
+        ref = normalizeDigits(String(refStr)).split('/').map(Number);
+        if (ref.length !== 3 || isNaN(ref[0]) || isNaN(ref[1]) || isNaN(ref[2])) ref = null;
+    }
+    if (!ref) {
+        var d = new Date();
+        ref = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+
+    var by = b[0], bm = b[1], bd = b[2];
+    var ty = ref[0], tm = ref[1], td = ref[2];
+
+    if (bm < 1 || bm > 12 || bd < 1) return null;
+    if (bd > daysInJalaliMonth(by, bm)) return null;
+
+    /* اگر تاریخ تولد در آینده باشد نامعتبر است */
+    if (jalaliDiff(by, bm, bd, ty, tm, td) < 0) return null;
+
+    var years = ty - by;
+    var months = tm - bm;
+    var days = td - bd;
+
+    if (days < 0) {
+        months--;
+        var prevMonth = tm - 1;
+        var prevYear = ty;
+        if (prevMonth < 1) { prevMonth = 12; prevYear = ty - 1; }
+        days += daysInJalaliMonth(prevYear, prevMonth);
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    return { years: years, months: months, days: days };
+}
+
+/**
+ * سن را به رشته فارسی تبدیل می‌کند: «۶ سال و ۵ ماه و ۱۰ روز»
+ * مقادیر صفر حذف می‌شوند.
+ */
+function formatJalaliAge(birthStr, refStr) {
+    var p = jalaliAgeParts(birthStr, refStr);
+    if (!p) return '';
+    var parts = [];
+    if (p.years > 0)  parts.push(toFa(p.years)  + ' سال');
+    if (p.months > 0) parts.push(toFa(p.months) + ' ماه');
+    if (p.days > 0)   parts.push(toFa(p.days)   + ' روز');
+    if (parts.length === 0) return '۰ روز';
+    if (parts.length === 1) return parts[0];
+    return parts.slice(0, -1).join(' و ') + ' و ' + parts[parts.length - 1];
+}
+
+/* ============================================================
    بخش ۴ — نمایش تاریخ در تاپ‌بار
    ============================================================ */
 
@@ -259,9 +328,11 @@ window.addJalaliDays     = addJalaliDays;
 window.tsToJalaliDate    = tsToJalaliDate;
 window.tsToJalaliTime    = tsToJalaliTime;
 window.getJalaliMonthName = getJalaliMonthName;
+window.jalaliAgeParts    = jalaliAgeParts;   /* ✅ جدید */
+window.formatJalaliAge   = formatJalaliAge;  /* ✅ جدید */
 window.updateDateDisplay = updateDateDisplay;
 window.voucherTypeName   = voucherTypeName;
 window.categoryName      = categoryName;
 window.linkTypeName      = linkTypeName;
 
-console.log('✅ [core/utils.js] loaded');
+console.log('✅ [core/utils.js] loaded — jalaliAgeParts + formatJalaliAge');
