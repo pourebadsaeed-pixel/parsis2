@@ -1,6 +1,10 @@
 /* ============================================================
    پارسیس — ویجت‌های صفحه اصلی
    مسیر: js/modules/widgets.js
+   
+   ✅ v2: ویجت تولدها
+     • نمایش سن به سال/ماه/روز زیر نام شخص
+     • فیلتر کردن بر اساس showInBirthdayWidget
    ============================================================ */
 'use strict';
 
@@ -206,12 +210,19 @@ function getBirthdayInfo(birthStr) {
     var dow = WEEKDAYS_FA[dt.getDay()];
     var daysRemaining = jalaliDiff(tY, tM, tD, birthYear, bM, bD);
 
+    /* ✅ محاسبه سن به سال/ماه/روز */
+    var ageText = '';
+    if (typeof formatJalaliAge === 'function') {
+        ageText = formatJalaliAge(birthStr);
+    }
+
     return {
         birthMonth: bM,
         birthDay: bD,
         dow: dow,
         daysRemaining: daysRemaining,
-        birthYear: birthYear
+        birthYear: birthYear,
+        ageText: ageText   /* ✅ جدید */
     };
 }
 
@@ -231,7 +242,7 @@ function updateHomeBankTotal() {
 }
 
 /* ============================================================
-   ویجت مانده حساب‌های بانکی — نمایش شبا + برچسب «(کسری) اضافی»
+   ویجت مانده حساب‌های بانکی
    ============================================================ */
 function renderBankBalancesWidget() {
     var el = document.getElementById('home-bank-balances');
@@ -351,6 +362,9 @@ function renderCashBalancesWidget() {
     el.innerHTML = html;
 }
 
+/* ============================================================
+   ✅ ویجت تولدها — با نمایش سن و فیلتر نمایش
+   ============================================================ */
 function renderBirthdaysWidget() {
     var el = document.getElementById('home-birthdays');
     if (!el) return;
@@ -361,6 +375,8 @@ function renderBirthdaysWidget() {
     for (var i = 0; i < persons.length; i++) {
         var p = persons[i];
         if (!p.birth) continue;
+        /* ✅ فیلتر جدید: فقط کسانی که تیک «نمایش در ویجت تولدها» دارند */
+        if (p.showInBirthdayWidget === false) continue;
         if (!isVisibleInDash(p)) continue;
         var info = getBirthdayInfo(p.birth);
         if (!info) continue;
@@ -390,8 +406,16 @@ function renderBirthdaysWidget() {
 
         var ds = toFa(pad2(info2.birthMonth)) + '/' + toFa(pad2(info2.birthDay));
 
+        /* ✅ نمایش سن زیر نام */
+        var ageHtml = '';
+        if (info2.ageText) {
+            ageHtml = '<div style="font-size:0.72rem;color:var(--text-muted);font-weight:500;margin-top:2px">'
+                    + '🎂 ' + info2.ageText
+                    + '</div>';
+        }
+
         html += '<div class="birthday-row">'
-             +  '<div class="name">' + esc(p2.first || '') + ' ' + esc(p2.last || '') + '</div>'
+             +  '<div class="name">' + esc(p2.first || '') + ' ' + esc(p2.last || '') + ageHtml + '</div>'
              +  '<div>' + ds + '</div>'
              +  '<div class="dow">' + info2.dow + '</div>'
              +  '<div class="days ' + dc + '">' + dl + '</div>'
@@ -577,7 +601,7 @@ async function fetchAllRates() {
     addItem('usd', data.usd);
     addItem('eur', data.eur);
     addItem('gold_18k', data.gold_18k);
-    
+
     if (data.gold_18k > 0) {
         addItem('gold_24k', Math.round(data.gold_18k * 1.3333));
     }
@@ -678,7 +702,7 @@ function renderLiveRatesWidget() {
     var prev = c.prev || {};
     var anyShown = false;
     var hide = getHideState('widgets');
-    
+
     var fetchTime = toFa(tsToJalaliTime(c.ts));
     var fetchDate = toFa(tsToJalaliDate(c.ts));
 
@@ -690,7 +714,7 @@ function renderLiveRatesWidget() {
 
         var oldV = prev[a.key] || 0;
         var chg = val - oldV;
-        
+
         var amountClass = '';
         if (oldV > 0) {
             if (chg > 0) amountClass = 'positive';
@@ -875,4 +899,4 @@ window.updateHomeWidgets               = updateHomeWidgets;
 window.renderTodayChecklistWidget      = renderTodayChecklistWidget;
 window.bindRatesRefreshButton          = bindRatesRefreshButton;
 
-console.log('✅ [modules/widgets.js] loaded — (کسری) اضافی label');
+console.log('✅ [modules/widgets.js] loaded — birthday age + filter');
