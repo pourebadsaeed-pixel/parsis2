@@ -598,6 +598,7 @@
             <th data-sortable data-sort-key="minBalance">حداقل موجودی <span class="sort-ind"></span></th>
             <th data-sortable data-sort-key="balance">مانده بانک <span class="sort-ind"></span></th>
             <th data-sortable data-sort-key="diff">(کسری)/اضافی <span class="sort-ind"></span></th>
+            <th>نمایش در ویجت</th>
             <th>عملیات</th>
         </tr></thead><tbody id="ba-list-body"></tbody></table></div>
     </div></div>
@@ -619,6 +620,17 @@
         <div class="grid-2">
             <div class="field"><label>ترتیب</label><input type="text" id="ba-order" inputmode="numeric" dir="ltr"></div>
             <div class="field"><label>حداقل موجودی ریالی</label><input type="text" id="ba-min-balance" class="money-input" inputmode="numeric" dir="ltr"></div>
+        </div>
+        <div class="field" style="padding:14px;background:var(--card-alt);border-radius:12px;border:1.5px solid var(--primary-light)">
+            <label style="margin:0;cursor:pointer;background:none;padding:0;display:flex;align-items:flex-start;gap:10px">
+                <input type="checkbox" id="ba-show-in-widget" checked style="width:20px;height:20px;accent-color:var(--primary);flex-shrink:0;margin-top:2px;cursor:pointer">
+                <div style="flex:1">
+                    <div style="font-weight:800;color:var(--primary-dark);font-size:0.9rem">🏦 نمایش در ویجت حساب‌های بانکی</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;line-height:1.8">
+                        💡 فقط حساب‌هایی که این گزینه فعال باشد در ویجت «مانده حساب های بانکی» صفحه اصلی نمایش داده می‌شوند.
+                    </div>
+                </div>
+            </label>
         </div>
         <div class="form-buttons">
             <button id="save-ba" class="btn-primary">💾</button>
