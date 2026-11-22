@@ -1,0 +1,1232 @@
+/* ============================================================
+   پارسیس — گزارش مرور حساب‌ها
+   مسیر: js/modules/reports/account.js
+   ✅ v7: انتقال دکمه‌های عملیات به کنار دکمه فیلتر
+   ============================================================ */
+'use strict';
+
+var _AR = {
+    activeLevel: 1,
+    path: [],
+    selectedId: null,
+    detailFilter: null,
+    detailFilterType: null
+};
+
+var _AR_DetailTypeFilter = DB.load('ar.detailTypeFilter', null);
+(function initARTypeFilter() {
+    var defaultTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
+        ? LINK_TYPES
+        : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
+    if (!_AR_DetailTypeFilter || typeof _AR_DetailTypeFilter !== 'object') {
+        _AR_DetailTypeFilter = {};
+    }
+    var changed = false;
+    defaultTypes.forEach(function (t) {
+        if (typeof _AR_DetailTypeFilter[t] === 'undefined') {
+            _AR_DetailTypeFilter[t] = true;
+            changed = true;
+        }
+    });
+    if (changed) {
+        try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+    }
+})();
+
+var _AR_LEVELS = { 1: 'گروه', 2: 'کل', 3: 'معین', 4: 'تفصیل' };
+var _arSort = { col: 'code', dir: 'asc' };
+
+(function injectARStyle() {
+    if (document.getElementById('ar-final-style')) return;
+    var s = document.createElement('style');
+    s.id = 'ar-final-style';
+    s.textContent = `
+        .ar-wrap { background:var(--card-solid); border-radius:14px; border:1px solid var(--border); overflow:hidden; direction:rtl }
+        .ar-tb { display:flex; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(180deg,#e8f0fb,#f4f8fd); border-bottom:1px solid var(--border) }
+        .ar-tb-bc { font-size:.8rem; color:#64748b; flex:1 }
+        .ar-tb-bc a { color:#1e40af; text-decoration:none; cursor:pointer; border-bottom:1px dashed #93c5fd; padding:0 2px }
+        .ar-tb-bc a:hover { background:#dbeafe }
+        .ar-tb-bc .sep { color:#cbd5e1; margin:0 4px }
+        .ar-col-toggle { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,0.85); color:#1e40af; border:1px solid #c7dbf0; cursor:pointer; font-size:1.05rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0; transition:all .2s; flex-shrink:0; font-family:inherit; line-height:1 }
+        .ar-col-toggle:hover { background:#1e40af; color:#fff; transform:scale(1.08); box-shadow:0 3px 12px rgba(30,64,175,.35) }
+        .ar-main { display:flex; min-height:460px }
+        .ar-side { width:170px; flex-shrink:0; border-left:1px solid var(--border); background:#f7fafd; display:flex; flex-direction:column }
+        .ar-side-head { padding:11px 14px; font-weight:900; color:#1e40af; font-size:.8rem; background:linear-gradient(180deg,#dbe7f6,#c8dcef); border-bottom:1px solid var(--border); text-align:center }
+        .ar-levels { padding:10px; display:flex; flex-direction:column; gap:6px; overflow-y:auto }
+        .ar-lvl { position:relative; padding:12px 14px; border-radius:12px; text-align:center; font-size:.86rem; font-weight:800; color:#334155; background:#fff; border:1.5px solid #e0ecf8; cursor:pointer; user-select:none; transition:all .2s }
+        .ar-lvl:hover { border-color:#3b82f6; color:#1e40af; background:linear-gradient(135deg,#eff6ff,#dbeafe) }
+        .ar-lvl.active { background:linear-gradient(135deg,#1e40af,#1e3a8a); color:#fff; border-color:#1e40af; box-shadow:0 4px 14px rgba(30,64,175,.35); transform:scale(1.05) }
+        .ar-body { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--card-solid) }
+        .ar-tw { overflow:auto; max-height:64vh; background:var(--card-solid); flex:1 }
+        .ar-tbl { width:100%; border-collapse:collapse; font-size:.85rem }
+        .ar-tbl thead th { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; padding:11px 12px; text-align:center; font-weight:900; font-size:.8rem; border:1px solid #b9cfe5; white-space:nowrap; position:sticky; top:0; z-index:3 }
+        .ar-tbl thead th.ar-th-name { text-align:right; padding-right:16px }
+        .ar-tbl thead th.ar-th-sort { cursor:pointer; user-select:none; }
+        .ar-tbl thead th.ar-th-sort:hover { background:#c8dcef; }
+        .ar-tbl tbody td { padding:9px 12px; border:1px solid #dbe6f1; white-space:nowrap }
+        .ar-tbl tbody tr { cursor:pointer; transition:background .15s }
+        .ar-tbl tbody tr:hover { background:#f0f6ff !important }
+        .ar-tbl tbody tr.selected { background:#ffe9b3 !important; box-shadow:inset 0 0 0 2px #e8a33d }
+        .ar-tbl .ar-code { font-family:monospace; direction:ltr; font-weight:800; color:#1e40af; text-align:center }
+        .ar-tbl .ar-name-wrap { display:flex; align-items:center; gap:8px; justify-content:flex-start; flex-direction:row; min-width:0 }
+        .ar-tbl .ar-name-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; text-align:right }
+        .ar-tbl .ar-name { text-align:right; font-weight:700; padding-right:16px !important }
+        .ar-tbl .ar-num { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:800 }
+        .ar-tbl .ar-num.zero { color:#cbd5e1; font-weight:500 }
+        .ar-tbl .ar-num.md { color:#059669 }
+        .ar-tbl .ar-num.mc { color:#dc2626 }
+        .ar-tbl .ar-badge { display:inline-block; font-size:.62rem; padding:1px 8px; border-radius:8px; margin-right:8px; font-weight:800; vertical-align:middle }
+        .ar-badge.b1 { background:#c7d2fe; color:#3730a3 }
+        .ar-badge.b2 { background:#bbf7d0; color:#065f46 }
+        .ar-badge.b3 { background:#fde68a; color:#92400e }
+        .ar-badge.b4 { background:#e2e8f0; color:#475569 }
+        .ar-tbl tfoot td { background:linear-gradient(180deg,#dce8f5,#c8dcef); color:#1e40af; padding:12px; font-weight:900; text-align:center; border:1px solid #b9cfe5; position:sticky; bottom:0; z-index:3 }
+        .ar-empty { padding:40px 20px; text-align:center; color:#94a3b8; font-size:.9rem }
+        .ar-turnover-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; cursor:pointer; font-size:.85rem; padding:0; transition:all .15s; flex-shrink:0; font-family:inherit; line-height:1 }
+        .ar-turnover-btn:hover { background:#1e40af; color:#fff; transform:scale(1.15); box-shadow:0 2px 8px rgba(30,64,175,.4) }
+        .ar-filter-badge { background:#fef3c7; color:#92400e; padding:8px 14px; border-radius:10px; font-size:0.82rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; gap:10px; margin: 0 14px 10px 14px; border: 1.5px solid #f59e0b; flex-wrap:wrap; }
+        .ar-filter-badge button { background:#dc2626; color:#fff; border:none; padding:6px 12px; border-radius:8px; cursor:pointer; font-family:inherit; font-size:0.78rem; font-weight:bold; }
+        .ar-filter-badge .ar-fb-info { flex:1; min-width:150px; line-height:1.7 }
+        .ar-type-badge { background:#e0e7ff; color:#3730a3; padding:8px 14px; border-radius:10px; font-size:0.8rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; gap:10px; margin: 0 14px 10px 14px; border: 1.5px solid #818cf8; flex-wrap:wrap; }
+        .ar-type-badge button { background:#6366f1; color:#fff; border:none; padding:5px 11px; border-radius:7px; cursor:pointer; font-family:inherit; font-size:0.75rem; font-weight:bold; }
+        @media (max-width:720px) {
+            .ar-main { flex-direction:column }
+            .ar-side { width:100%; border-left:none; border-bottom:1px solid var(--border) }
+            .ar-levels { flex-direction:row; flex-wrap:wrap; padding:8px; gap:6px }
+            .ar-lvl { flex:1; min-width:80px; padding:9px 8px; font-size:.78rem }
+        }
+        #ra-clean-panel { margin-bottom:0; background:transparent; border:none; overflow:visible }
+        .ar-turnover-actions { display:flex; gap:4px; justify-content:center }
+        .ar-turnover-actions .row-btn { padding:5px 9px; border-radius:7px; font-size:.85rem }
+        .ar-link-badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:.62rem; font-weight:800; margin-right:6px; background:#dbeafe; color:#1e40af; vertical-align:middle }
+        body.vpreview-elevated #vpreview-modal { z-index:700 !important; }
+        body.vpreview-elevated #vpreview-overlay { z-index:690 !important; }
+    `;
+    document.head.appendChild(s);
+})();
+
+function injectRaCollapseStyle() {
+    if (document.getElementById('ra-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'ra-collapse-style';
+    s.textContent = ''
+    + '.ra-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
+    + '.ra-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.ra-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.cf-collapsed .ra-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .ra-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    document.head.appendChild(s);
+}
+
+injectRaCollapseStyle();
+
+(function installRaToggleDelegation() {
+    if (window._raToggleDelegated) return;
+    window._raToggleDelegated = true;
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.ra-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var card = btn.closest('.cf-filter-card'); 
+        if (!card) return;
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('ra.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+/* ============================================================
+   ✅ پنل فیلتر با باکس نوع تفصیل و دکمه‌های هم‌تراز
+   ============================================================ */
+function rebuildAccountFilterPanel() {
+    var body = document.getElementById('ra-filter-body');
+    if (!body) return;
+    
+    var card = document.getElementById('ra-filter-card');
+    var toggleBtn = document.getElementById('ra-filter-toggle');
+    
+    /* ✅ انتقال دکمه‌ها به بالای پنل و هم‌تراز کردن با دکمه فیلتر */
+    if (card && toggleBtn && !document.getElementById('ra-header-row')) {
+        var headerRow = document.createElement('div');
+        headerRow.id = 'ra-header-row';
+        headerRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap;';
+        
+        card.insertBefore(headerRow, toggleBtn);
+        headerRow.appendChild(toggleBtn);
+        
+        var btnGroup = document.createElement('div');
+        btnGroup.id = 'ra-btn-group';
+        btnGroup.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap;';
+        btnGroup.innerHTML = ''
+            + '<button id="ra-run" class="btn-primary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">🔍 اجرا</button>'
+            + '<button id="ra-print" class="btn-secondary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">🖨 چاپ</button>'
+            + '<button id="ra-export" class="btn-secondary" style="padding:9px 16px; font-size:0.85rem; border-radius:10px">📊 اکسل</button>';
+        headerRow.appendChild(btnGroup);
+    }
+    
+    /* بایند کردن رویداد دکمه‌ها (در هر بار لود تب جدید) */
+    var runBtn = document.getElementById('ra-run');
+    if (runBtn) {
+        runBtn.onclick = function () {
+            _AR = { activeLevel: 1, path: [], selectedId: null, detailFilter: null, detailFilterType: null };
+            renderAccountReview();
+        };
+    }
+    var printBtn = document.getElementById('ra-print');
+    if (printBtn) {
+        printBtn.onclick = function () {
+            if (typeof printHtmlReport === 'function') printHtmlReport('#ra-result', 'مرور حساب‌ها');
+        };
+    }
+    var exportBtn = document.getElementById('ra-export');
+    if (exportBtn) {
+        exportBtn.onclick = function () {
+            if (typeof exportReportTable === 'function') exportReportTable('#ra-result', 'مرور-حساب-ها');
+        };
+    }
+    
+    /* گارد جلوگیری از بازسازی تکراری فرم */
+    if (body.querySelector('#ra-from')) return; 
+    body.innerHTML = ''; 
+
+    var collapsed = false;
+    try { collapsed = DB.load('ra.filterCollapsed', false); } catch (e) {}
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
+
+    var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
+    var defFrom = activePeriod ? activePeriod.from : '';
+    var defTo = activePeriod ? activePeriod.to : '';
+    var onlyBalVal = DB.load('ra.onlyBal', true);
+
+    var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
+        ? LINK_TYPES
+        : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
+    
+    var typesHtml = '<div class="field" style="padding:12px;background:#f8fafd;border:1.5px solid var(--border);border-radius:12px;margin-top:10px">'
+        + '<label style="font-weight:900;color:#1e40af;font-size:0.88rem;display:block;margin-bottom:10px">🏷 نوع تفصیل — نمایش در همه سطوح</label>'
+        + '<div class="checkbox-grid">';
+    allTypes.forEach(function (lt) {
+        var checked = _AR_DetailTypeFilter[lt] !== false ? 'checked' : '';
+        typesHtml += '<label class="checkbox-item" style="margin:0;cursor:pointer">'
+            + '<input type="checkbox" data-ar-type-filter="' + lt + '" ' + checked + '>'
+            + '<span>' + linkTypeName(lt) + '</span>'
+            + '</label>';
+    });
+    typesHtml += '</div>'
+        + '<p style="margin:8px 0 0 0;font-size:0.72rem;color:#64748b;line-height:1.7">'
+        + '💡 اگر تیک یک یا چند نوع را بردارید، فقط گروه/کل/معین‌هایی که با آن نوع درگیرند نمایش داده می‌شوند.'
+        + '</p>'
+        + '<div style="display:flex;gap:6px;margin-top:8px">'
+        +   '<button type="button" id="ar-type-all" class="btn-secondary btn-mini" style="flex:1;font-size:0.75rem">✓ انتخاب همه</button>'
+        +   '<button type="button" id="ar-type-none" class="btn-secondary btn-mini" style="flex:1;font-size:0.75rem">✗ حذف همه</button>'
+        + '</div>'
+        + '</div>';
+
+    var html = ''
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>از تاریخ</label><input type="text" id="ra-from" class="date-picker" dir="ltr" value="' + esc(defFrom) + '"></div>'
+        +   '<div class="field"><label>تا تاریخ</label><input type="text" id="ra-to" class="date-picker" dir="ltr" value="' + esc(defTo) + '"></div>'
+        + '</div>'
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>نوع حساب</label><select id="ra-cat">'
+        +     '<option value="">همه</option>'
+        +     '<option value="permanent">دائمی</option>'
+        +     '<option value="temporary">موقت</option>'
+        +   '</select></div>'
+        +   '<div class="field"><label>ماهیت</label><select id="ra-nature">'
+        +     '<option value="">همه</option>'
+        +     '<option value="debit">بدهکار</option>'
+        +     '<option value="credit">بستانکار</option>'
+        +   '</select></div>'
+        + '</div>'
+        + '<div class="grid-2">'
+        +   '<div class="field"><label>نوع سند</label><select id="ra-vtype">'
+        +     '<option value="">همه</option>'
+        +     '<option value="general">عمومی</option>'
+        +     '<option value="opening">افتتاحیه</option>'
+        +     '<option value="establishment">افتتاحیه استقرار</option>'
+        +     '<option value="closing">بستن حساب</option>'
+        +     '<option value="final">اختتامیه</option>'
+        +   '</select></div>'
+        +   '<div class="field" style="display:flex; align-items:flex-end">'
+        +     '<label class="checkbox-item" style="margin:0; padding:11px 14px; background:#eaf4fd; border:1.5px solid #93c5fd; border-radius:12px; width:100%; cursor:pointer">'
+        +       '<input type="checkbox" id="ra-only-balance"' + (onlyBalVal ? ' checked' : '') + '> '
+        +       '<span style="font-weight:800; color:#1e40af">✔ فقط حساب‌های دارای مانده</span>'
+        +     '</label>'
+        +   '</div>'
+        + '</div>'
+        + typesHtml;
+
+    body.innerHTML = html;
+
+    var elOnly = document.getElementById('ra-only-balance');
+    if (elOnly) {
+        elOnly.addEventListener('change', function() {
+            DB.save('ra.onlyBal', this.checked);
+            renderAccountReview();
+        });
+    }
+
+    body.querySelectorAll('[data-ar-type-filter]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var lt = this.getAttribute('data-ar-type-filter');
+            _AR_DetailTypeFilter[lt] = this.checked;
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            renderAccountReview();
+        });
+    });
+
+    var btnAll = document.getElementById('ar-type-all');
+    if (btnAll) {
+        btnAll.onclick = function () {
+            allTypes.forEach(function (lt) { _AR_DetailTypeFilter[lt] = true; });
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            body.querySelectorAll('[data-ar-type-filter]').forEach(function (cb) { cb.checked = true; });
+            renderAccountReview();
+        };
+    }
+    var btnNone = document.getElementById('ar-type-none');
+    if (btnNone) {
+        btnNone.onclick = function () {
+            allTypes.forEach(function (lt) { _AR_DetailTypeFilter[lt] = false; });
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch (e) {}
+            body.querySelectorAll('[data-ar-type-filter]').forEach(function (cb) { cb.checked = false; });
+            renderAccountReview();
+        };
+    }
+
+    if (typeof attachDatePickers === 'function') attachDatePickers();
+}
+
+function _arBreadcrumb(path, all) {
+    if (!path || path.length === 0) return '<a data-goto-lvl="1">گروه</a>';
+    var html = '<a data-goto-lvl="1">گروه</a>';
+    path.forEach(function (pid) {
+        var acc = all.find(function (a) { return a.id === pid; });
+        if (!acc) return;
+        html += '<span class="sep">›</span><a data-goto="' + pid + '">' + esc(acc.name) + '</a>';
+    });
+    return html;
+}
+
+function filterVouchers(opts) {
+    var l = DB.load('vouchers', []);
+    if (!Array.isArray(l)) return [];
+    return l.filter(function (v) {
+        if (!v || v.status !== 'approved') return false;
+        if (opts.from && v.date < opts.from) return false;
+        if (opts.to && v.date > opts.to) return false;
+        if (opts.vtype && v.type !== opts.vtype) return false;
+        if (opts.periodId && v.periodId !== opts.periodId) return false;
+        return true;
+    });
+}
+
+function computeAccountBalances(opts) {
+    var vouchers = filterVouchers(opts);
+    var accounts = DB.load('accounts', []);
+    if (!Array.isArray(accounts)) accounts = [];
+    
+    var balances = {};
+    accounts.forEach(function (a) { if(a && a.id) balances[a.id] = { debit: 0, credit: 0 }; });
+
+    vouchers.forEach(function (v) {
+        var lines = v.lines || [];
+        lines.forEach(function (line) {
+            if (!line || !line.account) return;
+            var acc = accounts.find(function (a) { return a.id === line.account; });
+            if (!acc) return;
+            if (opts.cat && acc.cat !== opts.cat) return;
+            if (opts.nature && acc.nature !== opts.nature) return;
+            
+            if (!balances[acc.id]) balances[acc.id] = { debit: 0, credit: 0 };
+            balances[acc.id].debit += Number(line.debit) || 0;
+            balances[acc.id].credit += Number(line.credit) || 0;
+        });
+    });
+
+    var db = {};
+    if (opts.level === 4) {
+        vouchers.forEach(function (v) {
+            var lines = v.lines || [];
+            lines.forEach(function (line) {
+                if (!line || !line.account || !line.details) return;
+                var acc = accounts.find(function (a) { return a.id === line.account; });
+                if (!acc) return;
+                if (opts.cat && acc.cat !== opts.cat) return;
+                if (opts.nature && acc.nature !== opts.nature) return;
+                
+                var d = Number(line.debit) || 0;
+                var c = Number(line.credit) || 0;
+
+                Object.keys(line.details).forEach(function (lt) {
+                    var did = line.details[lt];
+                    if (!did) return;
+                    var key = lt + '::' + did;
+                    if (!db[key]) {
+                        db[key] = {
+                            id: did, linkType: lt, parents: [],
+                            debit: 0, credit: 0, perParent: {}
+                        };
+                    }
+                    if (db[key].parents.indexOf(acc.id) === -1) db[key].parents.push(acc.id);
+                    if (!db[key].perParent[acc.id]) db[key].perParent[acc.id] = { debit: 0, credit: 0 };
+                    db[key].perParent[acc.id].debit  += d;
+                    db[key].perParent[acc.id].credit += c;
+                    db[key].debit  += d;
+                    db[key].credit += c;
+                });
+            });
+        });
+    }
+    return { balances: balances, detailBalances: db };
+}
+
+function rollupBalances(accounts, balances) {
+    var rolled = {}, idMap = {};
+    accounts.forEach(function (a) {
+        idMap[a.id] = a;
+        rolled[a.id] = {
+            debit: (balances[a.id] && balances[a.id].debit) ? balances[a.id].debit : 0,
+            credit: (balances[a.id] && balances[a.id].credit) ? balances[a.id].credit : 0
+        };
+    });
+
+    function depth(acc) {
+        var d = 0, cur = acc, safety = 0;
+        while (cur && cur.parent && safety < 20) { d++; cur = idMap[cur.parent]; safety++; }
+        return d;
+    }
+
+    var sorted = accounts.slice().sort(function (a, b) { return depth(b) - depth(a); });
+    sorted.forEach(function (a) {
+        if (a && a.parent && rolled[a.parent]) {
+            rolled[a.parent].debit += rolled[a.id].debit;
+            rolled[a.parent].credit += rolled[a.id].credit;
+        }
+    });
+    return rolled;
+}
+
+function _arTypeFilterIsActive() {
+    var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length)
+        ? LINK_TYPES
+        : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
+    return allTypes.some(function (t) { return _AR_DetailTypeFilter[t] === false; });
+}
+
+function _arLineHasMatchingDetail(line) {
+    if (!line.details) return false;
+    var keys = Object.keys(line.details);
+    for (var i = 0; i < keys.length; i++) {
+        var lt = keys[i];
+        if (line.details[lt] && _AR_DetailTypeFilter[lt] !== false) return true;
+    }
+    return false;
+}
+
+function _arComputeFilteredBalances(opts) {
+    var vouchers = filterVouchers(opts);
+    var accounts = DB.load('accounts', []);
+    var balances = {};
+    accounts.forEach(function (a) { if(a && a.id) balances[a.id] = { debit: 0, credit: 0 }; });
+
+    vouchers.forEach(function (v) {
+        (v.lines || []).forEach(function (line) {
+            if (!line || !line.account) return;
+            var acc = accounts.find(function (a) { return a.id === line.account; });
+            if (!acc) return;
+            if (opts.cat && acc.cat !== opts.cat) return;
+            if (opts.nature && acc.nature !== opts.nature) return;
+
+            if (!_arLineHasMatchingDetail(line)) return;
+
+            if (!balances[acc.id]) balances[acc.id] = { debit: 0, credit: 0 };
+            balances[acc.id].debit += Number(line.debit) || 0;
+            balances[acc.id].credit += Number(line.credit) || 0;
+        });
+    });
+    return balances;
+}
+
+function _arComputeVisibleAccountIds(opts, accounts) {
+    var vouchers = filterVouchers(opts);
+    var idMap = {};
+    accounts.forEach(function (a) { idMap[a.id] = a; });
+    var visible = {};
+
+    vouchers.forEach(function (v) {
+        (v.lines || []).forEach(function (line) {
+            if (!line || !line.account) return;
+            var acc = idMap[line.account];
+            if (!acc) return;
+            if (opts.cat && acc.cat !== opts.cat) return;
+            if (opts.nature && acc.nature !== opts.nature) return;
+            if (!_arLineHasMatchingDetail(line)) return;
+
+            var cur = acc, safety = 0;
+            while (cur && safety < 20) {
+                visible[cur.id] = true;
+                if (!cur.parent) break;
+                cur = idMap[cur.parent];
+                safety++;
+            }
+        });
+    });
+
+    return visible;
+}
+
+function getRootAccountId(accId, accounts) {
+    if (!accounts) accounts = DB.load('accounts', []);
+    var acc = accounts.find(function (a) { return a.id === accId; });
+    if (!acc) return '';
+    var safety = 0;
+    while (acc.parent && safety < 20) {
+        acc = accounts.find(function (a) { return a.id === acc.parent; });
+        if (!acc) break;
+        safety++;
+    }
+    return acc ? acc.id : '';
+}
+
+function getDescendantIds(accountId) {
+    if (!accountId) return [];
+    var accounts = DB.load('accounts', []);
+    if (!Array.isArray(accounts)) return [accountId];
+    var result = [accountId];
+    var queue = [accountId];
+    var safety = 0;
+    while (queue.length > 0 && safety < 5000) {
+        safety++;
+        var cur = queue.shift();
+        accounts.forEach(function (a) {
+            if (a && a.parent === cur && a.id && result.indexOf(a.id) === -1) {
+                result.push(a.id);
+                queue.push(a.id);
+            }
+        });
+    }
+    return result;
+}
+
+function getPeriodMonthRange() {
+    var d = new Date();
+    var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    var y = j[0], m = j[1];
+    var from = y + '/' + pad2(m) + '/01';
+    var to = y + '/' + pad2(m) + '/' + pad2(daysInJalaliMonth(y, m));
+    return { from: from, to: to, year: y, month: m };
+}
+
+function refreshReportPeriodSelects() {
+    var ps = DB.load('fiscalPeriods', []);
+    ['ra-period', 'rt-period', 'ri-period'].forEach(function (id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var v = sel.value;
+        sel.innerHTML = '<option value="">همه</option>';
+        for (var i = 0; i < ps.length; i++) {
+            var o = document.createElement('option');
+            o.value = ps[i].id;
+            o.textContent = ps[i].title;
+            sel.appendChild(o);
+        }
+        sel.value = v;
+    });
+}
+
+function renderAccountReview() {
+    var box = document.getElementById('ra-result');
+    if (!box) return;
+
+    rebuildAccountFilterPanel();
+
+    var accounts = DB.load('accounts', []);
+    var opts = {
+        from:     (document.getElementById('ra-from') || {}).value || '',
+        to:       (document.getElementById('ra-to') || {}).value || '',
+        vtype:    (document.getElementById('ra-vtype') || {}).value || '',
+        cat:      (document.getElementById('ra-cat') || {}).value || '',
+        nature:   (document.getElementById('ra-nature') || {}).value || '',
+        level:    4
+    };
+
+    var cb = document.getElementById('ra-only-balance');
+    var filterBal = cb && cb.checked;
+    var hide = getHideState('ra');
+
+    var result = computeAccountBalances(opts);
+    var detailBals = result.detailBalances || {};
+
+    var parentId = null;
+    if (_AR.activeLevel === 2) parentId = _AR.path[0] || null;
+    else if (_AR.activeLevel === 3) parentId = _AR.path[1] || null;
+    else if (_AR.activeLevel === 4) parentId = _AR.path[2] || null;
+
+    var detailInfo = null;
+    if (_AR.detailFilter && _AR.detailFilterType) {
+        var dKey = _AR.detailFilterType + '::' + _AR.detailFilter;
+        detailInfo = detailBals[dKey] || null;
+        if (!detailInfo) {
+            _AR.detailFilter = null;
+            _AR.detailFilterType = null;
+        }
+    }
+
+    var typeFilterActive = !detailInfo && _arTypeFilterIsActive();
+
+    var balancesForRollup, visibleIds = null;
+    if (typeFilterActive) {
+        balancesForRollup = _arComputeFilteredBalances(opts);
+        visibleIds = _arComputeVisibleAccountIds(opts, accounts);
+    } else {
+        balancesForRollup = result.balances;
+    }
+    var rolled = rollupBalances(accounts, balancesForRollup);
+
+    var list = [];
+
+    if (_AR.activeLevel === 4) {
+        Object.keys(detailBals).forEach(function (key) {
+            var d = detailBals[key];
+            if (d.linkType && _AR_DetailTypeFilter[d.linkType] === false) return;
+            if (parentId && d.parents.indexOf(parentId) === -1) return;
+
+            var dAmt = (parentId && d.perParent && d.perParent[parentId])
+                ? d.perParent[parentId]
+                : { debit: d.debit, credit: d.credit };
+
+            list.push({
+                id: d.id, isDetail: true, linkType: d.linkType, parentIds: d.parents,
+                name: getDetailLabel(d.linkType, d.id), code: '—',
+                debit: dAmt.debit, credit: dAmt.credit
+            });
+        });
+    }
+    else if (detailInfo) {
+        var relevantMoeins = detailInfo.parents;
+
+        if (_AR.activeLevel === 3) {
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc) return;
+                if (parentId && acc.parent !== parentId) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                list.push({
+                    id: acc.id, isDetail: false, name: acc.name, code: acc.code,
+                    debit: dAmt.debit, credit: dAmt.credit, parentId: acc.parent
+                });
+            });
+        }
+        else if (_AR.activeLevel === 2) {
+            var kolAgg = {};
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc || !acc.parent) return;
+                if (parentId && acc.parent !== parentId) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                if (!kolAgg[acc.parent]) kolAgg[acc.parent] = { debit: 0, credit: 0 };
+                kolAgg[acc.parent].debit  += dAmt.debit;
+                kolAgg[acc.parent].credit += dAmt.credit;
+            });
+            Object.keys(kolAgg).forEach(function (kolId) {
+                var kol = accounts.find(function (a) { return a.id === kolId; });
+                if (!kol) return;
+                list.push({
+                    id: kol.id, isDetail: false, name: kol.name, code: kol.code,
+                    debit: kolAgg[kolId].debit, credit: kolAgg[kolId].credit, parentId: kol.parent
+                });
+            });
+        }
+        else if (_AR.activeLevel === 1) {
+            var groupAgg = {};
+            relevantMoeins.forEach(function (moeinId) {
+                var acc = accounts.find(function (a) { return a.id === moeinId; });
+                if (!acc) return;
+                var cur = acc, safety = 0;
+                while (cur && cur.parent && safety < 20) {
+                    cur = accounts.find(function (a) { return a.id === cur.parent; });
+                    safety++;
+                }
+                if (!cur) return;
+                var dAmt = detailInfo.perParent[moeinId] || { debit: 0, credit: 0 };
+                if (!groupAgg[cur.id]) groupAgg[cur.id] = { debit: 0, credit: 0 };
+                groupAgg[cur.id].debit  += dAmt.debit;
+                groupAgg[cur.id].credit += dAmt.credit;
+            });
+            Object.keys(groupAgg).forEach(function (gid) {
+                var g = accounts.find(function (a) { return a.id === gid; });
+                if (!g) return;
+                list.push({
+                    id: g.id, isDetail: false, name: g.name, code: g.code,
+                    debit: groupAgg[gid].debit, credit: groupAgg[gid].credit, parentId: ''
+                });
+            });
+        }
+    }
+    else if (typeFilterActive) {
+        accounts.forEach(function (a) {
+            var lvl = 1, cur = a;
+            while (cur && cur.parent) {
+                lvl++;
+                cur = accounts.find(function (x) { return x.id === cur.parent; });
+            }
+            if (lvl !== _AR.activeLevel) return;
+
+            if (_AR.activeLevel === 1) {
+                if (a.parent) return;
+            } else if (parentId) {
+                if (a.parent !== parentId) return;
+            }
+
+            if (!visibleIds[a.id]) return;
+
+            var bal = rolled[a.id] || { debit: 0, credit: 0 };
+            list.push({
+                id: a.id, isDetail: false, name: a.name, code: a.code,
+                debit: bal.debit, credit: bal.credit, parentId: a.parent
+            });
+        });
+    }
+    else {
+        accounts.forEach(function (a) {
+            var lvl = 1, cur = a;
+            while (cur && cur.parent) {
+                lvl++;
+                cur = accounts.find(function (x) { return x.id === cur.parent; });
+            }
+            if (lvl !== _AR.activeLevel) return;
+
+            if (_AR.activeLevel === 1) {
+                if (a.parent) return;
+            } else if (parentId) {
+                if (a.parent !== parentId) return;
+            }
+
+            list.push({
+                id: a.id, isDetail: false, name: a.name, code: a.code,
+                debit: (rolled[a.id] && rolled[a.id].debit) || 0,
+                credit: (rolled[a.id] && rolled[a.id].credit) || 0,
+                parentId: a.parent
+            });
+        });
+    }
+
+    list = list.filter(function(a) {
+        var net = a.debit - a.credit;
+        if (filterBal && Math.abs(net) < 0.5) return false;
+        return true;
+    });
+
+    list.sort(function(a, b) {
+        var col = _arSort.col, dir = _arSort.dir === 'asc' ? 1 : -1;
+        var va, vb;
+        if (col === 'debit') { va = a.debit; vb = b.debit; }
+        else if (col === 'credit') { va = a.credit; vb = b.credit; }
+        else if (col === 'md') { va = (a.debit - a.credit) > 0 ? (a.debit - a.credit) : 0; vb = (b.debit - b.credit) > 0 ? (b.debit - b.credit) : 0; }
+        else if (col === 'mc') { va = (a.debit - a.credit) < 0 ? -(a.debit - a.credit) : 0; vb = (b.debit - b.credit) < 0 ? -(b.debit - b.credit) : 0; }
+        else if (col === 'code') { va = String(a.code || ''); vb = String(b.code || ''); }
+        else { va = String(a.name || ''); vb = String(b.name || ''); }
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+        return String(va).localeCompare(String(vb), 'fa') * dir;
+    });
+
+    var tD = 0, tC = 0, tMD = 0, tMC = 0;
+    var rowsHtml = '';
+
+    list.forEach(function (a) {
+        var net = a.debit - a.credit;
+        var md = net > 0 ? net : 0;
+        var mc = net < 0 ? -net : 0;
+        tD += a.debit; tC += a.credit; tMD += md; tMC += mc;
+
+        var rowCls = 'ar-row' + (a.id === _AR.selectedId && _AR.activeLevel === 4 ? ' selected' : '');
+        var badgeCls = 'b' + Math.min(_AR.activeLevel, 4);
+        var lvlName = _AR_LEVELS[_AR.activeLevel];
+
+        var turnoverAcc = a.isDetail ? '' : a.id; 
+        var turnoverDetailAttr = a.isDetail ? ' data-turnover-detail="' + a.id + '" data-turnover-link="' + a.linkType + '"' : '';
+        var turnoverParentAttr = (a.isDetail && parentId) ? ' data-turnover-parent="' + parentId + '"' : '';
+
+        rowsHtml += '<tr class="' + rowCls + '" '
+             +  'data-id="' + (a.isDetail ? '' : a.id) + '" '
+             +  'data-debit="' + a.debit + '" data-credit="' + a.credit + '" '
+             +  'data-md="' + md + '" data-mc="' + mc + '" '
+             +  (a.isDetail ? 'data-detail-id="' + a.id + '" data-link="' + a.linkType + '"' : '')
+             +  '>';
+
+        rowsHtml += '<td class="ar-code" data-orig-index="0"><span>' + esc(a.code || '—') + '</span></td>';
+
+        var nameExtra = '';
+        if (a.isDetail && a.linkType) {
+            nameExtra = ' <span class="ar-link-badge">' + linkTypeName(a.linkType) + '</span>';
+        } else if (!a.isDetail) {
+            nameExtra = ' <span class="ar-badge ' + badgeCls + '">' + lvlName + '</span>';
+        }
+
+        rowsHtml += '<td class="ar-name" data-orig-index="1">'
+             +    '<div class="ar-name-wrap">'
+             +      '<span class="ar-name-text">' + esc(a.name || '') + nameExtra + '</span>'
+             +      '<button type="button" class="ar-turnover-btn" '
+             +        'data-turnover-acc="' + turnoverAcc + '"'
+             +        turnoverDetailAttr + turnoverParentAttr
+             +        ' onclick="event.stopPropagation(); window._AR_openTurnover(this); return false;" '
+             +        'title="نمایش گردش حساب">📊</button>'
+             +    '</div>'
+             +  '</td>';
+
+        rowsHtml += '<td class="ar-num' + (a.debit ? '' : ' zero') + '" data-orig-index="2">' + (hide ? '—' : moneyHtml(a.debit)) + '</td>';
+        rowsHtml += '<td class="ar-num' + (a.credit ? '' : ' zero') + '" data-orig-index="3">' + (hide ? '—' : moneyHtml(a.credit)) + '</td>';
+        rowsHtml += '<td class="ar-num md' + (md ? '' : ' zero') + '" data-orig-index="4">' + (hide ? '—' : moneyHtml(md)) + '</td>';
+        rowsHtml += '<td class="ar-num mc' + (mc ? '' : ' zero') + '" data-orig-index="5">' + (hide ? '—' : moneyHtml(mc)) + '</td>';
+        rowsHtml += '</tr>';
+    });
+
+    if (list.length === 0) {
+        var emptyMsg;
+        if (detailInfo) emptyMsg = 'این تفصیل در این شاخه تراکنشی ندارد.';
+        else if (typeFilterActive) emptyMsg = 'هیچ شاخه‌ای با انواع تفصیل انتخاب‌شده درگیر نیست.';
+        else if (filterBal) emptyMsg = 'هیچ موردی با این فیلترها یافت نشد.';
+        else emptyMsg = 'داده‌ای در این سطح نیست.';
+        rowsHtml += '<tr><td colspan="6" class="ar-empty">' + emptyMsg + '</td></tr>';
+    }
+
+    var footHtml = '<tr>'
+        + '<td data-orig-index="0"></td>'
+        + '<td style="text-align:right; padding-right:20px" data-orig-index="1">جمع کل</td>'
+        + '<td data-orig-index="2">' + (hide ? '—' : moneyHtml(tD)) + '</td>'
+        + '<td data-orig-index="3">' + (hide ? '—' : moneyHtml(tC)) + '</td>'
+        + '<td data-orig-index="4">' + (hide ? '—' : moneyHtml(tMD)) + '</td>'
+        + '<td data-orig-index="5">' + (hide ? '—' : moneyHtml(tMC)) + '</td>'
+        + '</tr>';
+
+    var html = '<div class="ar-wrap">';
+
+    html += '<div class="ar-tb">';
+    html += '<div class="ar-tb-bc">' + _arBreadcrumb(_AR.path, accounts) + '</div>';
+    html += '<button type="button" class="ar-col-toggle" id="ar-col-toggle" title="نمایش، ترتیب و پنهان کردن ستون‌ها">⚙</button>';
+    html += '</div>';
+
+    if (detailInfo) {
+        var detName = getDetailLabel(_AR.detailFilterType, _AR.detailFilter);
+        var typeName = linkTypeName(_AR.detailFilterType);
+        html += '<div class="ar-filter-badge">';
+        html += '<span class="ar-fb-info">🔍 <b>فیلتر تفصیل فعال:</b> ' + esc(typeName) + ': <b>' + esc(detName) + '</b> — فقط شاخه‌های مرتبط</span>';
+        html += '<button type="button" id="ar-clear-detail-filter">❌ لغو فیلتر</button>';
+        html += '</div>';
+    }
+
+    if (typeFilterActive) {
+        var activeTypesList = [];
+        var allTypesForBadge = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length) ? LINK_TYPES : ['person','company','bank','cashbox','project','facility'];
+        allTypesForBadge.forEach(function(lt){
+            if (_AR_DetailTypeFilter[lt] !== false) activeTypesList.push(linkTypeName(lt));
+        });
+        html += '<div class="ar-type-badge">';
+        html += '<span class="ar-fb-info">🏷 <b>نوع تفصیل فعال:</b> ' + esc(activeTypesList.join(' ، ')) + ' — فقط شاخه‌های درگیر با این انواع</span>';
+        html += '<button type="button" id="ar-clear-type-filter">❌ حذف فیلتر نوع</button>';
+        html += '</div>';
+    }
+
+    html += '<div class="ar-main">';
+
+    html += '<div class="ar-side">';
+    html += '<div class="ar-side-head">سطوح حساب</div>';
+    html += '<div class="ar-levels">';
+    [1, 2, 3, 4].forEach(function (lvl) {
+        var cls = 'ar-lvl' + (lvl === _AR.activeLevel ? ' active' : '');
+        html += '<div class="' + cls + '" data-lvl="' + lvl + '">' + _AR_LEVELS[lvl] + '</div>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="ar-body">';
+    html += '<div class="ar-tw">';
+    html += '<table class="ar-tbl" id="ra-acc-table" data-table-id="ra-acc-table">';
+    
+    function thSortClass(key) { return 'ar-th-sort'; }
+    function thSortIcon(key) { return _arSort.col === key ? (_arSort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'; }
+
+    html += '<thead><tr>';
+    html += '<th class="' + thSortClass('code') + '" data-sort-key="code" data-orig-index="0">کد' + thSortIcon('code') + '</th>';
+    html += '<th class="ar-th-name ' + thSortClass('name') + '" data-sort-key="name" data-orig-index="1">عنوان' + thSortIcon('name') + '</th>';
+    html += '<th class="' + thSortClass('debit') + '" data-sort-key="debit" data-orig-index="2">گردش بدهکار' + thSortIcon('debit') + '</th>';
+    html += '<th class="' + thSortClass('credit') + '" data-sort-key="credit" data-orig-index="3">گردش بستانکار' + thSortIcon('credit') + '</th>';
+    html += '<th class="' + thSortClass('md') + '" data-sort-key="md" data-orig-index="4">مانده بدهکار' + thSortIcon('md') + '</th>';
+    html += '<th class="' + thSortClass('mc') + '" data-sort-key="mc" data-orig-index="5">مانده بستانکار' + thSortIcon('mc') + '</th>';
+    html += '</tr></thead>';
+    
+    html += '<tbody id="ra-tbody">' + rowsHtml + '</tbody>';
+    html += '<tfoot id="ra-tfoot">' + footHtml + '</tfoot>';
+    html += '</table></div>';
+    html += '</div></div></div>';
+
+    box.innerHTML = html;
+
+    bindAccountReviewEvents(accounts, box);
+
+    box.querySelectorAll('.ar-th-sort').forEach(function (th) {
+        th.addEventListener('click', function (e) {
+            if (e.target.tagName === 'INPUT' || e.target.closest('.col-filter-btn')) return;
+            var key = this.getAttribute('data-sort-key');
+            if (_arSort.col === key) _arSort.dir = _arSort.dir === 'asc' ? 'desc' : 'asc';
+            else { _arSort.col = key; _arSort.dir = 'asc'; }
+            renderAccountReview();
+        });
+    });
+
+    var clearDetailBtn = document.getElementById('ar-clear-detail-filter');
+    if (clearDetailBtn) {
+        clearDetailBtn.addEventListener('click', function() {
+            _AR.detailFilter = null;
+            _AR.detailFilterType = null;
+            renderAccountReview();
+        });
+    }
+
+    var clearTypeBtn = document.getElementById('ar-clear-type-filter');
+    if (clearTypeBtn) {
+        clearTypeBtn.addEventListener('click', function() {
+            var allTypes = (typeof LINK_TYPES !== 'undefined' && LINK_TYPES.length) ? LINK_TYPES : ['person','company','bank','cashbox','project','facility'];
+            allTypes.forEach(function(lt) { _AR_DetailTypeFilter[lt] = true; });
+            try { DB.save('ar.detailTypeFilter', _AR_DetailTypeFilter); } catch(e) {}
+            var body2 = document.getElementById('ra-filter-body');
+            if (body2) {
+                body2.querySelectorAll('[data-ar-type-filter]').forEach(function(cb){ cb.checked = true; });
+            }
+            renderAccountReview();
+        });
+    }
+
+    var colToggle = document.getElementById('ar-col-toggle');
+    if (colToggle && typeof showColMenu === 'function') {
+        colToggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            showColMenu('ra-acc-table', colToggle);
+        });
+    }
+
+    setTimeout(function () {
+        var t = document.getElementById('ra-acc-table');
+        if (typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('ra-acc-table');
+        if (typeof applyColumnOrder === 'function') applyColumnOrder('ra-acc-table');
+        if (typeof applyColWidths === 'function') applyColWidths('ra-acc-table');
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
+    }, 50);
+}
+
+function bindAccountReviewEvents(accounts, box) {
+    box.querySelectorAll('.ar-lvl').forEach(function (el) {
+        el.addEventListener('click', function () {
+            var lvl = Number(this.getAttribute('data-lvl'));
+            if (lvl === _AR.activeLevel) return;
+            if (lvl === 4) {
+                _AR.detailFilter = null;
+                _AR.detailFilterType = null;
+            }
+            if (lvl < _AR.activeLevel) {
+                _AR.path = _AR.path.slice(0, Math.max(0, lvl - 1));
+            }
+            _AR.activeLevel = lvl;
+            _AR.selectedId = null;
+            renderAccountReview();
+        });
+    });
+
+    box.querySelectorAll('[data-goto]').forEach(function (a) {
+        a.addEventListener('click', function () {
+            var id = this.getAttribute('data-goto');
+            var idx = _AR.path.indexOf(id);
+            if (idx >= 0) {
+                _AR.path = _AR.path.slice(0, idx + 1);
+                _AR.activeLevel = Math.min(4, idx + 2);
+            } else {
+                _AR.path = [];
+                _AR.activeLevel = 1;
+            }
+            _AR.selectedId = null;
+            renderAccountReview();
+        });
+    });
+
+    box.querySelectorAll('[data-goto-lvl]').forEach(function (a) {
+        a.addEventListener('click', function () {
+            _AR.path = [];
+            _AR.activeLevel = 1;
+            _AR.selectedId = null;
+            renderAccountReview();
+        });
+    });
+
+    box.querySelectorAll('.ar-row').forEach(function (tr) {
+        tr.addEventListener('click', function (e) {
+            if (e.target.closest && e.target.closest('.ar-turnover-btn')) return;
+            if (e.target.classList && e.target.classList.contains('ar-turnover-btn')) return;
+
+            var id = tr.getAttribute('data-id') || tr.getAttribute('data-detail-id');
+            var isDetail = tr.hasAttribute('data-detail-id');
+            _AR.selectedId = id;
+
+            if (isDetail) {
+                _AR.detailFilter = id;
+                _AR.detailFilterType = tr.getAttribute('data-link');
+                _AR.activeLevel = 3;
+                if (_AR.path.length > 2) _AR.path = _AR.path.slice(0, 2);
+            } else {
+                _AR.detailFilter = null;
+                _AR.detailFilterType = null;
+                _AR.path[_AR.activeLevel - 1] = id;
+                _AR.path = _AR.path.slice(0, _AR.activeLevel);
+                _AR.activeLevel++;
+            }
+            renderAccountReview();
+        });
+    });
+}
+
+window._AR_openTurnover = function (btn) {
+    try {
+        if (!btn) return;
+        var accId = btn.getAttribute('data-turnover-acc');
+        var detId = btn.getAttribute('data-turnover-detail');
+        var link = btn.getAttribute('data-turnover-link');
+        var parentAccId = btn.getAttribute('data-turnover-parent') || null;
+        if (!accId && !detId) { alert('⚠️ شناسه یافت نشد.'); return; }
+        if (detId && link) {
+            openAccountTurnover(accId, { linkType: link, detailId: detId, parentAccId: parentAccId });
+        } else {
+            openAccountTurnover(accId, null);
+        }
+    } catch (err) {
+        console.error('Turnover Error:', err);
+        alert('خطا در باز کردن گردش:\n' + (err.message || err));
+    }
+};
+
+function _arOpenVoucherPreviewAboveTurnover(v) {
+    if (!v) return;
+    document.body.classList.add('vpreview-elevated');
+    if (typeof openVoucherPreview === 'function') openVoucherPreview(v);
+    setTimeout(function () {
+        var btns = [
+            document.getElementById('vpreview-close-btn'),
+            document.getElementById('close-vpreview'),
+            document.getElementById('vpreview-overlay')
+        ];
+        btns.forEach(function (b) {
+            if (!b) return;
+            if (b.dataset._arZRestore === '1') return;
+            b.dataset._arZRestore = '1';
+            b.addEventListener('click', function () {
+                document.body.classList.remove('vpreview-elevated');
+            });
+        });
+    }, 100);
+}
+
+function openAccountTurnover(accountId, detailInfo) {
+    var accounts = DB.load('accounts', []);
+    var ids = [];
+    var title = '';
+
+    if (detailInfo && detailInfo.parentAccId) {
+        var pAcc = accounts.find(function(a) { return a.id === detailInfo.parentAccId; });
+        ids = [detailInfo.parentAccId];
+        title = '📊 گردش: ' + (pAcc ? pAcc.name : '—') + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
+    }
+    else if (detailInfo) {
+        if (accountId) {
+            var acc = accounts.find(function(a) { return a.id === accountId; });
+            title = acc ? '📊 گردش: ' + acc.name + ' → ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId) : '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
+            ids = [accountId];
+        } else {
+            title = '📊 گردش تفصیلی: ' + getDetailLabel(detailInfo.linkType, detailInfo.detailId);
+            ids = accounts.map(function(a) { return a.id; });
+        }
+    }
+    else if (accountId) {
+        var targetAcc = accounts.find(function(a) { return a.id === accountId; });
+        if (!targetAcc) return;
+        var hasChildren = accounts.some(function(a) { return a.parent === targetAcc.id; });
+        ids = hasChildren ? getDescendantIds(accountId) : [accountId];
+        title = '📊 گردش: ' + targetAcc.name;
+    } else return;
+
+    var fromD = (document.getElementById('ra-from') || {}).value || '';
+    var toD = (document.getElementById('ra-to') || {}).value || '';
+    var vtype = (document.getElementById('ra-vtype') || {}).value || '';
+    var periodId = (document.getElementById('ra-period') || {}).value || '';
+    var hide = getHideState('turnover');
+
+    var vouchers = DB.load('vouchers', []);
+    if (!Array.isArray(vouchers)) vouchers = [];
+
+    vouchers = vouchers.filter(function (v) {
+        if (!v || v.status !== 'approved') return false;
+        if (!v.date) return false;
+        if (fromD && v.date < fromD) return false;
+        if (toD && v.date > toD) return false;
+        if (vtype && v.type !== vtype) return false;
+        if (periodId && v.periodId !== periodId) return false;
+        return true;
+    });
+
+    var rows = [];
+    vouchers.forEach(function (v) {
+        var lines = v.lines || [];
+        lines.forEach(function (l) {
+            if (!l || !l.account) return;
+            if (ids.indexOf(l.account) === -1) return;
+            if (detailInfo) {
+                if (!l.details || l.details[detailInfo.linkType] !== detailInfo.detailId) return;
+            }
+            rows.push({ voucher: v, line: l });
+        });
+    });
+
+    rows.sort(function (a, b) {
+        var c = compareVals(a.voucher.date, b.voucher.date);
+        if (c !== 0) return c;
+        return compareVals(a.voucher.number, b.voucher.number);
+    });
+
+    var titleEl = document.getElementById('turnover-title');
+    if (titleEl) titleEl.textContent = title;
+
+    var body = document.getElementById('turnover-body');
+    if (!body) { alert('خطا: پنجره گردش یافت نشد.'); return; }
+
+    if (rows.length === 0) {
+        body.innerHTML = '<p class="muted" style="text-align:center;padding:20px">گردشی در این بازه یافت نشد.</p>';
+    } else {
+        var html = '<div class="list-header" data-col-table="turnover-table" data-hide-key="turnover" style="margin-bottom:12px">'
+                 + '<span class="count-badge">' + toFa(rows.length) + '</span>'
+                 + '<span style="font-weight:800;color:var(--primary-dark)">📊 ریز تراکنش‌ها</span>'
+                 + '<button class="col-toggle-btn" onclick="event.stopPropagation(); showColMenu(\'turnover-table\', this)" title="نمایش/مخفی کردن ستون‌ها" style="margin-right:auto">⚙</button>'
+                 + '<button class="share-btn" onclick="printHtmlReport(\'#turnover-body\', \'گردش حساب\')" title="چاپ">🖨</button>'
+                 + '</div>'
+                 + '<div class="table-wrap"><table class="report-table turnover-table" id="turnover-table"><thead><tr>'
+                 +  '<th style="width:50px">#</th><th style="width:100px">تاریخ</th><th style="width:80px">شماره</th>'
+                 +  '<th style="min-width:140px">شرح سند</th><th style="min-width:140px">حساب</th>'
+                 +  '<th style="min-width:140px">تفصیلی</th><th style="min-width:140px">شرح قلم</th>'
+                 +  '<th style="width:120px">بدهکار</th><th style="width:120px">بستانکار</th>'
+                 +  '<th style="width:120px">مانده</th><th style="width:110px">عملیات</th>'
+                 +  '</tr></thead><tbody>';
+
+        var runBal = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i], v = r.voucher, l = r.line;
+            var d = Number(l.debit) || 0, c = Number(l.credit) || 0;
+            runBal += d - c;
+
+            var detailsStr = '';
+            if (l.details) {
+                Object.keys(l.details).forEach(function (lt) {
+                    var did = l.details[lt];
+                    if (did) {
+                        if (detailsStr) detailsStr += ' ، ';
+                        detailsStr += linkTypeName(lt) + ': ' + getDetailLabel(lt, did);
+                    }
+                });
+            }
+            var accLabel = getAccountLabel(l.account, accounts);
+            var balText = runBal < 0 ? '<span class="neg-money">(' + formatMoney(Math.abs(runBal)) + ')</span>' : formatMoney(runBal);
+
+            html += '<tr><td class="num">' + toFa(i + 1) + '</td>'
+                 +  '<td dir="ltr">' + toFa(esc(v.date || '—')) + '</td>'
+                 +  '<td dir="ltr">' + toFa(esc(v.number || '—')) + '</td>'
+                 +  '<td>' + esc(v.desc || '') + '</td>'
+                 +  '<td>' + esc(accLabel) + '</td>'
+                 +  '<td>' + (detailsStr ? esc(detailsStr) : '—') + '</td>'
+                 +  '<td>' + esc(l.description || '') + '</td>'
+                 +  '<td class="num dr">' + (hide ? '—' : (d ? formatMoney(d) : '—')) + '</td>'
+                 +  '<td class="num cr">' + (hide ? '—' : (c ? formatMoney(c) : '—')) + '</td>'
+                 +  '<td class="num" style="font-weight:bold">' + (hide ? '—' : balText) + '</td>'
+                 +  '<td><div class="ar-turnover-actions">'
+                 +    '<button class="row-btn open" data-vid="' + v.id + '" data-act="preview" title="مشاهده سند">👁</button>'
+                 +    '<button class="row-btn edit" data-vid="' + v.id + '" data-act="edit" title="ویرایش سند">✎</button>'
+                 +  '</div></td></tr>';
+        }
+        html += '</tbody></table></div>';
+        body.innerHTML = html;
+
+        body.querySelectorAll('[data-act="preview"]').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var v = findVoucherById(this.getAttribute('data-vid'));
+                if (v) _arOpenVoucherPreviewAboveTurnover(v);
+            });
+        });
+        body.querySelectorAll('[data-act="edit"]').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var vid = this.getAttribute('data-vid');
+                if (typeof openVoucherForEditById === 'function') {
+                    closeTurnover();
+                    document.body.classList.remove('vpreview-elevated');
+                    setTimeout(function () { openVoucherForEditById(vid); }, 250);
+                }
+            });
+        });
+
+        setTimeout(function () {
+            var t = document.getElementById('turnover-table');
+            if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+            if (typeof applyColVisibility === 'function') applyColVisibility('turnover-table');
+            if (typeof buildShareButtons === 'function') buildShareButtons();
+        }, 100);
+    }
+
+    var modal = document.getElementById('turnover-modal');
+    var overlay = document.getElementById('turnover-overlay');
+    if (modal) modal.classList.add('show');
+    if (overlay) overlay.classList.add('show');
+    setTimeout(function () { if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers(); }, 50);
+}
+
+function closeTurnover() {
+    var modal = document.getElementById('turnover-modal');
+    var overlay = document.getElementById('turnover-overlay');
+    if (modal) modal.classList.remove('show');
+    if (overlay) overlay.classList.remove('show');
+    document.body.classList.remove('vpreview-elevated');
+}
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#close-vpreview') || e.target.closest('#vpreview-close-btn') || e.target.closest('#vpreview-overlay')) {
+        if (typeof closeVoucherPreview === 'function') closeVoucherPreview();
+    }
+    if (e.target.closest('#vpreview-print')) {
+        if (typeof printVoucherPreview === 'function') printVoucherPreview();
+    }
+    if (e.target.closest('#close-turnover') || e.target.closest('#turnover-close-btn') || e.target.closest('#turnover-overlay')) {
+        if (typeof closeTurnover === 'function') closeTurnover();
+    }
+    if (e.target.closest('#turnover-print')) {
+        if (typeof printHtmlReport === 'function') printHtmlReport('#turnover-body', 'گردش حساب');
+    }
+});
+
+window._AR                            = _AR;
+window._AR_DetailTypeFilter           = _AR_DetailTypeFilter;
+window._AR_LEVELS                     = _AR_LEVELS;
+window.rebuildAccountFilterPanel      = rebuildAccountFilterPanel;
+window.renderAccountReview            = renderAccountReview;
+window.bindAccountReviewEvents        = bindAccountReviewEvents;
+window.computeAccountBalances         = computeAccountBalances;
+window.rollupBalances                 = rollupBalances;
+window.getRootAccountId               = getRootAccountId;
+window.getDescendantIds               = getDescendantIds;
+window.getPeriodMonthRange            = getPeriodMonthRange;
+window.refreshReportPeriodSelects     = refreshReportPeriodSelects;
+window.openAccountTurnover            = openAccountTurnover;
+window.closeTurnover                  = closeTurnover;
+
+console.log('✅ [modules/reports/account.js] loaded — v7 (action buttons next to filter)');

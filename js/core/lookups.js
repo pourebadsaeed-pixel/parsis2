@@ -1,0 +1,701 @@
+/* ============================================================
+   پارسیس — جستجوی حساب‌ها، چاپ، اکسل
+   مسیر: js/core/lookups.js
+   
+   ✅ v2: افزودن چک وابستگی دفترچه تلفن به getDeleteIssues
+   ============================================================ */
+'use strict';
+
+function getAccountLabel(accId, accounts) {
+    if (!accounts) accounts = DB.load('accounts', []);
+    var acc = accounts.find(function (a) { return a.id === accId; });
+    if (!acc) return '';
+    if (!acc.parent) return acc.name;
+    var parent = accounts.find(function (a) { return a.id === acc.parent; });
+    if (!parent) return acc.name;
+    return parent.name + ' - ' + acc.name;
+}
+
+function getAccountSearchText(accId, accounts) {
+    if (!accounts) accounts = DB.load('accounts', []);
+    var acc = accounts.find(function (a) { return a.id === accId; });
+    if (!acc) return '';
+    var parts = [acc.code || '', acc.name || ''];
+    if (acc.parent) {
+        var p = accounts.find(function (a) { return a.id === acc.parent; });
+        if (p) {
+            parts.push(p.code || '');
+            parts.push(p.name || '');
+        }
+    }
+    return parts.join(' ').toLowerCase();
+}
+
+function getDetailLabel(linkType, did) {
+    if (linkType === 'person') {
+        var p = DB.load('persons', []).find(function (x) { return x.id === did; });
+        return p ? ((p.first || '') + ' ' + (p.last || '')) : did;
+    }
+    if (linkType === 'company') {
+        var co = DB.load('companies', []).find(function (x) { return x.id === did; });
+        return co ? co.name : did;
+    }
+    if (linkType === 'bank') {
+        var b = DB.load('bankAccounts', []).find(function (x) { return x.id === did; });
+        return b ? ((b.bank || '') + ' - ' + (b.account || '')) : did;
+    }
+    if (linkType === 'cashbox') {
+        var c = DB.load('cashBoxes', []).find(function (x) { return x.id === did; });
+        return c ? c.title : did;
+    }
+    if (linkType === 'project') {
+        var pr = DB.load('projects', []).find(function (x) { return x.id === did; });
+        return pr ? pr.name : did;
+    }
+    if (linkType === 'facility') {
+        var fc = DB.load('facilities', []).find(function (x) { return x.id === did; });
+        return fc ? fc.name : did;
+    }
+    return did;
+}
+
+function getLinkedItems(type) {
+    if (type === 'person')   return DB.load('persons', []);
+    if (type === 'company')  return DB.load('companies', []);
+    if (type === 'bank')     return DB.load('bankAccounts', []);
+    if (type === 'cashbox')  return DB.load('cashBoxes', []);
+    if (type === 'project')  return DB.load('projects', []);
+    if (type === 'facility') return DB.load('facilities', []);
+    return [];
+}
+
+function getLinkedItemLabel(type, item) {
+    if (type === 'person')   return (item.first || '') + ' ' + (item.last || '');
+    if (type === 'company')  return item.name || '';
+    if (type === 'bank')     return (item.bank || '') + ' - ' + (item.account || '');
+    if (type === 'cashbox')  return item.title || '';
+    if (type === 'project')  return item.name || '';
+    if (type === 'facility') {
+        var bank = DB.load('bankAccounts', []).find(function (b) { return b.id === item.bankId; });
+        return item.name + (bank ? ' — ' + bank.bank : '');
+    }
+    return '';
+}
+
+function getBankMoeinId() {
+    var accounts = DB.load('accounts', []);
+    var m = accounts.find(function (a) { return a.links && a.links.indexOf('bank') !== -1; });
+    return m ? m.id : '';
+}
+
+function getLeafAccounts() {
+    var accounts = DB.load('accounts', []);
+    return accounts.filter(function (a) {
+        return !accounts.some(function (x) { return x.parent === a.id; });
+    });
+}
+
+function sortAccountsByCode(arr) {
+    return arr.slice().sort(function (a, b) {
+        var ca = String(a.code || '');
+        var cb = String(b.code || '');
+        var pa = ca.split('-').map(function (x) { return parseInt(x, 10) || 0; });
+        var pb = cb.split('-').map(function (x) { return parseInt(x, 10) || 0; });
+        var n = Math.max(pa.length, pb.length);
+        for (var i = 0; i < n; i++) {
+            var va = pa[i] || 0;
+            var vb = pb[i] || 0;
+            if (va !== vb) return va - vb;
+        }
+        return ca.localeCompare(cb, 'fa');
+    });
+}
+
+function getLeafAccountsSortedByCode() {
+    var accounts = DB.load('accounts', []);
+    var leaves = accounts.filter(function (a) {
+        return !accounts.some(function (x) { return x.parent === a.id; });
+    });
+    return sortAccountsByCode(leaves);
+}
+
+function buildOptionsInto(sel, items, labelFn, selectedId, placeholder) {
+    sel.innerHTML = '';
+    var ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = placeholder || '—';
+    sel.appendChild(ph);
+    for (var i = 0; i < items.length; i++) {
+        var o = document.createElement('option');
+        o.value = items[i].id;
+        o.textContent = labelFn(items[i]);
+        if (selectedId === items[i].id) o.selected = true;
+        sel.appendChild(o);
+    }
+}
+
+function _faDigitsToLatin(s) {
+    if (s === undefined || s === null) return '';
+    var t = String(s);
+    t = t.replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    t = t.replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); });
+    return t;
+}
+
+function tryParseNumericCell(text) {
+    if (text === null || text === undefined) return null;
+    var s = String(text).trim();
+    if (!s) return null;
+    var isNeg = false;
+    if (/^\(.+\)$/.test(s)) { isNeg = true; s = s.slice(1, -1).trim(); }
+    s = _faDigitsToLatin(s);
+    s = s.replace(/[,٬\s]/g, '');
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    var v = parseFloat(s);
+    if (isNaN(v) || !isFinite(v)) return null;
+    return isNeg ? -v : v;
+}
+
+/* ============================================================
+   ✅ getDeleteIssues — بررسی وابستگی‌ها قبل از حذف
+   ============================================================ */
+function getDeleteIssues(type, id) {
+    var issues = [];
+    if (!type || !id) return issues;
+
+    var vouchers = DB.load('vouchers', []) || [];
+    if (!Array.isArray(vouchers)) vouchers = [];
+
+    var phonebookList = DB.load('phonebook', []) || [];
+
+    /* ---------- دوره مالی ---------- */
+    if (type === 'fiscalPeriod') {
+        var relatedVouchers = vouchers.filter(function (v) { return v.periodId === id; });
+        if (relatedVouchers.length > 0) {
+            issues.push(toFa(relatedVouchers.length) + ' سند حسابداری به این دوره وصل است');
+        }
+        var estimates = DB.load('dailyEstimates', []) || [];
+        var relEstimates = estimates.filter(function (e) { return e.periodId === id; });
+        if (relEstimates.length > 0) {
+            issues.push(toFa(relEstimates.length) + ' برآورد هزینه به این دوره وصل است');
+        }
+    }
+
+    /* ---------- شخص ---------- */
+    if (type === 'person') {
+        var countV = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.person === id) countV++;
+            });
+        });
+        if (countV > 0) issues.push('در ' + toFa(countV) + ' قلم سند حسابداری استفاده شده');
+
+        var users = DB.load('users', []) || [];
+        if (users.some(function (u) { return u.personId === id; })) {
+            issues.push('به‌عنوان شخص مرتبط یک کاربر تعریف شده');
+        }
+
+        var calEvents = DB.load('calendarUserEvents', []) || [];
+        var calCount = 0;
+        calEvents.forEach(function (e) {
+            if ((e.persons || []).indexOf(id) !== -1) calCount++;
+        });
+        if (calCount > 0) issues.push('در ' + toFa(calCount) + ' رویداد تقویم استفاده شده');
+
+        /* ✅ v2: دفترچه تلفن */
+        var pbCount = phonebookList.filter(function (pb) { return pb.personId === id; }).length;
+        if (pbCount > 0) issues.push('در ' + toFa(pbCount) + ' رکورد دفترچه تلفن استفاده شده');
+    }
+
+    /* ---------- شرکت ---------- */
+    if (type === 'company') {
+        var countC = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.company === id) countC++;
+            });
+        });
+        if (countC > 0) issues.push('در ' + toFa(countC) + ' قلم سند حسابداری استفاده شده');
+
+        /* ✅ v2: دفترچه تلفن */
+        var pbCountC = phonebookList.filter(function (pb) { return pb.companyId === id; }).length;
+        if (pbCountC > 0) issues.push('در ' + toFa(pbCountC) + ' رکورد دفترچه تلفن استفاده شده');
+    }
+
+    /* ---------- حساب بانکی ---------- */
+    if (type === 'bankAccount') {
+        var countB = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.bank === id) countB++;
+            });
+        });
+        if (countB > 0) issues.push('در ' + toFa(countB) + ' قلم سند حسابداری استفاده شده');
+
+        var facilities = DB.load('facilities', []) || [];
+        var relFac = facilities.filter(function (f) { return f.bankId === id; });
+        if (relFac.length > 0) issues.push(toFa(relFac.length) + ' تسهیلات به این حساب وصل است');
+
+        var sourcesB = DB.load('cashFlowSources', []) || [];
+        var relSrcB = sourcesB.filter(function (s) { return s.linkType === 'bank' && s.detailId === id; });
+        if (relSrcB.length > 0) issues.push(toFa(relSrcB.length) + ' منبع دریافتنی به این حساب وصل است');
+    }
+
+    /* ---------- صندوق ---------- */
+    if (type === 'cashBox') {
+        var countCb = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.cashbox === id) countCb++;
+            });
+        });
+        if (countCb > 0) issues.push('در ' + toFa(countCb) + ' قلم سند حسابداری استفاده شده');
+
+        var sourcesCb = DB.load('cashFlowSources', []) || [];
+        var relSrcCb = sourcesCb.filter(function (s) { return s.linkType === 'cashbox' && s.detailId === id; });
+        if (relSrcCb.length > 0) issues.push(toFa(relSrcCb.length) + ' منبع دریافتنی به این صندوق وصل است');
+    }
+
+    /* ---------- پروژه ---------- */
+    if (type === 'project') {
+        var countP = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.details && l.details.project === id) countP++;
+            });
+        });
+        if (countP > 0) issues.push('در ' + toFa(countP) + ' قلم سند حسابداری استفاده شده');
+
+        var sourcesP = DB.load('cashFlowSources', []) || [];
+        var relSrcP = sourcesP.filter(function (s) { return s.linkType === 'project' && s.detailId === id; });
+        if (relSrcP.length > 0) issues.push(toFa(relSrcP.length) + ' منبع دریافتنی به این پروژه وصل است');
+    }
+
+    /* ---------- حساب کدینگ (شامل زیرمجموعه‌ها) ---------- */
+    if (type === 'chartAccount') {
+        var accounts = DB.load('accounts', []) || [];
+
+        var descendants = [id];
+        var queue = [id];
+        var safety = 0;
+        while (queue.length > 0 && safety < 5000) {
+            safety++;
+            var cur = queue.shift();
+            accounts.forEach(function (a) {
+                if (a.parent === cur && descendants.indexOf(a.id) === -1) {
+                    descendants.push(a.id);
+                    queue.push(a.id);
+                }
+            });
+        }
+
+        var countA = 0;
+        vouchers.forEach(function (v) {
+            (v.lines || []).forEach(function (l) {
+                if (l.account && descendants.indexOf(l.account) !== -1) countA++;
+            });
+        });
+        if (countA > 0) issues.push('در ' + toFa(countA) + ' قلم سند حسابداری استفاده شده (شامل زیرمجموعه‌ها)');
+
+        var sourcesA = DB.load('cashFlowSources', []) || [];
+        var relSrcA = sourcesA.filter(function (s) { return descendants.indexOf(s.moeinId) !== -1; });
+        if (relSrcA.length > 0) issues.push(toFa(relSrcA.length) + ' منبع دریافتنی به این حساب وصل است');
+
+        var facA = DB.load('facilities', []) || [];
+        var relFacA = facA.filter(function (f) { return descendants.indexOf(f.moeinId) !== -1; });
+        if (relFacA.length > 0) issues.push(toFa(relFacA.length) + ' تسهیلات به این حساب وصل است');
+
+        var tpls = DB.load('voucherTemplates', []) || [];
+        var tplCount = 0;
+        tpls.forEach(function (t) {
+            (t.lines || []).forEach(function (l) {
+                if (l.account && descendants.indexOf(l.account) !== -1) tplCount++;
+            });
+        });
+        if (tplCount > 0) issues.push('در ' + toFa(tplCount) + ' قلم الگوی سند استفاده شده');
+    }
+
+    /* ---------- نوع حساب بانکی ---------- */
+    if (type === 'bankType') {
+        var banks = DB.load('bankAccounts', []) || [];
+        var used = banks.filter(function (b) { return b.type === id; });
+        if (used.length > 0) {
+            var names = used.slice(0, 3).map(function (b) { return (b.bank || '') + (b.account ? ' - ' + b.account : ''); });
+            issues.push(toFa(used.length) + ' حساب بانکی با این نوع تعریف شده' + (names.length ? ' (' + names.join(' ، ') + ')' : ''));
+        }
+    }
+
+    /* ---------- نوع صندوق ---------- */
+    if (type === 'cashType') {
+        var cbs = DB.load('cashBoxes', []) || [];
+        var used2 = cbs.filter(function (c) { return c.type === id; });
+        if (used2.length > 0) {
+            var names2 = used2.slice(0, 3).map(function (c) { return c.title || ''; });
+            issues.push(toFa(used2.length) + ' صندوق با این نوع تعریف شده' + (names2.length ? ' (' + names2.join(' ، ') + ')' : ''));
+        }
+    }
+
+    return issues;
+}
+
+/* ============================================================
+   printHtmlReport, exportDataToExcel, renderChips, ... (بدون تغییر)
+   ============================================================ */
+
+function printHtmlReport(selector, title) {
+    var activePage = document.querySelector('.page.active');
+    var targetEl = activePage ? activePage.querySelector(selector) : null;
+    if (!targetEl) targetEl = document.querySelector(selector);
+    if (!targetEl) { alert('محتوایی برای چاپ یافت نشد.'); return; }
+
+    var dateRange = '';
+    var fromVal = '', toVal = '';
+    if (selector === '#ra-result') {
+        fromVal = (document.getElementById('ra-from') || {}).value || '';
+        toVal = (document.getElementById('ra-to') || {}).value || '';
+    } else if (selector === '#rt-result') {
+        fromVal = (document.getElementById('rt-from') || {}).value || '';
+        toVal = (document.getElementById('rt-to') || {}).value || '';
+    } else if (selector === '#cf-result') {
+        fromVal = (document.getElementById('cf-from') || {}).value || '';
+        toVal = (document.getElementById('cf-to') || {}).value || '';
+    } else if (selector === '#cfd-result') {
+        fromVal = (document.getElementById('cfd-from') || {}).value || '';
+        toVal = (document.getElementById('cfd-to') || {}).value || '';
+    } else if (selector === '#ri-result') {
+        fromVal = (document.getElementById('ri-from') || {}).value || '';
+        toVal = (document.getElementById('ri-to') || {}).value || '';
+    } else if (selector === '#rc-result') {
+        fromVal = (document.getElementById('rc-from1') || {}).value || '';
+        toVal = (document.getElementById('rc-to2') || {}).value || '';
+    } else if (selector === '#rff-result') {
+        fromVal = (document.getElementById('rff-from') || {}).value || '';
+        toVal = (document.getElementById('rff-to') || {}).value || '';
+    }
+
+    if (fromVal || toVal) {
+        dateRange = 'از تاریخ: ' + toFa(fromVal) + (toVal ? ' | تا تاریخ: ' + toFa(toVal) : '');
+    }
+
+    var clone = targetEl.cloneNode(true);
+
+    var detailList = clone.querySelector('.rff-detail-list');
+    if (detailList && typeof window._flattenRffDetailToTableHtml === 'function') {
+        var flatHtml = window._flattenRffDetailToTableHtml(detailList);
+        var wrapper = document.createElement('div');
+        wrapper.innerHTML = flatHtml;
+        detailList.parentNode.replaceChild(wrapper, detailList);
+    }
+
+    var toRemove = clone.querySelectorAll('img, .ar-side, .share-btn, .col-filter-btn, .col-resizer, .row-actions, button, .no-print, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn, .col-filter-popover, .col-menu, .ar-turnover-btn, .ar-col-toggle, .cfd-multi-wrap, .cfd-multi-btn, .cfd-multi-dropdown, .cf-filter-card, .cf-filter-body, .cf-filter-toggle, .list-header, .tabs, .rff-fac-head, .rff-fac-stats, .rff-fac-meta');
+    for (var r = 0; r < toRemove.length; r++) toRemove[r].remove();
+
+    clone.querySelectorAll('.cfd-details').forEach(function(el) {
+        el.classList.add('show');
+        el.style.display = 'block';
+    });
+
+    clone.querySelectorAll('table').forEach(function (table) {
+        var thead = table.querySelector('thead');
+        var tfoot = table.querySelector('tfoot');
+        var tbody = table.querySelector('tbody');
+
+        var footRow = null;
+        if (tfoot && tbody) {
+            footRow = tfoot.querySelector('tr');
+            if (footRow) {
+                footRow.style.backgroundColor = '#f1f5f9';
+                footRow.style.color = '#0f172a';
+                footRow.style.fontWeight = 'bold';
+                footRow.style.fontSize = '11pt';
+                footRow.style.pageBreakInside = 'avoid';
+                var tds = footRow.querySelectorAll('td');
+                for (var i=0; i<tds.length; i++) {
+                    tds[i].style.borderTop = '2px solid #1e40af';
+                    tds[i].style.borderBottom = '2px solid #1e40af';
+                    tds[i].style.padding = '10px 5px';
+                }
+                tbody.appendChild(footRow);
+            }
+            tfoot.remove();
+        }
+    });
+
+    var htmlContent =
+        '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' +
+        '<style>@page{size:A4;margin:15mm 12mm 18mm 12mm;} body{font-family:Tahoma,Arial,sans-serif;direction:rtl;color:#000;margin:0;padding:0;font-size:10.5pt;} ' +
+        '.header{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2.5px solid #1e40af;} ' +
+        '.header h1{font-size:17pt;margin:0 0 8px 0;color:#1e40af;font-weight:900;} ' +
+        'table{width:100%;border-collapse:collapse;margin-bottom:15px;} tr{page-break-inside:avoid !important;} ' +
+        'thead{display:table-header-group;} th,td{border:1px solid #64748b;padding:5px 8px;text-align:center;vertical-align:middle;font-size:9.5pt;} ' +
+        'th{background-color:#e2e8f0 !important;font-weight:bold !important;color:#1e40af;} ' +
+        '.num{direction:ltr;font-family:Arial,Tahoma,sans-serif;font-variant-numeric:tabular-nums;} ' +
+        '.dr{color:#dc2626 !important;font-weight:bold;} .cr{color:#059669 !important;font-weight:bold;}' +
+        '</style></head><body><div class="header"><h1>' + esc(title) + '</h1>' +
+        (dateRange ? '<div class="date-range">' + esc(dateRange) + '</div>' : '') +
+        '</div><div>' + clone.innerHTML + '</div></body></html>';
+
+    var printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('لطفاً پاپ‌آپ را در مرورگر خود مجاز کنید.'); return; }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    if (typeof showToast === 'function') showToast('🖨️ در پنجره باز شده، گزینه Save as PDF را انتخاب کنید.');
+
+    setTimeout(function () {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.onafterprint = function () { printWindow.close(); };
+    }, 500);
+}
+
+function _buildExcelCell(txt, isHeader, colspan, rowspan) {
+    var attrs = '';
+    if (colspan && parseInt(colspan, 10) > 1) attrs += ' colspan="' + colspan + '"';
+    if (rowspan && parseInt(rowspan, 10) > 1) attrs += ' rowspan="' + rowspan + '"';
+    var baseStyle = 'border:1px solid #64748b;padding:5px 8px;text-align:center;vertical-align:middle;font-family:Tahoma;font-size:10pt;';
+    if (isHeader) {
+        return '<td' + attrs + ' style="' + baseStyle + 'background:#e2e8f0;font-weight:bold;color:#1e40af;mso-number-format:\'\\@\'">' + esc(txt) + '</td>';
+    }
+    var trimmed = String(txt).trim();
+    if (trimmed === '' || trimmed === '—' || trimmed === '-') {
+        return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'\\@\'">' + esc(trimmed) + '</td>';
+    }
+    var num = tryParseNumericCell(trimmed);
+    if (num !== null) {
+        return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'#,##0\';direction:ltr">' + num + '</td>';
+    }
+    return '<td' + attrs + ' style="' + baseStyle + 'mso-number-format:\'\\@\'">' + esc(trimmed) + '</td>';
+}
+
+function _wrapExcelHtml(tableRowsHtml, sheetName) {
+    var safeName = String(sheetName || 'Report').replace(/[\\\/\?\*\[\]:]/g, '_').substring(0, 30);
+    return '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+         + 'xmlns:x="urn:schemas-microsoft-com:office:excel" '
+         + 'xmlns="http://www.w3.org/TR/REC-html40">'
+         + '<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'
+         + '<!--[if gte mso 9]><xml>'
+         + '<x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'
+         + '<x:Name>' + esc(safeName) + '</x:Name>'
+         + '<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
+         + '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>'
+         + '</xml><![endif]-->'
+         + '<style>table { border-collapse: collapse; } td { mso-number-format:\\@; }</style>'
+         + '</head><body dir="rtl">'
+         + '<table dir="rtl" border="1" style="border-collapse:collapse">'
+         + tableRowsHtml
+         + '</table></body></html>';
+}
+
+function _triggerXlsDownload(htmlString, filename) {
+    var blob = new Blob(['\uFEFF' + htmlString], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var now = new Date();
+    var dateStr = todayJalaliStr().replace(/\//g, '-');
+    var timeStr = pad2(now.getHours()) + '-' + pad2(now.getMinutes());
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename + '-' + dateStr + '_' + timeStr + '.xls';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+}
+
+function _excelCellFromRaw(val) {
+    if (val === null || val === undefined) {
+        return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'"></td>';
+    }
+    var num = null;
+    if (typeof val === 'number') num = val;
+    else num = tryParseNumericCell(val);
+    if (num !== null && isFinite(num)) {
+        return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'#,##0\';direction:ltr">' + num + '</td>';
+    }
+    return '<td style="border:1px solid #64748b;padding:5px 8px;text-align:center;mso-number-format:\'\\@\'">' + esc(String(val)) + '</td>';
+}
+
+function exportDataToExcel(headers, rows, title, filename, sheetName) {
+    var trs = [];
+    if (title) {
+        trs.push('<tr><td colspan="' + (headers ? headers.length : 1) + '" style="font-weight:bold;font-size:14pt;text-align:center;background:#e2e8f0;color:#1e40af;padding:10px;border:1px solid #64748b">' + esc(title) + '</td></tr>');
+    }
+    if (headers && headers.length > 0) {
+        trs.push('<tr>');
+        headers.forEach(function (h) {
+            trs.push('<th style="border:1px solid #64748b;padding:8px;background:#e2e8f0;color:#1e40af;font-weight:bold;text-align:center;mso-number-format:\'\\@\'">' + esc(h) + '</th>');
+        });
+        trs.push('</tr>');
+    }
+    (rows || []).forEach(function (row) {
+        trs.push('<tr>');
+        (row || []).forEach(function (cell) {
+            trs.push(_excelCellFromRaw(cell));
+        });
+        trs.push('</tr>');
+    });
+    var html = _wrapExcelHtml(trs.join(''), sheetName || filename || 'report');
+    _triggerXlsDownload(html, filename || 'report');
+    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+}
+
+function exportToCsv(key, filename) {
+    if (key === 'vouchers' && typeof window.exportVoucherListToExcel === 'function') {
+        window.exportVoucherListToExcel(filename);
+        return;
+    }
+    var data = DB.load(key, []);
+    if (!Array.isArray(data)) data = [];
+    if (data.length === 0) { alert('داده‌ای نیست.'); return; }
+    var keys = [];
+    data.forEach(function (row) {
+        Object.keys(row).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
+    });
+    var trs = [];
+    var headerRow = '<tr>';
+    keys.forEach(function (k) { headerRow += _buildExcelCell(k, true, 0, 0); });
+    headerRow += '</tr>';
+    trs.push(headerRow);
+    data.forEach(function (row) {
+        var tr = '<tr>';
+        keys.forEach(function (k) {
+            var v = row[k];
+            if (v === null || v === undefined) v = '';
+            if (typeof v === 'object') v = JSON.stringify(v);
+            tr += _buildExcelCell(v, false, 0, 0);
+        });
+        tr += '</tr>';
+        trs.push(tr);
+    });
+    var html = _wrapExcelHtml(trs.join(''), filename || 'data');
+    _triggerXlsDownload(html, filename || 'data');
+    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+}
+
+function exportReportTable(selector, filename) {
+    var activePage = document.querySelector('.page.active');
+    var el = activePage ? activePage.querySelector(selector) : null;
+    if (!el) el = document.querySelector(selector);
+    if (!el) { alert('ابتدا گزارش را اجرا کن.'); return; }
+
+    var detailList = el.querySelector('.rff-detail-list');
+    if (detailList && typeof window._flattenRffDetailToTableData === 'function') {
+        var flat = window._flattenRffDetailToTableData(detailList);
+        var trs = [];
+        trs.push('<tr>');
+        flat.headers.forEach(function (h) {
+            trs.push('<th style="border:1px solid #64748b;padding:8px;background:#e2e8f0;color:#1e40af;font-weight:bold;text-align:center;mso-number-format:\'\\@\'">' + esc(h) + '</th>');
+        });
+        trs.push('</tr>');
+        flat.rows.forEach(function (row) {
+            trs.push('<tr>');
+            row.forEach(function (cell) { trs.push(_excelCellFromRaw(cell)); });
+            trs.push('</tr>');
+        });
+        var htmlFlat = _wrapExcelHtml(trs.join(''), filename || 'report');
+        _triggerXlsDownload(htmlFlat, filename || 'report');
+        if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+        return;
+    }
+
+    var table = el.querySelector('table');
+    if (!table) { alert('جدولی برای خروجی نیست.'); return; }
+    var clone = table.cloneNode(true);
+    clone.querySelectorAll('.row-actions, .col-filter-btn, .col-resizer, button, .no-print, .ar-turnover-btn, .ar-col-toggle, .share-btn, .eye-toggle-btn, .col-toggle-btn, .col-reset-btn').forEach(function (n) { n.remove(); });
+    clone.querySelectorAll('tr').forEach(function (tr) {
+        Array.from(tr.children).forEach(function (cell) {
+            if (cell.style.display === 'none') cell.remove();
+        });
+    });
+    var trs2 = [];
+    var allTrs = clone.querySelectorAll('tr');
+    for (var i = 0; i < allTrs.length; i++) {
+        var tr = allTrs[i];
+        var cells = Array.from(tr.children);
+        if (cells.length === 0) continue;
+        var rowHtml = '<tr>';
+        cells.forEach(function (cell) {
+            var isHeader = (cell.tagName === 'TH');
+            var txt = cell.textContent.trim();
+            var cs = cell.getAttribute('colspan') || '1';
+            var rs = cell.getAttribute('rowspan') || '1';
+            rowHtml += _buildExcelCell(txt, isHeader, cs, rs);
+        });
+        rowHtml += '</tr>';
+        trs2.push(rowHtml);
+    }
+    if (trs2.length === 0) { alert('داده‌ای برای خروجی نیست.'); return; }
+    var html = _wrapExcelHtml(trs2.join(''), filename || 'report');
+    _triggerXlsDownload(html, filename || 'report');
+    if (typeof showToast === 'function') showToast('✅ فایل اکسل آماده شد.');
+}
+
+function renderChips(containerId, list, stateKey) {
+    var box = document.getElementById(containerId);
+    if (!box) return;
+    box.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0) {
+        box.innerHTML = '<div class="muted" style="text-align:center;padding:12px;font-size:.85rem;color:#94a3b8">هنوز آیتمی اضافه نشده. از کادر بالا اضافه کنید.</div>';
+        return;
+    }
+    list.forEach(function (item, idx) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#dbeafe;color:#1e40af;border-radius:22px;font-size:.82rem;font-weight:700;margin:4px';
+        chip.innerHTML = '<span>' + esc(item) + '</span>' +
+                         '<button class="chip-del" data-idx="' + idx + '" type="button" ' +
+                         'style="background:none;border:none;color:#dc2626;font-size:1.1rem;cursor:pointer;padding:0;font-weight:900;line-height:1" title="حذف">×</button>';
+        box.appendChild(chip);
+    });
+    box.querySelectorAll('.chip-del').forEach(function (b) {
+        b.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var i = Number(this.getAttribute('data-idx'));
+            var target = list[i];
+            var entityType = (stateKey === 'cashTypes') ? 'cashType' : 'bankType';
+            if (typeof getDeleteIssues === 'function') {
+                var issues = getDeleteIssues(entityType, target);
+                if (issues.length > 0) {
+                    alert('⚠️ امکان حذف «' + target + '» وجود ندارد:\n\n• ' + issues.join('\n• ') + '\n\nابتدا وابستگی‌ها را حذف یا تغییر دهید.');
+                    return;
+                }
+            }
+            if (!confirm('حذف «' + target + '» شود؟')) return;
+            list.splice(i, 1);
+            var lsKey = (stateKey === 'cashTypes') ? LS_KEYS.CASH_TYPES : LS_KEYS.BANK_TYPES;
+            DB.save(lsKey, list);
+            state[stateKey] = list;
+            renderChips(containerId, list, stateKey);
+            if (stateKey === 'cashTypes' && typeof refreshCashTypeSelect === 'function') {
+                try { refreshCashTypeSelect(); } catch (err) {}
+            }
+            if (stateKey === 'bankTypes' && typeof refreshBankTypeSelect === 'function') {
+                try { refreshBankTypeSelect(); } catch (err) {}
+            }
+            if (typeof showToast === 'function') showToast('🗑 حذف شد');
+        };
+    });
+}
+
+window.getAccountLabel = getAccountLabel;
+window.getAccountSearchText = getAccountSearchText;
+window.getDetailLabel = getDetailLabel;
+window.getLinkedItems = getLinkedItems;
+window.getLinkedItemLabel = getLinkedItemLabel;
+window.getBankMoeinId = getBankMoeinId;
+window.getLeafAccounts = getLeafAccounts;
+window.sortAccountsByCode = sortAccountsByCode;
+window.getLeafAccountsSortedByCode = getLeafAccountsSortedByCode;
+window.buildOptionsInto = buildOptionsInto;
+window.printHtmlReport = printHtmlReport;
+window.exportToCsv = exportToCsv;
+window.exportReportTable = exportReportTable;
+window.exportDataToExcel = exportDataToExcel;
+window.tryParseNumericCell = tryParseNumericCell;
+window.getDeleteIssues = getDeleteIssues;
+window.renderChips = renderChips;
+
+console.log('✅ [core/lookups.js] loaded — phonebook integration');

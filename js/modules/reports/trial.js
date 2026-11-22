@@ -1,0 +1,660 @@
+/* ============================================================
+   پارسیس — تراز آزمایشی + گزارش مقایسه‌ای + تراکنش‌های تکمیل نشده
+   مسیر: js/modules/reports/trial.js
+   ✅ v4: بهینه‌سازی سرعت، پیش‌فرض دوره/وضعیت، نمایش تمام ردیف‌ها
+   ============================================================ */
+'use strict';
+
+if (typeof window._rtSort === 'undefined') window._rtSort = { col: 'name', dir: 'asc' };
+if (typeof window._rcSort === 'undefined') window._rcSort = { col: 'name', dir: 'asc' };
+
+function _reportSortCompare(a, b, col, dir) {
+    var va = a[col]; var vb = b[col]; var c;
+    if (typeof va === 'number' && typeof vb === 'number') c = va - vb;
+    else c = compareVals(va, vb);
+    return dir === 'asc' ? c : -c;
+}
+
+function _applyReportSort(rows, state) {
+    if (!state || !state.col) return rows;
+    return rows.slice().sort(function (a, b) { return _reportSortCompare(a, b, state.col, state.dir); });
+}
+
+function _updateSortIndicators(container, state) {
+    if (!container || !state) return;
+    container.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        var col = th.getAttribute('data-sort-col'); var ind = th.querySelector('.rt-sort-ind');
+        if (!ind) return;
+        if (col === state.col) {
+            ind.textContent = state.dir === 'asc' ? ' ▲' : ' ▼'; ind.style.opacity = '1'; ind.style.color = 'var(--primary-dark)';
+        } else {
+            ind.textContent = ' ⇅'; ind.style.opacity = '0.4'; ind.style.color = '';
+        }
+    });
+}
+
+/* ============================================================
+   Collapsible Logic for Trial Balance
+   ============================================================ */
+function injectRtCollapseStyle() {
+    if (document.getElementById('rt-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'rt-collapse-style';
+    s.textContent = ''
+    + '.rt-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; margin-bottom:14px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
+    + '.rt-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.rt-filter-toggle:active { transform:scale(0.97); }'
+    + '.cf-toggle-icon { display:inline-block; transition:transform 0.25s; line-height:1; font-size:0.8rem; }'
+    + '.cf-filter-card.cf-collapsed .cf-toggle-icon { transform:rotate(-90deg); }'
+    + '.cf-filter-card.cf-collapsed .cf-filter-body { display:none !important; }'
+    + '.cf-filter-card.cf-collapsed .rt-filter-toggle { margin-bottom:0 !important; }'
+    + '.cf-filter-card.collapsed .rt-filter-toggle { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }';
+    document.head.appendChild(s);
+}
+
+injectRtCollapseStyle();
+
+(function installRtToggleDelegation() {
+    if (window._rtToggleDelegated) return;
+    window._rtToggleDelegated = true;
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.rt-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var card = btn.closest('.cf-filter-card'); 
+        if (!card) return;
+
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('rt.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+function initRtCollapse() {
+    injectRtCollapseStyle();
+    var collapsed = false;
+    try { collapsed = DB.load('rt.filterCollapsed', false); } catch (e) {}
+    var card = document.getElementById('rt-filter-card');
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
+}
+
+function injectRcCollapseStyle() {
+    if (document.getElementById('rc-collapse-style')) return;
+    var s = document.createElement('style');
+    s.id = 'rc-collapse-style';
+    s.textContent = ''
+    + '.rc-filter-toggle { display:inline-flex !important; align-items:center; gap:8px; padding:9px 16px; margin-bottom:14px; border-radius:10px; background:linear-gradient(135deg,#4a90e2,#6366f1); color:#fff; border:none; cursor:pointer; font-size:0.85rem; font-weight:800; font-family:inherit; box-shadow:0 3px 10px rgba(74,144,226,0.35); transition:all 0.2s; user-select:none; -webkit-tap-highlight-color:transparent; }'
+    + '.rc-filter-toggle:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(74,144,226,0.5); }'
+    + '.rc-filter-toggle:active { transform:scale(0.97); }';
+    document.head.appendChild(s);
+}
+injectRcCollapseStyle();
+
+(function installRcToggleDelegation() {
+    if (window._rcToggleDelegated) return;
+    window._rcToggleDelegated = true;
+    document.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.rc-filter-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var card = btn.closest('.cf-filter-card'); 
+        if (!card) return;
+        var isCollapsed = card.classList.toggle('cf-collapsed');
+        try { DB.save('rc.filterCollapsed', isCollapsed); } catch (er) {}
+    }, true);
+})();
+
+function initRcCollapse() {
+    injectRcCollapseStyle();
+    var collapsed = false;
+    try { collapsed = DB.load('rc.filterCollapsed', false); } catch (e) {}
+    var card = document.getElementById('rc-filter-card');
+    if (card) {
+        if (collapsed) card.classList.add('cf-collapsed');
+        else card.classList.remove('cf-collapsed');
+    }
+}
+
+function setRcDefaultDates() {
+    var d = new Date();
+    var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    var cy = j[0], cm = j[1];
+    var pm = cm - 1, py = cy;
+    if (pm < 1) { pm = 12; py--; }
+    var from1 = py + '/' + pad2(pm) + '/01';
+    var to1 = py + '/' + pad2(pm) + '/' + pad2(daysInJalaliMonth(py, pm));
+    var from2 = cy + '/' + pad2(cm) + '/01';
+    var to2 = cy + '/' + pad2(cm) + '/' + pad2(daysInJalaliMonth(cy, cm));
+    var f1 = document.getElementById('rc-from1');
+    var t1 = document.getElementById('rc-to1');
+    var f2 = document.getElementById('rc-from2');
+    var t2 = document.getElementById('rc-to2');
+    if (f1 && !f1.value) f1.value = from1;
+    if (t1 && !t1.value) t1.value = to1;
+    if (f2 && !f2.value) f2.value = from2;
+    if (t2 && !t2.value) t2.value = to2;
+}
+
+function recalcRtFooter() {
+    var table = document.getElementById('rt-table');
+    if (!table) return;
+    var tbodyRows = table.querySelectorAll('tbody tr');
+    var tD = 0, tC = 0, tMD = 0, tMC = 0;
+    
+    tbodyRows.forEach(function(tr) {
+        if (tr.style.display === 'none') return;
+        var cells = tr.children;
+        if (cells.length < 6) return;
+        var d = tryParseNumericCell(cells[2].textContent);
+        var c = tryParseNumericCell(cells[3].textContent);
+        var md = tryParseNumericCell(cells[4].textContent);
+        var mc = tryParseNumericCell(cells[5].textContent);
+        if (d !== null) tD += d;
+        if (c !== null) tC += c;
+        if (md !== null) tMD += md;
+        if (mc !== null) tMC += mc;
+    });
+
+    var hide = getHideState('rt');
+    var tfoot = table.querySelector('tfoot tr');
+    if (tfoot) {
+        var tds = tfoot.querySelectorAll('td');
+        if (tds.length === 5) {
+            tds[1].innerHTML = hide ? '—' : fmtRep(tD, 'rt');
+            tds[2].innerHTML = hide ? '—' : fmtRep(tC, 'rt');
+            tds[3].innerHTML = hide ? '—' : (tMD ? fmtRep(tMD, 'rt') : '—');
+            tds[4].innerHTML = hide ? '—' : (tMC ? fmtRep(tMC, 'rt') : '—');
+        }
+    }
+}
+
+/* ============================================================
+   Trial Balance
+   ============================================================ */
+function runTrialBalance() {
+    initRtCollapse();
+    var activePeriod = DB.load('fiscalPeriods', []).find(function(p) { return p.id === state.activePeriodId; });
+    var rtFromEl = document.getElementById('rt-from'); var rtToEl = document.getElementById('rt-to');
+    if (rtFromEl && !rtFromEl.value) rtFromEl.value = activePeriod ? activePeriod.from : '';
+    if (rtToEl && !rtToEl.value) rtToEl.value = activePeriod ? activePeriod.to : '';
+
+    var opts = {
+        from: (document.getElementById('rt-from') || {}).value || '', to: (document.getElementById('rt-to') || {}).value || '',
+        vtype: (document.getElementById('rt-vtype') || {}).value || '', periodId: (document.getElementById('rt-period') || {}).value || '',
+        cat: (document.getElementById('rt-cat') || {}).value || '', nature: (document.getElementById('rt-nature') || {}).value || '',
+        level: Number((document.getElementById('rt-level') || {}).value) || 3
+    };
+
+    var accounts = DB.load('accounts', []); var result = computeAccountBalances(opts);
+    var rolled = rollupBalances(accounts, result.balances); var hide = getHideState('rt');
+
+    var rows = [];
+    function getCh(pid) { return accounts.filter(function (a) { return a.parent === pid; }); }
+
+    function walk(node, level) {
+        var b = rolled[node.id] || { debit: 0, credit: 0 }; var net = b.debit - b.credit;
+        if (opts.level === 4 && level === 3) {
+            var sD = 0, sC = 0;
+            Object.keys(result.detailBalances).forEach(function (key) {
+                var d = result.detailBalances[key]; if (d.parents.indexOf(node.id) === -1) return;
+                sD += d.debit; sC += d.credit; var dn = d.debit - d.credit;
+                rows.push({ name: getDetailLabel(d.linkType, d.id) + ' (' + node.name + ')', level: 4, debit: d.debit, credit: d.credit, md: dn > 0 ? dn : 0, mc: dn < 0 ? -dn : 0 });
+            });
+            var dd = b.debit - sD; var dc = b.credit - sC;
+            if (Math.abs(dd) > 0.5 || Math.abs(dc) > 0.5) {
+                var dn2 = dd - dc;
+                rows.push({ name: node.name + ' (بدون تفصیلی)', level: 4, debit: dd, credit: dc, md: dn2 > 0 ? dn2 : 0, mc: dn2 < 0 ? -dn2 : 0 });
+            }
+            return;
+        }
+        if (level === opts.level) {
+            if (level === 1 || b.debit > 0 || b.credit > 0) {
+                rows.push({ name: node.name, level: level, debit: b.debit, credit: b.credit, md: net > 0 ? net : 0, mc: net < 0 ? -net : 0 });
+            }
+            return;
+        }
+        if (level < opts.level) { var chs = getCh(node.id); for (var ci = 0; ci < chs.length; ci++) walk(chs[ci], level + 1); }
+    }
+
+    var roots = accounts.filter(function (a) { return !a.parent; });
+    for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
+    rows = _applyReportSort(rows, window._rtSort);
+
+    var html = '<div class="table-wrap"><table class="report-table" id="rt-table"><thead><tr>'
+             +  '<th data-sort-col="name" style="cursor:pointer;user-select:none">عنوان<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="level" style="cursor:pointer;user-select:none">سطح<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="debit" style="cursor:pointer;user-select:none">گردش بدهکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="credit" style="cursor:pointer;user-select:none">گردش بستانکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="md" style="cursor:pointer;user-select:none">مانده بدهکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '<th data-sort-col="mc" style="cursor:pointer;user-select:none">مانده بستانکار<span class="rt-sort-ind"> ⇅</span></th>'
+             +  '</tr></thead><tbody>';
+
+    var tD = 0, tC = 0, tMD = 0, tMC = 0;
+    for (var r = 0; r < rows.length; r++) {
+        var row = rows[r]; tD += row.debit; tC += row.credit; tMD += row.md; tMC += row.mc;
+        var lN = row.level === 1 ? 'گروه' : (row.level === 2 ? 'کل' : (row.level === 3 ? 'معین' : 'تفصیلی'));
+        html += '<tr><td>' + esc(row.name) + '</td><td>' + lN + '</td>'
+             +  '<td class="num dr">' + (hide ? '—' : fmtRep(row.debit, 'rt')) + '</td>'
+             +  '<td class="num cr">' + (hide ? '—' : fmtRep(row.credit, 'rt')) + '</td>'
+             +  '<td class="num dr">' + (hide ? '—' : (row.md ? fmtRep(row.md, 'rt') : '—')) + '</td>'
+             +  '<td class="num cr">' + (hide ? '—' : (row.mc ? fmtRep(row.mc, 'rt') : '—')) + '</td></tr>';
+    }
+
+    html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع</td>'
+         +  '<td class="num dr">' + (hide ? '—' : fmtRep(tD, 'rt')) + '</td><td class="num cr">' + (hide ? '—' : fmtRep(tC, 'rt')) + '</td>'
+         +  '<td class="num dr">' + (hide ? '—' : fmtRep(tMD, 'rt')) + '</td><td class="num cr">' + (hide ? '—' : fmtRep(tMC, 'rt')) + '</td></tr></tfoot></table></div>';
+
+    var box = document.getElementById('rt-result'); box.innerHTML = html;
+
+    box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        if (th.dataset.bound) return; th.dataset.bound = '1';
+        th.addEventListener('click', function (e) {
+            if (e.target.classList && e.target.classList.contains('col-resizer')) return;
+            if (e.target.closest('.col-filter-btn')) return;
+            var col = this.getAttribute('data-sort-col');
+            if (window._rtSort.col === col) window._rtSort.dir = window._rtSort.dir === 'asc' ? 'desc' : 'asc';
+            else { window._rtSort.col = col; window._rtSort.dir = 'asc'; }
+            runTrialBalance();
+        });
+    });
+
+    _updateSortIndicators(box, window._rtSort);
+    document.getElementById('rt-count').textContent = toFa(rows.length);
+
+    setTimeout(function () {
+        var t = document.getElementById('rt-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rt-table');
+        if (typeof applyColWidths === 'function') applyColWidths('rt-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
+        if (t) {
+            t.addEventListener('table-filtered', recalcRtFooter);
+            recalcRtFooter();
+        }
+    }, 30);
+
+    if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+    bindTrialReportButtons();
+}
+
+/* ============================================================
+   ✅ گزارش تراکنش‌های تکمیل نشده (بهینه‌سازی شده)
+   ============================================================ */
+function runIncompleteReport() {
+    var statusEl = document.getElementById('ri-status');
+    var periodEl = document.getElementById('ri-period');
+
+    // ۱. پر کردن لیست دوره‌ها در صورت خالی بودن
+    if (periodEl && periodEl.options.length <= 1) {
+        var periodsList = DB.load('fiscalPeriods', []);
+        periodEl.innerHTML = '<option value="">همه</option>';
+        periodsList.forEach(function (p) {
+            var o = document.createElement('option');
+            o.value = p.id;
+            o.textContent = p.title;
+            periodEl.appendChild(o);
+        });
+    }
+
+    // ۲. تنظیم مقادیر پیش‌فرض در اولین بارگذاری
+    if (statusEl && !statusEl.dataset.init) {
+        statusEl.dataset.init = '1';
+        statusEl.value = 'draft'; // پیش‌فرض: پیش‌نویس
+    }
+    if (periodEl && !periodEl.dataset.init) {
+        periodEl.dataset.init = '1';
+        periodEl.value = state.activePeriodId || ''; // پیش‌فرض: دوره جاری
+    }
+
+    var statusF = statusEl ? statusEl.value : '';
+    var periodF = periodEl ? periodEl.value : '';
+    var hide = getHideState('ri');
+
+    var vouchers = DB.load('vouchers', []);
+    var accounts = DB.load('accounts', []);
+    var periods = DB.load('fiscalPeriods', []);
+    var pMap = {};
+    periods.forEach(function (p) { pMap[p.id] = p.title; });
+
+    var incompleteVouchers = [];
+
+    // ۳. فیلتر کردن سریع قبل از بررسی نقص (افزایش شدید سرعت)
+    vouchers.forEach(function (v) {
+        var st = v.status || 'draft';
+        if (statusF && st !== statusF) return;
+        if (periodF && v.periodId !== periodF) return;
+
+        var issues = getVoucherIssues(v);
+        if (issues.length === 0) return;
+        incompleteVouchers.push({ v: v, issues: issues });
+    });
+
+    incompleteVouchers.sort(function (a, b) {
+        return compareVals(a.v.number, b.v.number);
+    });
+
+    var html = '<div class="table-wrap"><table class="report-table data-table" id="ri-table" data-table-id="ri-table"><thead><tr>'
+             +  '<th>#</th>'
+             +  '<th>شماره سند</th>'
+             +  '<th>تاریخ</th>'
+             +  '<th>نوع</th>'
+             +  '<th>دوره</th>'
+             +  '<th>شرح سند</th>'
+             +  '<th># ردیف</th>'
+             +  '<th>معین</th>'
+             +  '<th>تفصیلی</th>'
+             +  '<th>شرح قلم</th>'
+             +  '<th>بدهکار</th>'
+             +  '<th>بستانکار</th>'
+             +  '</tr></thead><tbody>';
+
+    var totalDebit = 0, totalCredit = 0;
+    var globalRowIdx = 0;
+    var totalDataRows = 0;
+
+    incompleteVouchers.forEach(function (item) {
+        var v = item.v;
+        var lines = v.lines || [];
+        var issueText = item.issues.join(' • ');
+
+        // ۴. نمایش تمام ردیف‌ها (حتی ردیف‌های بدون حساب یا مبلغ صفر)
+        var displayLines = lines.length > 0 ? lines : [null];
+
+        displayLines.forEach(function (line, lineIdx) {
+            globalRowIdx++;
+            totalDataRows++;
+
+            var isFirstLine = (lineIdx === 0);
+            var vNum = isFirstLine ? toFa(esc(v.number || '—')) : '';
+            var vDate = isFirstLine ? toFa(esc(v.date || '—')) : '';
+            var vType = isFirstLine ? voucherTypeName(v.type || 'general') : '';
+            var vPeriod = isFirstLine ? esc(pMap[v.periodId] || '—') : '';
+            var vDesc = isFirstLine ? esc(v.desc || '') : '';
+
+            var accLabel = '—';
+            var detLabel = '—';
+            var lineDesc = '';
+            var d = 0, c = 0;
+
+            if (line) {
+                accLabel = line.account ? getAccountLabel(line.account, accounts) : '<span style="color:#dc2626;font-weight:800">— بدون حساب —</span>';
+                if (line.details) {
+                    var detParts = [];
+                    Object.keys(line.details).forEach(function (lt) {
+                        var did = line.details[lt];
+                        if (did) detParts.push(linkTypeName(lt) + ': ' + getDetailLabel(lt, did));
+                    });
+                    if (detParts.length > 0) detLabel = esc(detParts.join(' ، '));
+                }
+                lineDesc = line.description || '';
+                d = Number(line.debit) || 0;
+                c = Number(line.credit) || 0;
+                totalDebit += d;
+                totalCredit += c;
+            } else {
+                lineDesc = '<span style="color:#dc2626;font-weight:700">⚠️ ردیفی ثبت نشده</span>';
+            }
+
+            var rowStyle = '';
+            if (isFirstLine) rowStyle = 'border-top:2px solid #93c5fd;';
+            if (item.issues.length > 0 && isFirstLine) rowStyle += 'background:linear-gradient(90deg,#fef2f2,#fff);';
+
+            html += '<tr style="' + rowStyle + '">'
+                 +  '<td class="num" dir="ltr">' + toFa(globalRowIdx) + '</td>'
+                 +  '<td dir="ltr"><strong>' + vNum + '</strong></td>'
+                 +  '<td dir="ltr">' + vDate + '</td>'
+                 +  '<td>' + vType + '</td>'
+                 +  '<td>' + vPeriod + '</td>'
+                 +  '<td>' + vDesc + '</td>'
+                 +  '<td class="num">' + (line ? toFa(lineIdx + 1) : '—') + '</td>'
+                 +  '<td>' + accLabel + '</td>'
+                 +  '<td>' + detLabel + '</td>'
+                 +  '<td>' + lineDesc + '</td>'
+                 +  '<td class="num dr" style="font-weight:bold">' + (hide ? '—' : (d > 0 ? formatMoney(d) : '—')) + '</td>'
+                 +  '<td class="num cr" style="font-weight:bold">' + (hide ? '—' : (c > 0 ? formatMoney(c) : '—')) + '</td>'
+                 +  '</tr>';
+        });
+
+        if (issueText) {
+            html += '<tr style="background:#fffbeb">'
+                 +  '<td colspan="12" style="text-align:right;padding:8px 14px;color:#92400e;font-size:0.82rem;font-weight:700;border-bottom:2px solid #f59e0b">'
+                 +  '⚠️ مشکلات: ' + esc(issueText)
+                 +  '</td></tr>';
+        }
+    });
+
+    if (incompleteVouchers.length === 0) {
+        html += '<tr><td colspan="12" class="empty-row">✅ هیچ سند ناقصی با این فیلترها یافت نشد.</td></tr>';
+    }
+
+    html += '</tbody>';
+
+    if (incompleteVouchers.length > 0) {
+        html += '<tfoot><tr>'
+             +  '<td colspan="6" style="text-align:left">'
+             +  toFa(incompleteVouchers.length) + ' سند ناقص — ' + toFa(totalDataRows) + ' ردیف'
+             +  '</td>'
+             +  '<td colspan="4"></td>'
+             +  '<td class="num dr">' + (hide ? '—' : formatMoney(totalDebit)) + '</td>'
+             +  '<td class="num cr">' + (hide ? '—' : formatMoney(totalCredit)) + '</td>'
+             +  '</tr></tfoot>';
+    }
+    html += '</table></div>';
+
+    var box = document.getElementById('ri-result');
+    box.innerHTML = html;
+    document.getElementById('ri-count').textContent = toFa(incompleteVouchers.length);
+    var unitEl = document.getElementById('ri-unit');
+    if (unitEl) unitEl.textContent = 'واحد: ' + currencyLabel();
+
+    setTimeout(function () {
+        var t = document.getElementById('ri-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (t && typeof applyColVisibility === 'function') applyColVisibility('ri-table');
+        if (t && typeof applyColWidths === 'function') applyColWidths('ri-table');
+        if (t && typeof buildFilterRow === 'function') buildFilterRow(t);
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+        if (typeof buildShareButtons === 'function') buildShareButtons();
+    }, 50);
+
+    if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+    if (typeof bindTrialReportButtons === 'function') bindTrialReportButtons();
+}
+
+/* ============================================================
+   Comparison Report
+   ============================================================ */
+function runComparisonReport() {
+    initRcCollapse();
+    setRcDefaultDates();
+
+    var p1 = { 
+        from: normalizeDigits((document.getElementById('rc-from1') || {}).value || '').trim(), 
+        to: normalizeDigits((document.getElementById('rc-to1') || {}).value || '').trim() 
+    };
+    var p2 = { 
+        from: normalizeDigits((document.getElementById('rc-from2') || {}).value || '').trim(), 
+        to: normalizeDigits((document.getElementById('rc-to2') || {}).value || '').trim() 
+    };
+    var vtype = (document.getElementById('rc-vtype') || {}).value || '';
+    var cat = (document.getElementById('rc-cat') || {}).value || '';
+    var nature = (document.getElementById('rc-nature') || {}).value || '';
+    var level = Number((document.getElementById('rc-level') || {}).value) || 2;
+    var hide = getHideState('rc');
+
+    if (!p1.from || !p1.to || !p2.from || !p2.to) { alert('هر چهار تاریخ اجباری است.'); return; }
+    if (p1.from > p1.to || p2.from > p2.to) { alert('بازه نامعتبر.'); return; }
+
+    var accounts = DB.load('accounts', []);
+    function computeBalances(f, t) { 
+        return rollupBalances(accounts, computeAccountBalances({ from: f, to: t, vtype: vtype, cat: cat, nature: nature, level: level }).balances); 
+    }
+    var bal1 = computeBalances(p1.from, p1.to); var bal2 = computeBalances(p2.from, p2.to);
+
+    var rows = [];
+    function walk(node, lvl) {
+        var b1 = bal1[node.id] || { debit: 0, credit: 0 }; var b2 = bal2[node.id] || { debit: 0, credit: 0 };
+        var net1 = b1.debit - b1.credit; var net2 = b2.debit - b2.credit;
+        if (lvl === level) {
+            if (lvl === 1 || b1.debit || b1.credit || b2.debit || b2.credit) rows.push({ name: node.name, level: lvl, net1: net1, net2: net2 });
+            return;
+        }
+        if (lvl < level) { 
+            var chs = accounts.filter(function (a) { return a.parent === node.id; }); 
+            for (var i = 0; i < chs.length; i++) walk(chs[i], lvl + 1); 
+        }
+    }
+    var roots = accounts.filter(function (a) { return !a.parent; }); 
+    for (var i = 0; i < roots.length; i++) walk(roots[i], 1);
+
+    rows.forEach(function (row) { row.diff = row.net2 - row.net1; row.pct = row.net1 !== 0 ? (row.diff / Math.abs(row.net1) * 100) : (row.net2 !== 0 ? 100 : 0); });
+    var sortState = window._rcSort; var sortKeyMap = { 'name': 'name', 'level': 'level', 'net1': 'net1', 'net2': 'net2', 'pct': 'pct' };
+    if (sortState && sortState.col) { 
+        var key = sortKeyMap[sortState.col] || sortState.col; 
+        rows = rows.slice().sort(function (a, b) { return _reportSortCompare(a, b, key, sortState.dir); }); 
+    }
+
+    var html = '<div class="table-wrap"><table class="report-table" id="rc-table"><thead><tr>'
+        + '<th data-sort-col="name" style="cursor:pointer;user-select:none">عنوان<span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="level" style="cursor:pointer;user-select:none">سطح<span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="net1" style="cursor:pointer;user-select:none">مانده دوره ۱<br><span style="font-size:0.72rem;font-weight:normal">' + toFa(p1.from) + ' تا ' + toFa(p1.to) + '</span><span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="net2" style="cursor:pointer;user-select:none">مانده دوره ۲<br><span style="font-size:0.72rem;font-weight:normal">' + toFa(p2.from) + ' تا ' + toFa(p2.to) + '</span><span class="rt-sort-ind"> ⇅</span></th>'
+        + '<th data-sort-col="pct" style="cursor:pointer;user-select:none">درصد افت/رشد<span class="rt-sort-ind"> ⇅</span></th></tr></thead><tbody>';
+
+    var t1 = 0, t2 = 0;
+    for (var r = 0; r < rows.length; r++) {
+        var row = rows[r]; t1 += row.net1; t2 += row.net2; var pct = row.pct; var pctCls = pct > 0 ? 'cr' : (pct < 0 ? 'dr' : '');
+        var pctText; if (pct < 0) pctText = '(' + toFa(Math.abs(pct).toFixed(2)) + '٪)'; else if (pct > 0) pctText = '▲ +' + toFa(pct.toFixed(2)) + '٪'; else pctText = '۰.۰۰٪';
+        var lN = row.level === 1 ? 'گروه' : (row.level === 2 ? 'کل' : (row.level === 3 ? 'معین' : 'تفصیلی'));
+        html += '<tr><td>' + esc(row.name) + '</td><td>' + lN + '</td><td class="num">' + (hide ? '—' : moneyHtml(row.net1)) + '</td><td class="num">' + (hide ? '—' : moneyHtml(row.net2)) + '</td><td class="num ' + pctCls + '" style="font-weight:800">' + (hide ? '—' : pctText) + '</td></tr>';
+    }
+
+    var tDiff = t2 - t1; var tPct = t1 !== 0 ? (tDiff / Math.abs(t1) * 100) : (t2 !== 0 ? 100 : 0);
+    var tPctCls = tPct > 0 ? 'cr' : (tPct < 0 ? 'dr' : ''); var tPctText;
+    if (tPct < 0) tPctText = '(' + toFa(Math.abs(tPct).toFixed(2)) + '٪)'; else if (tPct > 0) tPctText = '▲ +' + toFa(tPct.toFixed(2)) + '٪'; else tPctText = '۰.۰۰٪';
+
+    html += '</tbody><tfoot><tr><td colspan="2" style="text-align:left">جمع کل</td><td class="num">' + (hide ? '—' : moneyHtml(t1)) + '</td><td class="num">' + (hide ? '—' : moneyHtml(t2)) + '</td><td class="num ' + tPctCls + '" style="font-weight:800">' + (hide ? '—' : tPctText) + '</td></tr></tfoot></table></div>';
+
+    var box = document.getElementById('rc-result'); box.innerHTML = html;
+    document.getElementById('rc-count').textContent = toFa(rows.length);
+    var u = document.getElementById('rc-unit'); if (u) u.textContent = 'واحد: ' + currencyLabel();
+
+    box.querySelectorAll('th[data-sort-col]').forEach(function (th) {
+        if (th.dataset.bound) return; th.dataset.bound = '1';
+        th.addEventListener('click', function (e) {
+            if (e.target.classList && e.target.classList.contains('col-resizer')) return;
+            if (e.target.closest('.col-filter-btn')) return;
+            var col = this.getAttribute('data-sort-col');
+            if (window._rcSort.col === col) window._rcSort.dir = window._rcSort.dir === 'asc' ? 'desc' : 'asc';
+            else { window._rcSort.col = col; window._rcSort.dir = 'asc'; }
+            runComparisonReport();
+        });
+    });
+
+    _updateSortIndicators(box, window._rcSort);
+
+    setTimeout(function () {
+        var t = document.getElementById('rc-table');
+        if (t && typeof makeTableResizable === 'function') makeTableResizable(t);
+        if (typeof applyColVisibility === 'function') applyColVisibility('rc-table');
+        if (typeof buildHeaderButtons === 'function') buildHeaderButtons();
+        if (typeof buildFilterRow === 'function') buildFilterRow(t);
+    }, 30);
+
+    if (typeof autoAttachReportHelpers === 'function') autoAttachReportHelpers();
+}
+
+/* ============================================================
+   Bind Buttons
+   ============================================================ */
+function bindTrialReportButtons() {
+    var rtRun = document.getElementById('rt-run'); 
+    if (rtRun && !rtRun.dataset.bound) { 
+        rtRun.dataset.bound = '1'; 
+        rtRun.addEventListener('click', runTrialBalance); 
+    }
+    
+    var rtPrint = document.getElementById('rt-print');
+    if (rtPrint && !rtPrint.dataset.bound) {
+        rtPrint.dataset.bound = '1';
+        rtPrint.addEventListener('click', function() {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rt-result', 'تراز آزمایشی');
+            }
+        });
+    }
+    
+    var rtExport = document.getElementById('rt-export');
+    if (rtExport && !rtExport.dataset.bound) {
+        rtExport.dataset.bound = '1';
+        rtExport.addEventListener('click', function() {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rt-result', 'تراز-آزمایشی');
+            }
+        });
+    }
+
+    var riRun = document.getElementById('ri-run'); 
+    if (riRun && !riRun.dataset.bound && typeof runIncompleteReport === 'function') { 
+        riRun.dataset.bound = '1'; 
+        riRun.addEventListener('click', runIncompleteReport); 
+    }
+
+    var riPrint = document.getElementById('ri-print');
+    if (riPrint && !riPrint.dataset.bound) {
+        riPrint.dataset.bound = '1';
+        riPrint.addEventListener('click', function() {
+            if (typeof printHtmlReport === 'function') printHtmlReport('#ri-result', 'تراکنش‌های تکمیل نشده');
+        });
+    }
+
+    var riExport = document.getElementById('ri-export');
+    if (riExport && !riExport.dataset.bound) {
+        riExport.dataset.bound = '1';
+        riExport.addEventListener('click', function() {
+            if (typeof exportReportTable === 'function') exportReportTable('#ri-result', 'تراکنش‌های-تکمیل-نشده');
+        });
+    }
+
+    var rcRun = document.getElementById('rc-run'); 
+    if (rcRun && !rcRun.dataset.bound) { 
+        rcRun.dataset.bound = '1'; 
+        rcRun.addEventListener('click', runComparisonReport); 
+    }
+    
+    var rcPrint = document.getElementById('rc-print');
+    if (rcPrint && !rcPrint.dataset.bound) {
+        rcPrint.dataset.bound = '1';
+        rcPrint.addEventListener('click', function() {
+            if (typeof printHtmlReport === 'function') {
+                printHtmlReport('#rc-result', 'گزارش مقایسه‌ای دوره‌ها');
+            }
+        });
+    }
+    
+    var rcExport = document.getElementById('rc-export');
+    if (rcExport && !rcExport.dataset.bound) {
+        rcExport.dataset.bound = '1';
+        rcExport.addEventListener('click', function() {
+            if (typeof exportReportTable === 'function') {
+                exportReportTable('#rc-result', 'گزارش-مقایسه-ای');
+            }
+        });
+    }
+}
+
+window.runTrialBalance          = runTrialBalance;
+window.runIncompleteReport      = runIncompleteReport;
+window.runComparisonReport      = runComparisonReport;
+window.setRcDefaultDates        = setRcDefaultDates;
+window.recalcRtFooter           = recalcRtFooter;
+window.bindTrialReportButtons   = bindTrialReportButtons;
+
+console.log('✅ [modules/reports/trial.js] loaded — v4 (optimized incomplete report)');
