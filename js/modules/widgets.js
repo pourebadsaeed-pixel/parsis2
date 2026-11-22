@@ -250,8 +250,13 @@ function renderBankBalancesWidget() {
 
     var banks = DB.load('bankAccounts', []);
     banks = banks.filter(isVisibleInDash);
+    var allDash = banks.length;
+    /* فقط حساب‌هایی که ستون «نمایش در ویجت» آن‌ها تیک خورده است */
+    banks = banks.filter(function (b) { return b.showInBankWidget !== false; });
     if (banks.length === 0) {
-        el.innerHTML = '<div class="widget-empty">حساب بانکی برای نمایش ثبت نشده.</div>';
+        el.innerHTML = allDash > 0
+            ? '<div class="widget-empty">🏦 همه حساب‌ها از نمایش در ویجت مستثنی شده‌اند.</div>'
+            : '<div class="widget-empty">حساب بانکی برای نمایش ثبت نشده.</div>';
         return;
     }
 
