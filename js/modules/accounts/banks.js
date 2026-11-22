@@ -92,6 +92,10 @@ function renderBankAccountsList() {
             + '<td dir="ltr" style="color:' + balColor + ';font-weight:bold">' + balText + '</td>'
             + '<td dir="ltr" style="color:' + diffColor + ';font-weight:' + diffWeight + '">' + diffText + '</td>'
             + '<td><div class="row-actions">'
+            + '<label style="display:inline-flex;align-items:center;cursor:pointer" title="نمایش در ویجت حساب‌های بانکی">'
+            +   '<input type="checkbox" class="ba-widget-cb" data-id="' + b.id + '"' + (b.showInBankWidget !== false ? ' checked' : '')
+            +   ' style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">'
+            + '</label>'
             + '<button class="row-btn edit" data-id="' + b.id + '">✎</button>'
             + '<button class="row-btn del" data-id="' + b.id + '">×</button>'
             + '</div></td>';
@@ -99,7 +103,7 @@ function renderBankAccountsList() {
     }
 
     if (shown === 0) {
-        tb.innerHTML = '<tr><td colspan="10" class="empty-row">یافت نشد.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="11" class="empty-row">یافت نشد.</td></tr>';
     }
 
     var countEl = document.getElementById('ba-count');
@@ -116,10 +120,37 @@ function renderBankAccountsList() {
         document.getElementById('ba-card').value = b.card || '';
         document.getElementById('ba-order').value = (b.order != null ? b.order : '');
         document.getElementById('ba-min-balance').value = b.minBalance ? formatRaw(b.minBalance) : '';
-        
+        var wEl = document.getElementById('ba-show-in-widget');
+        if (wEl) wEl.checked = (b.showInBankWidget !== false);
+
         var activePage = document.querySelector('.page.active');
         var addTab = activePage ? activePage.querySelector('[data-tab="ba-add"]') : null;
         if (addTab) addTab.click();
+    });
+
+    /* ✅ بایند چک‌باکس‌های «نمایش در ویجت» هر ردیف */
+    tb.querySelectorAll('.ba-widget-cb').forEach(function (cb) {
+        cb.addEventListener('click', function (e) { e.stopPropagation(); });
+        cb.addEventListener('change', function (e) {
+            e.stopPropagation();
+            var id = this.getAttribute('data-id');
+            var checked = this.checked;
+            var all = DB.load('bankAccounts', []);
+            if (!Array.isArray(all)) all = [];
+            for (var k = 0; k < all.length; k++) {
+                if (all[k].id === id) {
+                    all[k].showInBankWidget = checked;
+                    break;
+                }
+            }
+            DB.save('bankAccounts', all);
+            if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+            if (typeof showToast === 'function') {
+                showToast(checked
+                    ? '🏦 در ویجت حساب‌های بانکی نمایش داده می‌شود'
+                    : '🚫 از ویجت حساب‌های بانکی حذف شد');
+            }
+        });
     });
 
     if (typeof applyColVisibility === 'function') applyColVisibility('ba-table');
@@ -136,6 +167,9 @@ function clearBAForm() {
     });
     var typeEl = document.getElementById('ba-type');
     if (typeEl) typeEl.value = '';
+    /* چک‌باکس «نمایش در ویجت» به حالت پیش‌فرض (تیک‌خورده) برمی‌گردد */
+    var wEl = document.getElementById('ba-show-in-widget');
+    if (wEl) wEl.checked = true;
 }
 
 /* ============================================================
@@ -164,7 +198,8 @@ function bindBanksForm() {
                 iban: document.getElementById('ba-iban').value.trim(),
                 card: normalizeDigits(document.getElementById('ba-card').value.trim()),
                 order: o,
-                minBalance: mb
+                minBalance: mb,
+                showInBankWidget: !!(document.getElementById('ba-show-in-widget') && document.getElementById('ba-show-in-widget').checked)
             };
 
             var l = DB.load('bankAccounts', []);
