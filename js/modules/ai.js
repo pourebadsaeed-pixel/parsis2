@@ -4,7 +4,6 @@
    ✅ رفع باگ خالی بارگذاری شدن سند در فرم صدور سند
    ============================================================ */
 'use strict';
-
 /* ============================================================
    بخش ۰ — پاک‌سازی کلیدهای خراب AI (migration)
    ============================================================ */
@@ -38,7 +37,6 @@
         console.log('🧹 [ai.js] ' + cleaned + ' کلید خراب پاک شد');
     }
 })();
-
 /* ============================================================
    بخش ۱ — مدل‌ها
    ============================================================ */
@@ -71,7 +69,6 @@ var TTS_MODELS = [
     { id: 'tts-1',                     label: 'OpenAI tts-1 (قدیمی)' },
     { id: 'tts-1-hd',                  label: 'OpenAI tts-1-hd (قدیمی، کیفیت بالاتر)' }
 ];
-
 var TTS_VOICES_GEMINI = [
     { id: 'Kore',   label: 'Kore — زن، طبیعی (پیشنهاد برای فارسی)' },
     { id: 'Aoede',  label: 'Aoede — زن، آرام' },
@@ -82,7 +79,6 @@ var TTS_VOICES_GEMINI = [
     { id: 'Orus',   label: 'Orus — مرد، خنثی' },
     { id: 'Zephyr', label: 'Zephyr — زن، روشن' }
 ];
-
 var TTS_VOICES_OPENAI = [
     { id: 'nova',    label: 'Nova — زن، گرم و طبیعی' },
     { id: 'shimmer', label: 'Shimmer — زن، نرم و آرام' },
@@ -91,7 +87,6 @@ var TTS_VOICES_OPENAI = [
     { id: 'onyx',    label: 'Onyx — مرد، عمیق' },
     { id: 'fable',   label: 'Fable — بریتانیایی' }
 ];
-
 /* ============================================================
    بخش ۲ — دیکشنری تلفظ آوایی
    ============================================================ */
@@ -3164,7 +3159,6 @@ function aiInit() {
             showToast(this.checked ? '🔊 خواندن خودکار فعال شد' : '🔇 غیرفعال شد');
         });
     }
-
     var ttsRate = document.getElementById('ai-speak-rate');
     if (ttsRate) {
         ttsRate.value = AI_TTS.rate;
@@ -3173,22 +3167,18 @@ function aiInit() {
             aiSaveTTS();
         });
     }
-
     var ttsDiagBtn = document.getElementById('open-tts-diag');
     if (ttsDiagBtn) ttsDiagBtn.addEventListener('click', function () {
         openTtsDiagnosticPanel();
     });
-
     var creditBtn = document.getElementById('avalai-credit-refresh');
     if (creditBtn) creditBtn.addEventListener('click', function () {
         aiFetchAvalaiCredit();
     });
-
     if (window.speechSynthesis) {
         AI_TTS.voice = aiFindBestPersianVoice();
     }
 }
-
 /* ============================================================
    صادرسازی نهایی
    ============================================================ */
@@ -3261,5 +3251,4 @@ window.loadCachedAvalaiCredit    = loadCachedAvalaiCredit;
 window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
 window.aiInit                    = aiInit;
-
 console.log('✅ [modules/ai.js] loaded — 3 parts complete + Calendar Tool + Voucher Load Fix');
