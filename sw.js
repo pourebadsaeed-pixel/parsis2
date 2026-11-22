@@ -15,7 +15,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v25';
+const CACHE_VERSION = 'v26';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -28,7 +28,68 @@ const PRECACHE_ASSETS = [
     './css/base.css',
     './css/layout.css',
     './css/components.css',
-    './css/calendar.css'
+    './css/calendar.css',
+    './js/app.js',
+    './js/core/calendar-popup.js',
+    './js/core/constants.js',
+    './js/core/db.js',
+    './js/core/hide.js',
+    './js/core/lookups.js',
+    './js/core/password.js',
+    './js/core/router.js',
+    './js/core/state.js',
+    './js/core/utils.js',
+    './js/modules/accounts/banks.js',
+    './js/modules/accounts/cashboxes.js',
+    './js/modules/accounts/chart.js',
+    './js/modules/accounts/companies.js',
+    './js/modules/accounts/fiscal.js',
+    './js/modules/accounts/projects.js',
+    './js/modules/accounts/templates.js',
+    './js/modules/ai.js',
+    './js/modules/auth.js',
+    './js/modules/backup.js',
+    './js/modules/calendar.js',
+    './js/modules/dashboard.js',
+    './js/modules/fix-sidebar.js',
+    './js/modules/notes.js',
+    './js/modules/persons.js',
+    './js/modules/phonebook.js',
+    './js/modules/reports/account.js',
+    './js/modules/reports/cashflow.js',
+    './js/modules/reports/facility.js',
+    './js/modules/reports/ledger.js',
+    './js/modules/reports/rates.js',
+    './js/modules/reports/trial.js',
+    './js/modules/scan.js',
+    './js/modules/sms.js',
+    './js/modules/users.js',
+    './js/modules/vouchers/estimates.js',
+    './js/modules/vouchers/facilities.js',
+    './js/modules/vouchers/form.js',
+    './js/modules/vouchers/list.js',
+    './js/modules/vouchers/sources.js',
+    './js/modules/welcome.js',
+    './js/modules/widgets.js',
+    './js/ui/form.js',
+    './js/ui/nav.js',
+    './js/ui/observers.js',
+    './js/ui/share.js',
+    './js/ui/table.js',
+    './js/ui/theme.js',
+    './js/ui/time-picker.js',
+    './js/ui/toast.js',
+    './icons/icon-128x128.png',
+    './icons/icon-144x144.png',
+    './icons/icon-152x152.png',
+    './icons/icon-192x192.png',
+    './icons/icon-384x384.png',
+    './icons/icon-512x512.png',
+    './icons/icon-72x72.png',
+    './icons/icon-96x96.png',
+    './vendor/xlsx.full.min.js',
+    './icon-192.png',
+    './icon-512.png'
 ];
 
 /* ============================================================
@@ -199,4 +260,4 @@ self.addEventListener('message', (event) => {
     }
 });
 
-console.log('[SW] ✅ service worker v16 بارگذاری شد');
+console.log('[SW] ✅ service worker ' + CACHE_VERSION + ' بارگذاری شد');

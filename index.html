@@ -3,14 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <script>
-  window.onerror = function(msg, url, line, col, error) {
-    alert("⚠️ خطای برنامه:\n\n" + msg + "\n\nخط: " + line + "\nفایل: " + url);
+  /* ✅ v2.0.1 — لاگر خطا بدون alert: خطاها در کنسول + حلقه حافظه + toast غیرمزاحم ثبت می‌شوند */
+  window._errorLog = [];
+  window.onerror = function (msg, url, line, col, error) {
+    var entry = { msg: String(msg), url: String(url || ''), line: line, col: col, time: new Date().toISOString() };
+    try {
+      window._errorLog.push(entry);
+      if (window._errorLog.length > 50) window._errorLog.shift();
+      console.error('[پارسیس] خطا:', entry.msg, 'خط:', entry.line, 'فایل:', entry.url, error || '');
+    } catch (_) {}
+    try {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ خطای غیرمنتظره — جزئیات در کنسول (F12)');
+      }
+    } catch (_) {}
     return false;
   };
+  window.addEventListener('unhandledrejection', function (e) {
+    try {
+      var r = e && e.reason ? e.reason : e;
+      window._errorLog.push({ msg: 'Unhandled rejection: ' + (r && r.message ? r.message : String(r)), url: '', line: 0, col: 0, time: new Date().toISOString() });
+      console.error('[پارسیس] Promise رد شده:', r);
+    } catch (_) {}
+  });
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>پارسیس — حسابداری هوشمند</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="./icon-192.png">
 <style>
   /* ============ Critical Boot Loader — inline for instant paint ============ */
   html, body { background: #0f172a; margin: 0; padding: 0; }
@@ -109,7 +128,8 @@
 <link rel="stylesheet" href="./css/layout.css">
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/calendar.css">
-<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<!-- ✅ v2.0.1 — SheetJS بومی‌سازی شد تا خروجی اکسل بدون اینترنت هم کار کند -->
+<script src="./vendor/xlsx.full.min.js"></script>
 </head>
 <body class="theme-sky font-tahoma">
 <!-- 🚀 Boot Loader (پوشش صفحه سفید در زمان بارگذاری) -->
@@ -1951,7 +1971,7 @@
         bootStatus('بارگذاری ماژول‌ها...');
 
         var modules = [
-            './js/core/constants.js', './js/core/utils.js', './js/core/state.js', './js/core/router.js',
+            './js/core/constants.js', './js/core/utils.js', './js/core/password.js', './js/core/state.js', './js/core/router.js',
             './js/core/calendar-popup.js', './js/core/hide.js', './js/core/lookups.js',
             './js/ui/toast.js', './js/ui/nav.js', './js/ui/theme.js', './js/ui/table.js',
             './js/ui/form.js', './js/ui/time-picker.js', './js/ui/share.js', './js/ui/observers.js',
