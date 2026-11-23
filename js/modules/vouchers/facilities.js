@@ -1,0 +1,717 @@
+/* ============================================================
+   پارسیس — تسهیلات (نسخه یکپارچه — رفع باگ پرشدن اقساط)
+   مسیر: js/modules/vouchers/facilities.js
+   ============================================================ */
+'use strict';
+
+var currentFacilityId = null;
+var currentInstallments = [];
+
+function refreshFacBankSelect() {
+    var sel = document.getElementById('fc-bank');
+    if (!sel) return;
+    var b = DB.load('bankAccounts', []);
+    sel.innerHTML = '<option value="">— بانک —</option>';
+    for (var i = 0; i < b.length; i++) {
+        var o = document.createElement('option');
+        o.value = b[i].id;
+        o.textContent = (b[i].bank || '') + (b[i].account ? ' - ' + b[i].account : '');
+        sel.appendChild(o);
+    }
+}
+
+function refreshRffBankSelect() {
+    var sel = document.getElementById('rff-bank');
+    if (!sel) return;
+    var b = DB.load('bankAccounts', []);
+    var v = sel.value;
+    sel.innerHTML = '<option value="">همه</option>';
+    for (var i = 0; i < b.length; i++) {
+        var o = document.createElement('option');
+        o.value = b[i].id;
+        o.textContent = (b[i].bank || '') + (b[i].account ? ' - ' + b[i].account : '');
+        sel.appendChild(o);
+    }
+    sel.value = v;
+}
+
+function renderFacilitiesList() {
+    var list = (typeof permsFilterFacilities === 'function' ? permsFilterFacilities(DB.load('facilities', [])) : DB.load('facilities', []));
+    var filterEl = document.getElementById('fac-filter');
+    var filter = (filterEl ? filterEl.value : '').toLowerCase();
+    var catFilterEl = document.getElementById('fac-cat-filter');
+    var cf = catFilterEl ? catFilterEl.value : '';
+    var box = document.getElementById('fac-list-body');
+    if (!box) return;
+    box.innerHTML = '';
+
+    var hide = getHideState('fac-list');
+
+    var filtered = list.filter(function (f) {
+        if (cf && (f.category || 'facility') !== cf) return false;
+        if (filter) {
+            var txt = ((f.name || '') + ' ' + categoryName(f.category) + ' ' + (f.date || '')).toLowerCase();
+            if (txt.indexOf(filter) === -1) return false;
+        }
+        return true;
+    });
+
+    var shown = 0;
+    for (var i = 0; i < filtered.length; i++) {
+        var f = filtered[i];
+        shown++;
+        var bank = DB.load('bankAccounts', []).find(function (b) { return b.id === f.bankId; });
+        var paid = Number(f.paid || 0);
+        var initial = Number(f.initial || 0);
+        var rem = initial - paid;
+        var set = rem <= 0 && initial > 0;
+
+        var sB = set
+            ? '<span class="badge badge-settled">✓ تسویه</span>'
+            : '<span class="badge badge-active">در جریان</span>';
+        var cB = (f.category === 'scheduled')
+            ? '<span class="badge badge-cat-sch">زمان‌بندی</span>'
+            : '<span class="badge badge-cat-fac">تسهیلات</span>';
+
+        var card = document.createElement('div');
+        card.className = 'card facility-card' + (f.category === 'scheduled' ? ' cat-sch' : '');
+        card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">'
+            + '<div><strong style="font-size:1rem">' + esc(f.name) + '</strong> ' + sB + ' ' + cB + '</div>'
+            + '<div class="row-actions">'
+            + '<button class="row-btn open" data-id="' + f.id + '">📖 اقساط</button>'
+            + '<button class="row-btn edit" data-id="' + f.id + '">✎</button>'
+            + '<button class="row-btn del" data-id="' + f.id + '"' + (set ? ' disabled' : '') + '>×</button>'
+            + '</div></div>'
+            + '<div class="facility-summary">'
+            + '<div class="item"><div class="lbl">بانک</div><div class="val">' + esc(bank ? bank.bank : '—') + '</div></div>'
+            + '<div class="item"><div class="lbl">تاریخ</div><div class="val" dir="ltr">' + toFa(esc(f.date)) + '</div></div>'
+            + '<div class="item"><div class="lbl">مبلغ اولیه</div><div class="val">' + (hide ? '—' : formatMoney(initial)) + '</div></div>'
+            + '<div class="item"><div class="lbl">پرداخت</div><div class="val" style="color:var(--accent)">' + (hide ? '—' : formatMoney(paid)) + '</div></div>'
+            + '<div class="item"><div class="lbl">باقی</div><div class="val" style="color:' + (rem > 0 ? 'var(--danger)' : 'var(--accent)') + '">' + (hide ? '—' : formatMoney(rem)) + '</div></div>'
+            + '<div class="item"><div class="lbl">تعداد</div><div class="val">' + toFa((f.installments || []).length) + '</div></div>'
+            + '</div>';
+        box.appendChild(card);
+    }
+
+    if (shown === 0) {
+        box.innerHTML = '<div class="card"><p class="muted" style="text-align:center">موردی نیست.</p></div>';
+    }
+
+    var countEl = document.getElementById('fac-count');
+    if (countEl) countEl.textContent = toFa(shown);
+
+    var o = box.querySelectorAll('.row-btn.open');
+    var e = box.querySelectorAll('.row-btn.edit');
+    var d = box.querySelectorAll('.row-btn.del');
+
+    for (var oi = 0; oi < o.length; oi++) {
+        o[oi].addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            var f = DB.load('facilities', []).find(function (x) { return x.id === id; });
+            if (f) loadFacilityForInstallments(f);
+        });
+    }
+    for (var ei = 0; ei < e.length; ei++) {
+        e[ei].addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            var f = DB.load('facilities', []).find(function (x) { return x.id === id; });
+            if (f) loadFacilityIntoForm(f);
+        });
+    }
+    for (var di = 0; di < d.length; di++) {
+        d[di].addEventListener('click', function () {
+            if (this.disabled) return;
+            var id = this.getAttribute('data-id');
+            var f = DB.load('facilities', []).find(function (x) { return x.id === id; });
+            if (f) tryDeleteFacility(f);
+        });
+    }
+}
+
+function tryDeleteFacility(f) {
+    var ins = f.installments || [];
+    var pi = ins.filter(function (x) { return x.status === 'paid'; });
+    if (pi.length > 0) {
+        alert('دارای ' + toFa(pi.length) + ' قسط پرداخت‌شده.');
+        return;
+    }
+    if (ins.length > 0) {
+        alert('ابتدا اقساط را حذف کن.');
+        return;
+    }
+    if (!confirm('حذف شود؟')) return;
+
+    var l = DB.load('facilities', []);
+    l = l.filter(function (x) { return x.id !== f.id; });
+    DB.save('facilities', l);
+    renderFacilitiesList();
+}
+
+function loadFacilityIntoForm(f) {
+    if (!f) return;
+
+    /* ✅ حیاتی: پر کردن state داخلی از اقساط موجود تا موقع ذخیره پاک نشوند */
+    currentFacilityId = f.id;
+    currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
+
+    if (typeof goToPage === 'function') goToPage('facilities');
+
+    var attempts = 0;
+    function fillForm() {
+        attempts++;
+        var activePage = document.querySelector('.page.active');
+        if (!activePage || activePage.id.indexOf('page-facilities') === -1) {
+            if (attempts < 40) setTimeout(fillForm, 50);
+            return;
+        }
+
+        var setVal = function(id, val) {
+            var el = activePage.querySelector('#' + id);
+            if (el && el.value !== val) el.value = val;
+        };
+        setVal('fc-id', f.id || '');
+        setVal('fc-name', f.name || '');
+        setVal('fc-category', f.category || 'facility');
+        setVal('fc-bank', f.bankId || '');
+        setVal('fc-date', f.date || '');
+        setVal('fc-initial', f.initial ? formatRaw(f.initial) : '');
+        setVal('fc-paid', f.paid ? formatRaw(f.paid) : '');
+
+        var insCard = activePage.querySelector('#fac-installments-card');
+        if (insCard) insCard.style.display = 'none'; /* در ویرایش، کارت اقساط بسته می‌ماند */
+
+        var addTab = activePage.querySelector('[data-tab="fac-add"]');
+        if (addTab && !addTab.classList.contains('active')) addTab.click();
+
+        if (attempts < 5) setTimeout(fillForm, 150);
+
+        if (attempts === 1) {
+            setTimeout(function () {
+                var formCard = activePage.querySelector('#voucher-head-card') || activePage.querySelector('.card');
+                if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500);
+        }
+    }
+    setTimeout(fillForm, 80);
+}
+
+function loadFacilityForInstallments(f) {
+    if (!f) return;
+    currentFacilityId = f.id;
+    currentInstallments = JSON.parse(JSON.stringify(f.installments || []));
+
+    if (typeof goToPage === 'function') goToPage('facilities');
+
+    var attempts = 0;
+    function fillForm() {
+        attempts++;
+        var activePage = document.querySelector('.page.active');
+        if (!activePage || activePage.id.indexOf('page-facilities') === -1) {
+            if (attempts < 40) setTimeout(fillForm, 50);
+            return;
+        }
+
+        var setVal = function(id, val) {
+            var el = activePage.querySelector('#' + id);
+            if (el && el.value !== val) el.value = val;
+        };
+        setVal('fc-id', f.id || '');
+        setVal('fc-name', f.name || '');
+        setVal('fc-category', f.category || 'facility');
+        setVal('fc-bank', f.bankId || '');
+        setVal('fc-date', f.date || '');
+        setVal('fc-initial', f.initial ? formatRaw(f.initial) : '');
+        setVal('fc-paid', f.paid ? formatRaw(f.paid) : '');
+
+        var insCard = activePage.querySelector('#fac-installments-card');
+        if (insCard) insCard.style.display = 'block';
+
+        if (typeof renderInstallments === 'function') renderInstallments();
+
+        var addTab = activePage.querySelector('[data-tab="fac-add"]');
+        if (addTab && !addTab.classList.contains('active')) addTab.click();
+
+        if (attempts < 5) setTimeout(fillForm, 150);
+
+        if (attempts === 1) {
+            setTimeout(function () {
+                if (insCard) insCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500);
+        }
+    }
+    setTimeout(fillForm, 80);
+}
+
+function renderInstallments() {
+    var box = document.getElementById('fac-installments');
+    if (!box) return;
+    box.innerHTML = '';
+
+    for (var i = 0; i < currentInstallments.length; i++) {
+        (function (idx) {
+            var ins = currentInstallments[idx];
+            if (!ins.time) ins.time = '21:00';
+
+            var row = document.createElement('div');
+            row.className = 'installment-row';
+            row.style.cssText = 'display:grid;grid-template-columns:38px 1fr 130px 1fr auto auto auto;gap:8px;align-items:center;padding:10px;background:var(--card-alt);border-radius:12px;margin-bottom:6px;border:1px solid var(--border)';
+
+            var n = document.createElement('span');
+            n.textContent = '#' + toFa(idx + 1);
+            n.style.fontWeight = 'bold';
+
+            var iD = document.createElement('input');
+            iD.type = 'text';
+            iD.dir = 'ltr';
+            iD.className = 'date-picker';
+            iD.placeholder = 'تاریخ';
+            iD.value = ins.date || '';
+            iD.style.cssText = 'padding:7px 10px;font-size:0.8rem;border:1.5px solid var(--border);border-radius:9px;background:var(--card-solid);width:100%';
+            iD.addEventListener('input', function () { ins.date = this.value; });
+
+            var timeWrap = document.createElement('div');
+            timeWrap.style.cssText = 'display:flex;gap:4px;align-items:center';
+            var iT = document.createElement('input');
+            iT.type = 'text';
+            iT.dir = 'ltr';
+            iT.placeholder = 'HH:MM';
+            iT.value = ins.time || '21:00';
+            iT.style.cssText = 'flex:1;padding:7px 8px;font-size:0.8rem;border:1.5px solid var(--border);border-radius:9px;background:var(--card-solid);font-family:monospace;text-align:center;direction:ltr;min-width:0';
+            iT.addEventListener('input', function () { ins.time = this.value; });
+
+            var clockBtn = document.createElement('button');
+            clockBtn.type = 'button';
+            clockBtn.textContent = '🕐';
+            clockBtn.title = 'انتخاب ساعت';
+            clockBtn.style.cssText = 'background:var(--primary-soft);color:var(--primary-dark);border:1.5px solid var(--border);width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:1rem;padding:0;flex-shrink:0';
+            clockBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof openTimePicker === 'function') {
+                    openTimePicker(function (hhmm) {
+                        ins.time = hhmm;
+                        iT.value = hhmm;
+                    }, ins.time);
+                }
+            });
+            timeWrap.appendChild(iT);
+            timeWrap.appendChild(clockBtn);
+
+            var iA = document.createElement('input');
+            iA.type = 'text';
+            iA.inputMode = 'numeric';
+            iA.dir = 'ltr';
+            iA.placeholder = 'مبلغ';
+            iA.value = ins.amount ? formatRaw(ins.amount) : '';
+            iA.style.cssText = 'padding:7px 10px;font-size:0.8rem;border:1.5px solid var(--border);border-radius:9px;background:var(--card-solid);width:100%';
+            attachMoneyInput(iA, function (v) { ins.amount = v; renderInstallmentsTotals(); });
+
+            var sS = document.createElement('select');
+            sS.innerHTML = '<option value="registered">ثبت</option><option value="paid">پرداخت</option>';
+            sS.value = ins.status || 'registered';
+            sS.style.cssText = 'padding:7px 10px;font-size:0.8rem;border:1.5px solid var(--border);border-radius:9px;background:var(--card-solid);width:100%';
+            sS.addEventListener('change', function () { ins.status = this.value; renderInstallmentsTotals(); });
+
+            var d = document.createElement('button');
+            d.className = 'row-btn del';
+            d.textContent = '×';
+            d.style.cssText = 'background:#fee2e2;color:#dc2626;border:none;border-radius:9px;padding:7px 10px;font-size:0.95rem;font-weight:800;cursor:pointer';
+            d.addEventListener('click', function () {
+                if (!confirm('حذف شود؟')) return;
+                currentInstallments.splice(idx, 1);
+                renderInstallments();
+            });
+
+            var lastCell = document.createElement('div');
+            if (ins.status === 'paid') {
+                var tag = document.createElement('div');
+                tag.style.cssText = 'font-size:0.72rem;color:#059669;font-weight:800;padding:4px 8px;background:#d1fae5;border-radius:9px;white-space:nowrap';
+                tag.textContent = '✅ پرداخت' + (ins.systemPaid ? ' (سیستمی)' : '');
+                lastCell.appendChild(tag);
+            } else {
+                var payBtn = document.createElement('button');
+                payBtn.type = 'button';
+                payBtn.className = 'inst-pay-btn';
+                payBtn.textContent = '💳';
+                payBtn.title = 'پرداخت قسط';
+                payBtn.style.cssText = 'background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:9px;padding:7px 10px;font-size:0.9rem;font-weight:800;cursor:pointer';
+                payBtn.addEventListener('click', function () {
+                    if (typeof payInstallment === 'function') payInstallment(currentFacilityId, idx);
+                });
+                lastCell.appendChild(payBtn);
+            }
+
+            row.appendChild(n);
+            row.appendChild(iD);
+            row.appendChild(timeWrap);
+            row.appendChild(iA);
+            row.appendChild(sS);
+            row.appendChild(d);
+            row.appendChild(lastCell);
+
+            box.appendChild(row);
+        })(i);
+    }
+
+    renderInstallmentsTotals();
+    if (typeof attachDatePickers === 'function') attachDatePickers();
+}
+
+function renderInstallmentsTotals() {
+    var ti = 0, tp = 0;
+    for (var i = 0; i < currentInstallments.length; i++) {
+        ti += Number(currentInstallments[i].amount || 0);
+        if (currentInstallments[i].status === 'paid') {
+            tp += Number(currentInstallments[i].amount || 0);
+        }
+    }
+
+    var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
+    var rem = init - tp;
+
+    document.getElementById('fac-total-inst').textContent = formatMoney(ti);
+    document.getElementById('fac-total-paid').textContent = formatMoney(tp);
+    document.getElementById('fac-total-remaining').textContent = formatMoney(rem);
+    document.getElementById('fc-paid').value = formatRaw(tp);
+
+    var s = document.getElementById('fac-summary');
+    if (s) {
+        s.innerHTML = '<div class="item"><div class="lbl">مبلغ اولیه</div><div class="val">' + formatMoney(init) + '</div></div>'
+            + '<div class="item"><div class="lbl">جمع اقساط</div><div class="val">' + formatMoney(ti) + '</div></div>'
+            + '<div class="item"><div class="lbl">پرداخت</div><div class="val" style="color:var(--accent)">' + formatMoney(tp) + '</div></div>'
+            + '<div class="item"><div class="lbl">باقی</div><div class="val" style="color:' + (rem > 0 ? 'var(--danger)' : 'var(--accent)') + '">' + formatMoney(rem) + '</div></div>';
+    }
+}
+
+function nextMonthDate(dateStr) {
+    var p = (dateStr || todayJalaliStr()).split('/').map(Number);
+    if (p.length !== 3) {
+        var t = toJalali(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+        p = t;
+    }
+    var y = p[0], m = p[1] + 1, d = p[2];
+    if (m > 12) { m = 1; y++; }
+    var dim = daysInJalaliMonth(y, m);
+    if (d > dim) d = dim;
+    return y + '/' + pad2(m) + '/' + pad2(d);
+}
+
+function autoGenerateInstallments() {
+    var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
+    if (!init) { alert('مبلغ اولیه.'); return; }
+
+    var dS = document.getElementById('fc-date').value || todayJalaliStr();
+    var df = nextMonthDate(dS);
+    var fD = prompt('تاریخ اولین قسط:', toFa(df));
+    if (!fD) return;
+    fD = normalizeDigits(fD.trim());
+    if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(fD)) { alert('فرمت اشتباه.'); return; }
+
+    var cs = prompt('تعداد اقساط:', '۱۲');
+    if (!cs) return;
+    var cnt = Number(normalizeDigits(cs));
+    if (!cnt || cnt < 1) { alert('نامعتبر.'); return; }
+
+    var each = Math.floor(init / cnt);
+    var rem = init - each * cnt;
+
+    currentInstallments = [];
+    var p = fD.split('/').map(Number);
+    var y = p[0], m = p[1], d = p[2];
+
+    for (var i = 0; i < cnt; i++) {
+        var cY = y, cM = m + i, cD = d;
+        while (cM > 12) { cM -= 12; cY++; }
+        var dim = daysInJalaliMonth(cY, cM);
+        if (cD > dim) cD = dim;
+        var amt = each + (i === cnt - 1 ? rem : 0);
+        currentInstallments.push({
+            id: uid(),
+            date: cY + '/' + pad2(cM) + '/' + pad2(cD),
+            time: '21:00',
+            amount: amt,
+            status: 'registered'
+        });
+    }
+    renderInstallments();
+}
+
+function clearFacForm() {
+    var ids = ['fc-id', 'fc-name', 'fc-date', 'fc-initial', 'fc-paid'];
+    ids.forEach(function (x) {
+        var el = document.getElementById(x);
+        if (el) el.value = '';
+    });
+    document.getElementById('fc-category').value = 'facility';
+    document.getElementById('fc-bank').value = '';
+    var insCard = document.getElementById('fac-installments-card');
+    if (insCard) insCard.style.display = 'none';
+
+    currentFacilityId = null;
+    currentInstallments = [];
+}
+
+function saveFacility() {
+    var id = document.getElementById('fc-id').value;
+    var name = document.getElementById('fc-name').value.trim();
+    if (!name) { alert('نام اجباری.'); return; }
+
+    var init = parseMoney(normalizeDigits(document.getElementById('fc-initial').value));
+    if (!init) { alert('مبلغ اولیه اجباری.'); return; }
+
+    var tp = currentInstallments.reduce(function (s, x) {
+        return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+    }, 0);
+    var ap = currentInstallments.length > 0 &&
+             currentInstallments.every(function (x) { return x.status === 'paid'; });
+
+    var o = {
+        id: id || uid(),
+        name: name,
+        category: document.getElementById('fc-category').value,
+        bankId: document.getElementById('fc-bank').value,
+        date: normalizeDigits(document.getElementById('fc-date').value),
+        initial: init,
+        paid: tp,
+        installments: JSON.parse(JSON.stringify(currentInstallments)),
+        status: ap ? 'settled' : 'active'
+    };
+
+    var l = DB.load('facilities', []);
+    if (id) {
+        for (var i = 0; i < l.length; i++) {
+            if (l[i].id === id) l[i] = o;
+        }
+    } else {
+        l.push(o);
+    }
+    DB.save('facilities', l);
+    showToast('✅ تسهیلات ذخیره شد.');
+    clearFacForm();
+    renderFacilitiesList();
+    
+    var activePage = document.querySelector('.page.active');
+    var listTab = activePage ? activePage.querySelector('[data-tab="fac-list"]') : null;
+    if (listTab) listTab.click();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+}
+
+function saveFacilityInstallments() {
+    if (!currentFacilityId) {
+        alert('ابتدا تسهیلات را ذخیره کن.');
+        return;
+    }
+
+    var l = DB.load('facilities', []);
+    var idx = -1;
+    for (var i = 0; i < l.length; i++) {
+        if (l[i].id === currentFacilityId) { idx = i; break; }
+    }
+    if (idx === -1) return;
+
+    var tp = currentInstallments.reduce(function (s, x) {
+        return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+    }, 0);
+    var ap = currentInstallments.length > 0 &&
+             currentInstallments.every(function (x) { return x.status === 'paid'; });
+
+    l[idx].installments = JSON.parse(JSON.stringify(currentInstallments));
+    l[idx].paid = tp;
+    l[idx].status = ap ? 'settled' : 'active';
+    DB.save('facilities', l);
+
+    showToast('✅ اقساط ذخیره شد.');
+    renderFacilitiesList();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+}
+
+function payInstallment(facilityId, installmentIdx) {
+    var facilities = DB.load('facilities', []);
+    var f = facilities.find(function (x) { return x.id === facilityId; });
+    if (!f) { alert('تسهیلات یافت نشد.'); return; }
+
+    var ins = (f.installments || [])[installmentIdx];
+    if (!ins) { alert('قسط یافت نشد.'); return; }
+    if (ins.status === 'paid') { alert('این قسط قبلاً پرداخت شده است.'); return; }
+    if (!ins.amount || !ins.date) { alert('تاریخ و مبلغ قسط باید مشخص باشد.'); return; }
+    if (!f.bankId) { alert('ابتدا بانک تسهیلات را انتخاب کنید.'); return; }
+
+    var accounts = DB.load('accounts', []);
+    var bankMoein = getBankMoeinId();
+    if (!bankMoein) { alert('معین بانک در چارت تعریف نشده.'); return; }
+
+    var facMoeinId = f.moeinId || '';
+    var facDetailId = '';
+
+    if (!facMoeinId) {
+        var leaves = accounts.filter(function (a) {
+            return !accounts.some(function (x) { return x.parent === a.id; });
+        });
+        if (leaves.length === 0) { alert('چارت حساب خالی است.'); return; }
+
+        var opts = leaves.map(function (a, i) {
+            return (i + 1) + '. ' + a.code + ' — ' + a.name;
+        }).join('\n');
+        var ans = prompt(
+            '⚠️ این تسهیلات معین ندارد.\n' +
+            'معین بدهکار (سمت تسهیلات) را انتخاب کنید:\n\n' +
+            opts + '\n\nشماره:', '1'
+        );
+        if (!ans) return;
+        var idx = Number(normalizeDigits(ans)) - 1;   /* ← این خط اینجا کامل شد */
+        if (isNaN(idx) || idx < 0 || idx >= leaves.length) { alert('نامعتبر.'); return; }
+        facMoeinId = leaves[idx].id;
+
+        facilities.forEach(function (ff) {
+            if (ff.id === facilityId) ff.moeinId = facMoeinId;
+        });
+        DB.save('facilities', facilities);
+
+        var facAcc = accounts.find(function (a) { return a.id === facMoeinId; });
+        if (facAcc && facAcc.links && facAcc.links.indexOf('facility') !== -1) {
+            facDetailId = facilityId;
+        }
+    } else {
+        var facAcc2 = accounts.find(function (a) { return a.id === facMoeinId; });
+        if (facAcc2 && facAcc2.links && facAcc2.links.indexOf('facility') !== -1) {
+            facDetailId = facilityId;
+        }
+    }
+
+    var bank = DB.load('bankAccounts', []).find(function (b) { return b.id === f.bankId; });
+    var bankTitle = bank ? (bank.bank + ' — ' + (bank.account || '')) : '—';
+    var facAcc3 = accounts.find(function (a) { return a.id === facMoeinId; });
+
+    var msg = '📋 تأیید پرداخت قسط\n\n'
+        + 'تاریخ: ' + ins.date + '\n'
+        + 'مبلغ: ' + formatMoney(ins.amount) + ' ' + currencyLabel() + '\n'
+        + 'بانک: ' + bankTitle + '\n'
+        + 'معین بدهکار: ' + (facAcc3 ? facAcc3.code + ' — ' + facAcc3.name : '—') + '\n'
+        + (facDetailId ? 'تفصیلی: ' + getDetailLabel('facility', facDetailId) + '\n' : '')
+        + '\nسند خودکار ساخته شود؟';
+
+    if (!confirm(msg)) return;
+
+    var dv = validateDateInActivePeriod(ins.date);
+    if (!dv.ok) { alert('⚠️ ' + dv.msg); return; }
+
+    var description = 'پرداخت قسط ' + ins.date + ' — ' + f.name;
+    var lines = [];
+
+    var facDetails = {};
+    if (facDetailId) facDetails.facility = facDetailId;
+
+    lines.push({
+        id: uid(),
+        account: facMoeinId,
+        details: facDetails,
+        debit: Number(ins.amount) || 0,
+        credit: 0,
+        description: description
+    });
+
+    lines.push({
+        id: uid(),
+        account: bankMoein,
+        details: { bank: f.bankId },
+        debit: 0,
+        credit: Number(ins.amount) || 0,
+        description: description,
+        locked: true
+    });
+
+    var vouchers = DB.load('vouchers', []);
+    var v = {
+        id: uid(),
+        number: getNextVoucherNumberForPeriod(state.activePeriodId || ''),
+        date: ins.date,
+        type: 'general',
+        periodId: state.activePeriodId || '',
+        desc: description,
+        lines: lines,
+        status: 'draft'
+    };
+
+    facilities.forEach(function (ff) {
+        if (ff.id === facilityId) {
+            ff.installments[installmentIdx].status = 'paid';
+            ff.installments[installmentIdx].systemPaid = true;
+            ff.installments[installmentIdx].systemVoucherId = v.id;
+            ff.installments[installmentIdx].paidAt = Date.now();
+            var tp2 = ff.installments.reduce(function (s, x) {
+                return s + (x.status === 'paid' ? Number(x.amount || 0) : 0);
+            }, 0);
+            ff.paid = tp2;
+            var allPaid = ff.installments.every(function (x) { return x.status === 'paid'; });
+            ff.status = allPaid ? 'settled' : 'active';
+        }
+    });
+    DB.save('facilities', facilities);
+
+    vouchers.push(v);
+    DB.save('vouchers', vouchers);
+
+    currentInstallments = JSON.parse(JSON.stringify(
+        facilities.find(function (ff) { return ff.id === facilityId; }).installments
+    ));
+    if (typeof renderInstallments === 'function') renderInstallments();
+
+    showToast('✅ قسط پرداخت شد — سند خودکار ساخته شد.');
+    renderFacilitiesList();
+    if (typeof updateHomeWidgets === 'function') updateHomeWidgets();
+
+    loadVoucherForEdit(v);
+    goToPage('voucher-new');
+}
+
+function bindFacilitiesForm() {
+    var saveBtn = document.getElementById('save-fac');
+    if (saveBtn) saveBtn.addEventListener('click', saveFacility);
+
+    var newBtn = document.getElementById('new-fac');
+    if (newBtn) newBtn.addEventListener('click', clearFacForm);
+
+    var addInstBtn = document.getElementById('fac-add-inst');
+    if (addInstBtn) addInstBtn.addEventListener('click', function () {
+        currentInstallments.push({
+            id: uid(), date: '', time: '21:00', amount: 0, status: 'registered'
+        });
+        renderInstallments();
+    });
+
+    var genBtn = document.getElementById('fac-auto-gen');
+    if (genBtn) genBtn.addEventListener('click', autoGenerateInstallments);
+
+    var saveInstBtn = document.getElementById('fac-save-inst');
+    if (saveInstBtn) saveInstBtn.addEventListener('click', saveFacilityInstallments);
+
+    var filterEl = document.getElementById('fac-filter');
+    if (filterEl) filterEl.addEventListener('input', renderFacilitiesList);
+
+    var catFilterEl = document.getElementById('fac-cat-filter');
+    if (catFilterEl) catFilterEl.addEventListener('change', renderFacilitiesList);
+
+    attachMoneyInput(document.getElementById('fc-initial'), function () {
+        renderInstallmentsTotals();
+    });
+}
+
+window.currentFacilityId          = currentFacilityId;
+window.currentInstallments        = currentInstallments;
+window.refreshFacBankSelect       = refreshFacBankSelect;
+window.refreshRffBankSelect       = refreshRffBankSelect;
+window.renderFacilitiesList       = renderFacilitiesList;
+window.tryDeleteFacility          = tryDeleteFacility;
+window.loadFacilityIntoForm       = loadFacilityIntoForm;
+window.loadFacilityForInstallments = loadFacilityForInstallments;
+window.renderInstallments         = renderInstallments;
+window.renderInstallmentsTotals   = renderInstallmentsTotals;
+window.nextMonthDate              = nextMonthDate;
+window.autoGenerateInstallments   = autoGenerateInstallments;
+window.clearFacForm               = clearFacForm;
+window.saveFacility               = saveFacility;
+window.saveFacilityInstallments   = saveFacilityInstallments;
+window.payInstallment             = payInstallment;
+window.bindFacilitiesForm         = bindFacilitiesForm;
+
+console.log('✅ [modules/vouchers/facilities.js] loaded — Complete Clean Version');
