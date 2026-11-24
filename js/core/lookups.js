@@ -385,6 +385,10 @@ function printHtmlContent(htmlContent, opts) {
                     });
                 return true;
             }
+            /* ✅ v2.3.2 — اپ اندروید هست ولی روش چاپ نیتیو ندارد یعنی APK قدیمی است.
+               چاپ iframe داخل WebView اندروید هیچ‌وقت کار نمی‌کند — پیام شفاف بده. */
+            if (typeof showToast === 'function') showToast('برای چاپ در اندروید، APK نسخه 2.3.2 یا جدیدتر را نصب کنید (تنظیمات ← درباره).');
+            return false;
         }
     } catch (eNat) { /* مسیر وب ادامه می‌یابد */ }
     try {

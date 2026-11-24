@@ -201,7 +201,52 @@
             try { JSON.stringify(vals[k]); _pendingPush[k] = vals[k]; } catch (e) {}
         }
         if (_pushTimer) clearTimeout(_pushTimer);
-        _pushTimer = setTimeout(_drainPush, 1200);
+        /* ✅ v2.3.2 — تأخیر پوش ۱۲۰۰ ← ۳۰۰ میلی‌ثانیه:
+           قبلاً اگر کاربر تا ۱.۳ ثانیه بعد از آخرین تغییر صفحه را رفرش/ببند،
+           پوش هیچ‌وقت فرستاده نمی‌شد و تغییراتش روی ابر نمی‌رفت —
+           ظاهرش مثل «سینک یک‌طرفه» بود: فقط گوشی می‌فرستاد، مرورگر نه. */
+        _pushTimer = setTimeout(_drainPush, 300);
+    }
+
+    /* ✅ v2.3.2 — نامِ storeهای پوش‌نشده در localStorage هم ثبت می‌شود تا
+       با بستن/رفرش صفحه از بین نرود و در شروع بعدی دوباره فرستاده شود. */
+    function _savePendingNames() {
+        try { localStorage.setItem('parsis.cloudPendingNames', JSON.stringify(Object.keys(_pendingPush))); } catch (e) {}
+    }
+
+    function _restorePending() {
+        var names = [];
+        try { names = JSON.parse(localStorage.getItem('parsis.cloudPendingNames') || '[]') || []; } catch (e) { names = []; }
+        if (!names.length) return 0;
+        var n = 0;
+        names.forEach(function (k) {
+            if (k === CFG_KEY) return;
+            try {
+                var v = (typeof DB.load === 'function') ? DB.load(k, undefined) : undefined;
+                if (v !== undefined) { _pendingPush[k] = v; n++; }
+            } catch (e) {}
+        });
+        if (n) _savePendingNames();
+        return n;
+    }
+
+    /* ✅ v2.3.2 — هشدار پوش ناموفق برای کاربر (حداکثر هر ۶۰ ثانیه یک‌بار،
+       دیگر «خطای بی‌صدا» نیست) */
+    var _lastPushErrAt = 0;
+    function _toastPushErr(err) {
+        var now = Date.now();
+        if (now - _lastPushErrAt < 60000) return;
+        _lastPushErrAt = now;
+        try { showToast('⚠️ ذخیرهٔ تغییرات روی ابر ناموفق بود — تغییرات محفوظ است و وقتی اینترنت درست شد فرستاده می‌شود'); } catch (e) {}
+    }
+
+    /* ✅ v2.3.2 — flush دیتابیس + پوش فوری صف (برای شروع صفحه و ترک صفحه) */
+    function _flushAndPush() {
+        var f = (typeof DB.flush === 'function') ? DB.flush() : Promise.resolve();
+        return Promise.resolve(f).then(function () {
+            _restorePending();
+            return _drainPush();
+        }).catch(function () {});
     }
 
     function _drainPush() {
@@ -215,11 +260,11 @@
            دوباره تلاش می‌کنیم و بعد از پایان هر پوش هم صف چک می‌شود. */
         if (_pushInFlight) {
             _pushRetryTimer = setTimeout(_drainPush, 2500);
-            return;
+            return Promise.resolve();
         }
         var names = Object.keys(_pendingPush);
-        if (!names.length) return;
-        if (MODE === 'off' || !_space || !_apiKey) return;
+        if (!names.length) return Promise.resolve();
+        if (MODE === 'off' || !_space || !_apiKey) return Promise.resolve();
 
         _pushInFlight = true;
         var batch = {};
@@ -229,7 +274,7 @@
             return _encrypt(_space, _apiKey, batch[n]).then(function (c) { return [n, c]; });
         });
 
-        Promise.all(encJobs)
+        return Promise.all(encJobs)
             .then(function (pairs) {
                 var stores = {};
                 pairs.forEach(function (p) { stores[p[0]] = p[1]; });
@@ -240,6 +285,7 @@
             })
             .then(function (res) {
                 names.forEach(function (n) { delete _pendingPush[n]; });
+                _savePendingNames();
                 if (res && typeof res.rev === 'number') _lastRev = res.rev;
                 _pushBackoff = 0;
                 _pushInFlight = false;
@@ -252,6 +298,7 @@
                 _pushInFlight = false;
                 _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
                 try { console.warn('[cloud-sync] پوش ناموفق:', (err && err.message) || err); } catch (e) {}
+                _toastPushErr(err);
                 /* تلاش دوباره با تاخیر */
                 setTimeout(_drainPush, 5000 * _pushBackoff);
             });
@@ -294,6 +341,9 @@
                 if (srvRev === _lastRev) return null;
                 /* اول پوش صف خودمان، بعد دریافت — تا داده محلی گم نشود */
                 return Promise.resolve(_drainPushAndFlush()).then(function () {
+                    /* ✅ v2.3.2 — اگر پوش موفق نشد (صف هنوز پر است)، اسنپ‌شات نگیر؛
+                       وگرنه دریافتِ رله، تغییراتِ هنوز نفرستادهٔ همین دستگاه را نابود می‌کرد. */
+                    if (Object.keys(_pendingPush).length > 0) return null;
                     return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
                         .then(function (snap) { return _applySnapshot(snap); });
                 });
@@ -304,9 +354,10 @@
     }
 
     function _drainPushAndFlush() {
-        try { if (typeof DB.flush === 'function') return DB.flush().then(function () { _drainPush(); }); } catch (e) {}
-        _drainPush();
-        return Promise.resolve();
+        /* ✅ v2.3.2 — flush ← بازگرداندن صف پوش‌نشدهٔ جلسهٔ قبل ← پوش */
+        try { if (typeof DB.flush === 'function') return DB.flush().then(function () { _restorePending(); return _drainPush(); }); } catch (e) {}
+        _restorePending();
+        return _drainPush();
     }
 
     function _startPolling() {
@@ -331,6 +382,36 @@
             } catch (e) {}
             if (typeof prev === 'function') { try { prev(vals); } catch (e2) {} }
         };
+        /* ✅ v2.3.2 — پوش هنگام ترک صفحه (رفرش/بستن/سوییچ اپ):
+           قبلاً اگر کاربر بلافاصله بعد از ثبت، صفحه را رفرش می‌کرد، پوش هرگز
+           فرستاده نمی‌شد و تغییراتش روی ابر نمی‌رفت — «سینک یک‌طرفه». */
+        if (!window.__parsisUnloadHooked) {
+            window.__parsisUnloadHooked = true;
+            var _pushOnLeave = function () {
+                try {
+                    if (MODE === 'off' || !_space || !_apiKey) return;
+                    var names = Object.keys(_pendingPush);
+                    if (!names.length) return;
+                    var enc = names.map(function (n) {
+                        return _encrypt(_space, _apiKey, _pendingPush[n]).then(function (c) { return [n, c]; });
+                    });
+                    Promise.all(enc).then(function (pairs) {
+                        var stores = {};
+                        pairs.forEach(function (p) { stores[p[0]] = p[1]; });
+                        var body = JSON.stringify({ stores: stores });
+                        var url = _base + '/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey);
+                        var opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body };
+                        /* بدنهٔ کوچک: keepalive تا درخواست هنگام بستن صفحه زنده بماند */
+                        if (body.length < 50000) opt.keepalive = true;
+                        return fetch(url, opt);
+                    }).catch(function () {});
+                } catch (e) {}
+            };
+            window.addEventListener('pagehide', _pushOnLeave);
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'hidden') _pushOnLeave();
+            });
+        }
     }
 
     /* ============================================================
@@ -345,8 +426,11 @@
         window.__parsisCloudMode = MODE;
         _installFlushHook();
 
-        return _api('/api/rev?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
-            .then(function (j) {
+        /* ✅ v2.3.2 — اول flush + پوشِ تغییراتِ پوش‌نشدهٔ قبلی، بعد چک رله؛
+           وگرنه دریافت اولیهٔ رله روی تغییرات محلیِ هنوز نفرستاده می‌نویست. */
+        return _flushAndPush().then(function () {
+            return _api('/api/rev?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey));
+        }).then(function (j) {
                 var srvRev = (j && j.rev) || 0;
                 if (srvRev === 0) {
                     /* رله خالی است — کل داده محلی را پوش کن */
@@ -372,6 +456,8 @@
                     });
                 }
                 if (srvRev > _lastRev) {
+                    /* ✅ v2.3.2 — فقط وقتی صف پوش خالی است اسنپ‌شات بگیر */
+                    if (Object.keys(_pendingPush).length > 0) return null;
                     return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
                         .then(function (snap) { return _applySnapshot(snap); });
                 }
@@ -452,8 +538,17 @@
         window.__parsisCloudMode = MODE;
         _installFlushHook();
 
-        _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
-            .then(function (snap) { return _applySnapshot(snap); })
+        /* ✅ v2.3.2 — اول flush + پوشِ تغییراتِ پوش‌نشدهٔ جلسهٔ قبل، بعد دریافت رله؛
+           قبلاً در هر بار بازشدن صفحه، اسنپ‌شاتِ رله «بدون قید و شرط» روی دادهٔ محلی
+           نوشته می‌شد و هر تغییری که هنوز پوش نشده بود از بین می‌رفت —
+           علت اصلی «ویرایشِ مرورگر بعد از رفرش پاک می‌شود و دادهٔ گوشی برمی‌گردد». */
+        _flushAndPush()
+            .then(function () {
+                /* فقط وقتی صف پوش خالی شد اسنپ‌شات بگیر (تا پوش، دادهٔ محلی را نابود نکند) */
+                if (Object.keys(_pendingPush).length > 0) return null;
+                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
+                    .then(function (snap) { return _applySnapshot(snap); });
+            })
             .then(function () {
                 _refreshUI();
                 _startPolling();
