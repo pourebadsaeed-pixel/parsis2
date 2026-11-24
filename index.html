@@ -1780,35 +1780,44 @@
 
         <details class="settings-details admin-only-section">
             <summary class="settings-summary">☁️ همگام‌سازی ابری دوطرفه (رایگان، بدون وی‌پی‌ان)</summary>
-            <p class="muted" style="font-size:.72rem;margin-top:8px;line-height:1.8">داده‌ها رمزنگاری‌شده بین اپ شما و مرورگر دیگران (هر جای دنیا، بدون وی‌پی‌ان) دوطرفه و زنده سینک می‌شود. یک‌بار روی <b>Cloudflare Workers</b> (پلن رایگان) رله بسازید — راهنمای کامل در پایین همین بخش است.</p>
-            <div class="field" style="margin-top:8px">
-                <label>آدرس رله (Worker)</label>
-                <input id="set-cloud-url" dir="ltr" placeholder="https://parsis-relay.user.workers.dev" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;direction:ltr;text-align:left">
+            <p class="muted" style="font-size:.72rem;margin-top:8px;line-height:1.8">راه‌اندازی فقط <b>یک‌بار برای همیشه</b> است — سه قدم که همه را یک دکمه برایت انجام می‌دهد. بعد از آن، داده‌ها رمزنگاری‌شده دوطرفه و زنده سینک می‌شوند و هیچ‌وقت لازم نیست «انتشار» را دوباره بزنی (انتشار فقط وقتی است که نسخه جدید اپ بدهی).</p>
+            <button id="set-cloud-wizard" class="btn-primary" style="width:100%;margin-top:10px;padding:11px;font-size:.8rem">⚡ راه‌اندازی خودکار (۱ و ۲ و ۳ با هم)</button>
+            <div style="display:flex;gap:6px;margin-top:8px;font-size:.66rem;color:#475569;text-align:center">
+                <div style="flex:1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:6px 4px"><b style="color:#1d4ed8">۱. اتصال</b><br>تست رله و ساخت کد</div>
+                <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:6px 4px"><b style="color:#15803d">۲. انتشار اپ</b><br>چند دقیقه، یک‌بار</div>
+                <div style="flex:1;background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:6px 4px"><b style="color:#a16207">۳. فعال‌سازی</b><br>رفتن داده‌ها به رله</div>
             </div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-                <div class="field" style="flex:1">
-                    <label>فضای کاری (خودکار)</label>
-                    <input id="set-cloud-space" dir="ltr" readonly style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;background:#f8fafc;direction:ltr">
-                </div>
-                <div class="field" style="flex:1">
-                    <label>کد دسترسی</label>
-                    <input id="set-cloud-key" dir="ltr" placeholder="۶ رقم" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;font-weight:900;letter-spacing:2px;direction:ltr;text-align:center;background:#fef9c3">
-                </div>
-            </div>
-            <div class="form-buttons" style="gap:8px;margin-top:8px">
-                <button id="set-cloud-connect" class="btn-secondary" style="flex:1">🔌 اتصال و ساخت کد</button>
-                <button id="set-cloud-publish" class="btn-secondary" style="flex:1">🚀 انتشار اپ روی رله</button>
-            </div>
-            <div class="form-buttons" style="gap:8px;margin-top:6px">
-                <button id="set-cloud-newkey" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🔑 کد دسترسی جدید</button>
-            </div>
-            <div id="set-cloud-status" style="font-size:.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
-            <label class="checkbox-item" style="margin-top:8px"><input type="checkbox" id="set-cloud-enabled"> <span>فعال‌سازی همگام‌سازی دوطرفه (بعد از انتشار اپ)</span></label>
+            <div id="set-cloud-status" style="font-size:.75rem;margin-top:8px;font-weight:bold;color:#64748b">…</div>
+            <label class="checkbox-item" style="margin-top:8px"><input type="checkbox" id="set-cloud-enabled"> <span><b>۳. فعال‌سازی همگام‌سازی دوطرفه</b> — بعد از انتشار؛ لحظه‌ای که روشن شود کل داده‌ها به رله می‌رود</span></label>
             <div id="set-cloud-link-wrap" style="margin-top:8px">
-                <div style="font-size:.72rem;color:#475569;margin-bottom:4px">لینک برای دوستان (هر جای دنیا، بدون وی‌پی‌ان):</div>
+                <div style="font-size:.72rem;color:#475569;margin-bottom:4px">لینک برای دوستان (بعد از قدم ۳ آماده است):</div>
                 <input id="set-cloud-link" readonly dir="ltr" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;background:#f8fafc;direction:ltr;text-align:left">
                 <button id="set-cloud-copy" class="btn-secondary" style="margin-top:6px;padding:6px 10px;font-size:.72rem">📋 کپی لینک دوستان</button>
             </div>
+            <details style="margin-top:10px">
+                <summary style="cursor:pointer;font-size:.75rem;font-weight:800;color:#1d4ed8">🔧 تنظیمات دستی (پیشرفته — معمولاً لازم نیست)</summary>
+                <div class="field" style="margin-top:8px">
+                    <label>۱) آدرس رله (Worker)</label>
+                    <input id="set-cloud-url" dir="ltr" placeholder="https://parsis-relay.user.workers.dev" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;direction:ltr;text-align:left">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <div class="field" style="flex:1">
+                        <label>فضای کاری (خودکار)</label>
+                        <input id="set-cloud-space" dir="ltr" readonly style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;background:#f8fafc;direction:ltr">
+                    </div>
+                    <div class="field" style="flex:1">
+                        <label>کد دسترسی</label>
+                        <input id="set-cloud-key" dir="ltr" placeholder="۶ رقم" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;font-weight:900;letter-spacing:2px;direction:ltr;text-align:center;background:#fef9c3">
+                    </div>
+                </div>
+                <div class="form-buttons" style="gap:8px;margin-top:8px">
+                    <button id="set-cloud-connect" class="btn-secondary" style="flex:1">🔌 ۱. اتصال و ساخت کد</button>
+                    <button id="set-cloud-publish" class="btn-secondary" style="flex:1">🚀 ۲. انتشار اپ روی رله</button>
+                </div>
+                <div class="form-buttons" style="gap:8px;margin-top:6px">
+                    <button id="set-cloud-newkey" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🔑 کد دسترسی جدید (⚠️ فقط اگر سینک هنوز فعال نشده)</button>
+                </div>
+            </details>
             <details style="margin-top:10px">
                 <summary style="cursor:pointer;font-size:.75rem;font-weight:800;color:#1d4ed8">📖 راهنمای ساخت رله رایگان (۵ دقیقه، یک‌بار برای همیشه)</summary>
                 <ol class="muted" style="font-size:.72rem;line-height:2;margin-top:8px;padding-inline-start:18px">

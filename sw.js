@@ -15,7 +15,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v33';
+const CACHE_VERSION = 'v35';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -157,6 +157,12 @@ self.addEventListener('fetch', (event) => {
     if (req.method !== 'GET') return;
 
     const url = new URL(req.url);
+
+    /* ✅ v2.2.0 — API رله همیشه مستقیم از شبکه — هرگز کش نشود (داده زنده بماند) */
+    if (url.pathname.indexOf('/api/') === 0) {
+        event.respondWith(fetch(req));
+        return;
+    }
 
     /* ✅ v2.0.6 — API سینک شبکه (سرور گوشی) همیشه مستقیم از شبکه — بدون کش */
     if (url.pathname.indexOf('/parsis-api/') === 0) {
