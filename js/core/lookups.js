@@ -387,10 +387,47 @@ function printHtmlContent(htmlContent, opts) {
             }
             /* ✅ v2.3.2 — اپ اندروید هست ولی روش چاپ نیتیو ندارد یعنی APK قدیمی است.
                چاپ iframe داخل WebView اندروید هیچ‌وقت کار نمی‌کند — پیام شفاف بده. */
-            if (typeof showToast === 'function') showToast('برای چاپ در اندروید، APK نسخه 2.3.2 یا جدیدتر را نصب کنید (تنظیمات ← درباره).');
+            if (typeof showToast === 'function') showToast('برای چاپ در اندروید، APK نسخه 2.3.3 یا جدیدتر را نصب کنید (تنظیمات ← درباره).');
             return false;
         }
     } catch (eNat) { /* مسیر وب ادامه می‌یابد */ }
+
+    /* ✅ v2.3.3 — مرورگر موبایل (کروم اندروید، سافاری آیفون):
+       چاپ iframe در مرورگرهای موبایل یا اصلاً کاری نمی‌کند یا کل صفحه را چاپ می‌کند.
+       راه درست: HTML گزارش در «پنجره/تب جدید» نوشته می‌شود و همان‌جا print() زده می‌شود —
+       کادر چاپ واقعی مرورگر (چاپ کاغذی یا ذخیره PDF) باز می‌شود.
+       چون این تابع همیشه با کلیک کاربر صدا زده می‌شود، مسدودکنندهٔ پاپ‌آپ جلوی آن را نمی‌گیرد. */
+    try {
+        var _uaMob = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        if (_uaMob && typeof window.open === 'function') {
+            var _pw = null;
+            try { _pw = window.open('', '_blank'); } catch (eOpen) { _pw = null; }
+            if (_pw) {
+                try {
+                    var _pdoc = _pw.document;
+                    _pdoc.open();
+                    _pdoc.write(String(htmlContent || ''));
+                    _pdoc.close();
+                } catch (eWrite) { /* ادامه — پنجره بسته می‌شود */ }
+                var _tries = 0;
+                var _pt = setInterval(function () {
+                    _tries++;
+                    try {
+                        var _rdy = _pw.document && _pw.document.readyState === 'complete';
+                        if (_rdy || _tries > 24) {
+                            clearInterval(_pt);
+                            try { _pw.focus(); _pw.print(); } catch (ePrint) {
+                                try { _pw.close(); } catch (eC) {}
+                            }
+                        }
+                    } catch (ePoll) { clearInterval(_pt); }
+                }, 250);
+                return true;
+            }
+            /* پنجره مسدود شد → مسیر iframe ادامه می‌یابد (دسکتاپ‌ها همیشه کار می‌کند) */
+        }
+    } catch (eMob) { /* مسیر iframe ادامه می‌یابد */ }
+
     try {
         // جلوگیری از اجرای هم‌زمان دو چاپ (دابل‌کلیک)
         if (_printState.busy) {

@@ -8,13 +8,37 @@ var IDB_NAME = 'parsis-db';
 var IDB_STORE = 'kv';
 var IDB_VERSION = 1;
 
-var _cache = new Map();     
-var _idb = null;            
-var _readyPromise = null;   
-var _dirty = new Set();     
+var _cache = new Map();
+var _idb = null;
+var _readyPromise = null;
+var _dirty = new Set();
 var _flushTimer = null;
 /* ✅ v2.0.6 — کلیدهای اعمال‌شده از سرور (برای جلوگیری از اکوی سینک) */
 var _skipSync = new Set();
+
+/* ✅ v2.3.3 — فهرستِ «تغییرخورده‌ها» در localStorage هم می‌ماند.
+   قبلاً اگر کاربر در کمتر از ۰٫۱ ثانیه بعد از ذخیره، صفحه را می‌بست/رفرش می‌کرد،
+   flush هنوز اجرا نشده بود و نامِ آن تغییر هرگز به صف پوش ابری نمی‌رسید —
+   تغییر روی اپ بعدی «گم شده» به نظر می‌رسید و ظاهرش سینک یک‌طرفه بود.
+   حالا نام هر تغییر بلافاصله در localStorage ثبت می‌شود و جلسهٔ بعد،
+   قبل از هر دریافتِ رله، دوباره فرستاده می‌شود. */
+var DIRTY_LS_KEY = 'parsis.dirtyNames';
+
+function _persistDirty() {
+    try { localStorage.setItem(DIRTY_LS_KEY, JSON.stringify(Array.from(_dirty))); } catch (e) {}
+}
+
+function _dropPersistedDirty(keys) {
+    try {
+        var arr = null;
+        try { arr = JSON.parse(localStorage.getItem(DIRTY_LS_KEY) || '[]') || []; } catch (e) { arr = null; }
+        if (!arr || !arr.length) return;
+        var keep = {};
+        arr.forEach(function (k) { keep[k] = 1; });
+        (keys || []).forEach(function (k) { delete keep[k]; });
+        localStorage.setItem(DIRTY_LS_KEY, JSON.stringify(Object.keys(keep)));
+    } catch (e) {}
+}
 
 function openIdb() {
   return new Promise(function (resolve, reject) {
@@ -81,6 +105,7 @@ var DB = {
     _cache.set(k, v);
     _dirty.add(k);
     _skipSync.delete(k);
+    _persistDirty(); /* ✅ v2.3.3 — نام تغییر فوراً ماندگار می‌شود */
     scheduleFlush();
   },
 
@@ -88,14 +113,27 @@ var DB = {
     _cache.delete(k);
     _dirty.add(k);
     _skipSync.delete(k);
+    _persistDirty(); /* ✅ v2.3.3 */
     scheduleFlush();
   },
 
   keys: function () { return Array.from(_cache.keys()); },
 
+  /* ✅ v2.3.3 — فهرست storeهای تغییرکردهٔ هنوز پوش‌نشده (حافظه + ماندگار) */
+  pendingNames: function () {
+    var s = {};
+    Array.from(_dirty).forEach(function (k) { s[k] = 1; });
+    try {
+      var arr = JSON.parse(localStorage.getItem(DIRTY_LS_KEY) || '[]') || [];
+      arr.forEach(function (k) { if (k) s[k] = 1; });
+    } catch (e) {}
+    return Object.keys(s);
+  },
+
   clearAll: function () {
     _cache.clear();
     _dirty.clear();
+    try { localStorage.removeItem(DIRTY_LS_KEY); } catch (eLs) {} /* ✅ v2.3.3 */
     return openIdb().then(function (db) {
       return new Promise(function (resolve) {
         var tx = db.transaction(IDB_STORE, 'readwrite');
@@ -131,10 +169,25 @@ var DB = {
             }
           } catch (eSync) { /* سینک غیرفعال */ }
           keys.forEach(function (k) { _skipSync.delete(k); });
+          _dropPersistedDirty(keys); /* ✅ v2.3.3 — این‌ها دیگر پوش‌نشده نیستند */
           resolve();
         };
-        tx.onerror = function () { keys.forEach(function (k) { _skipSync.delete(k); }); resolve(); }; 
-      }).catch(function() { resolve(); });
+        tx.onerror = function () {
+          /* ✅ v2.3.3 — flush ناموفق: کلیدها دوباره dirty می‌شوند تا flush بعدی
+             دوباره تلاش کند (قبلاً برای همیشه «پاک‌شده» حساب می‌شدند و مقدارِ
+             فقط در حافظه، هرگز در پایگاه داده نمی‌نشست) */
+          keys.forEach(function (k) { _dirty.add(k); _skipSync.delete(k); });
+          _persistDirty();
+          resolve();
+        };
+      }).catch(function() {
+        /* ✅ v2.3.3 — همان رفتار برای خطای باز کردن IDB */
+        try {
+          keys.forEach(function (k) { _dirty.add(k); _skipSync.delete(k); });
+          _persistDirty();
+        } catch (e2) {}
+        resolve();
+      });
     });
   },
 
@@ -161,8 +214,19 @@ var DB = {
 
 function scheduleFlush() {
   if (_flushTimer) return;
+  _persistDirty(); /* ✅ v2.3.3 */
   _flushTimer = setTimeout(DB.flush, 100);
 }
+
+/* ✅ v2.3.3 — هنگام ترک صفحه (رفرش/بستن/سوییچ اپ) فوراً flush می‌کنیم؛
+   تراکنش‌های IndexedDB در حال unload هم معمولاً کامل می‌شوند، پس مقدارِ
+   تغییراتِ آخرین لحظه در پایگاه داده می‌ماند و جلسهٔ بعد با pendingNames پوش می‌شود. */
+try {
+  window.addEventListener('pagehide', function () { try { DB.flush(); } catch (e) {} });
+  document.addEventListener('visibilitychange', function () {
+    try { if (document.visibilityState === 'hidden') DB.flush(); } catch (e) {}
+  });
+} catch (eUnload) {}
 
 window.LS_PREFIX = LS_PREFIX;
 window.DB = DB;

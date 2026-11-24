@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.2.2)
+   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.3)
    مسیر: js/core/cloud-sync.js
 
    معماری:
@@ -140,6 +140,10 @@
     var _pushInFlight = false;
     var _pushBackoff = 0;
     var _pushRetryTimer = null;     /* ✅ v2.3.0 — تلاش دوباره بعد از آزاد شدن پوش قبلی */
+    var _wizardBusy = false;        /* ✅ v2.3.3 — حین ویزارد، وضعیت توسط پول/پوش بازنویسی نشود */
+    var _bootApplyDone = false;     /* ✅ v2.3.3 — اولین دریافتِ شروع صفحه اعلان نمی‌گیرد */
+    var _lastRemoteToastAt = 0;
+    var _verWarned = false;
 
     var _readyResolve = null;
     var _readyPromise = new Promise(function (r) { _readyResolve = r; });
@@ -159,6 +163,22 @@
         setTimeout(function () {
             try { if (typeof rerenderCurrentPage === 'function') rerenderCurrentPage(); } catch (e) {}
         }, 500);
+    }
+
+    /* ✅ v2.3.3 — ساعت جاری (برای خط وضعیت) */
+    function _clock() {
+        var d = new Date();
+        function p2(x) { return (x < 10 ? '0' : '') + x; }
+        var s = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+        try { return toFa(s); } catch (e) { return s; }
+    }
+
+    /* ✅ v2.3.3 — خط وضعیت زنده در تنظیمات: کاربر می‌بیند سینک زنده است،
+       بدون نیاز به بستن و باز کردن اپ. حین ویزارد بازنویسی نمی‌شود. */
+    function _liveStatus(ok, txt) {
+        if (_wizardBusy) return;
+        if (!ok) return;
+        _setStatus('<span style="color:#059669">✅ همگام‌سازی دوطرفه فعال — ' + txt + ' ' + _clock() + '</span>');
     }
 
     /* ---------- تماس با رله ---------- */
@@ -217,6 +237,16 @@
     function _restorePending() {
         var names = [];
         try { names = JSON.parse(localStorage.getItem('parsis.cloudPendingNames') || '[]') || []; } catch (e) { names = []; }
+        /* ✅ v2.3.3 — نام‌های «تغییرکردهٔ ماندگار» از db.js هم اضافه می‌شود؛
+           حتی اگر تغییر در آخرین لحظهٔ بستن صفحه ثبت شده باشد و فرصتِ ورود
+           به صف پوش را نداشته باشد، جلسهٔ بعد قبل از هر دریافتِ رله فرستاده می‌شود */
+        try {
+            if (typeof DB.pendingNames === 'function') {
+                DB.pendingNames().forEach(function (k) {
+                    if (names.indexOf(k) === -1) names.push(k);
+                });
+            }
+        } catch (e) {}
         if (!names.length) return 0;
         var n = 0;
         names.forEach(function (k) {
@@ -291,8 +321,13 @@
                 _pushInFlight = false;
                 var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
                 try { console.log('[cloud-sync] ⬆ پوش شد — ' + names.length + ' store, rev=' + _lastRev); } catch (e) {}
+                _liveStatus(true, 'آخرین ارسال');
                 /* ✅ v2.3.0 — اگر حین پوش، تغییر تازه‌ای صف شده، فوراً بفرست */
                 if (Object.keys(_pendingPush).length > 0) _drainPush();
+                /* ✅ v2.3.3 — بلافاصله بعد از پوش، یک دریافت هم بزن؛
+                   اگر دستگاه دیگری هم‌زمان تغییر داده باشد چند ثانیه زودتر می‌رسد
+                   (وگرنه تا پول ۶ ثانیه‌ای بعدی صبر می‌کردیم). */
+                setTimeout(_pollOnce, 150);
             })
             .catch(function (err) {
                 _pushInFlight = false;
@@ -307,13 +342,23 @@
     /* ============================================================
        گرفتن تغییرات دور
        ============================================================ */
+    /* ✅ v2.3.3 — اعلان «تغییرات از دستگاه دیگر رسید» (حداقل هر ۱۰ ثانیه یک‌بار،
+       و برای اولین دریافتِ شروع صفحه بی‌صدا) */
+    function _toastRemoteApplied(n) {
+        if (!_bootApplyDone) return;
+        var now = Date.now();
+        if (now - _lastRemoteToastAt < 10000) return;
+        _lastRemoteToastAt = now;
+        try { showToast('⬇ ' + toFa(n) + ' بخش داده از دستگاه دیگر به‌روزرسانی شد'); } catch (e) {}
+    }
+
     function _applySnapshot(snap) {
         if (!snap) return 0;
         _lastRev = (typeof snap.rev === 'number') ? snap.rev : _lastRev;
         var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
         var stores = snap.stores || {};
         var names = Object.keys(stores);
-        if (!names.length) return 0;
+        if (!names.length) { _bootApplyDone = true; return 0; }
 
         var jobs = names.map(function (n) {
             return _decrypt(_space, _apiKey, stores[n])
@@ -322,11 +367,23 @@
         });
 
         return Promise.all(jobs).then(function (pairs) {
+            /* ✅ v2.3.3 — فقط storeهایی نوشته می‌شوند که مقدارشان واقعاً فرق کرده؛
+               جلوی flush و پوش‌های بی‌دلیل هم گرفته می‌شود */
             var apply = {};
-            pairs.forEach(function (p) { if (p) apply[p[0]] = p[1]; });
-            var n = DB._applyRemote(apply);
+            var changed = 0;
+            pairs.forEach(function (p) {
+                if (!p) return;
+                try {
+                    var cur = (typeof DB.load === 'function') ? DB.load(p[0], undefined) : undefined;
+                    if (JSON.stringify(cur) !== JSON.stringify(p[1])) { apply[p[0]] = p[1]; changed++; }
+                } catch (e) { apply[p[0]] = p[1]; changed++; }
+            });
+            var n = changed ? DB._applyRemote(apply) : 0;
+            _bootApplyDone = true;
             if (n > 0) {
                 _refreshUI();
+                _toastRemoteApplied(n);
+                _liveStatus(true, 'آخرین دریافت');
                 try { console.log('[cloud-sync] ⬇ تغییرات دور اعمال شد — ' + n + ' store'); } catch (e) {}
             }
             return n;
@@ -361,6 +418,7 @@
     }
 
     function _startPolling() {
+        _bootApplyDone = true; /* ✅ v2.3.3 — از این‌جا به بعد دریافت‌ها «تغییر دور» حساب می‌شوند */
         if (_pollTimer) clearInterval(_pollTimer);
         _pollTimer = setInterval(function () {
             try { if (document.visibilityState === 'hidden') return; } catch (e) {}
@@ -369,6 +427,32 @@
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') _pollOnce();
         });
+        /* ✅ v2.3.3 — برگشت از پس‌زمینه (بازیابی bfcache) و اتصال مجدد اینترنت:
+           فوراً هم پوش، هم دریافت — بدون نیاز به بستن و باز کردن اپ */
+        window.addEventListener('pageshow', function (e) {
+            try { if (e && e.persisted) { _flushAndPush(); _pollOnce(); } } catch (e2) {}
+        });
+        window.addEventListener('online', function () {
+            _flushAndPush();
+            _pollOnce();
+        });
+        /* ✅ v2.3.3 — نگهبان نسخه: اگر اپِ روی رله از نسخهٔ این صفحه جدیدتر شود،
+           کاربر یک‌بار مطلع می‌شود تا صفحه را رفرش کند */
+        setInterval(function () {
+            try {
+                if (document.visibilityState === 'hidden') return;
+                if (_wizardBusy || _verWarned) return;
+                fetch((_base || '') + '/api/ping', { cache: 'no-store' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (j) {
+                        if (j && j.ok && typeof j.appVer === 'string' && j.appVer && j.appVer !== APP_VERSION) {
+                            _verWarned = true;
+                            try { showToast('🔄 نسخهٔ جدید اپ (' + toFa(j.appVer) + ') روی رله منتشر شده — صفحه را یک‌بار رفرش کنید'); } catch (e3) {}
+                        }
+                    })
+                    .catch(function () {});
+            } catch (eV) {}
+        }, 90000);
     }
 
     /* ============================================================
@@ -765,6 +849,7 @@
             _setStatus('<span style="color:#dc2626">⛔ قدم ۱ ناقص: آدرس رله خالی است</span>');
             return;
         }
+        _wizardBusy = true; /* ✅ v2.3.3 */
         var btnWizard = document.getElementById('set-cloud-wizard');
         if (btnWizard) btnWizard.disabled = true;
         var fSpace = _normCode(_getVal('set-cloud-space'));
@@ -808,6 +893,7 @@
                 return _apiPub(url, c);
             })
             .then(function (r) {
+                _wizardBusy = false; /* ✅ v2.3.3 */
                 if (r && r.skipped) { if (btnWizard) btnWizard.disabled = false; return null; }
                 if (!r || r.ok === 0 || r.failed > 0) {
                     var msg = (r && r.ok > 0)
@@ -825,6 +911,7 @@
                 return _startPeer(c, false).then(function () { if (btnWizard) btnWizard.disabled = false; }, function () { if (btnWizard) btnWizard.disabled = false; });
             })
             .catch(function (err) {
+                _wizardBusy = false; /* ✅ v2.3.3 */
                 if (btnWizard) btnWizard.disabled = false;
                 var raw = String((err && err.message) || err || '');
                 var kind = _friendlyErr(err);
@@ -1050,6 +1137,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.3.0');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.3.3');
 
 })();
