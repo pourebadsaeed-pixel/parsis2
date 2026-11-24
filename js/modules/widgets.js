@@ -747,6 +747,28 @@ function renderLiveRatesWidget() {
 }
 
 function renderTodayChecklistWidget(category) {
+    /* ✅ v2.3.0 — کاربرِ بدون دسترسی به «دفترچه یادداشت»، ویجت چک‌لیست را نمی‌بیند.
+       قبلاً ویجت مستقیم از store «notes» می‌خواند و محتوای یادداشت‌ها را نشانی می‌داد
+       حتی اگر دیدنِ دفترچه در درخت دسترسی بسته شده بود. */
+    try {
+        if (typeof permsCanSee === 'function' && !permsCanSee('notes')) {
+            if (typeof CHECKLIST_CATEGORIES !== 'undefined') {
+                for (var ci = 0; ci < CHECKLIST_CATEGORIES.length; ci++) {
+                    if (CHECKLIST_CATEGORIES[ci].key !== category) continue;
+                    var elX = document.getElementById(CHECKLIST_CATEGORIES[ci].elId);
+                    if (elX) {
+                        elX.innerHTML = '';
+                        if (elX.closest) {
+                            var card = elX.closest('.widget, .card');
+                            if (card) card.style.display = 'none';
+                        }
+                    }
+                }
+            }
+            return;
+        }
+    } catch (ePerm) {}
+
     var meta = null;
     if (typeof CHECKLIST_CATEGORIES !== 'undefined') {
         for (var ci = 0; ci < CHECKLIST_CATEGORIES.length; ci++) {

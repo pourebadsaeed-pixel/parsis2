@@ -24,7 +24,7 @@
         { id: 'acc-cat',       title: '🏦 حساب‌ها و دوره مالی',    pages: ['bank-accounts', 'cash-boxes', 'projects', 'fiscal'] },
         { id: 'voucher-cat',   title: '🧾 اسناد حسابداری',        pages: ['voucher-list', 'voucher-new', 'templates'] },
         { id: 'report-cat',    title: '📚 گزارش‌ها',              pages: ['report-cashflow', 'report-cashflow-desc', 'report-account', 'report-ledger', 'report-trial', 'report-incomplete', 'report-facility', 'report-facility-full', 'report-compare'] },
-        { id: 'def-cat',       title: '⚙️ تعریف‌ها و ابزارها',     pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'facilities', 'notes', 'sms', 'jalali-calendar'] }
+        { id: 'def-cat',       title: '⚙️ تعریف‌ها و ابزارها',     pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'facilities', 'notes', 'sms', 'jalali-calendar', 'language'] }
     ];
 
     var RULE_KIND_LABEL = {

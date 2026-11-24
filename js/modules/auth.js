@@ -181,6 +181,8 @@ async function registerBiometric() {
 /* ورود موفق بعد از احراز هویت بیومتریک */
 function _finishBiometricLogin(found) {
     try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch (e) {}
+    /* ✅ v2.3.0 — اعلام تغییر کاربر تا منو/دسترسی‌ها فوراً هم‌تراز شوند */
+    try { window.dispatchEvent(new Event('parsisUserChanged')); } catch (eUC) {}
     var btn = document.getElementById('login-bio-btn');
     if (btn) { btn.innerHTML = '⏳ در حال ورود...'; btn.disabled = true; }
     setTimeout(function () { location.reload(); }, 200);
@@ -417,6 +419,9 @@ function login() {
 
         try { sessionStorage.setItem('parsis.session', JSON.stringify(found)); } catch (e) {}
         DB.save(LS_KEYS.LAST_USER_ID, found.id); 
+
+        /* ✅ v2.3.0 — اعلام تغییر کاربر تا منو/دسترسی‌ها فوراً هم‌تراز شوند */
+        try { window.dispatchEvent(new Event('parsisUserChanged')); } catch (eUC) {}
 
         var btn = document.getElementById('login-btn');
         if (btn) { btn.innerHTML = '⏳ در حال ورود...'; btn.disabled = true; }
