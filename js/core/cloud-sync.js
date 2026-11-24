@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.1.0)
+   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.2.2)
    مسیر: js/core/cloud-sync.js
 
    معماری:
@@ -40,6 +40,29 @@
         if (!u) return '';
         if (u.indexOf('http') !== 0) u = 'https://' + u;
         return u.replace(/\/+$/, '');
+    }
+
+    /* ✅ v2.2.2 — نرمال‌سازی ورودی کاربر: ارقام فارسی/عربی → انگلیسی، حذف کاراکترهای نامرئی و فاصله‌ها.
+       علت: کاربر ایرانی کد ۶ رقمی را با صفحه‌کلید فارسی تایپ می‌کند (۱۲۳۴۵۶) و هشِ آن با 123456 فرق دارد
+       → رله به‌اشتباه bad-key می‌دهد. */
+    function _normCode(s) {
+        s = String(s || '');
+        s = s.replace(/[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00A0]/g, '');
+        s = s.replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)); });
+        s = s.replace(/[٠-٩]/g, function (d) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)); });
+        return s.trim();
+    }
+
+    /* ✅ v2.2.2 — ترجمه خطاهای خام رله به پیام قابل‌فهم فارسی */
+    function _friendlyErr(err) {
+        var m = String((err && err.message) || err || '');
+        var s = (err && err.status) || 0;
+        if (m.indexOf('bad-key') !== -1) return 'BAD_KEY';
+        if (m.indexOf('key-missing') !== -1 || m.indexOf('space-missing') !== -1) return 'CONFIG';
+        if (m.indexOf('not-found') !== -1 || s === 404) return 'WORKER';
+        if (m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 ||
+            m.indexOf('timeout') !== -1 || m.indexOf('aborted') !== -1 || m.indexOf('load failed') !== -1) return 'NET';
+        return 'OTHER';
     }
 
     function _rand(n, digits) {
@@ -138,10 +161,18 @@
     }
 
     /* ---------- تماس با رله ---------- */
+    /* ✅ v2.2.2 — تایم‌اوت ۲۰ ثانیه: دیگر «بی‌پایان» منتظر نمی‌مانیم و خطای شبکه شفاف اعلام می‌شود */
     function _api(path, opts) {
         opts = opts || {};
         opts.headers = opts.headers || { 'Content-Type': 'application/json' };
+        var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+        var timer = null;
+        if (ctrl && !opts.signal) {
+            opts.signal = ctrl.signal;
+            timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 20000);
+        }
         return fetch(_base + path, opts).then(function (r) {
+            if (timer) clearTimeout(timer);
             if (!r.ok) {
                 return r.text().then(function (t) {
                     var msg = 'HTTP ' + r.status;
@@ -151,6 +182,10 @@
                 });
             }
             return r.json();
+        }).catch(function (e) {
+            if (timer) clearTimeout(timer);
+            if (e && e.name === 'AbortError') throw new Error('timeout');
+            throw e;
         });
     }
 
@@ -334,7 +369,30 @@
                 if (!silent) _setStatus('<span style="color:#059669">✅ همگام‌سازی ابری فعال است (rev=' + _lastRev + ')</span>');
             })
             .catch(function (err) {
-                _setStatus('<span style="color:#dc2626">⛔ اتصال به رله ناموفق: ' + ((err && err.message) || err) + '</span>');
+                var raw = String((err && err.message) || err || '');
+                var kind = _friendlyErr(err);
+                if (kind === 'BAD_KEY') {
+                    /* ✅ v2.2.2 — راهنمای کامل بازیابی به‌جای «Bad Key» بی‌معنی */
+                    _setStatus(
+                        '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px;color:#7f1d1d;line-height:2">'
+                        + '<b>⛔ این «فضای کاری» روی رله با کد دسترسی دیگری ثبت شده است.</b><br>'
+                        + 'فضای کاری فعلی: <b dir="ltr">' + _space + '</b>'
+                        + ' — کد دسترسی فعلی: <b dir="ltr">' + _apiKey + '</b><br>'
+                        + '<b>راه ۱)</b> اگر «لینک دوستان» قدیمی را جایی ذخیره کرده‌ای (واتساپ/تلگرام/یادداشت)، '
+                        + '«فضای کاری» و «کد دسترسی» داخل آن لینک را در کادرهای همین صفحه وارد کن و دوباره ⚡ را بزن — داده‌های قبلی برمی‌گردد.<br>'
+                        + '<b>راه ۲)</b> اگر کد دسترسی قدیمی را نداری، دکمه «🆕 فضای کاری جدید» را بزن تا با داده‌های همین گوشی شروع تازه بسازد.<br>'
+                        + '💡 کد دسترسی فقط عدد انگلیسی است؛ اعداد فارسی خودکار به انگلیسی تبدیل می‌شوند.'
+                        + '</div>'
+                    );
+                } else if (kind === 'NET') {
+                    _setStatus('<span style="color:#dc2626">⛔ اتصال به رله ناموفق: اینترنت یا آدرس رله در دسترس نیست.<br>وای‌فای/دیتا را بررسی کن، آدرس Worker را چک کن و دوباره تلاش کن.</span>');
+                } else if (kind === 'WORKER') {
+                    _setStatus('<span style="color:#dc2626">⛔ رله جواب استاندارد نداد (' + raw + ') — کد Worker روی Cloudflare قدیمی است؛ آخرین فایل parsis-relay-worker.js را دوباره Deploy کن.</span>');
+                } else if (kind === 'CONFIG') {
+                    _setStatus('<span style="color:#dc2626">⛔ تنظیمات ناقص است (' + raw + ') — فضای کاری و کد دسترسی را کامل کن.</span>');
+                } else {
+                    _setStatus('<span style="color:#dc2626">⛔ اتصال به رله ناموفق: ' + raw + '</span>');
+                }
             });
     }
 
@@ -389,7 +447,10 @@
                 try { showToast('☁️ متصل به همگام‌سازی ابری — داده‌ها زنده دوطرفه سینک می‌شود'); } catch (e) {}
             })
             .catch(function (err) {
-                try { showToast('⛔ اتصال ابری ناموفق: ' + ((err && err.message) || err)); } catch (e2) {}
+                var t = (_friendlyErr(err) === 'BAD_KEY')
+                    ? '⛔ اتصال ابری ناموفق: این فضا با کد دسترسی دیگری ثبت شده — کد دسترسی درست را از صاحب لینک بگیرید.'
+                    : '⛔ اتصال ابری ناموفق: ' + ((err && err.message) || err);
+                try { showToast(t); } catch (e2) {}
             })
             .then(function () { _readyResolve(true); });
     }
@@ -583,6 +644,83 @@
 
     function _getVal(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
+    /* ============================================================
+       ✅ v2.2.2 — ویزارد مشترک (⚡ راه‌اندازی خودکار و 🆕 فضای جدید هر دو از این استفاده می‌کنند)
+       مهم‌ترین اصلاح: اگر کاربر در کادر «فضای کاری» یا «کد دسترسی» چیزی تایپ کرده باشد،
+       دقیقاً همان استفاده می‌شود (قبلاً نادیده گرفته می‌شد و کد قدیمی/خودکار برمی‌گشت —
+       علت اصلی خطای bad-key برای کاربر). ارقام فارسی هم خودکار به انگلیسی تبدیل می‌شوند.
+       ============================================================ */
+    function _runWizardFlow() {
+        var url = _normUrl(_normCode(_getVal('set-cloud-url')));
+        if (!url) {
+            showToast('⚠️ اول آدرس رله را در «تنظیمات دستی» وارد کنید');
+            _setStatus('<span style="color:#dc2626">⛔ قدم ۱ ناقص: آدرس رله خالی است</span>');
+            return;
+        }
+        var btnWizard = document.getElementById('set-cloud-wizard');
+        if (btnWizard) btnWizard.disabled = true;
+        var fSpace = _normCode(_getVal('set-cloud-space'));
+        var fKey = _normCode(_getVal('set-cloud-key'));
+        var c = _cfg();
+        c.url = url;
+        if (fSpace) c.space = fSpace; else if (!c.space) c.space = 'p' + _rand(7);
+        if (fKey) c.key = fKey; else if (!c.key) c.key = _rand(6, true);
+        _saveCfg(c);
+        _setVal('set-cloud-space', c.space);
+        _setVal('set-cloud-key', c.key);
+        _setVal('set-cloud-link', url + '/?space=' + c.space + '&key=' + c.key);
+        _base = url; _space = c.space; _apiKey = c.key;
+
+        _setStatus('<span style="color:#b45309">⏳ ۱/۳ — اتصال به رله و ساخت کد…</span>');
+        fetch(url + '/api/ping', { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j || !j.ok) throw new Error('پاسخ رله معتبر نیست');
+                /* ⚡ v2.2.1 — اگر اپ از قبل روی رله منتشر شده، از انتشار دوباره می‌پریم.
+                   همین مرحله روی اینترنت موبایل اغلب می‌شکست، در حالی که رله از قبل اپ کامل را دارد. */
+                if (j.app === true) {
+                    _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد — ✅ ۲/۳ اپ روی رله از قبل آماده است (انتشار دوباره لازم نبود، رد شد)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
+                    try { showToast('💡 اگر قبلاً داده روی رله داشته‌ای، همان «کد فضا» و «کد دسترسی» قبلی را در کادرها وارد کن تا داده قدیمی برگردد'); } catch (e0) {}
+                    c.enabled = true;
+                    _saveCfg(c);
+                    var cbx0 = document.getElementById('set-cloud-enabled');
+                    if (cbx0) cbx0.checked = true;
+                    return _startPeer(c, false).then(function () { return { skipped: true }; });
+                }
+                _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ روی رله… (چند دقیقه؛ صفحه را باز نگه دار)</span>');
+                return _apiPub(url, c);
+            })
+            .then(function (r) {
+                if (r && r.skipped) { if (btnWizard) btnWizard.disabled = false; return null; }
+                if (!r || r.ok === 0 || r.failed > 0) {
+                    var msg = (r && r.ok > 0)
+                        ? ('انتشار ناقص بود: ' + r.ok + ' از ' + r.total + ' فایل رفت')
+                        : 'هیچ فایلی آپلود نشد';
+                    if (btnWizard) btnWizard.disabled = false;
+                    _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.<br>💡 اگر اپ قبلاً یک‌بار روی رله منتشر شده، لازم نیست دوباره منتشر شود؛ از دکمه «اتصال و ساخت کد» و بعد تیک «فعال‌سازی همگام‌سازی» استفاده کن.</span>');
+                    return null;
+                }
+                _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + r.ok + ' فایل)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
+                c.enabled = true;
+                _saveCfg(c);
+                var cbx = document.getElementById('set-cloud-enabled');
+                if (cbx) cbx.checked = true;
+                return _startPeer(c, false).then(function () { if (btnWizard) btnWizard.disabled = false; }, function () { if (btnWizard) btnWizard.disabled = false; });
+            })
+            .catch(function (err) {
+                if (btnWizard) btnWizard.disabled = false;
+                var raw = String((err && err.message) || err || '');
+                var kind = _friendlyErr(err);
+                if (kind === 'BAD_KEY') {
+                    _setStatus('<span style="color:#dc2626">⛔ این فضای کاری قبلاً با کد دسترسی دیگری ثبت شده است.<br>کد درست را از «لینک دوستان» قدیمی وارد کن و دوباره ⚡ را بزن — یا دکمه «🆕 فضای کاری جدید» را بزن.</span>');
+                } else if (kind === 'NET') {
+                    _setStatus('<span style="color:#dc2626">⛔ اتصال به رله ناموفق — اینترنت یا آدرس Worker را بررسی کن و دوباره ⚡ را بزن.</span>');
+                } else {
+                    _setStatus('<span style="color:#dc2626">⛔ راه‌اندازی خودکار متوقف شد: ' + raw + '<br>آدرس رله و اینترنت را بررسی کنید و دوباره ⚡ را بزنید.</span>');
+                }
+            });
+    }
+
     function _wireSettings() {
         var cfg = _cfg();
         _setVal('set-cloud-url', cfg.url);
@@ -596,83 +734,26 @@
             _setStatus('<span style="color:#059669">✅ فعال است — rev=' + _lastRev + '</span>');
         }
 
-        /* ⚡ v2.2.0 — ویزارد خودکار: ۱ اتصال ← ۲ انتشار ← ۳ فعال‌سازی، همه با یک دکمه */
+        /* ⚡ v2.2.0 — ویزارد خودکار: ۱ اتصال ← ۲ انتشار ← ۳ فعال‌سازی، همه با یک دکمه
+           ✅ v2.2.2 — مقادیر تایپ‌شده کاربر محترم شمرده می‌شود؛ فقط وقتی کادرها خالی باشند کد خودکار ساخته می‌شود */
         var btnWizard = document.getElementById('set-cloud-wizard');
         if (btnWizard && !btnWizard.dataset.bound) {
             btnWizard.dataset.bound = '1';
-            btnWizard.onclick = function () {
-                var url = _normUrl(_getVal('set-cloud-url'));
-                if (!url) {
-                    showToast('⚠️ اول آدرس رله را در «تنظیمات دستی» وارد کنید');
-                    _setStatus('<span style="color:#dc2626">⛔ قدم ۱ ناقص: آدرس رله خالی است</span>');
-                    return;
-                }
-                btnWizard.disabled = true;
-                var c = _cfg();
-                c.url = url;
-                if (!c.space) c.space = 'p' + _rand(7);
-                if (!c.key) c.key = _rand(6, true);
-                _saveCfg(c);
-                _setVal('set-cloud-space', c.space);
-                _setVal('set-cloud-key', c.key);
-                _setVal('set-cloud-link', url + '/?space=' + c.space + '&key=' + c.key);
-                _base = url; _space = c.space; _apiKey = c.key;
-
-                _setStatus('<span style="color:#b45309">⏳ ۱/۳ — اتصال به رله و ساخت کد…</span>');
-                fetch(url + '/api/ping', { cache: 'no-store' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (j) {
-                        if (!j || !j.ok) throw new Error('پاسخ رله معتبر نیست');
-                        /* ⚡ v2.2.1 — اگر اپ از قبل روی رله منتشر شده، از انتشار دوباره می‌پریم.
-                           همین مرحله روی اینترنت موبایل اغلب می‌شکست، در حالی که رله از قبل اپ کامل را دارد. */
-                        if (j.app === true) {
-                            _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد — ✅ ۲/۳ اپ روی رله از قبل آماده است (انتشار دوباره لازم نبود، رد شد)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
-                            try { showToast('💡 اگر قبلاً داده روی رله داشته‌ای، همان «کد فضا» و «کد دسترسی» قبلی را در کادرها وارد کن تا داده قدیمی برگردد'); } catch (e0) {}
-                            c.enabled = true;
-                            _saveCfg(c);
-                            var cbx0 = document.getElementById('set-cloud-enabled');
-                            if (cbx0) cbx0.checked = true;
-                            return _startPeer(c, false).then(function () { return { skipped: true }; });
-                        }
-                        _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ روی رله… (چند دقیقه؛ صفحه را باز نگه دار)</span>');
-                        return _apiPub(url, c);
-                    })
-                    .then(function (r) {
-                        if (r && r.skipped) return null;
-                        if (!r || r.ok === 0 || r.failed > 0) {
-                            var msg = (r && r.ok > 0)
-                                ? ('انتشار ناقص بود: ' + r.ok + ' از ' + r.total + ' فایل رفت')
-                                : 'هیچ فایلی آپلود نشد';
-                            btnWizard.disabled = false;
-                            _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.<br>💡 اگر اپ قبلاً یک‌بار روی رله منتشر شده، لازم نیست دوباره منتشر شود؛ از دکمه «اتصال و ساخت کد» و بعد تیک «فعال‌سازی همگام‌سازی» استفاده کن.</span>');
-                            return null;
-                        }
-                        _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + r.ok + ' فایل)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
-                        c.enabled = true;
-                        _saveCfg(c);
-                        var cbx = document.getElementById('set-cloud-enabled');
-                        if (cbx) cbx.checked = true;
-                        return _startPeer(c, false);
-                    })
-                    .then(function () {
-                        btnWizard.disabled = false;
-                    })
-                    .catch(function (err) {
-                        btnWizard.disabled = false;
-                        _setStatus('<span style="color:#dc2626">⛔ راه‌اندازی خودکار متوقف شد: ' + ((err && err.message) || err) + '<br>آدرس رله و اینترنت را بررسی کنید و دوباره ⚡ را بزنید.</span>');
-                    });
-            };
+            btnWizard.onclick = _runWizardFlow;
         }
 
 
         var btnConnect = document.getElementById('set-cloud-connect');
         if (btnConnect) btnConnect.onclick = function () {
-            var url = _normUrl(_getVal('set-cloud-url'));
+            var url = _normUrl(_normCode(_getVal('set-cloud-url')));
             if (!url) { showToast('⚠️ آدرس رله را وارد کنید'); return; }
             var c = _cfg();
             c.url = url;
-            if (!_getVal('set-cloud-space')) c.space = 'p' + _rand(7);
-            if (!_getVal('set-cloud-key')) c.key = _rand(6, true);
+            /* ✅ v2.2.2 — کدهای تایپ‌شده اولویت دارند؛ فقط کادرِ خالی خودکار ساخته می‌شود */
+            var fSpace = _normCode(_getVal('set-cloud-space'));
+            var fKey = _normCode(_getVal('set-cloud-key'));
+            if (fSpace) c.space = fSpace; else if (!c.space) c.space = 'p' + _rand(7);
+            if (fKey) c.key = fKey; else if (!c.key) c.key = _rand(6, true);
             _saveCfg(c);
             _setVal('set-cloud-space', c.space);
             _setVal('set-cloud-key', c.key);
@@ -682,7 +763,8 @@
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
                     if (j && j.ok) {
-                        _setStatus('<span style="color:#059669">✅ رله در دسترس است' + (j.app ? ' — اپ روی رله منتشر شده' : ' — هنوز اپ را منتشر کنید') + '</span>');
+                        _setStatus('<span style="color:#059669">✅ رله در دسترس است' + (j.app ? ' — اپ روی رله منتشر شده' : ' — هنوز اپ را منتشر کنید') + '</span>'
+                            + '<br><span style="font-size:.7rem;color:#475569">فضای کاری: <b dir="ltr">' + c.space + '</b> — کد دسترسی: <b dir="ltr">' + c.key + '</b></span>');
                         showToast('✅ اتصال به رله برقرار شد');
                     } else {
                         _setStatus('<span style="color:#dc2626">⛔ پاسخ رله معتبر نیست — کد Worker را درست منتشر کرده‌اید؟</span>');
@@ -696,10 +778,15 @@
         var btnPublish = document.getElementById('set-cloud-publish');
         if (btnPublish) btnPublish.onclick = function () {
             var c = _cfg();
-            c.url = _normUrl(_getVal('set-cloud-url'));
-            c.space = _getVal('set-cloud-space') || c.space;
-            c.key = _getVal('set-cloud-key') || c.key;
+            c.url = _normUrl(_normCode(_getVal('set-cloud-url')));
+            /* ✅ v2.2.2 — کد تایپ‌شده اولویت دارد + ارقام فارسی نرمال می‌شوند */
+            var fSpace = _normCode(_getVal('set-cloud-space'));
+            var fKey = _normCode(_getVal('set-cloud-key'));
+            if (fSpace) c.space = fSpace;
+            if (fKey) c.key = fKey;
             _saveCfg(c);
+            _setVal('set-cloud-space', c.space);
+            _setVal('set-cloud-key', c.key);
             if (!c.url || !c.space || !c.key) { showToast('⚠️ اول اتصال را کامل کنید'); return; }
             _base = c.url; _space = c.space; _apiKey = c.key;
             _setStatus('<span style="color:#b45309">⏳ انتشار اپ روی رله… ۰٪</span>');
@@ -729,9 +816,9 @@
             cbEnabled.dataset.bound = '1';
             cbEnabled.onchange = function () {
                 var c = _cfg();
-                c.url = _normUrl(_getVal('set-cloud-url'));
-                c.space = _getVal('set-cloud-space');
-                c.key = _getVal('set-cloud-key');
+                c.url = _normUrl(_normCode(_getVal('set-cloud-url')));
+                c.space = _normCode(_getVal('set-cloud-space')) || c.space;
+                c.key = _normCode(_getVal('set-cloud-key')) || c.key;
                 c.enabled = cbEnabled.checked;
                 _saveCfg(c);
                 if (c.enabled) {
@@ -767,15 +854,42 @@
         };
 
         var btnNewKey = document.getElementById('set-cloud-newkey');
-        if (btnNewKey) btnNewKey.onclick = function () {
-            var c = _cfg();
-            c.key = _rand(6, true);
-            c.lastRev = 0;
-            _saveCfg(c);
-            _setVal('set-cloud-key', c.key);
-            _setVal('set-cloud-link', (_normUrl(c.url)) + '/?space=' + c.space + '&key=' + c.key);
-            showToast('🔑 کد دسترسی جدید ساخته شد — دوستان باید با لینک/کد جدید وارد شوند');
-        };
+        if (btnNewKey && !btnNewKey.dataset.bound) {
+            btnNewKey.dataset.bound = '1';
+            btnNewKey.onclick = function () {
+                var c = _cfg();
+                /* ✅ v2.2.2 — هشدار جدی: رله فقط کدِ اولین اتصال را می‌شناسد؛ تغییر کد بعد از فعال‌سازی = bad-key */
+                if (c.enabled && MODE === 'peer') {
+                    if (!window.confirm('⚠️ همگام‌سازی فعلاً فعال است.\n\nتغییر کد دسترسی بعد از فعال‌سازی باعث خطای bad-key می‌شود\n(رله فقط کدِ اولین اتصال را می‌شناسد و آن را عوض نمی‌کند).\n\nمطمئنی می‌خواهی کد جدید بسازی؟')) return;
+                }
+                c.key = _rand(6, true);
+                c.lastRev = 0;
+                _saveCfg(c);
+                _setVal('set-cloud-key', c.key);
+                _setVal('set-cloud-link', (_normUrl(c.url)) + '/?space=' + c.space + '&key=' + c.key);
+                showToast('🔑 کد دسترسی جدید ساخته شد — دوستان باید با لینک/کد جدید وارد شوند');
+            };
+        }
+
+        /* ✅ v2.2.2 — خروج یک‌ضربه از بن‌بست bad-key: شروع تازه با فضای جدید */
+        var btnNewSpace = document.getElementById('set-cloud-newspace');
+        if (btnNewSpace && !btnNewSpace.dataset.bound) {
+            btnNewSpace.dataset.bound = '1';
+            btnNewSpace.onclick = function () {
+                if (!window.confirm('🆕 یک «فضای کاری» و «کد دسترسی» جدید ساخته می‌شود و داده‌های همین گوشی به آن منتشر می‌شود.\n\n• داده‌های فضای قدیمی روی رله می‌ماند؛ اگر بعداً کد دسترسی قدیمی را پیدا کردی، با همان برمی‌گردی.\n• دوستانی که با لینک قدیمی کار می‌کردند باید لینک جدید را بگیرند.\n\nادامه می‌دهم؟')) return;
+                var c = _cfg();
+                c.space = '';
+                c.key = '';
+                c.lastRev = 0;
+                c.enabled = false;
+                _saveCfg(c);
+                _setVal('set-cloud-space', '');
+                _setVal('set-cloud-key', '');
+                var cbx = document.getElementById('set-cloud-enabled');
+                if (cbx) cbx.checked = false;
+                _runWizardFlow();
+            };
+        }
     }
 
     /* ============================================================
@@ -819,6 +933,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.2.1');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.2.2');
 
 })();
