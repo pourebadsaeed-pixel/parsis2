@@ -5,8 +5,10 @@
 
    استراتژی کش:
      • HTML       → Network-First (فوری به‌روز، آفلاین fallback)
-     • JS / CSS   → Network-First (تغییرات فوری دیده می‌شوند)
+     • JS / CSS   → ✅ v2.3.0 Stale-While-Revalidate (پاسخ فوری از کش + به‌روزرسانی پس‌زمینه)
+                    قبلاً Network-First بود و هر بار ده‌ها فایل از رله دانلود می‌شد — کند!
      • تصاویر/فونت → Cache-First (با پس‌زمینه-update)
+     • API سینک    → همیشه شبکه (بدون کش)
      • CDN خارجی   → Network-First با کش
      • آفلاین      → offline.html
 
@@ -15,7 +17,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v35';
+const CACHE_VERSION = 'v36';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -176,9 +178,11 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    /* فایل‌های JS و CSS → Network-First (تغییرات فوری) */
+    /* فایل‌های JS و CSS → ✅ v2.3.0 Stale-While-Revalidate:
+       پاسخ «فوری» از کش می‌آید (سرعت لود بالا روی رله) و همزمان نسخه تازه در پس‌زمینه
+       گرفته و کش می‌شود؛ رفرش بعدی صفحه نسخه جدید را می‌بیند */
     if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
-        event.respondWith(networkFirstWithCache(req));
+        event.respondWith(staleWhileRevalidate(req));
         return;
     }
 
@@ -227,7 +231,27 @@ function networkFirstWithCache(req) {
 }
 
 /* ============================================================
-   استراتژی ۲: Cache-First با پس‌زمینه-revalidate
+   استراتژی ۲: Stale-While-Revalidate (کش اول فوری + تازه‌سازی پس‌زمینه)
+   ✅ v2.3.0 — برای JS/CSS
+   ============================================================ */
+function staleWhileRevalidate(req) {
+    return caches.open(CACHE_NAME).then((cache) => {
+        return cache.match(req).then((cached) => {
+            const fetchPromise = fetch(req)
+                .then((res) => {
+                    if (res && res.status === 200) {
+                        cache.put(req, res.clone());
+                    }
+                    return res;
+                })
+                .catch(() => cached);
+            return cached || fetchPromise;
+        });
+    });
+}
+
+/* ============================================================
+   استراتژی ۳: Cache-First با پس‌زمینه-revalidate
    ============================================================ */
 function cacheFirstWithUpdate(req) {
     return caches.match(req).then((cached) => {

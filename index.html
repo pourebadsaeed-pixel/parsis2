@@ -1682,7 +1682,7 @@
             <button id="settings-expand-all" class="mini-btn">⬇ باز کردن همه</button>
             <button id="settings-collapse-all" class="mini-btn">⬆ بستن همه</button>
         </div>
-        <details class="settings-details" open>
+        <details class="settings-details admin-only-section" open>
             <summary class="settings-summary">💾 پشتیبان‌گیری و بازیابی</summary>
             <div class="form-buttons" style="gap:8px">
                 <button id="modal-backup-btn" class="btn-primary" style="flex:1">💾 دریافت پشتیبان</button>
@@ -1757,7 +1757,7 @@
                     <div id="set-andr-widgets-status" style="font-size:0.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
                     <div id="set-lan-files-status" style="font-size:0.75rem;margin-top:4px;font-weight:bold;color:#64748b">در اندروید ۱۱+ برای ذخیره مستقیم در حافظه گوشی</div>
                 </div>
-                <div style="border-top:1px dashed #e2e8f0;padding-top:10px">
+                <div class="admin-only-section" style="border-top:1px dashed #e2e8f0;padding-top:10px">
                     <div class="form-buttons" style="gap:8px">
                         <button id="set-lan-start-btn" class="btn-secondary" style="flex:1">📡 اشتراک‌گذاری در شبکه (سرور گوشی)</button>
                         <button id="set-lan-stop-btn" class="btn-secondary" style="flex:1;display:none">⏹ توقف اشتراک‌گذاری</button>
@@ -1861,7 +1861,7 @@
                 </select>
             </div>
         </details>
-        <details class="settings-details">
+        <details class="settings-details admin-only-section">
             <summary class="settings-summary" style="color:#dc2626">⚠️ ریست کامل</summary>
             <div class="reset-warning">با این کار همه داده‌ها پاک می‌شود و غیرقابل بازگشت است.</div>
             <div class="form-buttons">
@@ -2141,23 +2141,37 @@
         ];
         var total = modules.length;
 
-        for (var i = 0; i < total; i++) {
-            var mod = modules[i];
+        /* ✅ v2.3.0 — دانلود موازی همه ماژول‌ها با حفظ ترتیب اجرا (s.async=false).
+           قبلاً هر ماژول «یکی‌یکی و ترتیبی» دانلود می‌شد — روی رله ابری (ده‌ها درخواست
+           پشت‌سرهم) لود اول هر کلیِنت ۳۰ تا ۶۰ ثانیه طول می‌کشید. حالا مرورگر همه را
+           همزمان می‌گیرد (HTTP/2) و فقط «اجرا» ترتیبی می‌ماند — لود اول چند ثانیه‌ای می‌شود
+           و لود‌های بعدی با کش Service Worker فوری است. */
+        var loadedCount = 0;
+        var allDone = [];
+        modules.forEach(function (mod) {
             var shortName = mod.replace('./js/', '').replace('.js', '');
-            await new Promise(function (resolve) {
+            allDone.push(new Promise(function (resolve) {
                 var s = document.createElement('script');
                 s.src = mod;
-                s.onload = function () { bootLog('✓ ' + shortName, 'ok'); resolve(); };
+                s.async = false; /* دانلود موازی + اجرای ترتیبی */
+                s.onload = function () {
+                    loadedCount++;
+                    bootLog('✓ ' + shortName, 'ok');
+                    bootProgress(5 + (loadedCount / total) * 90);
+                    bootStatus('بارگذاری ماژول ' + loadedCount + ' از ' + total);
+                    resolve();
+                };
                 s.onerror = function () {
+                    loadedCount++;
                     bootLog('✗ ' + shortName + ' (خطا)', 'err');
                     console.warn('Failed to load: ' + mod);
                     resolve();
                 };
                 document.body.appendChild(s);
-            });
-            bootProgress(5 + ((i + 1) / total) * 90);
-            bootStatus('بارگذاری ماژول ' + (i + 1) + ' از ' + total);
-        }
+            }));
+        });
+
+        await Promise.all(allDone);
 
         clearTimeout(hintTimer); clearTimeout(slowTimer);
 
