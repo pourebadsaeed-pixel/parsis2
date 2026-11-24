@@ -1,15 +1,16 @@
-#  پارسیس — ساخت خودکار APK از سورس گیت‌هاب (بدون کار دستی روی فایل اندروید)
-#  مسیر: .github/workflows/android-build.yml
-#
-#  چه زمانی اجرا می‌شود؟
-#    • دستی: تب Actions ← Build Android APK ← Run workflow
-#    • خودکار: هر بار یک تگ مثل v2.2.0 پوش کنید
-#
-#  امضای APK (یک‌بار برای همیشه):
-#    در Settings ← Secrets and variables ← Actions چهار Secret بسازید:
-#      KEYSTORE_BASE64  /  KEYSTORE_PASSWORD  /  KEY_ALIAS  /  KEY_PASSWORD
-#    اگر Secret ها تعریف نشوند، APK به‌صورت Debug و بدون امضا ساخته می‌شود.
+#  پارسیس — ساخت خودکار APK اندروید از سورس گیت‌هاب
 #  ============================================================
+#  این نسخه به پوشه android در مخزن نیاز ندارد؛ ورک‌فلو خودش پروژه
+#  اندروید را با Capacitor 6 می‌سازد و وب‌اپ را داخل آن قرار می‌دهد.
+#  پلاگین اختصاصی Parsis (پیامک بانکی + کلیپ‌بورد) هم داخل همین فایل است.
+#
+#  اجرا:
+#    • دستی: تب Actions ← Build Android APK ← Run workflow
+#    • خودکار: پوش کردن تگ مثل v2.2.0
+#
+#  امضا (یک‌بار برای همیشه): چهار Secret در Settings ← Secrets and variables ← Actions
+#    KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
+#    اگر Secret ها تعریف نشوند، خروجی Debug و بدون امضای Release ساخته می‌شود.
 name: Build Android APK
 
 on:
@@ -31,8 +32,352 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      #  نکته: در شرط if نمی‌توان مستقیماً از secrets استفاده کرد (محدودیت GitHub)،
-      #  برای همین مقدار Secret اول به متغیر env داده می‌شود و شرط را bash بررسی می‌کند.
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare web assets (www)
+        run: |
+          mkdir -p www
+          cp -r css icons js vendor www/
+          cp index.html manifest.json sw.js db.js offline.html native-bridge.js sms.js lan-sync.js icon-192.png icon-512.png www/
+          echo "www files: $(find www -type f | wc -l)"
+
+      - name: Install Capacitor 6 + official plugins
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm install --no-audit --no-fund --save-exact \
+            @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 \
+            @capacitor/app@6 @capacitor/haptics@6 @capacitor/share@6 \
+            @capacitor/filesystem@6 @capacitor/splash-screen@6 \
+            @capacitor/status-bar@6 @capacitor/toast@6
+
+      - name: Generate Android project (cap add)
+        run: |
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "ir.parsis.app",
+            "appName": "پارسیس",
+            "webDir": "www",
+            "android": { "allowMixedContent": true }
+          }
+          JSON
+          npx cap add android
+
+      - name: Inject Parsis native plugin, manifest, version, icons
+        env:
+          APP_CODE: ${{ github.run_number }}
+        run: |
+          mkdir -p android/app/src/main/java/ir/parsis/app
+          cat > android/app/src/main/java/ir/parsis/app/ParsisPlugin.java <<'JAVA'
+          package ir.parsis.app;
+
+          import android.Manifest;
+          import android.content.BroadcastReceiver;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.provider.Telephony;
+          import android.telephony.SmsMessage;
+
+          import androidx.core.content.ContextCompat;
+
+          import com.getcapacitor.JSArray;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import com.getcapacitor.annotation.Permission;
+          import com.getcapacitor.annotation.PermissionCallback;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          @CapacitorPlugin(
+              name = "Parsis",
+              permissions = {
+                  @Permission(
+                      alias = "sms",
+                      strings = { Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS }
+                  )
+              }
+          )
+          public class ParsisPlugin extends Plugin {
+
+              private static final String PREFS = "parsis_native";
+              private static final String KEY_BUFFER = "sms_buffer";
+              private static final int MAX_BUFFER = 500;
+
+              private SmsListener listener;
+              private boolean registered = false;
+
+              @Override
+              public void load() {
+                  if (hasSmsPermission()) {
+                      registerListener();
+                  }
+              }
+
+              @Override
+              protected void handleOnDestroy() {
+                  unregisterListener();
+              }
+
+              private boolean hasSmsPermission() {
+                  Context ctx = getContext();
+                  boolean read = ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED;
+                  boolean recv = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED;
+                  return read && recv;
+              }
+
+              private synchronized void registerListener() {
+                  if (registered) {
+                      return;
+                  }
+                  try {
+                      listener = new SmsListener();
+                      IntentFilter filter = new IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION);
+                      if (Build.VERSION.SDK_INT >= 33) {
+                          getContext().registerReceiver(listener, filter, Context.RECEIVER_EXPORTED);
+                      } else {
+                          getContext().registerReceiver(listener, filter);
+                      }
+                      registered = true;
+                  } catch (Exception e) {
+                  }
+              }
+
+              private synchronized void unregisterListener() {
+                  if (registered && listener != null) {
+                      try {
+                          getContext().unregisterReceiver(listener);
+                      } catch (Exception e) {
+                      }
+                      registered = false;
+                  }
+              }
+
+              private SharedPreferences prefs() {
+                  return getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+              }
+
+              private void pushToBuffer(String body, String sender, long date) {
+                  try {
+                      JSONArray arr = new JSONArray(prefs().getString(KEY_BUFFER, "[]"));
+                      JSONObject item = new JSONObject();
+                      item.put("body", body == null ? "" : body);
+                      item.put("sender", sender == null ? "" : sender);
+                      item.put("date", date);
+                      arr.put(item);
+                      while (arr.length() > MAX_BUFFER) {
+                          arr.remove(0);
+                      }
+                      prefs().edit().putString(KEY_BUFFER, arr.toString()).apply();
+                  } catch (Exception e) {
+                  }
+              }
+
+              private JSArray bufferItems() {
+                  JSArray items = new JSArray();
+                  try {
+                      JSONArray arr = new JSONArray(prefs().getString(KEY_BUFFER, "[]"));
+                      for (int i = 0; i < arr.length(); i++) {
+                          JSONObject o = arr.getJSONObject(i);
+                          JSObject item = new JSObject();
+                          item.put("body", o.optString("body", ""));
+                          item.put("sender", o.optString("sender", ""));
+                          item.put("date", o.optLong("date", 0L));
+                          items.put(item);
+                      }
+                  } catch (Exception e) {
+                  }
+                  return items;
+              }
+
+              private void resolveBuffer(PluginCall call) {
+                  JSObject res = new JSObject();
+                  res.put("items", bufferItems());
+                  call.resolve(res);
+              }
+
+              class SmsListener extends BroadcastReceiver {
+                  @Override
+                  public void onReceive(Context context, Intent intent) {
+                      try {
+                          SmsMessage[] msgs = Telephony.Sms.Intents.getMessagesFromIntent(intent);
+                          if (msgs == null || msgs.length == 0) {
+                              return;
+                          }
+                          StringBuilder sb = new StringBuilder();
+                          String sender = "";
+                          long date = System.currentTimeMillis();
+                          for (SmsMessage m : msgs) {
+                              if (m == null) {
+                                  continue;
+                              }
+                              String part = m.getDisplayMessageBody();
+                              if (part != null) {
+                                  sb.append(part);
+                              }
+                              if (m.getOriginatingAddress() != null) {
+                                  sender = m.getOriginatingAddress();
+                              }
+                              if (m.getTimestampMillis() > 0) {
+                                  date = m.getTimestampMillis();
+                              }
+                          }
+                          String body = sb.toString().trim();
+                          if (body.length() == 0) {
+                              return;
+                          }
+                          pushToBuffer(body, sender, date);
+                          JSObject data = new JSObject();
+                          data.put("body", body);
+                          data.put("sender", sender);
+                          getBridge().triggerWindowJSEvent("parsisSmsReceived", data.toString());
+                      } catch (Exception e) {
+                      }
+                  }
+              }
+
+              @PluginMethod
+              public void readClipboard(PluginCall call) {
+                  String text = "";
+                  try {
+                      ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                      if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null && cm.getPrimaryClip().getItemCount() > 0) {
+                          CharSequence cs = cm.getPrimaryClip().getItemAt(0).getText();
+                          if (cs != null) {
+                              text = cs.toString();
+                          }
+                      }
+                  } catch (Exception e) {
+                  }
+                  JSObject res = new JSObject();
+                  res.put("text", text);
+                  call.resolve(res);
+              }
+
+              @PluginMethod
+              public void writeClipboard(PluginCall call) {
+                  String text = call.getString("text", "");
+                  try {
+                      ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                      if (cm != null) {
+                          cm.setPrimaryClip(ClipData.newPlainText("text", text == null ? "" : text));
+                      }
+                  } catch (Exception e) {
+                  }
+                  JSObject res = new JSObject();
+                  res.put("ok", true);
+                  call.resolve(res);
+              }
+
+              @PluginMethod
+              public void getSmsBuffer(PluginCall call) {
+                  if (!hasSmsPermission()) {
+                      requestPermissionForAlias("sms", call, "smsPermissionCallback");
+                      return;
+                  }
+                  registerListener();
+                  resolveBuffer(call);
+              }
+
+              @PluginMethod
+              public void clearSmsBuffer(PluginCall call) {
+                  prefs().edit().remove(KEY_BUFFER).apply();
+                  JSObject res = new JSObject();
+                  res.put("ok", true);
+                  call.resolve(res);
+              }
+
+              @PermissionCallback
+              public void smsPermissionCallback(PluginCall call) {
+                  if (hasSmsPermission()) {
+                      registerListener();
+                  }
+                  resolveBuffer(call);
+              }
+          }
+          JAVA
+          cat > android/app/src/main/java/ir/parsis/app/MainActivity.java <<'JAVA'
+          package ir.parsis.app;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(ParsisPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          JAVA
+          APP_VERSION=$(grep -E "APP_VERSION" www/js/core/constants.js | grep -oE "[0-9]+(\.[0-9]+)+" | head -1)
+          APP_VERSION="${APP_VERSION:-2.1.0}"
+          export APP_VERSION
+          pip3 install --quiet --break-system-packages pillow 2>/dev/null || pip3 install --quiet pillow
+          python3 - <<'PY'
+          import os, re, glob
+
+          mp = 'android/app/src/main/AndroidManifest.xml'
+          s = open(mp, encoding='utf-8').read()
+          perms = [
+              '<uses-permission android:name="android.permission.READ_SMS" />',
+              '<uses-permission android:name="android.permission.RECEIVE_SMS" />',
+          ]
+          to_add = [p for p in perms if p not in s]
+          if to_add:
+              i = s.index('<manifest')
+              j = s.index('>', i) + 1
+              s = s[:j] + '\n    ' + '\n    '.join(to_add) + s[j:]
+          if 'usesCleartextTraffic' not in s:
+              k = s.index('<application')
+              l = s.index('>', k)
+              s = s[:l] + ' android:usesCleartextTraffic="true"' + s[l:]
+          open(mp, 'w', encoding='utf-8').write(s)
+          print('manifest patched (sms perms + cleartext)')
+
+          bg = 'android/app/build.gradle'
+          g = open(bg, encoding='utf-8').read()
+          code = os.environ.get('APP_CODE', '1')
+          ver = os.environ.get('APP_VERSION', '2.1.0')
+          g = re.sub(r'versionCode\s+\d+', 'versionCode ' + code, g)
+          g = re.sub(r'versionName\s+"[^"]*"', 'versionName "' + ver + '"', g)
+          open(bg, 'w', encoding='utf-8').write(g)
+          print('app version:', ver, '| versionCode:', code)
+
+          try:
+              from PIL import Image
+              src = Image.open('www/icon-512.png').convert('RGBA')
+              n = 0
+              targets = glob.glob('android/app/src/main/res/mipmap-*/ic_launcher*') + glob.glob('android/app/src/main/res/drawable*/ic_launcher*')
+              for f in targets:
+                  if f.endswith('.xml'):
+                      continue
+                  try:
+                      w, h = Image.open(f).size
+                      src.resize((w, h), Image.LANCZOS).save(f)
+                      n += 1
+                  except Exception as e:
+                      print('icon skip', f, e)
+              print('icons replaced:', n)
+          except Exception as e:
+              print('icon replace failed:', e)
+          PY
+          pip3 install --quiet --break-system-packages pillow 2>/dev/null || pip3 install --quiet pillow
+
+      - name: Sync web assets into Android project
+        run: npx cap sync android
+
       - name: Decode keystore (optional)
         working-directory: android
         env:
@@ -45,7 +390,7 @@ jobs:
             echo "No keystore secret found - will build DEBUG apk"
           fi
 
-      - name: Build Release APK (signed) or Debug fallback
+      - name: Build APK (signed Release or Debug fallback)
         working-directory: android
         env:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -62,6 +407,7 @@ jobs:
           else
             ./gradlew assembleDebug
           fi
+          ls -la app/build/outputs/apk/release/ app/build/outputs/apk/debug/ 2>/dev/null || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
