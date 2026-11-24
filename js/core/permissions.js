@@ -64,6 +64,9 @@ var PERM_REPORT_PAGES = [
     ['report-compare',       '📊 گزارش مقایسه‌ای']
 ];
 
+/* ✅ v2.3.0 — صفحه زبان/تنظیمات پایه هم زیر پوشش دسترسی رفت (پوشش کامل همه صفحات) */
+PERM_DATA_PAGES.push(['language', '🌐 زبان']);
+
 /* صفحاتی که فقط سرپرست به آن‌ها دسترسی دارد */
 var PERM_ADMIN_PAGES = ['users'];
 
@@ -74,6 +77,7 @@ function permsPageActions(page) {
     if (isReport) return ['view', 'report'];
     if (page === 'voucher-new') return ['view', 'create'];
     if (page === 'dashboard')   return ['view'];
+    if (page === 'language')    return ['view']; /* ✅ v2.3.0 */
     return ['view', 'create', 'edit', 'delete'];
 }
 
@@ -127,8 +131,9 @@ function permsOfUser(u) {
 function permsCanSee(page) {
     if (permsIsAdmin()) return true;
     if (PERM_ADMIN_PAGES.indexOf(page) !== -1) return false;
-    if (page === 'home' || page === 'jalali-calendar') return true;
+    if (page === 'home') return true;
 
+    /* ✅ v2.3.0 — «مدیریت تقویم» دیگر همیشه‌باز نیست؛ تنظیم درختِ دسترسی واقعاً اعمال می‌شود */
     var u = permsCurrentUser();
     var p = permsOfUser(u);
     if (!p) return true; /* کاربر عادی بدون تنظیم = باز */
@@ -426,15 +431,21 @@ function permsInit() {
     setTimeout(permsApplyNavVisibility, 600);
     setTimeout(permsApplyNavVisibility, 2000);
 
-    /* نگهبان goToPage — یک بار دور تابع اصلی می‌پیچیم */
-    if (typeof goToPage === 'function' && !goToPage.__permsWrapped) {
-        var orig = goToPage;
-        window.goToPage = function (name) {
-            if (!permsRouterGuard(name)) return;
-            return orig.apply(this, arguments);
-        };
-        goToPage.__permsWrapped = true;
-    }
+    /* ✅ v2.3.0 — هر بار هر بخش از رابط کاربری دوباره رندر شود، پنهان‌سازی منو
+       دوباره اعمال می‌شود (با debounce؛ قبلاً فقط دو بار ثابت اعمال می‌شد و اگر
+       سایدبار بعدتر رندر می‌شد، دکمه‌های محدود دوباره ظاهر می‌شدند) */
+    try {
+        var _navPending = false;
+        var mo = new MutationObserver(function () {
+            if (_navPending) return;
+            _navPending = true;
+            setTimeout(function () { _navPending = false; permsApplyNavVisibility(); }, 250);
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+    } catch (eMO) {}
+
+    /* ✅ v2.3.0 — نگهبان goToPage حالا داخل خود router.js است (دفاع در عمق)؛
+       اینجا دیگر دور آن wrapper نمی‌پیچیم تا پیام خطا دوبار نشان داده نشود */
 
     /* ✅ v2.1.0 — ناوبری واقعی اپ از سیستم «تب‌ها» (form.js) رد می‌شود؛
        پس switchToTab هم نگهبان لازم دارد (تا آماده شدن آن تلاش می‌کنیم) */
@@ -475,6 +486,8 @@ window.permsCanSee = permsCanSee;
 window.permsCan = permsCan;
 window.permsIsAdmin = permsIsAdmin;
 window.permsCurrentUser = permsCurrentUser;
+window.permsPageTitle = permsPageTitle;
+window.permsRouterGuard = permsRouterGuard;
 window.permsAllowedIds = permsAllowedIds;
 window.permsHasLimits = permsHasLimits;
 window.permsFilterList = permsFilterList;
@@ -505,4 +518,4 @@ if (document.readyState === 'loading') {
     setTimeout(permsInit, 400);
 }
 
-console.log('✅ [core/permissions.js] loaded — v2.2.0');
+console.log('✅ [core/permissions.js] loaded — v2.3.0');

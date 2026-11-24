@@ -8,6 +8,17 @@
 function goToPage(name) {
     if (!name) return;
 
+    /* ✅ v2.3.0 — نگهبان دسترسی داخل خود روتر (دفاع در عمق):
+       حتی اگر wrapper بیرونی از دست برود، هیچ صفحه‌ای بدون مجوز «دیدن» باز نمی‌شود.
+       کاربر بدون دسترسی به خانه برگردانده می‌شود. */
+    if (name !== 'home' && typeof window.permsCanSee === 'function' && !window.permsCanSee(name)) {
+        try {
+            var _pt = (typeof window.permsPageTitle === 'function') ? window.permsPageTitle(name) : name;
+            showToast('⛔ دسترسی دیدن صفحه «' + _pt + '» برای شما ندارید');
+        } catch (e0) {}
+        name = 'home';
+    }
+
     var pages = document.querySelectorAll('.page');
     for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
     var target = document.getElementById('page-' + name);

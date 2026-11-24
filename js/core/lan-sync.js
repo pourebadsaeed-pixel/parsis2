@@ -46,7 +46,9 @@
     window.__parsisLanClientGet = function () { return _clientReadyPromise; };
 
     /* ---------- هوک flush دیتابیس ---------- */
-    /* بعد از هر ذخیره در IndexedDB صاحب گوشی، تغییرات به سرور نیتیو پوش می‌شود */
+    /* بعد از هر ذخیره در IndexedDB صاحب گوشی، تغییرات به سرور نیتیو پوش می‌شود.
+       ✅ v2.3.0 — زنجیره‌ای: هوک قبلی (مثلاً سینک ابری) از بین نمی‌رود */
+    var _lanInitPrevHook = window.__parsisAfterFlush;
     window.__parsisAfterFlush = function (vals) {
         try {
             if (MODE !== 'owner') return;
@@ -57,6 +59,7 @@
                 P.pushServerData({ json: json }).catch(function () {});
             }
         } catch (e) { /* سینک غیرفعال */ }
+        if (typeof _lanInitPrevHook === 'function') { try { _lanInitPrevHook(vals); } catch (e2) {} }
     };
 
     /* ---------- به‌روزرسانی رابط کاربری بعد از دریافت تغییر دور ---------- */
@@ -410,18 +413,10 @@
 
     function main() {
         if (_isNative()) {
-            /* اپ اندروید — فقط اگر سرور روشن باشد حالت owner می‌شود */
-            window.__parsisAfterFlush = function (vals) {
-                try {
-                    if (MODE === 'owner') {
-                        var P = _plugin();
-                        if (P && typeof P.pushServerData === 'function') {
-                            var json = JSON.stringify(vals || {});
-                            if (json && json.length > 2) P.pushServerData({ json: json }).catch(function () {});
-                        }
-                    }
-                } catch (e) {}
-            };
+            /* اپ اندروید — فقط اگر سرور روشن باشد حالت owner می‌شود.
+               ✅ v2.3.0 — دیگر هوک flush را «از نو» نمی‌نویسیم؛ همان هوک ابتدای ماژول
+               (زنجیره‌ای) کار پوش LAN را انجام می‌دهد. قبلاً این انتساب مستقیم، هوک
+               سینک ابری را نابود می‌کرد و تغییرات به رله ابری هرگز نمی‌رفت. */
             _ownerBoot().then(function () { _wireOwnerUI(); });
             _clientReadyResolve(true);
             return;
@@ -456,5 +451,6 @@
     }
 
     main();
-
 })();
+
+console.log('✅ [core/lan-sync.js] loaded — v2.3.0');

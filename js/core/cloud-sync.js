@@ -139,6 +139,7 @@
     var _pendingPush = {};          /* store -> value */
     var _pushInFlight = false;
     var _pushBackoff = 0;
+    var _pushRetryTimer = null;     /* ✅ v2.3.0 — تلاش دوباره بعد از آزاد شدن پوش قبلی */
 
     var _readyResolve = null;
     var _readyPromise = new Promise(function (r) { _readyResolve = r; });
@@ -205,7 +206,17 @@
 
     function _drainPush() {
         _pushTimer = null;
-        if (_pushInFlight) return;
+        if (_pushRetryTimer) { clearTimeout(_pushRetryTimer); _pushRetryTimer = null; }
+        /* ✅ v2.3.0 — اصلاح باگ حیاتی سینک:
+           قبلاً اگر پوش قبلی هنوز در جریان بود، این تابع «برمی‌گشت» و هیچ تایمر جایگزینی
+           نمی‌گذاشت — تغییرات تازه در صف می‌ماندند تا ذخیره بعدی کاربر! روی اینترنت موبایل
+           (پوش‌های چندثانیه‌ای) تقریباً هر تغییر بعد از اولی گم می‌شد — علت اصلی
+           «تغییرات اندروید به مرورگر دیگر نمی‌رسد». حالا به‌جای رهاکردن، ۲.۵ ثانیه بعد
+           دوباره تلاش می‌کنیم و بعد از پایان هر پوش هم صف چک می‌شود. */
+        if (_pushInFlight) {
+            _pushRetryTimer = setTimeout(_drainPush, 2500);
+            return;
+        }
         var names = Object.keys(_pendingPush);
         if (!names.length) return;
         if (MODE === 'off' || !_space || !_apiKey) return;
@@ -234,6 +245,8 @@
                 _pushInFlight = false;
                 var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
                 try { console.log('[cloud-sync] ⬆ پوش شد — ' + names.length + ' store, rev=' + _lastRev); } catch (e) {}
+                /* ✅ v2.3.0 — اگر حین پوش، تغییر تازه‌ای صف شده، فوراً بفرست */
+                if (Object.keys(_pendingPush).length > 0) _drainPush();
             })
             .catch(function (err) {
                 _pushInFlight = false;
@@ -933,6 +946,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.2.2');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.3.0');
 
 })();
