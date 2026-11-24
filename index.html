@@ -1802,20 +1802,27 @@
                 </div>
                 <div style="display:flex;gap:8px;margin-top:8px">
                     <div class="field" style="flex:1">
-                        <label>فضای کاری (خودکار)</label>
-                        <input id="set-cloud-space" dir="ltr" readonly style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;background:#f8fafc;direction:ltr">
+                        <label>فضای کاری (خودکار — یا کد قدیمی برای بازیابی)</label>
+                        <!-- ✅ v2.2.2 — دیگر readonly نیست: برای برگرداندن داده‌های قبلی می‌توان کد فضای قدیمی را وارد کرد -->
+                        <input id="set-cloud-space" dir="ltr" placeholder="مثلاً pXk2m9q — از لینک قدیمی" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;direction:ltr;text-align:left">
                     </div>
                     <div class="field" style="flex:1">
                         <label>کد دسترسی</label>
-                        <input id="set-cloud-key" dir="ltr" placeholder="۶ رقم" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;font-weight:900;letter-spacing:2px;direction:ltr;text-align:center;background:#fef9c3">
+                        <!-- ✅ v2.2.2 — inputmode عددی؛ اعداد فارسی هم در کد به انگلیسی تبدیل می‌شوند -->
+                        <input id="set-cloud-key" dir="ltr" placeholder="۶ رقم" inputmode="numeric" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.75rem;font-weight:900;letter-spacing:2px;direction:ltr;text-align:center;background:#fef9c3">
                     </div>
                 </div>
+                <p class="muted" style="font-size:.68rem;line-height:1.8;margin-top:6px">💡 برای برگرداندن داده‌های قبلی: «فضای کاری» و «کد دسترسی» را از «لینک دوستان» قدیمی (که قبلاً ذخیره کرده‌ای) وارد کن و بعد ⚡ راه‌اندازی خودکار را بزن. اگر کد قدیمی را نداری، دکمه «🆕 فضای کاری جدید» با داده‌های همین گوشی شروع تازه می‌سازد.</p>
                 <div class="form-buttons" style="gap:8px;margin-top:8px">
                     <button id="set-cloud-connect" class="btn-secondary" style="flex:1">🔌 ۱. اتصال و ساخت کد</button>
                     <button id="set-cloud-publish" class="btn-secondary" style="flex:1">🚀 ۲. انتشار اپ روی رله</button>
                 </div>
                 <div class="form-buttons" style="gap:8px;margin-top:6px">
                     <button id="set-cloud-newkey" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🔑 کد دسترسی جدید (⚠️ فقط اگر سینک هنوز فعال نشده)</button>
+                </div>
+                <div class="form-buttons" style="gap:8px;margin-top:6px">
+                    <!-- ✅ v2.2.2 — خروج یک‌ضربه از بن‌بست bad-key -->
+                    <button id="set-cloud-newspace" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🆕 فضای کاری جدید (شروع تازه — رفع bad-key)</button>
                 </div>
             </details>
             <details style="margin-top:10px">
