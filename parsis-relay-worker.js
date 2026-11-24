@@ -1,6 +1,12 @@
 /* ============================================================
-   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.1.0)
+   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.3.1)
    فایل: parsis-relay-worker.js
+
+   ✅ v2.3.1 — تغییرات نسبت به قبل:
+     • /api/ping حالا نسخه اپ منتشرشده روی رله را هم می‌دهد (appVer)
+     • /api/publish نسخه اپ را از constants.js استخراج و ذخیره می‌کند
+     • نتیجه: اپ می‌فهمد اپِ روی رله قدیمی است و خودش دوباره منتشر می‌کند؛
+       دیگر مرورگرِ دیگران روی نسخه قدیمی (مثل 2.1.1) گیر نمی‌کند.
    اجرا روی: Cloudflare Workers (پلن رایگان) + پایگاه داده D1 (رایگان)
 
    ┌────────────────────────── راهنمای نصب (۵ دقیقه) ──────────────────────────┐
@@ -25,7 +31,7 @@
    └───────────────────────────────────────────────────────────────────────────┘
 
    API:
-     GET  /api/ping                                → سلام + وضعیت
+     GET  /api/ping                                → سلام + وضعیت + appVer (نسخه اپ منتشرشده)
      GET  /api/rev?space=&key=                     → شماره نسخه داده
      GET  /api/snapshot?space=&key=                → کل داده (رمز)
      POST /api/sync?space=&key=      {stores:{}}   → نوشتن تغییرات (رمز)
@@ -122,7 +128,15 @@ export default {
                 const row = await env.DB.prepare("SELECT val FROM meta WHERE space='__app__' AND k='list'").first();
                 hasApp = !!(row && row.val);
             } catch (e) {}
-            return this.jr(200, { ok: true, v: 1, db: dbOk, dbMsg: dbMsg, app: hasApp }, cors);
+            /* ✅ v2.3.1 — نسخه اپ منتشرشده روی رله هم برگردانده می‌شود (appVer)
+               تا اپ بفهمد اپِ روی رله قدیمی است و دوباره منتشر کند؛
+               وگرنه مرورگرِ دیگران روی نسخه قدیمی می‌ماند و داده تازه نمی‌بیند. */
+            let appVer = null;
+            try {
+                const verRow = await env.DB.prepare("SELECT val FROM meta WHERE space='__app__' AND k='ver'").first();
+                appVer = (verRow && verRow.val) || null;
+            } catch (e) {}
+            return this.jr(200, { ok: true, v: 1, db: dbOk, dbMsg: dbMsg, app: hasApp, appVer: appVer }, cors);
         }
 
         await this.ensureSchema(env);
@@ -219,6 +233,25 @@ export default {
                     "INSERT INTO app (path,mime,val) VALUES(?,?,?) ON CONFLICT(path) DO UPDATE SET mime=excluded.mime, val=excluded.val"
                 ).bind(clean, f.mime || 'application/octet-stream', f.b64));
                 list[clean] = { mime: f.mime || 'application/octet-stream' };
+            }
+            /* ✅ v2.3.1 — اگر constants.js داخل فایل‌های منتشرشده بود، نسخه اپ استخراج و
+               ذخیره می‌شود تا ping آن را به شکل appVer برگرداند (فقط وقتی واقعاً پیدا شد). */
+            for (const p of paths) {
+                const f = files[p] || {};
+                if (typeof f.b64 !== 'string') continue;
+                const cleanP = p.replace(/^\.\//, '').replace(/^\/+/, '');
+                if (cleanP === 'js/core/constants.js') {
+                    try {
+                        const txt = atob(f.b64);
+                        const m = txt.match(/APP_VERSION\s*=\s*'([0-9][0-9A-Za-z.]*)'/);
+                        if (m && m[1]) {
+                            stmts.push(env.DB.prepare(
+                                "INSERT INTO meta (space,k,val) VALUES('__app__','ver',?) ON CONFLICT(space,k) DO UPDATE SET val=excluded.val"
+                            ).bind(m[1]));
+                        }
+                    } catch (e) {}
+                    break;
+                }
             }
             stmts.push(env.DB.prepare(
                 "INSERT INTO meta (space,k,val) VALUES('__app__','list',?) ON CONFLICT(space,k) DO UPDATE SET val=excluded.val"
