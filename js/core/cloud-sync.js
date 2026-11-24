@@ -548,7 +548,11 @@
                 function gnext() {
                     if (gi >= groups.length) return Promise.resolve();
                     var g = groups[gi]; gi++;
-                    return uploadGroup(g).then(function () { report(); return gnext(); });
+                    /* v2.2.1 — مکث کوتاه بین دسته‌ها؛ فشار روی وای‌فای موبایل کمتر می‌شود */
+                    return uploadGroup(g).then(function () {
+                        report();
+                        return new Promise(function (res) { setTimeout(res, 250); }).then(gnext);
+                    });
                 }
                 return gnext();
             }
@@ -619,16 +623,28 @@
                     .then(function (r) { return r.json(); })
                     .then(function (j) {
                         if (!j || !j.ok) throw new Error('پاسخ رله معتبر نیست');
+                        /* ⚡ v2.2.1 — اگر اپ از قبل روی رله منتشر شده، از انتشار دوباره می‌پریم.
+                           همین مرحله روی اینترنت موبایل اغلب می‌شکست، در حالی که رله از قبل اپ کامل را دارد. */
+                        if (j.app === true) {
+                            _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد — ✅ ۲/۳ اپ روی رله از قبل آماده است (انتشار دوباره لازم نبود، رد شد)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
+                            try { showToast('💡 اگر قبلاً داده روی رله داشته‌ای، همان «کد فضا» و «کد دسترسی» قبلی را در کادرها وارد کن تا داده قدیمی برگردد'); } catch (e0) {}
+                            c.enabled = true;
+                            _saveCfg(c);
+                            var cbx0 = document.getElementById('set-cloud-enabled');
+                            if (cbx0) cbx0.checked = true;
+                            return _startPeer(c, false).then(function () { return { skipped: true }; });
+                        }
                         _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ روی رله… (چند دقیقه؛ صفحه را باز نگه دار)</span>');
                         return _apiPub(url, c);
                     })
                     .then(function (r) {
+                        if (r && r.skipped) return null;
                         if (!r || r.ok === 0 || r.failed > 0) {
                             var msg = (r && r.ok > 0)
                                 ? ('انتشار ناقص بود: ' + r.ok + ' از ' + r.total + ' فایل رفت')
                                 : 'هیچ فایلی آپلود نشد';
                             btnWizard.disabled = false;
-                            _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.</span>');
+                            _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.<br>💡 اگر اپ قبلاً یک‌بار روی رله منتشر شده، لازم نیست دوباره منتشر شود؛ از دکمه «اتصال و ساخت کد» و بعد تیک «فعال‌سازی همگام‌سازی» استفاده کن.</span>');
                             return null;
                         }
                         _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + r.ok + ' فایل)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
@@ -803,6 +819,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.2.0');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.2.1');
 
 })();
