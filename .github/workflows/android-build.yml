@@ -74,6 +74,7 @@ jobs:
           package ir.parsis.app;
 
           import android.Manifest;
+          import android.app.Activity;
           import android.content.BroadcastReceiver;
           import android.content.ClipData;
           import android.content.ClipboardManager;
@@ -83,8 +84,13 @@ jobs:
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.os.Build;
+          import android.print.PrintAttributes;
+          import android.print.PrintDocumentAdapter;
+          import android.print.PrintManager;
           import android.provider.Telephony;
           import android.telephony.SmsMessage;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
 
           import androidx.core.content.ContextCompat;
 
@@ -296,6 +302,68 @@ jobs:
                   JSObject res = new JSObject();
                   res.put("ok", true);
                   call.resolve(res);
+              }
+
+              /* ✅ v2.3.2 — چاپ نیتیو اندروید با PrintManager سیستم.
+                 قبلاً هیچ روش چاپی در پلاگین نبود؛ JS به iframe/ window.print می‌افتاد
+                 که داخل WebView اندروید هیچ کاری نمی‌کند — نتیجه: دکمهٔ چاپ هیچ می‌زد.
+                 حالا HTML گزارش در WebView آف‌اسکرین رندر و با کادر چاپ واقعی
+                 سیستم باز می‌شود (چاپ کاغذی یا ذخیره PDF). */
+              @PluginMethod
+              public void printHtml(PluginCall call) {
+                  String html = call.getString("html", "");
+                  String title = call.getString("title", "parsis-print");
+                  Activity activity = getActivity();
+                  if (activity == null || activity.isFinishing()) {
+                      JSObject err = new JSObject();
+                      err.put("ok", false);
+                      err.put("error", "no-activity");
+                      call.resolve(err);
+                      return;
+                  }
+                  try {
+                      final PrintManager pm = (PrintManager) activity.getSystemService(Context.PRINT_SERVICE);
+                      if (pm == null) {
+                          JSObject err = new JSObject();
+                          err.put("ok", false);
+                          err.put("error", "no-print-manager");
+                          call.resolve(err);
+                          return;
+                      }
+                      final String jobName = (title == null || title.isEmpty()) ? "parsis-print" : title;
+                      final String safeHtml = (html == null) ? "" : html;
+                      final WebView pw = new WebView(activity);
+                      pw.setWillNotDraw(true);
+                      pw.getSettings().setJavaScriptEnabled(false);
+                      pw.setWebViewClient(new WebViewClient() {
+                          @Override
+                          public void onPageFinished(WebView view, String url) {
+                              view.postDelayed(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      try {
+                                          PrintDocumentAdapter adapter = pw.createPrintDocumentAdapter(jobName);
+                                          pm.print(jobName, adapter, new PrintAttributes.Builder().build());
+                                          JSObject res = new JSObject();
+                                          res.put("ok", true);
+                                          call.resolve(res);
+                                      } catch (Exception e2) {
+                                          JSObject err = new JSObject();
+                                          err.put("ok", false);
+                                          err.put("error", e2.getMessage() == null ? "print-failed" : e2.getMessage());
+                                          call.resolve(err);
+                                      }
+                                  }
+                              }, 350);
+                          }
+                      });
+                      pw.loadDataWithBaseURL(null, safeHtml, "text/html; charset=utf-8", "utf-8", null);
+                  } catch (Exception e) {
+                      JSObject err = new JSObject();
+                      err.put("ok", false);
+                      err.put("error", e.getMessage() == null ? "print-error" : e.getMessage());
+                      call.resolve(err);
+                  }
               }
 
               @PermissionCallback
