@@ -1,4 +1,3 @@
-# ============================================================
 #  پارسیس — ساخت خودکار APK از سورس گیت‌هاب (بدون کار دستی روی فایل اندروید)
 #  مسیر: .github/workflows/android-build.yml
 #
@@ -8,13 +7,8 @@
 #
 #  امضای APK (یک‌بار برای همیشه):
 #    در Settings ← Secrets and variables ← Actions چهار Secret بسازید:
-#      KEYSTORE_BASE64  → فایل keystore به‌صورت Base64
-#        (ساخت آن در کامپیوتر:
-#         keytool -genkey -v -keystore parsis-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias parsis
-#         سپس: base64 -w0 parsis-release.jks  ← خروجی را کامل کپی کنید)
-#      KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
-#    اگر این Secrets تعریف نشوند، APK بدون امضای Release به‌صورت Debug ساخته می‌شود
-#    (برای تست عالی است؛ برای انتشار نهایی Secrets را تعریف کنید).
+#      KEYSTORE_BASE64  /  KEYSTORE_PASSWORD  /  KEY_ALIAS  /  KEY_PASSWORD
+#    اگر Secret ها تعریف نشوند، APK به‌صورت Debug و بدون امضا ساخته می‌شود.
 #  ============================================================
 name: Build Android APK
 
@@ -37,22 +31,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      #  نکته: در شرط if نمی‌توان مستقیماً از secrets استفاده کرد (محدودیت GitHub)،
+      #  برای همین مقدار Secret اول به متغیر env داده می‌شود و شرط را bash بررسی می‌کند.
       - name: Decode keystore (optional)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         working-directory: android
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > app/release.keystore
+            echo "Keystore decoded OK"
+          else
+            echo "No keystore secret found - will build DEBUG apk"
+          fi
 
       - name: Build Release APK (signed) or Debug fallback
         working-directory: android
+        env:
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           if [ -f app/release.keystore ]; then
             ./gradlew assembleRelease \
               -Pandroid.injected.signing.store.file=$PWD/app/release.keystore \
-              -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
-              -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-              -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+              -Pandroid.injected.signing.store.password="$STORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
           else
             ./gradlew assembleDebug
           fi
