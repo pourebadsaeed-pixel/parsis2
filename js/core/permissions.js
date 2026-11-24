@@ -1,12 +1,12 @@
 /* ============================================================
-   پارسیس — موتور حقوق دسترسی و محدودیت داده (✅ v2.1.0)
+   پارسیس — موتور حقوق دسترسی و محدودیت داده (✅ v2.2.0)
    مسیر: js/core/permissions.js
 
    دو فرم در «معرفی کاربران» (✍ user-perms.js):
-     ۱) فرم حقوق دسترسی  → دیدن / ایجاد / ویرایش / حذف / گزارش‌گیری
-        برای هر صفحه به‌صورت جداگانه
-     ۲) فرم محدودیت دسترسی → فقط دیدن اسناد/داده‌های مربوط به
-        بانک‌ها/صندوق‌ها/شرکت‌ها/پروژه‌ها/اشخاصِ انتخاب‌شده
+     ۱) درختوارهٔ دسترسی → هر صفحه با عمل‌هایش (دیدن/ایجاد/ویرایش/حذف/گزارش)
+     ۲) قواعد شرطی نمایش اسناد → «فقط اسنادی که تفصیلِ بانکی/شرکتی/... آن
+        مساوی موارد انتخابی است» یا «اسنادی که تفصیلِ آن‌ها مساوی موارد
+        انتخابی است نمایش داده نشود» — بدون نمایش لیست موجودیت‌ها
 
    اصول:
      • سرپرست (isAdmin) همیشه دسترسی کامل دارد.
@@ -203,15 +203,20 @@ function permsFilterFacilities(rows) {
    اسناد بدون تفصیلی (عمومی) همیشه دیده می‌شوند. */
 function permsFilterVouchers(list) {
     if (!Array.isArray(list)) return list;
-    if (!permsHasLimits()) return list;
+    var hasRules = permsHasRules();
+    if (!permsHasLimits() && !hasRules) return list;
     var limits = {};
-    PERM_LIMIT_KINDS.forEach(function (k) {
-        var arr = permsAllowedIds(k[0]);
-        if (arr.length) limits[k[0]] = arr;
-    });
+    if (permsHasLimits()) {
+        PERM_LIMIT_KINDS.forEach(function (k) {
+            var arr = permsAllowedIds(k[0]);
+            if (arr.length) limits[k[0]] = arr;
+        });
+    }
     var kinds = Object.keys(limits);
     return list.filter(function (v) {
         if (!v) return false;
+        /* ✅ v2.2.0 — قواعد شرطی نمایش اسناد */
+        if (hasRules && !permsVoucherRulesPass(v)) return false;
         var lines = v.lines || [];
         for (var i = 0; i < lines.length; i++) {
             var d = lines[i] && lines[i].details;
@@ -224,6 +229,69 @@ function permsFilterVouchers(list) {
         }
         return true;
     });
+}
+
+/* ============================================================
+   ✅ v2.2.0 — قواعد شرطی نمایش اسناد
+   هر قاعده: { id, target:'voucher', mode:'only'|'hide', kind, ids:[], allowEmpty }
+     • mode 'only'  → «فقط اسنادی دیده شوند که تفصیلِ <kind> آن یکی از ids است»
+     • mode 'hide'  → «اسنادی که تفصیلِ <kind> آن یکی از ids است پنهان شوند»
+     • allowEmpty (فقط برای only) → اسنادِ بدونِ این نوع تفصیل هم دیده شوند
+   چند قاعدهٔ only با «و» (AND) ترکیب می‌شوند؛ hideها اگر بخورند پنهان می‌کنند.
+   سازگاری: هنگام ذخیره از فرم، ids قواعد only به limits[kind] هم کپی می‌شود
+   تا فیلتر ماژول‌ها (permsFilterList) هم همان محدوده را ببیند.
+   ============================================================ */
+function permsHasRules() {
+    var u = permsCurrentUser();
+    var p = permsOfUser(u);
+    return !!(p && Array.isArray(p.rules) && p.rules.length > 0);
+}
+
+function permsVoucherRules() {
+    var u = permsCurrentUser();
+    var p = permsOfUser(u);
+    if (!p || !Array.isArray(p.rules)) return [];
+    return p.rules.filter(function (r) {
+        return r && r.target === 'voucher' && Array.isArray(r.ids) && r.ids.length > 0;
+    });
+}
+
+/* مجموعه تفصیل‌های یک نوع از همه ردیف‌های سند (بدون تکرار) */
+function _voucherDetailIds(v, kind) {
+    var out = [];
+    var lines = (v && v.lines) || [];
+    for (var i = 0; i < lines.length; i++) {
+        var d = lines[i] && lines[i].details;
+        var idv = d ? d[kind] : '';
+        if (idv && out.indexOf(idv) === -1) out.push(idv);
+    }
+    return out;
+}
+
+function _permRulePasses(r, v) {
+    if (!v) return false;
+    var ids = _voucherDetailIds(v, r.kind);
+    var hit = false;
+    for (var i = 0; i < ids.length; i++) {
+        if (r.ids.indexOf(ids[i]) !== -1) { hit = true; break; }
+    }
+    if (r.mode === 'only') {
+        if (hit) return true;
+        /* سند بدون هیچ تفصیلِ این نوع: فقط با allowEmpty دیده می‌شود */
+        return !!r.allowEmpty && ids.length === 0;
+    }
+    return !hit; /* mode 'hide' */
+}
+
+/* آیا سند با توجه به قواعد کاربر فعلی دیده می‌شود؟ */
+function permsVoucherRulesPass(v) {
+    var rules = permsVoucherRules();
+    if (!rules.length) return true;
+    for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        if (!_permRulePasses(r, v)) return false;
+    }
+    return true;
 }
 
 /* ============================================================
@@ -412,6 +480,10 @@ window.permsHasLimits = permsHasLimits;
 window.permsFilterList = permsFilterList;
 window.permsFilterFacilities = permsFilterFacilities;
 window.permsFilterVouchers = permsFilterVouchers;
+window.permsHasRules = permsHasRules;
+window.permsVoucherRules = permsVoucherRules;
+window.permsVoucherRulesPass = permsVoucherRulesPass;
+window.permsVoucherDetailIds = _voucherDetailIds;
 window.permsApplyNavVisibility = permsApplyNavVisibility;
 window.permsRouterGuard = permsRouterGuard;
 window.permsInit = permsInit;
@@ -421,6 +493,7 @@ window.PERMS_REGISTRY = {
     reportPages: PERM_REPORT_PAGES,
     adminPages: PERM_ADMIN_PAGES,
     limitKinds: PERM_LIMIT_KINDS,
+    linkTypes: (typeof LINK_TYPES !== 'undefined') ? LINK_TYPES : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'],
     pageActions: permsPageActions,
     pageTitle: permsPageTitle
 };
@@ -432,4 +505,4 @@ if (document.readyState === 'loading') {
     setTimeout(permsInit, 400);
 }
 
-console.log('✅ [core/permissions.js] loaded — v2.1.0');
+console.log('✅ [core/permissions.js] loaded — v2.2.0');

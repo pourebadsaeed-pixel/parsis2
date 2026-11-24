@@ -461,6 +461,8 @@
         var cfg = _cfg();
         var base = _normUrl(cfg.url), space = cfg.space, key = cfg.key;
         if (!base || !space || !key) return Promise.reject(new Error('ابتدا آدرس رله، فضای کاری و کد دسترسی را کامل کنید'));
+        _base = base; _space = space; _apiKey = key; /* مستقل از صفحه تنظیمات هم درست کار کند */
+        var pubUrl = '/api/publish?space=' + encodeURIComponent(space) + '&key=' + encodeURIComponent(key);
 
         var files = APP_FILES_STATIC.concat(APP_JS_FILES);
         /* افزودن فایل‌های داخل PRECACHE سرویس‌ورکر که در فهرست بالا نیستند */
@@ -476,45 +478,97 @@
                 }
             } catch (e) {}
 
-            var i = 0, okCount = 0, errors = 0;
-            var CHUNK = 4;
+            var total = files.length;
+            var got = [];          /* {path, mime, b64, size} */
+            var failedFetch = [];
+            var failedPost = [];
+            var okCount = 0;
+            var fi = 0;
+            var PAR = 4;           /* دریافت همزمان ۴ فایل */
 
-            function next() {
-                if (i >= files.length) {
-                    return Promise.resolve({ ok: okCount, failed: errors, total: files.length });
-                }
-                var batch = files.slice(i, i + CHUNK);
-                i += CHUNK;
-                return Promise.all(batch.map(function (path) {
-                    return fetch(path, { cache: 'no-store' })
-                        .then(function (r) {
-                            if (!r.ok) throw new Error('fetch ' + path + ' -> ' + r.status);
-                            var mime = r.headers.get('content-type') || _fileMime(path);
-                            return r.blob().then(function (b) {
-                                return _blobToB64(b).then(function (b64) { return { path: path, mime: mime, b64: b64 }; });
+            /* فاز الف — خواندن همه فایل‌ها از مبدا (شکست هر فایل بقیه را نمی‌بندد) */
+            function fetchNext() {
+                var batch = [];
+                while (batch.length < PAR && fi < total) { batch.push(files[fi]); fi++; }
+                if (!batch.length) return Promise.resolve();
+                return Promise.all(batch.map(function (p) {
+                    return fetch(p, { cache: 'no-store' }).then(function (r) {
+                        if (!r.ok) throw new Error('fetch ' + p + ' -> ' + r.status);
+                        var mime = r.headers.get('content-type') || _fileMime(p);
+                        return r.blob().then(function (b) {
+                            return _blobToB64(b).then(function (b64) {
+                                got.push({ path: p, mime: mime, b64: b64, size: b.size });
                             });
-                        })
-                        .catch(function () { errors++; return null; });
-                })).then(function (results) {
-                    var filesPayload = {};
-                    results.forEach(function (f) { if (f) { filesPayload[f.path] = { mime: f.mime, b64: f.b64 }; okCount++; } });
-                    var step = Promise.resolve();
-                    if (Object.keys(filesPayload).length) {
-                        step = _api('/api/publish?space=' + encodeURIComponent(space) + '&key=' + encodeURIComponent(key), {
-                            method: 'POST',
-                            body: JSON.stringify({ files: filesPayload })
                         });
+                    }).catch(function () { failedFetch.push(p); });
+                })).then(fetchNext);
+            }
+
+            /* فاز ب — آپلود با تلاش مجدد (شکست یک دسته زنجیره را نمی‌بندد) */
+            function uploadGroup(group, attempt) {
+                attempt = attempt || 1;
+                var payload = {};
+                group.forEach(function (f) { payload[f.path] = { mime: f.mime, b64: f.b64 }; });
+                return _api(pubUrl, { method: 'POST', body: JSON.stringify({ files: payload }) }).then(function () {
+                    okCount += group.length;
+                }).catch(function () {
+                    if (attempt < 4) {
+                        return new Promise(function (res) { setTimeout(res, 900 * attempt); })
+                            .then(function () { return uploadGroup(group, attempt + 1); });
                     }
-                    return step.then(function () {
-                        if (typeof onProgress === 'function') {
-                            try { onProgress(Math.min(i, files.length), files.length); } catch (e) {}
-                        }
-                        return next();
-                    });
+                    group.forEach(function (f) { failedPost.push(f.path); });
                 });
             }
 
-            return next();
+            function report() {
+                if (typeof onProgress === 'function') {
+                    var done = Math.min(okCount + failedPost.length + failedFetch.length, total);
+                    try { onProgress(done, total); } catch (e) {}
+                }
+            }
+
+            /* فاز ج — گروه‌بندی: فایل‌های بزرگ (بیش از ~۳۵۰ کیلوبایت) تنها می‌روند
+               تا شکستشان بقیه را متوقف نکند؛ بقیه دسته‌های ۳تایی، کوچک‌ها اول */
+            function uploadAll() {
+                var BIG = 350 * 1024, CHUNK = 3;
+                var groups = [], cur = [];
+                got.sort(function (a, b) { return a.size - b.size; });
+                got.forEach(function (f) {
+                    if (f.size > BIG) {
+                        if (cur.length) { groups.push(cur); cur = []; }
+                        groups.push([f]);
+                    } else {
+                        cur.push(f);
+                        if (cur.length >= CHUNK) { groups.push(cur); cur = []; }
+                    }
+                });
+                if (cur.length) groups.push(cur);
+
+                var gi = 0;
+                function gnext() {
+                    if (gi >= groups.length) return Promise.resolve();
+                    var g = groups[gi]; gi++;
+                    return uploadGroup(g).then(function () { report(); return gnext(); });
+                }
+                return gnext();
+            }
+
+            return fetchNext().then(uploadAll).then(function () {
+                return {
+                    ok: okCount,
+                    failed: failedFetch.length + failedPost.length,
+                    total: total,
+                    failedList: failedFetch.concat(failedPost)
+                };
+            });
+        });
+    }
+
+    /* انتشار کمکی برای ویزارد — همان publishApp با تنظیم _base قبلی */
+    function _apiPub(url, c) {
+        return publishApp(function (done, total) {
+            var pct = total ? Math.round(done * 100 / total) : 0;
+            _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ… ' + toFa(pct) + '٪ (صفحه را باز نگه دار)</span>');
         });
     }
 
@@ -537,6 +591,63 @@
         if (cfg.enabled && MODE === 'peer') {
             _setStatus('<span style="color:#059669">✅ فعال است — rev=' + _lastRev + '</span>');
         }
+
+        /* ⚡ v2.2.0 — ویزارد خودکار: ۱ اتصال ← ۲ انتشار ← ۳ فعال‌سازی، همه با یک دکمه */
+        var btnWizard = document.getElementById('set-cloud-wizard');
+        if (btnWizard && !btnWizard.dataset.bound) {
+            btnWizard.dataset.bound = '1';
+            btnWizard.onclick = function () {
+                var url = _normUrl(_getVal('set-cloud-url'));
+                if (!url) {
+                    showToast('⚠️ اول آدرس رله را در «تنظیمات دستی» وارد کنید');
+                    _setStatus('<span style="color:#dc2626">⛔ قدم ۱ ناقص: آدرس رله خالی است</span>');
+                    return;
+                }
+                btnWizard.disabled = true;
+                var c = _cfg();
+                c.url = url;
+                if (!c.space) c.space = 'p' + _rand(7);
+                if (!c.key) c.key = _rand(6, true);
+                _saveCfg(c);
+                _setVal('set-cloud-space', c.space);
+                _setVal('set-cloud-key', c.key);
+                _setVal('set-cloud-link', url + '/?space=' + c.space + '&key=' + c.key);
+                _base = url; _space = c.space; _apiKey = c.key;
+
+                _setStatus('<span style="color:#b45309">⏳ ۱/۳ — اتصال به رله و ساخت کد…</span>');
+                fetch(url + '/api/ping', { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        if (!j || !j.ok) throw new Error('پاسخ رله معتبر نیست');
+                        _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ روی رله… (چند دقیقه؛ صفحه را باز نگه دار)</span>');
+                        return _apiPub(url, c);
+                    })
+                    .then(function (r) {
+                        if (!r || r.ok === 0 || r.failed > 0) {
+                            var msg = (r && r.ok > 0)
+                                ? ('انتشار ناقص بود: ' + r.ok + ' از ' + r.total + ' فایل رفت')
+                                : 'هیچ فایلی آپلود نشد';
+                            btnWizard.disabled = false;
+                            _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.</span>');
+                            return null;
+                        }
+                        _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + r.ok + ' فایل)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
+                        c.enabled = true;
+                        _saveCfg(c);
+                        var cbx = document.getElementById('set-cloud-enabled');
+                        if (cbx) cbx.checked = true;
+                        return _startPeer(c, false);
+                    })
+                    .then(function () {
+                        btnWizard.disabled = false;
+                    })
+                    .catch(function (err) {
+                        btnWizard.disabled = false;
+                        _setStatus('<span style="color:#dc2626">⛔ راه‌اندازی خودکار متوقف شد: ' + ((err && err.message) || err) + '<br>آدرس رله و اینترنت را بررسی کنید و دوباره ⚡ را بزنید.</span>');
+                    });
+            };
+        }
+
 
         var btnConnect = document.getElementById('set-cloud-connect');
         if (btnConnect) btnConnect.onclick = function () {
@@ -582,9 +693,12 @@
                 _setStatus('<span style="color:#b45309">⏳ انتشار اپ روی رله… ' + toFa(pct) + '٪</span>');
             }).then(function (r) {
                 btnPublish.disabled = false;
-                if (r && r.ok > 0) {
-                    _setStatus('<span style="color:#059669">✅ اپ منتشر شد (' + toFa(r.ok) + ' فایل' + (r.failed ? ' — ' + toFa(r.failed) + ' خطا' : '') + ').<br>لینک دوستان آماده است.</span>');
+                if (r && r.ok > 0 && r.failed === 0) {
+                    _setStatus('<span style="color:#059669">✅ اپ کامل منتشر شد (' + toFa(r.ok) + ' فایل از ' + toFa(r.total) + ').<br>لینک دوستان آماده است.</span>');
                     showToast('☁️ اپ روی رله منتشر شد');
+                } else if (r && r.ok > 0) {
+                    _setStatus('<span style="color:#dc2626">⚠️ انتشار ناقص بود: ' + toFa(r.ok) + ' از ' + toFa(r.total) + ' فایل رفت.<br>' + toFa(r.failed) + ' فایل جا افتاد: ' + (r.failedList || []).slice(0, 4).join(' ، ') + '…<br>اینترنت را یک‌بار تازه کنید و دکمه انتشار را دوباره بزنید (تکرار بی‌خطر است).</span>');
+                    showToast('⚠️ انتشار ناقص — دوباره تلاش کنید');
                 } else {
                     _setStatus('<span style="color:#dc2626">⛔ انتشار ناموفق بود — اتصال و کد دسترسی را بررسی کنید</span>');
                 }
@@ -689,6 +803,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.1.0');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.2.0');
 
 })();
