@@ -1,1 +1,67 @@
+# ============================================================
+#  پارسیس — ساخت خودکار APK از سورس گیت‌هاب (بدون کار دستی روی فایل اندروید)
+#  مسیر: .github/workflows/android-build.yml
+#
+#  چه زمانی اجرا می‌شود؟
+#    • دستی: تب Actions ← Build Android APK ← Run workflow
+#    • خودکار: هر بار یک تگ مثل v2.2.0 پوش کنید
+#
+#  امضای APK (یک‌بار برای همیشه):
+#    در Settings ← Secrets and variables ← Actions چهار Secret بسازید:
+#      KEYSTORE_BASE64  → فایل keystore به‌صورت Base64
+#        (ساخت آن در کامپیوتر:
+#         keytool -genkey -v -keystore parsis-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias parsis
+#         سپس: base64 -w0 parsis-release.jks  ← خروجی را کامل کپی کنید)
+#      KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
+#    اگر این Secrets تعریف نشوند، APK بدون امضای Release به‌صورت Debug ساخته می‌شود
+#    (برای تست عالی است؛ برای انتشار نهایی Secrets را تعریف کنید).
+#  ============================================================
+name: Build Android APK
 
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Decode keystore (optional)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        working-directory: android
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
+      - name: Build Release APK (signed) or Debug fallback
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ -f app/release.keystore ]; then
+            ./gradlew assembleRelease \
+              -Pandroid.injected.signing.store.file=$PWD/app/release.keystore \
+              -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+              -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+              -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+          else
+            ./gradlew assembleDebug
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parsis-apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
