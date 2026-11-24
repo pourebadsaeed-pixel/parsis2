@@ -2066,7 +2066,8 @@
     </div>
 </div>
 
-<script src="./js/core/db.js"></script>
+<script>window.__PARSIS_VER = '2.3.3';</script>
+<script src="./js/core/db.js?v=2.3.3"></script>
 <script>
 (async function loadApp() {
     var _logBox = document.getElementById('boot-log');
@@ -2121,6 +2122,9 @@
         bootLog('✓ پایگاه داده آماده شد', 'ok');
         bootProgress(5);
         bootStatus('بارگذاری ماژول‌ها...');
+        /* ✅ v2.3.3 — نسخهٔ اپ در لاگ بوت ثبت می‌شود تا همیشه معلوم باشد
+           مرورگر/گوشی دقیقاً کدام نسخه را اجرا می‌کند */
+        bootLog('نسخهٔ پارسیس: ' + (window.__PARSIS_VER || '?'), 'info');
 
         var modules = [
             './js/core/constants.js', './js/core/utils.js', './js/core/native-bridge.js', './js/core/lan-sync.js', './js/core/cloud-sync.js', './js/core/password.js', './js/core/state.js', './js/core/router.js', './js/core/permissions.js',
@@ -2141,18 +2145,19 @@
         ];
         var total = modules.length;
 
-        /* ✅ v2.3.0 — دانلود موازی همه ماژول‌ها با حفظ ترتیب اجرا (s.async=false).
-           قبلاً هر ماژول «یکی‌یکی و ترتیبی» دانلود می‌شد — روی رله ابری (ده‌ها درخواست
-           پشت‌سرهم) لود اول هر کلیِنت ۳۰ تا ۶۰ ثانیه طول می‌کشید. حالا مرورگر همه را
-           همزمان می‌گیرد (HTTP/2) و فقط «اجرا» ترتیبی می‌ماند — لود اول چند ثانیه‌ای می‌شود
-           و لود‌های بعدی با کش Service Worker فوری است. */
+        /* ✅ v2.3.3 — کش‌شکنی با شمارهٔ نسخه: هر انتشار جدید آدرس فایل‌ها را عوض می‌کند
+           (?v=2.3.3) تا Service Worker مجبور شود نسخهٔ تازه را از شبکه بگیرد.
+           قبلاً با Stale-While-Revalidate، مرورگر تا یک رفرشِ اضافه روی JS قدیمی می‌ماند —
+           همین نسخهٔ قدیمیِ بدون پوش درست، علت ماندگارِ «سینک یک‌طرفه» بود.
+           حالا با یک رفرش، همهٔ فایل‌ها حتماً نسخهٔ جدید هستند. */
+        var VER_Q = window.__PARSIS_VER ? ('?v=' + encodeURIComponent(window.__PARSIS_VER)) : '';
         var loadedCount = 0;
         var allDone = [];
         modules.forEach(function (mod) {
             var shortName = mod.replace('./js/', '').replace('.js', '');
             allDone.push(new Promise(function (resolve) {
                 var s = document.createElement('script');
-                s.src = mod;
+                s.src = mod + VER_Q;
                 s.async = false; /* دانلود موازی + اجرای ترتیبی */
                 s.onload = function () {
                     loadedCount++;
@@ -2172,6 +2177,13 @@
         });
 
         await Promise.all(allDone);
+
+        /* ✅ v2.3.3 — چک هم‌خوانی نسخهٔ index.html با constants.js */
+        try {
+            if (window.__PARSIS_VER && typeof APP_VERSION === 'string' && APP_VERSION !== window.__PARSIS_VER) {
+                bootLog('⚠ نسخهٔ index.html (' + window.__PARSIS_VER + ') با constants.js (' + APP_VERSION + ') یکی نیست', 'warn');
+            }
+        } catch (eVer) {}
 
         clearTimeout(hintTimer); clearTimeout(slowTimer);
 
@@ -2220,7 +2232,7 @@
     try { _isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) {}
     if (!_isNative) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
+        navigator.serviceWorker.register('./sw.js?v=' + encodeURIComponent(window.__PARSIS_VER || '2.3.3'))
           .then(reg => console.log('✅ Service Worker Registered'))
           .catch(err => console.error('❌ SW Registration Failed', err));
       });
