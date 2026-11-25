@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.4)
+   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.5)
    مسیر: js/core/cloud-sync.js
 
    معماری:
@@ -19,6 +19,17 @@
         تغییر داده‌اند» با ادغام هوشمند حل می‌شود (آرایه‌ها: اجتماع بدون تکرار).
      ۳) پول ۶ثانیه‌ای ← ۳ ثانیه‌ای + پوش ۳۰۰ms بعد از هر ثبت = سینک در کسری از ثانیه.
      ۴) پیام خطا دقیق نام بخش و علت را می‌گوید؛ دیگر پیام مبهمِ همیشگی نیست.
+
+   ✅ v2.3.5 — ریشه‌کنی «سینک فقط روی مرورگرِ دستگاه خودم»:
+     ۱) فرمت رمز سازگار‌با همه: فقط داده‌های خیلی بزرگ (≥۱۲MB) فشرده می‌شوند؛
+        همهٔ داده‌های معمولی با قالب قدیمی penc1 رمز می‌شوند تا هر مرورگری —
+        حتی Safari/iOS قدیمی بدون DecompressionStream — بتواند بخواند.
+     ۲) مهاجرت خودکار فرمت: اگر داده‌ای از نسخهٔ قبل به‌صورت فشرده روی رله باشد،
+        اولین دستگاهی که آن را می‌خواند همان را با قالب سازگار دوباره می‌فرستد.
+     ۳) به‌روزرسانی خودکار صفحه‌های قدیمی: اگر اپ روی رله جدیدتر از همین صفحه
+        باشد، بنر «به‌روزرسانی خودکار تا ۱۰ ثانیه دیگر» می‌آید (با لغو) و کش‌ها
+        پاک و صفحه رفرش می‌شود — مرورگر قدیمی دیگر هرگز گیر نمی‌کند.
+     ۴) خط وضعیت اثر انگشت فضا و نسخه را نشان می‌دهد تا دو دستگاه قابل مقایسه باشند.
 
    آدرس برای دوستان:
      https://نام-ورکر.sub.workers.dev/?space=XXXX&key=YYYY
@@ -146,7 +157,13 @@
             var plain = JSON.stringify(obj);
             return _gzip(plain).then(function (gz) {
                 var data, prefix;
-                if (gz !== null && gz.length < plain.length) {
+                /* ✅ v2.3.5 — فقط داده‌های خیلی بزرگ فشرده می‌شوند (همان‌هایی که
+                   بدون فشرده‌سازی مجبور به تکه‌شدن هستند). داده‌های معمولی با قالب
+                   قدیمی penc1 می‌روند تا هر مرورگری — حتی Safari/iOS قدیمی بدون
+                   DecompressionStream — بتواند آن‌ها را بخواند. قبلاً همه‌چیز
+                   فشرده می‌شد و مرورگرِ بدون DecompressionStream «بی‌صدا» هیچ
+                   داده‌ای دریافت نمی‌کرد — علتِ «فقط مرورگر خودم سینک می‌شود». */
+                if (gz !== null && plain.length >= GZIP_THRESHOLD && gz.length < plain.length) {
                     data = _b64dec(gz); prefix = 'penc1z.';
                 } else {
                     data = new TextEncoder().encode(plain); prefix = 'penc1.';
@@ -196,12 +213,17 @@
     var _bootApplyDone = false;     /* ✅ v2.3.3 — اولین دریافتِ شروع صفحه اعلان نمی‌گیرد */
     var _lastRemoteToastAt = 0;
     var _verWarned = false;
+    var _relayAppVer = null;   /* ✅ v2.3.5 — آخرین نسخهٔ اپِ گزارش‌شده از رله */
 
     /* ✅ v2.3.4 — تکه‌بندی storeهای بزرگ (chunk):
        سقف اندازهٔ هر ردیف D1 حدود ۸ مگابایت است (تست زندهٔ رله: ۸MB پاس، ۹MB خطای
        SQLITE_TOOBIG). هر تکه ≤۵ مگابایت؛ یک manifest کوچک تعداد تکه‌ها را نگه
        می‌دارد. تکه‌های کهنه با «deletes» پارامتر جدید ورکر پاک می‌شوند. */
     var CHUNK_LIMIT = 5 * 1024 * 1024;
+    /* ✅ v2.3.5 — آستانهٔ فشرده‌سازی: دادهٔ رمزشدهٔ بزرگ‌تر از این فقط وقتی gzip
+       می‌شود که وگرنه تکه‌تکه خواهد شد؛ داده‌های کوچک‌تر با قالب سازگار penc1
+       می‌روند تا همهٔ مرورگرها (ازجمله Safari/iOS قدیمی) بتوانند بخوانند */
+    var GZIP_THRESHOLD = 12 * 1024 * 1024;
     var CHUNK_SEP = '#c';
     var MANIFEST_SEP = '#m';
     var PCHK = 'pchk:';
@@ -251,8 +273,21 @@
         try { return toFa(s); } catch (e) { return s; }
     }
 
+    /* ✅ v2.3.5 — اثر انگشت فضا: هر دو دستگاه که با یک کد دسترسی راه‌اندازی شده
+       باشند همین اثر انگشت را می‌بینند؛ متفاوت بودنِ آن یعنی دستگاه دوم در فضای
+       دیگری است (کد اشتباه) — نه اینکه سینک خراب است. */
+    function _spaceFp(s) {
+        try {
+            var h = 5381, str = String(s || '');
+            for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+            var hex = (h >>> 0).toString(16).toUpperCase();
+            return ('00000' + hex).slice(-6);
+        } catch (e) { return '??????'; }
+    }
+
     /* ✅ v2.3.3 — خط وضعیت زنده در تنظیمات: کاربر می‌بیند سینک زنده است،
-       بدون نیاز به بستن و باز کردن اپ. حین ویزارد بازنویسی نمی‌شود. */
+       بدون نیاز به بستن و باز کردن اپ. حین ویزارد بازنویسی نمی‌شود.
+       ✅ v2.3.5 — فضا + نسخه هم نمایش داده می‌شوند تا دو دستگاه قابل مقایسه باشند. */
     function _liveStatus(ok, txt) {
         if (_wizardBusy) return;
         if (!ok) return;
@@ -262,6 +297,9 @@
             Object.keys(_pendingPush).forEach(function (n) { if (!_sizeBlocked[n]) pend++; });
         } catch (e) {}
         _setStatus('<span style="color:#059669">✅ همگام‌سازی دوطرفه فعال — ' + txt + ' ' + _clock()
+            + ' · فضا: ' + _spaceFp(_space)
+            + ' · نسخهٔ این دستگاه: ' + (typeof toFa === 'function' ? toFa(APP_VERSION) : APP_VERSION)
+            + (_relayAppVer ? ' · اپ روی رله: ' + (typeof toFa === 'function' ? toFa(_relayAppVer) : _relayAppVer) : '')
             + (pend > 0 ? ' <span style="color:#b45309">(⏳ ' + (typeof toFa === 'function' ? toFa(pend) : pend) + ' بخش در صف ارسال)</span>' : '')
             + '</span>');
     }
@@ -620,10 +658,21 @@
         var names = Object.keys(raw).filter(function (n) { return n !== CFG_KEY && !NO_SYNC[n]; });
         if (!names.length) { _bootApplyDone = true; return 0; }
 
+        /* ✅ v2.3.5 — خطای نام‌دار برای مرورگر قدیمی: قبلاً هر بخشی که رمزگشایی
+           نشد بی‌صدا کنار گذاشته می‌شد و کاربر فکر می‌کرد «داده‌ای نیست». */
+        var _lastNoGunzipAt = 0;
         var jobs = names.map(function (n) {
+            var wasZ = String(raw[n]).indexOf('penc1z.') === 0;
             return _decrypt(_space, _apiKey, raw[n])
-                .then(function (val) { return [n, val]; })
-                .catch(function () { return null; });
+                .then(function (val) { return [n, val, wasZ]; })
+                .catch(function (err) {
+                    if (err && (err.message === 'no-gunzip') && Date.now() - _lastNoGunzipAt > 60000) {
+                        _lastNoGunzipAt = Date.now();
+                        try { showToast('⚠ مرورگر این دستگاه دادهٔ فشردهٔ بخش «' + n + '» را نمی‌خواند — مرورگر (یا WebView) را به‌روزرسانی کنید'); } catch (e2) {}
+                        try { console.warn('[cloud-sync] DecompressionStream در دسترس نیست — بخش ' + n + ' قابل دریافت نیست'); } catch (e3) {}
+                    }
+                    return null;
+                });
         });
 
         return Promise.all(jobs).then(function (pairs) {
@@ -633,10 +682,10 @@
                  (رفتار 2.3.2 و 2.3.3 — علتِ «مرورگر→اندروید هیچ‌وقت نمی‌رسد»)، ادغام
                  هوشمند می‌شود و نتیجه فوراً به رله می‌رود؛ هیچ دستگاهی می‌باخت ندارد. */
             var apply = {}, merged = {};
-            var changed = 0;
+            var changed = 0, migrZ = 0;
             pairs.forEach(function (p) {
                 if (!p) return;
-                var nm = p[0], remote = p[1];
+                var nm = p[0], remote = p[1], wasZ = p[2];
                 if (_pendingPush.hasOwnProperty(nm)) {
                     var base = _lastSyncVals.hasOwnProperty(nm) ? _lastSyncVals[nm] : undefined;
                     var remoteChanged = true;
@@ -648,6 +697,19 @@
                         if (m !== undefined) merged[nm] = m;
                     }
                     return;
+                }
+                /* ✅ v2.3.5 — مهاجرت فرمت: بخشی که از نسخهٔ قبل به‌صورت فشرده (penc1z)
+                   روی رله است و حجمش زیر آستانه است، همان‌جا با قالب سازگار penc1
+                   دوباره فرستاده می‌شود تا مرورگرهای بدون DecompressionStream هم
+                   از این بعد بتوانند بخوانند. یک‌بار برای هر تغییر — بدون حلقه. */
+                if (wasZ) {
+                    var sz = 0;
+                    try { sz = JSON.stringify(remote).length; } catch (eM) { sz = Infinity; }
+                    if (sz < GZIP_THRESHOLD && !_chunkMeta[nm]) {
+                        _pendingPush[nm] = remote;
+                        _lastSyncVals[nm] = remote;
+                        migrZ++;
+                    }
                 }
                 try {
                     var cur = (typeof DB.load === 'function') ? DB.load(nm, undefined) : undefined;
@@ -671,6 +733,12 @@
                 _savePendingNames();
                 _refreshUI();
                 try { console.log('[cloud-sync] ⚡ ادغام تعارض و پوش فوری — ' + Object.keys(merged).length + ' store'); } catch (e3) {}
+                _drainPush();
+            }
+            /* ✅ v2.3.5 — پوشِ مهاجرت فرمت (penc1z ← penc1) برای بخش‌های کوچک */
+            else if (migrZ > 0) {
+                _savePendingNames();
+                try { console.log('[cloud-sync] ♻ مهاجرت فرمت — ' + migrZ + ' store با قالب سازگار دوباره فرستاده می‌شود'); } catch (e4) {}
                 _drainPush();
             }
             _bootApplyDone = true;
@@ -724,23 +792,111 @@
             _flushAndPush();
             _pollOnce();
         });
-        /* ✅ v2.3.3 — نگهبان نسخه: اگر اپِ روی رله از نسخهٔ این صفحه جدیدتر شود،
-           کاربر یک‌بار مطلع می‌شود تا صفحه را رفرش کند */
-        setInterval(function () {
-            try {
-                if (document.visibilityState === 'hidden') return;
-                if (_wizardBusy || _verWarned) return;
-                fetch((_base || '') + '/api/ping', { cache: 'no-store' })
-                    .then(function (r) { return r.ok ? r.json() : null; })
-                    .then(function (j) {
-                        if (j && j.ok && typeof j.appVer === 'string' && j.appVer && j.appVer !== APP_VERSION) {
-                            _verWarned = true;
-                            try { showToast('🔄 نسخهٔ جدید اپ (' + toFa(j.appVer) + ') روی رله منتشر شده — صفحه را یک‌بار رفرش کنید'); } catch (e3) {}
+        /* ✅ v2.3.3 → v2.3.5 — نگهبان نسخهٔ فعال:
+           قبلاً فقط یک toast منفعلِ «رفرش کنید» می‌آمد (هر ۹۰ ثانیه، فقط یک‌بار) و
+           مرورگرِ دستگاه دیگر روی نسخهٔ قدیمیِ کش‌شده می‌ماند و داده تازه نمی‌دید —
+           «فقط مرورگرِ خودم سینک می‌شود». حالا: چکِ فوریِ شروع صفحه + بنر با
+           به‌روزرسانی خودکار (پاک‌سازی کش + رفرش) که فقط با دکمهٔ لغو متوقف می‌شود. */
+        setTimeout(_checkRelayVer, 1500);
+        setInterval(_checkRelayVer, 60000);
+    }
+
+    /* ✅ v2.3.5 — مقایسهٔ نسخهٔ عددی: 2.3.10 > 2.3.9 */
+    function _verCmp(a, b) {
+        var pa = String(a || '').split('.'), pb = String(b || '').split('.');
+        for (var i = 0; i < 4; i++) {
+            var x = parseInt(pa[i] || '0', 10) || 0;
+            var y = parseInt(pb[i] || '0', 10) || 0;
+            if (x !== y) return x < y ? -1 : 1;
+        }
+        return 0;
+    }
+
+    function _checkRelayVer() {
+        try {
+            if (document.visibilityState === 'hidden') return;
+            if (_wizardBusy || _verWarned) return;
+            fetch((_base || '') + '/api/ping', { cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) {
+                    if (j && j.ok && typeof j.appVer === 'string' && j.appVer && j.appVer !== APP_VERSION) {
+                        _verWarned = true;
+                        _relayAppVer = j.appVer;
+                        /* فقط وقتی نسخهٔ رله «جدیدتر» است به‌روزرسانی خودکار؛
+                           اگر قدیمی‌تر بود یعنی انتشار وارونه شده — فقط بنر */
+                        if (_verCmp(j.appVer, APP_VERSION) > 0) _showUpdateBanner(j.appVer);
+                        else {
+                            try { showToast('ℹ اپ روی رله نسخهٔ ' + toFa(j.appVer) + ' است و این صفحه ' + toFa(APP_VERSION) + ' — داده‌ها سینک می‌شوند؛ برای انتشار نسخهٔ جدید، در اپ اصلی «انتشار اپ روی رله» را بزنید'); } catch (e3) {}
                         }
-                    })
-                    .catch(function () {});
-            } catch (eV) {}
-        }, 90000);
+                    }
+                })
+                .catch(function () {});
+        } catch (eV) {}
+    }
+
+    /* ✅ v2.3.5 — بنر به‌روزرسانی خودکار: ۱۰ ثانیه شمارش، دکمهٔ لغو، بعد پاک‌سازی
+       کامل کش + رفرش. محافظ حلقه: هر ۹۰ ثانیه فقط یک‌بار رفرش خودکار. */
+    function _showUpdateBanner(relayVer) {
+        try {
+            window.__parsisVerBanner = true;
+            var old = document.getElementById('parsis-ver-banner');
+            if (old) old.remove();
+            var bar = document.createElement('div');
+            bar.id = 'parsis-ver-banner';
+            bar.dir = 'rtl';
+            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;padding:12px 16px;font-size:14px;line-height:1.9;box-shadow:0 2px 10px rgba(0,0,0,.3);text-align:center';
+            bar.innerHTML = '🔄 نسخهٔ جدید اپ (' + (typeof toFa === 'function' ? toFa(relayVer) : relayVer) + ') روی رله منتشر شده است. '
+                + '<span id="parsis-ver-count">به‌روزرسانی خودکار تا ۱۰ ثانیه دیگر…</span> '
+                + '<button id="parsis-ver-now" style="background:#fff;color:#1d4ed8;border:0;border-radius:8px;padding:6px 14px;margin:0 6px;font-weight:bold;cursor:pointer">به‌روزرسانی الآن</button> '
+                + '<button id="parsis-ver-no" style="background:transparent;color:#fff;border:1px solid #fff;border-radius:8px;padding:6px 14px;margin:0 4px;cursor:pointer">لغو</button>';
+            document.body.appendChild(bar);
+            var cancelled = false;
+            document.getElementById('parsis-ver-no').onclick = function () {
+                cancelled = true;
+                var c = document.getElementById('parsis-ver-count');
+                if (c) c.textContent = 'به‌روزرسانی خودکار لغو شد — هر وقت خواستی دکمهٔ «به‌روزرسانی الآن» را بزن';
+            };
+            document.getElementById('parsis-ver-now').onclick = function () { cancelled = true; _hardUpdate(); };
+            var left = 10;
+            var t = setInterval(function () {
+                if (cancelled) { clearInterval(t); return; }
+                /* وسط تایپ چیزی رفرش نشود — فقط صبر */
+                try {
+                    var ae = document.activeElement;
+                    if (ae && /INPUT|TEXTAREA|SELECT/.test(String(ae.tagName || ''))) return;
+                } catch (e5) {}
+                left--;
+                var c2 = document.getElementById('parsis-ver-count');
+                if (c2) c2.textContent = 'به‌روزرسانی خودکار تا ' + (typeof toFa === 'function' ? toFa(left) : left) + ' ثانیه دیگر…';
+                if (left <= 0) { clearInterval(t); _hardUpdate(); }
+            }, 1000);
+        } catch (eB) {
+            /* حتی اگر DOM نبود، یک بار رفرش سخت */
+            _hardUpdate();
+        }
+    }
+
+    function _hardUpdate() {
+        try {
+            var last = 0;
+            try { last = parseInt(sessionStorage.getItem('parsis.verReload') || '0', 10) || 0; } catch (e6) {}
+            if (last && Date.now() - last < 90000) return; /* محافظ حلقهٔ رفرش */
+            try { sessionStorage.setItem('parsis.verReload', String(Date.now())); } catch (e7) {}
+            var finish = function () { try { location.reload(); } catch (e8) {} };
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+                navigator.serviceWorker.getRegistrations()
+                    .then(function (rs) { return Promise.all((rs || []).map(function (r) { try { return r.update(); } catch (e9) { return null; } })); })
+                    .catch(function () {})
+                    .then(function () {
+                        if (window.caches && caches.keys) {
+                            caches.keys().then(function (ks) { return Promise.all((ks || []).map(function (k) { return caches.delete(k); })); })
+                                .catch(function () {}).then(finish);
+                        } else finish();
+                    });
+            } else finish();
+        } catch (eH) {
+            try { location.reload(); } catch (e10) {}
+        }
     }
 
     /* ============================================================
