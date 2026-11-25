@@ -1209,7 +1209,11 @@
                 return Promise.all(batch.map(function (p) {
                     return fetch(p, { cache: 'no-store' }).then(function (r) {
                         if (!r.ok) throw new Error('fetch ' + p + ' -> ' + r.status);
-                        var mime = r.headers.get('content-type') || _fileMime(p);
+                        /* ✅ v2.3.6.1 — mime همیشه از پسوند فایل؛ هدرِ پاسخ نادیده گرفته می‌شود.
+                           علت واقعی خرابی: انتشار از اندروید (Capacitor) برای فایل‌های محلی هدر
+                           application/octet-stream می‌داد و همین هدرِ غلط روی رله ذخیره می‌شد؛
+                           نتیجه: مرورگر به‌جای باز کردن اپ، فایل‌ها را دانلود می‌کرد. */
+                        var mime = _fileMime(p);
                         return r.blob().then(function (b) {
                             return _blobToB64(b).then(function (b64) {
                                 got.push({ path: p, mime: mime, b64: b64, size: b.size, bytes: b64ToBytes(b64) });
