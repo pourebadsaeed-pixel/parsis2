@@ -1150,12 +1150,18 @@
         });
     }
 
-    function publishApp(onProgress) {
+    function publishApp(onProgress, opts) {
+        opts = opts || {};
         var cfg = _cfg();
         var base = _normUrl(cfg.url), space = cfg.space, key = cfg.key;
         if (!base || !space || !key) return Promise.reject(new Error('ابتدا آدرس رله، فضای کاری و کد دسترسی را کامل کنید'));
         _base = base; _space = space; _apiKey = key; /* مستقل از صفحه تنظیمات هم درست کار کند */
         var pubUrl = '/api/publish?space=' + encodeURIComponent(space) + '&key=' + encodeURIComponent(key);
+        /* ✅ v2.3.6 — ریشهٔ واقعیِ «انتشار ناقص: ۶۷ از ۷۷ فایل رفت»: تایم‌اوت ۲۰ ثانیه‌ایِ _api.
+           فایل‌های بزرگ (xlsx ~۱.۳MB، icon-512، index.html، cloud-sync.js و…) روی اینترنت موبایلِ
+           کند در ۲۰ ثانیه کامل نمی‌شدند و هر ۴ تلاش هم می‌مرد — دقیقاً بزرگ‌ترین ۱۰ فایل جا می‌افتاد.
+           حالا: تایم‌اوت ۲۴۰ ثانیه + دسته‌بندی حجمی + بازبینی هوشمند + تأیید پایانی. */
+        var PUB_TIMEOUT = 240000, PUB_ATTEMPTS = 3;
 
         var files = APP_FILES_STATIC.concat(APP_JS_FILES);
         /* افزودن فایل‌های داخل PRECACHE سرویس‌ورکر که در فهرست بالا نیستند */
@@ -1172,12 +1178,28 @@
             } catch (e) {}
 
             var total = files.length;
-            var got = [];          /* {path, mime, b64, size} */
+            var got = [];          /* {path, mime, b64, size, bytes} */
             var failedFetch = [];
             var failedPost = [];
+            var upToDate = [];     /* ✅ v2.3.6 — از قبل روی رله همان نسخه است */
+            var compared = false;  /* ✅ v2.3.6 — آیا مقایسه با رله ممکن شد؟ */
             var okCount = 0;
             var fi = 0;
             var PAR = 4;           /* دریافت همزمان ۴ فایل */
+
+            function b64ToBytes(b64) {
+                try {
+                    var bin = atob(b64), out = new Uint8Array(bin.length);
+                    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+                    return out;
+                } catch (e) { return null; }
+            }
+            function bytesEqual(a, b) {
+                if (!a || !b || a.length !== b.length) return false;
+                for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+                return true;
+            }
+            function relayPath(p) { return base + '/' + String(p).replace(/^\.\//, '').replace(/^\/+/, ''); }
 
             /* فاز الف — خواندن همه فایل‌ها از مبدا (شکست هر فایل بقیه را نمی‌بندد) */
             function fetchNext() {
@@ -1190,49 +1212,106 @@
                         var mime = r.headers.get('content-type') || _fileMime(p);
                         return r.blob().then(function (b) {
                             return _blobToB64(b).then(function (b64) {
-                                got.push({ path: p, mime: mime, b64: b64, size: b.size });
+                                got.push({ path: p, mime: mime, b64: b64, size: b.size, bytes: b64ToBytes(b64) });
                             });
                         });
                     }).catch(function () { failedFetch.push(p); });
                 })).then(fetchNext);
             }
 
-            /* فاز ب — آپلود با تلاش مجدد (شکست یک دسته زنجیره را نمی‌بندد) */
-            function uploadGroup(group, attempt) {
-                attempt = attempt || 1;
-                var payload = {};
-                group.forEach(function (f) { payload[f.path] = { mime: f.mime, b64: f.b64 }; });
-                return _api(pubUrl, { method: 'POST', body: JSON.stringify({ files: payload }) }).then(function () {
-                    okCount += group.length;
-                }).catch(function () {
-                    if (attempt < 4) {
-                        return new Promise(function (res) { setTimeout(res, 900 * attempt); })
-                            .then(function () { return uploadGroup(group, attempt + 1); });
-                    }
-                    group.forEach(function (f) { failedPost.push(f.path); });
-                });
+            /* ✅ v2.3.6 — فاز بِ — بازبینی هوشمند: مقایسهٔ بایت‌به‌بایت هر فایل با نسخهٔ روی رله؛
+               فقط فایل‌های واقعاً ناقص/کهنه آپلود می‌شوند — تکرارِ انتشار چند ثانیه طول می‌کشد
+               و همان فایل‌های جاافتادهٔ دفعات قبل خودکار ترمیم می‌شوند. */
+            function compareAll() {
+                if (opts.forceFull) return Promise.resolve();
+                return fetch(relayPath('./index.html'), { cache: 'no-store' })
+                    .then(function () { compared = true; }, function () { compared = false; })
+                    .then(function () {
+                        if (!compared) return;
+                        var ci = 0, CPAR = 6;
+                        function cnext() {
+                            var batch = [];
+                            while (batch.length < CPAR && ci < got.length) { batch.push(got[ci]); ci++; }
+                            if (!batch.length) return Promise.resolve();
+                            return Promise.all(batch.map(function (f) {
+                                return fetch(relayPath(f.path), { cache: 'no-store' })
+                                    .then(function (r) {
+                                        if (!r.ok) return; /* روی رله نیست → آپلود */
+                                        return r.arrayBuffer().then(function (buf) {
+                                            if (bytesEqual(f.bytes, new Uint8Array(buf))) upToDate.push(f.path);
+                                        });
+                                    })
+                                    .catch(function () { /* خطای شبکه → سمت امن: دوباره آپلود */ });
+                            })).then(cnext);
+                        }
+                        return cnext();
+                    });
+            }
+
+            /* ✅ v2.3.6 — فاز پ — تأیید پایانی: هر فایل ارسالی دوباره از رله خوانده و
+               بایت‌به‌بایت چک می‌شود؛ دیگر هیچ‌وقت «رفت» ولی «نرسیده بود» نداریم. */
+            function verifyGroup(group) {
+                return Promise.all(group.map(function (f) {
+                    return fetch(relayPath(f.path), { cache: 'no-store' })
+                        .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+                        .then(function (buf) {
+                            if (!buf || !bytesEqual(f.bytes, new Uint8Array(buf))) return f;
+                            return null;
+                        })
+                        .catch(function () { return f; });
+                })).then(function (arr) { return arr.filter(Boolean); });
             }
 
             function report() {
                 if (typeof onProgress === 'function') {
-                    var done = Math.min(okCount + failedPost.length + failedFetch.length, total);
+                    var done = Math.min(upToDate.length + okCount + failedPost.length + failedFetch.length, total);
                     try { onProgress(done, total); } catch (e) {}
                 }
             }
 
-            /* فاز ج — گروه‌بندی: فایل‌های بزرگ (بیش از ~۳۵۰ کیلوبایت) تنها می‌روند
-               تا شکستشان بقیه را متوقف نکند؛ بقیه دسته‌های ۳تایی، کوچک‌ها اول */
+            /* فاز ت — آپلود فقطِ فایل‌های ناقص (شکست یک دسته زنجیره را نمی‌بندد) */
+            function uploadGroup(group, attempt) {
+                attempt = attempt || 1;
+                var payload = {};
+                group.forEach(function (f) { payload[f.path] = { mime: f.mime, b64: f.b64 }; });
+                return _api(pubUrl, { method: 'POST', body: JSON.stringify({ files: payload }), timeout: PUB_TIMEOUT })
+                    .then(function () {
+                        if (!compared) { okCount += group.length; report(); return; }
+                        return verifyGroup(group).then(function (bad) {
+                            if (!bad.length) { okCount += group.length; report(); return; }
+                            bad.forEach(function (f) { failedPost.push(f.path); });
+                            report();
+                        });
+                    })
+                    .catch(function () {
+                        if (attempt < PUB_ATTEMPTS) {
+                            return new Promise(function (res) { setTimeout(res, 1200 * attempt); })
+                                .then(function () { return uploadGroup(group, attempt + 1); });
+                        }
+                        group.forEach(function (f) { failedPost.push(f.path); });
+                        report();
+                    });
+            }
+
             function uploadAll() {
-                var BIG = 350 * 1024, CHUNK = 3;
-                var groups = [], cur = [];
-                got.sort(function (a, b) { return a.size - b.size; });
-                got.forEach(function (f) {
-                    if (f.size > BIG) {
-                        if (cur.length) { groups.push(cur); cur = []; }
+                /* ✅ v2.3.6 — دسته‌بندی بر اساس حجمِ واقعی (نه تعداد فایل):
+                   هر درخواست ≤ ~۲۰۰KB متن b64 تا روی کندترین اینترنت‌ها هم کامل شود؛
+                   فایل‌های بزرگ‌تر همچنان تنها می‌روند تا شکستشان بقیه را نیندازد */
+                var MAXB = 200 * 1024;
+                var need = got.filter(function (f) { return upToDate.indexOf(f.path) === -1; });
+                need.sort(function (a, b) { return a.size - b.size; });
+                var groups = [], cur = [], curB = 0;
+                need.forEach(function (f) {
+                    if (f.b64.length > MAXB) {
+                        /* فایل بزرگ‌تر از سقف — همیشه تنها */
+                        if (cur.length) { groups.push(cur); cur = []; curB = 0; }
                         groups.push([f]);
                     } else {
-                        cur.push(f);
-                        if (cur.length >= CHUNK) { groups.push(cur); cur = []; }
+                        /* ✅ قبل از افزودن چک می‌شود تا هر دسته «قطعاً» زیر سقف بماند */
+                        if (cur.length && (curB + f.b64.length > MAXB || cur.length >= 8)) {
+                            groups.push(cur); cur = []; curB = 0;
+                        }
+                        cur.push(f); curB += f.b64.length;
                     }
                 });
                 if (cur.length) groups.push(cur);
@@ -1243,30 +1322,43 @@
                     var g = groups[gi]; gi++;
                     /* v2.2.1 — مکث کوتاه بین دسته‌ها؛ فشار روی وای‌فای موبایل کمتر می‌شود */
                     return uploadGroup(g).then(function () {
-                        report();
                         return new Promise(function (res) { setTimeout(res, 250); }).then(gnext);
                     });
                 }
                 return gnext();
             }
 
-            return fetchNext().then(uploadAll).then(function () {
-                return {
-                    ok: okCount,
-                    failed: failedFetch.length + failedPost.length,
-                    total: total,
-                    failedList: failedFetch.concat(failedPost)
-                };
+            return fetchNext().then(compareAll).then(function () {
+                report();
+                if (opts.skipWhenUnverifiable && !compared) {
+                    /* برای ویزارد: وقتی نسخهٔ اپ روی رله یکسان است ولی مقایسه ممکن نیست
+                       (CORS/ورکر قدیمی)، کورکورانه ~۶MB آپلود نکن — مثل قبل رد شود */
+                    return { ok: 0, failed: 0, total: total, failedList: [], upToDate: 0, compared: false, allUpToDate: false, skippedCompare: true };
+                }
+                if (compared && !failedFetch.length && upToDate.length === total) {
+                    return { ok: 0, failed: 0, total: total, failedList: [], upToDate: upToDate.length, compared: true, allUpToDate: true };
+                }
+                return uploadAll().then(function () {
+                    return {
+                        ok: okCount,
+                        failed: failedFetch.length + failedPost.length,
+                        total: total,
+                        failedList: failedFetch.concat(failedPost),
+                        upToDate: upToDate.length,
+                        compared: compared,
+                        allUpToDate: compared && okCount === 0 && !failedFetch.length && !failedPost.length && upToDate.length === total
+                    };
+                });
             });
         });
     }
 
     /* انتشار کمکی برای ویزارد — همان publishApp با تنظیم _base قبلی */
-    function _apiPub(url, c) {
+    function _apiPub(url, c, opts) {
         return publishApp(function (done, total) {
             var pct = total ? Math.round(done * 100 / total) : 0;
             _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ انتشار اپ… ' + toFa(pct) + '٪ (صفحه را باز نگه دار)</span>');
-        });
+        }, opts);
     }
 
     /* ============================================================
@@ -1316,13 +1408,14 @@
                    و داده‌های جدید را نمی‌دید — علت اصلی «سینک ظاهراً کامل ولی داده قدیمی». */
                 var relayVer = (typeof j.appVer === 'string' && j.appVer) ? j.appVer : null;
                 if (j.app === true && relayVer === APP_VERSION) {
-                    _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد — ✅ ۲/۳ اپ روی رله از قبل آماده و به‌روز است (نسخه ' + toFa(APP_VERSION) + '؛ انتشار دوباره لازم نبود، رد شد)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
+                    /* ✅ v2.2.1/v2.3.1 — وقتی نسخهٔ اپ روی رله با همین اپ یکی است، انتشار کامل لازم نیست.
+                       ✅ v2.3.6 — اما ردِ کورکورانه کافی نیست: همان «انتشار ناقص ۶۷ از ۷۷» یعنی نسخه
+                       درست است ولی چند فایل واقعاً جا افتاده‌اند! پس «بازبینی هوشمند»:
+                       مقایسهٔ بایت‌به‌بایت؛ فقط فایل‌های ناقص می‌روند (معمولاً هیچ).
+                       اگر مقایسه ممکن نباشد (CORS/ورکر قدیمی) مثل قبل کلاً رد می‌شود. */
+                    _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد</span> <span style="color:#b45309">— ⏳ ۲/۳ بازبینی هوشمند اپ روی رله (نسخهٔ ' + toFa(APP_VERSION) + ')… چند ثانیه</span>');
                     try { showToast('💡 اگر قبلاً داده روی رله داشته‌ای، همان «کد فضا» و «کد دسترسی» قبلی را در کادرها وارد کن تا داده قدیمی برگردد'); } catch (e0) {}
-                    c.enabled = true;
-                    _saveCfg(c);
-                    var cbx0 = document.getElementById('set-cloud-enabled');
-                    if (cbx0) cbx0.checked = true;
-                    return _startPeer(c, false).then(function () { return { skipped: true }; });
+                    return _apiPub(url, c, { skipWhenUnverifiable: true });
                 }
                 if (j.app === true) {
                     /* اپ روی رله هست ولی قدیمی/نامشخص است — به‌روزرسانی */
@@ -1335,15 +1428,33 @@
             .then(function (r) {
                 _wizardBusy = false; /* ✅ v2.3.3 */
                 if (r && r.skipped) { if (btnWizard) btnWizard.disabled = false; return null; }
-                if (!r || r.ok === 0 || r.failed > 0) {
-                    var msg = (r && r.ok > 0)
-                        ? ('انتشار ناقص بود: ' + r.ok + ' از ' + r.total + ' فایل رفت')
+                if (r && r.skippedCompare) {
+                    /* ✅ v2.3.6 — مقایسه ممکن نشد (CORS/ورکر قدیمی) — مثل قبل رد و فعال‌سازی */
+                    _setStatus('<span style="color:#059669">✅ ۱/۳ متصل شد — ✅ ۲/۳ اپ روی رله از قبل آماده است (نسخه ' + toFa(APP_VERSION) + '؛ انتشار دوباره لازم نبود، رد شد)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
+                    c.enabled = true;
+                    _saveCfg(c);
+                    var cbxS = document.getElementById('set-cloud-enabled');
+                    if (cbxS) cbxS.checked = true;
+                    return _startPeer(c, false).then(function () { if (btnWizard) btnWizard.disabled = false; }, function () { if (btnWizard) btnWizard.disabled = false; });
+                }
+                if (r && r.allUpToDate) {
+                    /* ✅ v2.3.6 — بازبینی کامل شد: هر فایل اپ روی رله بایت‌به‌بایت به‌روز است */
+                    _setStatus('<span style="color:#059669">✅ ۲/۳ بازبینی شد: هر ' + toFa(r.total) + ' فایل اپ روی رله به‌روز است — نیازی به ارسال نبود</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و هم‌ترازسازی داده‌ها…</span>');
+                    c.enabled = true;
+                    _saveCfg(c);
+                    var cbxU = document.getElementById('set-cloud-enabled');
+                    if (cbxU) cbxU.checked = true;
+                    return _startPeer(c, false).then(function () { if (btnWizard) btnWizard.disabled = false; }, function () { if (btnWizard) btnWizard.disabled = false; });
+                }
+                if (!r || r.failed > 0) {
+                    var msg = (r && (r.ok > 0 || r.upToDate > 0))
+                        ? ('انتشار ناقص بود: ' + (r.ok || 0) + ' فایل رفت' + (r.upToDate ? ' و ' + r.upToDate + ' فایل از قبل به‌روز بود' : '') + ' — جا افتاده: ' + (r.failedList || []).slice(0, 3).join(' ، '))
                         : 'هیچ فایلی آپلود نشد';
                     if (btnWizard) btnWizard.disabled = false;
-                    _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. اینترنت (وای‌فای) را بررسی و دوباره ⚡ را بزن — تکرار بی‌خطر است.<br>💡 می‌توانی به‌جای ⚡ از دکمه «انتشار اپ روی رله» هم استفاده کنی.</span>');
+                    _setStatus('<span style="color:#dc2626">⚠️ ۲/۳ ' + msg + '. دوباره ⚡ را بزن — این‌بار فقط فایل‌های جاافتاده می‌روند (تکرار بی‌خطر است).</span>');
                     return null;
                 }
-                _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + r.ok + ' فایل)</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
+                _setStatus('<span style="color:#059669">✅ ۲/۳ اپ کامل منتشر شد (' + toFa(r.ok) + ' فایل' + (r.upToDate ? ' + ' + toFa(r.upToDate) + ' فایل از قبل به‌روز' : '') + (r.compared ? ' — روی رله تأیید شد' : '') + ')</span> <span style="color:#b45309">— ⏳ ۳/۳ فعال‌سازی و ارسال داده‌ها…</span>');
                 c.enabled = true;
                 _saveCfg(c);
                 var cbx = document.getElementById('set-cloud-enabled');
@@ -1440,11 +1551,14 @@
                 _setStatus('<span style="color:#b45309">⏳ انتشار اپ روی رله… ' + toFa(pct) + '٪</span>');
             }).then(function (r) {
                 btnPublish.disabled = false;
-                if (r && r.ok > 0 && r.failed === 0) {
-                    _setStatus('<span style="color:#059669">✅ اپ کامل منتشر شد (' + toFa(r.ok) + ' فایل از ' + toFa(r.total) + ').<br>لینک دوستان آماده است.</span>');
+                if (r && r.allUpToDate) {
+                    _setStatus('<span style="color:#059669">✅ بازبینی هوشمند: هر ' + toFa(r.total) + ' فایل اپ از قبل روی رله به‌روز بود — نیازی به ارسال نبود.<br>لینک دوستان آماده است.</span>');
+                    showToast('✅ اپ روی رله از قبل کامل و به‌روز است');
+                } else if (r && r.ok > 0 && r.failed === 0) {
+                    _setStatus('<span style="color:#059669">✅ اپ کامل منتشر شد: ' + toFa(r.ok) + ' فایل رفت' + (r.upToDate ? ' ، ' + toFa(r.upToDate) + ' فایل از قبل به‌روز بود' : '') + (r.compared ? ' و روی رله تأیید شد.' : '.<br>لینک دوستان آماده است.') + '</span>');
                     showToast('☁️ اپ روی رله منتشر شد');
-                } else if (r && r.ok > 0) {
-                    _setStatus('<span style="color:#dc2626">⚠️ انتشار ناقص بود: ' + toFa(r.ok) + ' از ' + toFa(r.total) + ' فایل رفت.<br>' + toFa(r.failed) + ' فایل جا افتاد: ' + (r.failedList || []).slice(0, 4).join(' ، ') + '…<br>اینترنت را یک‌بار تازه کنید و دکمه انتشار را دوباره بزنید (تکرار بی‌خطر است).</span>');
+                } else if (r && (r.ok > 0 || r.upToDate > 0)) {
+                    _setStatus('<span style="color:#dc2626">⚠️ انتشار ناقص بود: ' + toFa(r.ok) + ' فایل رفت' + (r.upToDate ? ' ، ' + toFa(r.upToDate) + ' فایل از قبل به‌روز بود' : '') + '.<br>' + toFa(r.failed) + ' فایل جا افتاد: ' + (r.failedList || []).slice(0, 4).join(' ، ') + '…<br>دکمه انتشار را دوباره بزنید — این‌بار فقط فایل‌های جاافتاده می‌روند و چند ثانیه بیشتر طول نمی‌کشد (تکرار بی‌خطر است).</span>');
                     showToast('⚠️ انتشار ناقص — دوباره تلاش کنید');
                 } else {
                     _setStatus('<span style="color:#dc2626">⛔ انتشار ناموفق بود — اتصال و کد دسترسی را بررسی کنید</span>');
