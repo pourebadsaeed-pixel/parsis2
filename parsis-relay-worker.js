@@ -1,7 +1,14 @@
 /* ============================================================
-   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.3.6)
+   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.3.7)
    فایل: parsis-relay-worker.js
 
+   ✅ v2.3.7 — تغییرات نسبت به قبل:
+     • /api/publish حالا mime هر فایل را «همیشه» از پسوند مسیر نتیجه می‌گیرد و
+       mimeِ ارسالی کلاینت نادیده گرفته می‌شود. علت: انتشار از اندروید (Capacitor)
+       برای فایل‌های محلی هدر application/octet-stream می‌فرستد و همین هدرِ غلط
+       روی رله ذخیره می‌شد — نتیجه: مرورگر به‌جای باز کردن اپ، فایل را دانلود می‌کرد
+       (کل اپ وب عملاً از رله باز نمی‌شد). با این تغییر دیگر هیچ کلاینتی نمی‌تواند
+       mime غلط ذخیره کند؛ فایل‌های موجودِ خراب هم با انتشار دوباره خودبه‌خود درست می‌شوند.
    ✅ v2.3.6 — تغییرات نسبت به قبل:
      • سروِ فایل‌های اپ حالا هدر CORS دارد (Access-Control-Allow-Origin: *) تا
        «بازبینی هوشمند انتشار» از اندروید و هر مرورگری بتواند فایل‌های روی رله را
@@ -245,10 +252,12 @@ export default {
                 if (typeof f.b64 !== 'string' || f.b64.length > 25 * 1024 * 1024) continue;
                 const clean = p.replace(/^\.\//, '').replace(/^\/+/, '');
                 if (!clean) continue;
+                /* ✅ v2.3.7 — mime فقط از پسوند مسیر؛ ورودی کلاینت معتبر نیست */
+                const fmime = this.fileMime(clean);
                 stmts.push(env.DB.prepare(
                     "INSERT INTO app (path,mime,val) VALUES(?,?,?) ON CONFLICT(path) DO UPDATE SET mime=excluded.mime, val=excluded.val"
-                ).bind(clean, f.mime || 'application/octet-stream', f.b64));
-                list[clean] = { mime: f.mime || 'application/octet-stream' };
+                ).bind(clean, fmime, f.b64));
+                list[clean] = { mime: fmime };
             }
             /* ✅ v2.3.1 — اگر constants.js داخل فایل‌های منتشرشده بود، نسخه اپ استخراج و
                ذخیره می‌شود تا ping آن را به شکل appVer برگرداند (فقط وقتی واقعاً پیدا شد). */
@@ -333,6 +342,23 @@ export default {
         } catch (e) {
             return this.jr(500, { error: 'serve: ' + (e && e.message || '') }, scors);
         }
+    },
+
+    /* ✅ v2.3.7 — mime از پسوند فایل (تنها منبعِ حقیقت) */
+    fileMime(p) {
+        const s = String(p || '').toLowerCase();
+        if (s.endsWith('.html') || s.endsWith('.htm')) return 'text/html; charset=utf-8';
+        if (s.endsWith('.js')) return 'application/javascript; charset=utf-8';
+        if (s.endsWith('.css')) return 'text/css; charset=utf-8';
+        if (s.endsWith('.json') || s.endsWith('.webmanifest')) return 'application/json; charset=utf-8';
+        if (s.endsWith('.png')) return 'image/png';
+        if (s.endsWith('.jpg') || s.endsWith('.jpeg')) return 'image/jpeg';
+        if (s.endsWith('.svg')) return 'image/svg+xml';
+        if (s.endsWith('.woff2')) return 'font/woff2';
+        if (s.endsWith('.woff')) return 'font/woff';
+        if (s.endsWith('.ttf')) return 'font/ttf';
+        if (s.endsWith('.ico')) return 'image/x-icon';
+        return 'application/octet-stream';
     },
 
     b64ToBytes(b64) {
