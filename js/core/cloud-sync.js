@@ -1,14 +1,24 @@
 /* ============================================================
-   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.3)
+   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.4)
    مسیر: js/core/cloud-sync.js
 
    معماری:
      • یک «رله ابری» کوچک روی Cloudflare Workers + D1 (رایگان، بدون وی‌پی‌ان)
        هم اپ را سرو می‌کند و هم داده رمزشده را بین همه نگه می‌دارد.
-     • صاحب داده (اپ اندروید یا هر کپی دیگر) هر تغییر را — پس از رمزنگاری
-       AES-GCM با کد دسترسی — به رله می‌فرستد و هر ۶ ثانیه تغییرات دیگران
-       را می‌گیرد. دوطرفه، لحظه‌ای و آفلاین‌پذیر.
+     • صاحب داده (اپ اندروید یا هر کپی دیگر) هر تغییر را — پس از فشرده‌سازی
+       gzip و رمزنگاری AES-GCM با کد دسترسی — به رله می‌فرستد و هر ۳ ثانیه
+       تغییرات دیگران را می‌گیرد. دوطرفه، لحظه‌ای و آفلاین‌پذیر.
      • هیچ داده‌ای رمزنگاری‌نشده به رله نمی‌رود؛ رله فقط متن رمز ذخیره می‌کند.
+
+   ✅ v2.3.4 — ریشه‌کنی «سینک یک‌طرفهٔ همیشگی»:
+     ۱) storeهای بزرگ قبلاً از سقف ۸ مگابایتی ردیف D1 رد می‌شدند → پوش همیشه
+        شکست می‌خورد → گاردِ «اگر پوش نشد اسنپ‌شات نگیر» دریافت مرورگر را برای
+        همیشه مسدود می‌کرد. حالا: فشرده‌سازی gzip + تکه‌بندی (chunk) خودکار +
+        پوشِ ایزولهٔ هر بخش — شکستِ یک بخش، بقیه را نمی‌بندد.
+     ۲) دریافت دیگر هیچ‌وقت مسدود نمی‌شود؛ تعارضِ «هر دو دستگاه همان بخش را
+        تغییر داده‌اند» با ادغام هوشمند حل می‌شود (آرایه‌ها: اجتماع بدون تکرار).
+     ۳) پول ۶ثانیه‌ای ← ۳ ثانیه‌ای + پوش ۳۰۰ms بعد از هر ثبت = سینک در کسری از ثانیه.
+     ۴) پیام خطا دقیق نام بخش و علت را می‌گوید؛ دیگر پیام مبهمِ همیشگی نیست.
 
    آدرس برای دوستان:
      https://نام-ورکر.sub.workers.dev/?space=XXXX&key=YYYY
@@ -106,25 +116,67 @@
             .then(function (k) { _keyCache.sig = sig; _keyCache.key = k; return k; });
     }
 
+    /* ✅ v2.3.4 — فشرده‌سازی gzip قبل از رمزنگاری:
+       JSON حسابداری معمولاً ۵ تا ۱۰ برابر کوچک می‌شود؛ دیگر دادهٔ بزرگ به سقف
+       ۸ مگابایتی ردیف D1 نمی‌خورد (علیت واقعی «خطای دائمی پوش» و مسدودشدنِ
+       همیشگیِ دریافت روی اپ اندروید). اگر مرورگر/وب‌ویو پشتیبانی نکرد، همان متن
+       خام رمز می‌شود (prefix قدیمی penc1). */
+    function _gzip(str) {
+        try {
+            if (typeof CompressionStream !== 'function') return Promise.resolve(null);
+            var pipe = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+            return new Response(pipe).arrayBuffer().then(function (buf) {
+                return _b64enc(new Uint8Array(buf));
+            });
+        } catch (e) { return Promise.resolve(null); }
+    }
+
+    function _gunzip(b64) {
+        try {
+            if (typeof DecompressionStream !== 'function') return Promise.resolve(null);
+            var pipe = new Blob([_b64dec(b64)]).stream().pipeThrough(new DecompressionStream('gzip'));
+            return new Response(pipe).arrayBuffer().then(function (buf) {
+                return new TextDecoder().decode(new Uint8Array(buf));
+            });
+        } catch (e) { return Promise.resolve(null); }
+    }
+
     function _encrypt(space, key, obj) {
         return _deriveKey(space, key).then(function (k) {
-            var iv = crypto.getRandomValues(new Uint8Array(12));
-            var data = new TextEncoder().encode(JSON.stringify(obj));
-            return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data)
-                .then(function (ct) { return 'penc1.' + _b64enc(iv) + '.' + _b64enc(new Uint8Array(ct)); });
+            var plain = JSON.stringify(obj);
+            return _gzip(plain).then(function (gz) {
+                var data, prefix;
+                if (gz !== null && gz.length < plain.length) {
+                    data = _b64dec(gz); prefix = 'penc1z.';
+                } else {
+                    data = new TextEncoder().encode(plain); prefix = 'penc1.';
+                }
+                var iv = crypto.getRandomValues(new Uint8Array(12));
+                return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data)
+                    .then(function (ct) { return prefix + _b64enc(iv) + '.' + _b64enc(new Uint8Array(ct)); });
+            });
         });
     }
 
     function _decrypt(space, key, cipher) {
-        if (!cipher || String(cipher).indexOf('penc1.') !== 0) return Promise.reject(new Error('bad-cipher'));
-        var parts = String(cipher).split('.');
+        var s = String(cipher || '');
+        var z = (s.indexOf('penc1z.') === 0);
+        if (!z && s.indexOf('penc1.') !== 0) return Promise.reject(new Error('bad-cipher'));
+        var parts = s.split('.');
         if (parts.length !== 3) return Promise.reject(new Error('bad-cipher'));
         var iv = _b64dec(parts[1]);
         var ct = _b64dec(parts[2]);
         return _deriveKey(space, key).then(function (k) {
             return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, k, ct);
         }).then(function (plain) {
-            return JSON.parse(new TextDecoder().decode(plain));
+            var bytes = new Uint8Array(plain);
+            if (z) {
+                return _gunzip(_b64enc(bytes)).then(function (txt) {
+                    if (txt === null) throw new Error('no-gunzip');
+                    return JSON.parse(txt);
+                });
+            }
+            return JSON.parse(new TextDecoder().decode(bytes));
         });
     }
 
@@ -144,6 +196,32 @@
     var _bootApplyDone = false;     /* ✅ v2.3.3 — اولین دریافتِ شروع صفحه اعلان نمی‌گیرد */
     var _lastRemoteToastAt = 0;
     var _verWarned = false;
+
+    /* ✅ v2.3.4 — تکه‌بندی storeهای بزرگ (chunk):
+       سقف اندازهٔ هر ردیف D1 حدود ۸ مگابایت است (تست زندهٔ رله: ۸MB پاس، ۹MB خطای
+       SQLITE_TOOBIG). هر تکه ≤۵ مگابایت؛ یک manifest کوچک تعداد تکه‌ها را نگه
+       می‌دارد. تکه‌های کهنه با «deletes» پارامتر جدید ورکر پاک می‌شوند. */
+    var CHUNK_LIMIT = 5 * 1024 * 1024;
+    var CHUNK_SEP = '#c';
+    var MANIFEST_SEP = '#m';
+    var PCHK = 'pchk:';
+    var _chunkMeta = (function () {
+        try { return JSON.parse(localStorage.getItem('parsis.cloudChunks') || '{}') || {}; } catch (e) { return {}; }
+    })();
+    function _saveChunkMeta() {
+        try { localStorage.setItem('parsis.cloudChunks', JSON.stringify(_chunkMeta)); } catch (e) {}
+    }
+
+    /* ✅ v2.3.4 — آخرین مقداری که هر store با رله هم‌تراز شده بود (برای تشخیص
+       تعارض واقعی) و storeهایی که ارسالشان ممکن نشد (دیگر بی‌وقفه تلاش نمی‌شوند) */
+    var _lastSyncVals = {};
+    var _sizeBlocked = {};
+
+    /* ✅ v2.3.4 — کش‌های «دستگاه‌محلی»: اصلاً سینک نمی‌شوند؛ قبلاً هر تازه‌سازی
+       نرخ‌ها rev را بالا می‌برد و اعلان «داده اضافه شد» بدون تغییر واقعی می‌ساخت */
+    var NO_SYNC = {
+        'liveRatesCache': 1, 'tgjuRatesCache': 1, 'tgjuRates': 1, 'ratesCache': 1
+    };
 
     var _readyResolve = null;
     var _readyPromise = new Promise(function (r) { _readyResolve = r; });
@@ -178,11 +256,19 @@
     function _liveStatus(ok, txt) {
         if (_wizardBusy) return;
         if (!ok) return;
-        _setStatus('<span style="color:#059669">✅ همگام‌سازی دوطرفه فعال — ' + txt + ' ' + _clock() + '</span>');
+        /* ✅ v2.3.4 — اگر بخشی در صف ارسال مانده، کاربر می‌بیند */
+        var pend = 0;
+        try {
+            Object.keys(_pendingPush).forEach(function (n) { if (!_sizeBlocked[n]) pend++; });
+        } catch (e) {}
+        _setStatus('<span style="color:#059669">✅ همگام‌سازی دوطرفه فعال — ' + txt + ' ' + _clock()
+            + (pend > 0 ? ' <span style="color:#b45309">(⏳ ' + (typeof toFa === 'function' ? toFa(pend) : pend) + ' بخش در صف ارسال)</span>' : '')
+            + '</span>');
     }
 
-    /* ---------- تماس با رله ---------- */
-    /* ✅ v2.2.2 — تایم‌اوت ۲۰ ثانیه: دیگر «بی‌پایان» منتظر نمی‌مانیم و خطای شبکه شفاف اعلام می‌شود */
+    /* ---------- تماس با رله ----------
+       ✅ v2.2.2 — تایم‌اوت پیش‌فرض ۲۰ ثانیه؛ ✅ v2.3.4 — هر تماس می‌تواند تایم‌اوت
+       خودش را بدهد (پوش تکه‌های بزرگ و اسنپ‌شات حجیم تا ۶۰ ثانیه فرصت دارند) */
     function _api(path, opts) {
         opts = opts || {};
         opts.headers = opts.headers || { 'Content-Type': 'application/json' };
@@ -190,7 +276,7 @@
         var timer = null;
         if (ctrl && !opts.signal) {
             opts.signal = ctrl.signal;
-            timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 20000);
+            timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, (opts.timeout || 20000));
         }
         return fetch(_base + path, opts).then(function (r) {
             if (timer) clearTimeout(timer);
@@ -215,16 +301,18 @@
        ============================================================ */
     function _queuePush(vals) {
         var keys = Object.keys(vals || {});
+        var queued = false;
         for (var i = 0; i < keys.length; i++) {
             var k = keys[i];
-            if (k === CFG_KEY) continue; /* خودِ تنظیمات سینک، سینک نمی‌شود */
-            try { JSON.stringify(vals[k]); _pendingPush[k] = vals[k]; } catch (e) {}
+            if (k === CFG_KEY || NO_SYNC[k]) continue; /* تنظیمات سینک و کش‌های محلی سینک نمی‌شوند */
+            try { JSON.stringify(vals[k]); _pendingPush[k] = vals[k]; queued = true; } catch (e) {}
         }
+        /* ✅ v2.3.4 — ثبتِ فوریِ نام‌های صف در localStorage:
+           قبلاً فقط بعد از پوش موفق ذخیره می‌شد؛ اگر پوش شکست می‌خورد و صفحه
+           بسته/رفرش می‌شد، نامِ تغییر از صف می‌افتد (dirtyNames هم توسط flush پاک
+           شده) و دیگر هرگز فرستاده نمی‌شد — یکی از علت‌های «تغییرات گاه‌به‌گاه گم می‌شود». */
+        if (queued) _savePendingNames();
         if (_pushTimer) clearTimeout(_pushTimer);
-        /* ✅ v2.3.2 — تأخیر پوش ۱۲۰۰ ← ۳۰۰ میلی‌ثانیه:
-           قبلاً اگر کاربر تا ۱.۳ ثانیه بعد از آخرین تغییر صفحه را رفرش/ببند،
-           پوش هیچ‌وقت فرستاده نمی‌شد و تغییراتش روی ابر نمی‌رفت —
-           ظاهرش مثل «سینک یک‌طرفه» بود: فقط گوشی می‌فرستاد، مرورگر نه. */
         _pushTimer = setTimeout(_drainPush, 300);
     }
 
@@ -250,7 +338,7 @@
         if (!names.length) return 0;
         var n = 0;
         names.forEach(function (k) {
-            if (k === CFG_KEY) return;
+            if (k === CFG_KEY || NO_SYNC[k]) return; /* ✅ v2.3.4 — کش‌های محلی نه */
             try {
                 var v = (typeof DB.load === 'function') ? DB.load(k, undefined) : undefined;
                 if (v !== undefined) { _pendingPush[k] = v; n++; }
@@ -260,14 +348,30 @@
         return n;
     }
 
-    /* ✅ v2.3.2 — هشدار پوش ناموفق برای کاربر (حداکثر هر ۶۰ ثانیه یک‌بار،
-       دیگر «خطای بی‌صدا» نیست) */
-    var _lastPushErrAt = 0;
-    function _toastPushErr(err) {
+    /* ✅ v2.3.4 — طبقه‌بندی دقیق خطا + هشدار نام‌دار:
+       قبلاً یک پیام مبهم برای همهٔ خطاها می‌آمد و کاربر نمی‌فهمید مشکل چیست */
+    var _lastPushErrAt = 0, _lastPushErrKind = '';
+    function _errKind(err) {
+        var m = String((err && err.message) || err || '');
+        if (m.indexOf('store-too-large') !== -1 || m.indexOf('SQLITE_TOOBIG') !== -1 || (err && err.status === 413)) return 'SIZE';
+        if (m.indexOf('bad-key') !== -1 || (err && err.status === 401)) return 'KEY';
+        if (m.indexOf('timeout') !== -1 || m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 ||
+            m.indexOf('load failed') !== -1 || m.indexOf('aborted') !== -1) return 'NET';
+        return 'HTTP';
+    }
+    function _toastPushErr(storeName, err) {
+        var kind = _errKind(err);
         var now = Date.now();
-        if (now - _lastPushErrAt < 60000) return;
-        _lastPushErrAt = now;
-        try { showToast('⚠️ ذخیرهٔ تغییرات روی ابر ناموفق بود — تغییرات محفوظ است و وقتی اینترنت درست شد فرستاده می‌شود'); } catch (e) {}
+        if (now - _lastPushErrAt < 60000 && _lastPushErrKind === kind) return;
+        _lastPushErrAt = now; _lastPushErrKind = kind;
+        var msg = kind === 'SIZE'
+            ? '⛔ ارسال بخش «' + storeName + '» ممکن نشد — حجم بیش از حد مجاز ابر (بقیهٔ بخش‌ها سینک می‌شوند)'
+            : kind === 'KEY'
+            ? '⛔ ارسال به ابر ناموفق: کد دسترسی با رله نمی‌خواند (bad-key) — کد را در تنظیمات چک کنید'
+            : kind === 'NET'
+            ? '⚠️ اینترنت در دسترس نیست — تغییرات محفوظ است و به‌محض برگشت اینترنت ارسال می‌شود'
+            : '⚠️ ارسال به ابر ناموفق بود — تلاش دوبارهٔ خودکار انجام می‌شود';
+        try { showToast(msg); } catch (e) {}
     }
 
     /* ✅ v2.3.2 — flush دیتابیس + پوش فوری صف (برای شروع صفحه و ترک صفحه) */
@@ -279,64 +383,185 @@
         }).catch(function () {});
     }
 
+    /* ============================================================
+       ✅ v2.3.4 — بسته‌بندی هر store برای ارسال: رمز + فشرده + تکه‌تکه
+       خروجی: تکه‌های ≤۵MB + manifest + فهرست تکه‌های کهنه که باید پاک شوند
+       ============================================================ */
+    function _packStore(name, val) {
+        return _encrypt(_space, _apiKey, val).then(function (cipher) {
+            var stores = {}, deletes = [];
+            var prevCount = _chunkMeta[name] || 0;
+            if (cipher.length > CHUNK_LIMIT) {
+                var n = Math.ceil(cipher.length / CHUNK_LIMIT);
+                for (var i = 0; i < n; i++) stores[name + CHUNK_SEP + i] = cipher.substr(i * CHUNK_LIMIT, CHUNK_LIMIT);
+                stores[name + MANIFEST_SEP] = PCHK + n;
+                deletes.push(name); /* نسخهٔ خام قدیمی پاک شود */
+                for (var j = n; j < prevCount; j++) deletes.push(name + CHUNK_SEP + j);
+                _chunkMeta[name] = n;
+            } else {
+                stores[name] = cipher;
+                /* ✅ v2.3.4 — بی‌اثرکردن تکه‌های کهنه روی «هر دو» ورکر:
+                   • ورکر جدید: deletes تکه‌ها و manifest را پاک می‌کند.
+                   • ورکر قدیمی (deletes را نمی‌شناسد): manifest با pchk:0 بازنویسی
+                     می‌شود تا تکه‌های کهنه دیگر «مرجع» نباشند و مقدار خام بُرد کند.
+                     (حذفِ نام‌ناموجود بی‌ضرر است) */
+                deletes.push(name + MANIFEST_SEP);
+                stores[name + MANIFEST_SEP] = PCHK + '0';
+                for (var j2 = 0; j2 < prevCount; j2++) deletes.push(name + CHUNK_SEP + j2);
+                if (prevCount > 0) delete _chunkMeta[name];
+            }
+            _saveChunkMeta();
+            var bytes = 0;
+            Object.keys(stores).forEach(function (k) { bytes += stores[k].length; });
+            return { name: name, val: val, stores: stores, deletes: deletes, bytes: bytes };
+        });
+    }
+
+    /* بازکردن تکه‌ها در اسنپ‌شات دریافتی — هر store تکه‌شده دوباره یک‌پارچه می‌شود
+       خروجی: { stores: یک‌پارچه‌شده‌ها, chunks: { نام‌پایه: تعدادتکه } } برای یادگیری متا */
+    function _expandSnapshot(stores) {
+        var out = {}, parts = {}, manifests = {}, chunkCounts = {};
+        Object.keys(stores || {}).forEach(function (k) {
+            if (k.length > 2 && k.charAt(k.length - 2) === '#' && k.charAt(k.length - 1) === 'm') {
+                manifests[k.slice(0, -2)] = stores[k];
+                return;
+            }
+            var idx = k.lastIndexOf(CHUNK_SEP);
+            if (idx !== -1 && /^\d+$/.test(k.slice(idx + 2))) {
+                var base = k.slice(0, idx);
+                (parts[base] = parts[base] || [])[parseInt(k.slice(idx + 2), 10)] = stores[k];
+                return;
+            }
+            out[k] = stores[k];
+        });
+        Object.keys(parts).forEach(function (base) {
+            var n = null;
+            if (manifests[base] && String(manifests[base]).indexOf(PCHK) === 0) {
+                n = parseInt(String(manifests[base]).slice(PCHK.length), 10);
+            }
+            if (n === null || isNaN(n)) {
+                /* بدون manifest (ورکر قدیمی): تا اولین تکهٔ موجود شمردن */
+                n = 0;
+                while (parts[base][n] !== undefined) n++;
+            }
+            chunkCounts[base] = n;
+            if (n <= 0 || parts[base][n - 1] === undefined) return; /* ناقص — دور بعد */
+            var full = '';
+            for (var i = 0; i < n; i++) { if (parts[base][i] === undefined) return; full += parts[base][i]; }
+            /* با manifest، نسخهٔ تکه‌شده مرجع است؛ بدون manifest، نسخهٔ خام (اگر هست) بُرد می‌کند */
+            if (manifests[base] || !(base in out)) out[base] = full;
+        });
+        return { stores: out, chunks: chunkCounts };
+    }
+
+    /* گروه‌بندی بسته‌های آماده: بزرگ‌ها تنها، کوچک‌ها دسته‌های ≤۳ و ≤۱.۵MB */
+    function _groupPacked(packed) {
+        var BIG = 1.5 * 1024 * 1024, MAXN = 3;
+        var groups = [], cur = [];
+        packed.sort(function (a, b) { return a.bytes - b.bytes; });
+        packed.forEach(function (pr) {
+            if (pr.bytes > BIG) {
+                if (cur.length) { groups.push(cur); cur = []; }
+                groups.push([pr]);
+                return;
+            }
+            cur.push(pr);
+            if (cur.length >= MAXN) { groups.push(cur); cur = []; }
+        });
+        if (cur.length) groups.push(cur);
+        return groups;
+    }
+
+    /* ارسال ترتیبی گروه‌ها — شکستِ یک گروه، بقیه را نمی‌بندد؛ خروجی: فهرست شکست‌ها */
+    function _sendGroups(groups) {
+        var gi = 0;
+        var failed = [];
+        function next() {
+            if (gi >= groups.length) return Promise.resolve();
+            var g = groups[gi]; gi++;
+            var stores = {}, deletes = [];
+            g.forEach(function (pr) {
+                Object.keys(pr.stores).forEach(function (k) { stores[k] = pr.stores[k]; });
+                deletes = deletes.concat(pr.deletes);
+            });
+            var body = JSON.stringify(deletes.length ? { stores: stores, deletes: deletes } : { stores: stores });
+            return _api('/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), {
+                method: 'POST',
+                body: body,
+                timeout: 60000
+            }).then(function (res) {
+                g.forEach(function (pr) {
+                    _lastSyncVals[pr.name] = pr.val;
+                    /* ✅ v2.3.4 — فقط اگر مقدارِ صف هنوز همان مقدارِ ارسال‌شده است پاک شود.
+                       اگر حین ارسال (پوش چندثانیه‌ای روی اینترنت موبایل) ادغامِ تعارض یا
+                       ذخیرهٔ تازه مقدار جدیدی در صف گذاشته باشد، باید بماند تا پوش بعدی
+                       برود — قبلاً delete-by-name مقدارِ تازه را می‌کشت و داده گم می‌شد! */
+                    if (_pendingPush[pr.name] === pr.val) delete _pendingPush[pr.name];
+                });
+                _savePendingNames();
+                _pushBackoff = 0;
+                if (res && typeof res.rev === 'number') {
+                    _lastRev = res.rev;
+                    var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
+                }
+                try { console.log('[cloud-sync] ⬆ پوش شد — ' + g.map(function (p) { return p.name; }).join(', ')); } catch (e0) {}
+                _liveStatus(true, 'آخرین ارسال');
+                /* اگر حین این پوش مقدار تازه‌ای صف شده، همین حالا بفرست */
+                if (Object.keys(_pendingPush).length > 0) {
+                    var still = Object.keys(_pendingPush).filter(function (n) { return !_sizeBlocked[n]; });
+                    if (still.length) _drainPush();
+                }
+            }).catch(function (err) {
+                /* ✅ v2.3.4 — ایزوله‌سازی: فقط این گروه علامت می‌خورد */
+                var kind = _errKind(err);
+                try { console.warn('[cloud-sync] پوش گروه ناموفق:', g.map(function (p) { return p.name; }).join(', '), '-', (err && err.message) || err); } catch (e1) {}
+                g.forEach(function (pr) { failed.push({ name: pr.name, err: err }); });
+                if (kind === 'SIZE') {
+                    /* این بخش واقعاً جا نمی‌شود — از صف خارج می‌شود تا بقیه مسدود نشوند */
+                    g.forEach(function (pr) { delete _pendingPush[pr.name]; });
+                    _savePendingNames();
+                    try { showToast('⛔ بخش «' + g.map(function (p) { return p.name; }).join('، ') + '» به‌خاطر حجم زیاد ارسال نشد — بقیهٔ داده‌ها سینک می‌شود'); } catch (e2) {}
+                }
+            }).then(next);
+        }
+        return next().then(function () { return failed; });
+    }
+
     function _drainPush() {
         _pushTimer = null;
         if (_pushRetryTimer) { clearTimeout(_pushRetryTimer); _pushRetryTimer = null; }
-        /* ✅ v2.3.0 — اصلاح باگ حیاتی سینک:
-           قبلاً اگر پوش قبلی هنوز در جریان بود، این تابع «برمی‌گشت» و هیچ تایمر جایگزینی
-           نمی‌گذاشت — تغییرات تازه در صف می‌ماندند تا ذخیره بعدی کاربر! روی اینترنت موبایل
-           (پوش‌های چندثانیه‌ای) تقریباً هر تغییر بعد از اولی گم می‌شد — علت اصلی
-           «تغییرات اندروید به مرورگر دیگر نمی‌رسد». حالا به‌جای رهاکردن، ۲.۵ ثانیه بعد
-           دوباره تلاش می‌کنیم و بعد از پایان هر پوش هم صف چک می‌شود. */
         if (_pushInFlight) {
             _pushRetryTimer = setTimeout(_drainPush, 2500);
             return Promise.resolve();
         }
-        var names = Object.keys(_pendingPush);
+        var names = Object.keys(_pendingPush).filter(function (n) { return !_sizeBlocked[n]; });
         if (!names.length) return Promise.resolve();
         if (MODE === 'off' || !_space || !_apiKey) return Promise.resolve();
 
         _pushInFlight = true;
-        var batch = {};
-        names.forEach(function (n) { batch[n] = _pendingPush[n]; });
-
-        var encJobs = names.map(function (n) {
-            return _encrypt(_space, _apiKey, batch[n]).then(function (c) { return [n, c]; });
+        return Promise.all(names.map(function (n) {
+            return _packStore(n, _pendingPush[n]);
+        })).then(function (packed) {
+            return _sendGroups(_groupPacked(packed));
+        }).then(function (failed) {
+            _pushInFlight = false;
+            if (failed.length) {
+                var retryable = failed.filter(function (f) { return !_sizeBlocked[f.name]; });
+                if (retryable.length) {
+                    _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
+                    _toastPushErr(retryable[0].name, retryable[0].err);
+                    _pushRetryTimer = setTimeout(_drainPush, 5000 * _pushBackoff);
+                }
+            }
+            /* ✅ v2.3.3 — بلافاصله بعد از پوش، یک دریافت هم بزن */
+            setTimeout(_pollOnce, 150);
+        }).catch(function (err) {
+            _pushInFlight = false;
+            _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
+            try { console.warn('[cloud-sync] پوش ناموفق:', (err && err.message) || err); } catch (e) {}
+            _toastPushErr('داده‌ها', err);
+            _pushRetryTimer = setTimeout(_drainPush, 5000 * _pushBackoff);
         });
-
-        return Promise.all(encJobs)
-            .then(function (pairs) {
-                var stores = {};
-                pairs.forEach(function (p) { stores[p[0]] = p[1]; });
-                return _api('/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), {
-                    method: 'POST',
-                    body: JSON.stringify({ stores: stores })
-                });
-            })
-            .then(function (res) {
-                names.forEach(function (n) { delete _pendingPush[n]; });
-                _savePendingNames();
-                if (res && typeof res.rev === 'number') _lastRev = res.rev;
-                _pushBackoff = 0;
-                _pushInFlight = false;
-                var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
-                try { console.log('[cloud-sync] ⬆ پوش شد — ' + names.length + ' store, rev=' + _lastRev); } catch (e) {}
-                _liveStatus(true, 'آخرین ارسال');
-                /* ✅ v2.3.0 — اگر حین پوش، تغییر تازه‌ای صف شده، فوراً بفرست */
-                if (Object.keys(_pendingPush).length > 0) _drainPush();
-                /* ✅ v2.3.3 — بلافاصله بعد از پوش، یک دریافت هم بزن؛
-                   اگر دستگاه دیگری هم‌زمان تغییر داده باشد چند ثانیه زودتر می‌رسد
-                   (وگرنه تا پول ۶ ثانیه‌ای بعدی صبر می‌کردیم). */
-                setTimeout(_pollOnce, 150);
-            })
-            .catch(function (err) {
-                _pushInFlight = false;
-                _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
-                try { console.warn('[cloud-sync] پوش ناموفق:', (err && err.message) || err); } catch (e) {}
-                _toastPushErr(err);
-                /* تلاش دوباره با تاخیر */
-                setTimeout(_drainPush, 5000 * _pushBackoff);
-            });
     }
 
     /* ============================================================
@@ -352,56 +577,119 @@
         try { showToast('⬇ ' + toFa(n) + ' بخش داده از دستگاه دیگر به‌روزرسانی شد'); } catch (e) {}
     }
 
+    /* ✅ v2.3.4 — ادغامِ تعارض: هر دو دستگاه همان بخش را تغییر داده‌اند.
+       آرایه‌ها: اجتماع بدون تکرار — اضافهٔ هیچ دستگاهی پاک نمی‌شود
+       آبجکت‌ها: کلیدهای محلی بُرد + کلیدهای فقط-رله اضافه می‌شوند
+       بقیه: مقدار محلی می‌ماند و پوش می‌شود */
+    function _mergeStore(localVal, remoteVal) {
+        try {
+            if (Array.isArray(localVal) && Array.isArray(remoteVal)) {
+                var seen = {}, out = [];
+                function keep(x) {
+                    var k2 = JSON.stringify(x);
+                    if (!seen[k2]) { seen[k2] = 1; out.push(x); }
+                }
+                localVal.forEach(keep);
+                remoteVal.forEach(keep);
+                return out;
+            }
+            if (localVal && remoteVal && typeof localVal === 'object' && typeof remoteVal === 'object') {
+                var out2 = {};
+                Object.keys(remoteVal).forEach(function (k2) { out2[k2] = remoteVal[k2]; });
+                Object.keys(localVal).forEach(function (k2) { out2[k2] = localVal[k2]; });
+                return out2;
+            }
+        } catch (e) {}
+        return undefined;
+    }
+
     function _applySnapshot(snap) {
         if (!snap) return 0;
         _lastRev = (typeof snap.rev === 'number') ? snap.rev : _lastRev;
         var c = _cfg(); c.lastRev = _lastRev; _saveCfg(c);
-        var stores = snap.stores || {};
-        var names = Object.keys(stores);
+        /* ✅ v2.3.4 — تکه‌ها دوباره یک‌پارچه می‌شوند و کش‌های محلی فیلتر می‌شوند؛
+           همچنین هر دستگاه «می‌آموزد» کدام storeها تکه‌بندی شده‌اند تا پوش بعدی
+           تکه‌های کهنه را پاک کند (حتی اگر تکه را دستگاه دیگری ساخته باشد) */
+        var ex = _expandSnapshot(snap.stores || {});
+        var raw = ex.stores;
+        var learned = 0;
+        Object.keys(ex.chunks).forEach(function (b) {
+            if (_chunkMeta[b] !== ex.chunks[b]) { _chunkMeta[b] = ex.chunks[b]; learned++; }
+        });
+        if (learned) _saveChunkMeta();
+        var names = Object.keys(raw).filter(function (n) { return n !== CFG_KEY && !NO_SYNC[n]; });
         if (!names.length) { _bootApplyDone = true; return 0; }
 
         var jobs = names.map(function (n) {
-            return _decrypt(_space, _apiKey, stores[n])
+            return _decrypt(_space, _apiKey, raw[n])
                 .then(function (val) { return [n, val]; })
                 .catch(function () { return null; });
         });
 
         return Promise.all(jobs).then(function (pairs) {
-            /* ✅ v2.3.3 — فقط storeهایی نوشته می‌شوند که مقدارشان واقعاً فرق کرده؛
-               جلوی flush و پوش‌های بی‌دلیل هم گرفته می‌شود */
-            var apply = {};
+            /* ✅ v2.3.4 — قلبِ ریشه‌کنی «سینک یک‌طرفهٔ همیشگی»:
+               • store که در صف پوشِ همین دستگاه نیست: فقط اگر واقعاً فرق کرده بنویس.
+               • store که هم تغییر محلی دارد هم رله عوض شده: به‌جای مسدودکردنِ کل دریافت
+                 (رفتار 2.3.2 و 2.3.3 — علتِ «مرورگر→اندروید هیچ‌وقت نمی‌رسد»)، ادغام
+                 هوشمند می‌شود و نتیجه فوراً به رله می‌رود؛ هیچ دستگاهی می‌باخت ندارد. */
+            var apply = {}, merged = {};
             var changed = 0;
             pairs.forEach(function (p) {
                 if (!p) return;
+                var nm = p[0], remote = p[1];
+                if (_pendingPush.hasOwnProperty(nm)) {
+                    var base = _lastSyncVals.hasOwnProperty(nm) ? _lastSyncVals[nm] : undefined;
+                    var remoteChanged = true;
+                    if (base !== undefined) {
+                        try { remoteChanged = (JSON.stringify(base) !== JSON.stringify(remote)); } catch (e0) { remoteChanged = true; }
+                    }
+                    if (remoteChanged) {
+                        var m = _mergeStore(_pendingPush[nm], remote);
+                        if (m !== undefined) merged[nm] = m;
+                    }
+                    return;
+                }
                 try {
-                    var cur = (typeof DB.load === 'function') ? DB.load(p[0], undefined) : undefined;
-                    if (JSON.stringify(cur) !== JSON.stringify(p[1])) { apply[p[0]] = p[1]; changed++; }
-                } catch (e) { apply[p[0]] = p[1]; changed++; }
+                    var cur = (typeof DB.load === 'function') ? DB.load(nm, undefined) : undefined;
+                    if (JSON.stringify(cur) !== JSON.stringify(remote)) { apply[nm] = remote; changed++; }
+                } catch (e) { apply[nm] = remote; changed++; }
             });
             var n = changed ? DB._applyRemote(apply) : 0;
-            _bootApplyDone = true;
+            Object.keys(apply).forEach(function (k) { _lastSyncVals[k] = apply[k]; });
             if (n > 0) {
                 _refreshUI();
                 _toastRemoteApplied(n);
                 _liveStatus(true, 'آخرین دریافت');
                 try { console.log('[cloud-sync] ⬇ تغییرات دور اعمال شد — ' + n + ' store'); } catch (e) {}
             }
+            if (Object.keys(merged).length) {
+                Object.keys(merged).forEach(function (k) {
+                    _pendingPush[k] = merged[k];
+                    _lastSyncVals[k] = merged[k];
+                    try { DB.save(k, merged[k]); } catch (e2) {}
+                });
+                _savePendingNames();
+                _refreshUI();
+                try { console.log('[cloud-sync] ⚡ ادغام تعارض و پوش فوری — ' + Object.keys(merged).length + ' store'); } catch (e3) {}
+                _drainPush();
+            }
+            _bootApplyDone = true;
             return n;
         });
     }
 
     function _pollOnce() {
         if (MODE === 'off' || !_space || !_apiKey) return Promise.resolve();
-        return _api('/api/rev?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
+        return _api('/api/rev?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 12000 })
             .then(function (j) {
                 var srvRev = (j && j.rev) || 0;
                 if (srvRev === _lastRev) return null;
                 /* اول پوش صف خودمان، بعد دریافت — تا داده محلی گم نشود */
                 return Promise.resolve(_drainPushAndFlush()).then(function () {
-                    /* ✅ v2.3.2 — اگر پوش موفق نشد (صف هنوز پر است)، اسنپ‌شات نگیر؛
-                       وگرنه دریافتِ رله، تغییراتِ هنوز نفرستادهٔ همین دستگاه را نابود می‌کرد. */
-                    if (Object.keys(_pendingPush).length > 0) return null;
-                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
+                    /* ✅ v2.3.4 — دیگر «گاردِ کلیِ صفِ پوش» وجود ندارد؛ حتی اگر پوش شکست
+                       بخورد دریافت ادامه دارد و تعارض در _applySnapshot با ادغام حل
+                       می‌شود، نه با مسدودکردنِ کل مسیر مرورگر→اندروید. */
+                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
                         .then(function (snap) { return _applySnapshot(snap); });
                 });
             })
@@ -423,7 +711,7 @@
         _pollTimer = setInterval(function () {
             try { if (document.visibilityState === 'hidden') return; } catch (e) {}
             _pollOnce();
-        }, 6000);
+        }, 3000); /* ✅ v2.3.4 — ۶ثانیه ← ۳ثانیه: رسیدن تغییرات طرف مقابل در کسری از ثانیه */
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') _pollOnce();
         });
@@ -476,19 +764,19 @@
                     if (MODE === 'off' || !_space || !_apiKey) return;
                     var names = Object.keys(_pendingPush);
                     if (!names.length) return;
-                    var enc = names.map(function (n) {
-                        return _encrypt(_space, _apiKey, _pendingPush[n]).then(function (c) { return [n, c]; });
+                    /* ✅ v2.3.4 — همان بسته‌بندی اصلی (رمز + فشرده + تکه)؛
+                       فقط بدنهٔ کوچک keepalive می‌شود تا هنگام بستن صفحه زنده بماند؛
+                       بقیه در صف ماندگار می‌مانند و شروع بعدی قبل از هر دریافت می‌روند */
+                    names.forEach(function (n) {
+                        _packStore(n, _pendingPush[n]).then(function (pr) {
+                            var body = JSON.stringify(pr.deletes.length
+                                ? { stores: pr.stores, deletes: pr.deletes }
+                                : { stores: pr.stores });
+                            var opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body };
+                            if (body.length < 50000) opt.keepalive = true;
+                            return fetch(_base + '/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), opt);
+                        }).catch(function () {});
                     });
-                    Promise.all(enc).then(function (pairs) {
-                        var stores = {};
-                        pairs.forEach(function (p) { stores[p[0]] = p[1]; });
-                        var body = JSON.stringify({ stores: stores });
-                        var url = _base + '/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey);
-                        var opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body };
-                        /* بدنهٔ کوچک: keepalive تا درخواست هنگام بستن صفحه زنده بماند */
-                        if (body.length < 50000) opt.keepalive = true;
-                        return fetch(url, opt);
-                    }).catch(function () {});
                 } catch (e) {}
             };
             window.addEventListener('pagehide', _pushOnLeave);
@@ -517,32 +805,28 @@
         }).then(function (j) {
                 var srvRev = (j && j.rev) || 0;
                 if (srvRev === 0) {
-                    /* رله خالی است — کل داده محلی را پوش کن */
+                    /* رله خالی است — کل داده محلی را پوش کن
+                       ✅ v2.3.4 — per-store و تکه‌بندی‌شده؛ کش‌های محلی نه؛
+                       شکستِ یک بخش، بقیه را نمی‌بندد */
                     var all = {};
                     DB.keys().forEach(function (k) {
-                        if (k === CFG_KEY) return;
+                        if (k === CFG_KEY || NO_SYNC[k]) return;
                         var v = DB.load(k, undefined);
                         if (v !== undefined) { try { JSON.stringify(v); all[k] = v; } catch (e) {} }
                     });
                     return Promise.all(Object.keys(all).map(function (n) {
-                        return _encrypt(_space, _apiKey, all[n]).then(function (c2) { return [n, c2]; });
-                    })).then(function (pairs) {
-                        var stores = {};
-                        pairs.forEach(function (p) { stores[p[0]] = p[1]; });
-                        return _api('/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), {
-                            method: 'POST',
-                            body: JSON.stringify({ stores: stores })
-                        });
-                    }).then(function (res) {
-                        if (res && typeof res.rev === 'number') _lastRev = res.rev;
+                        return _packStore(n, all[n]);
+                    })).then(function (packed) {
+                        return _sendGroups(_groupPacked(packed));
+                    }).then(function (failed) {
                         var c2 = _cfg(); c2.lastRev = _lastRev; _saveCfg(c2);
-                        if (!silent) showToast('☁️ همه داده‌ها روی رله ابری بارگذاری شد');
+                        if (!silent && !failed.length) showToast('☁️ همه داده‌ها روی رله ابری بارگذاری شد');
                     });
                 }
                 if (srvRev > _lastRev) {
-                    /* ✅ v2.3.2 — فقط وقتی صف پوش خالی است اسنپ‌شات بگیر */
-                    if (Object.keys(_pendingPush).length > 0) return null;
-                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
+                    /* ✅ v2.3.4 — دیگر «اگر صف پوش پر است اسنپ‌شات نگیر» نیست؛
+                       دریافت همیشه ادامه دارد و تعارض با ادغام حل می‌شود */
+                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
                         .then(function (snap) { return _applySnapshot(snap); });
                 }
                 return null;
@@ -628,9 +912,9 @@
            علت اصلی «ویرایشِ مرورگر بعد از رفرش پاک می‌شود و دادهٔ گوشی برمی‌گردد». */
         _flushAndPush()
             .then(function () {
-                /* فقط وقتی صف پوش خالی شد اسنپ‌شات بگیر (تا پوش، دادهٔ محلی را نابود نکند) */
-                if (Object.keys(_pendingPush).length > 0) return null;
-                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey))
+                /* ✅ v2.3.4 — دریافت همیشه انجام می‌شود؛ صف پوش با ادغام محافظت می‌شود،
+                   نه با مسدودکردنِ دریافت (قبلاً علتِ «ویرایش مرورگر گم می‌شد») */
+                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
                     .then(function (snap) { return _applySnapshot(snap); });
             })
             .then(function () {
@@ -1137,6 +1421,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.3.3');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.3.4');
 
 })();
