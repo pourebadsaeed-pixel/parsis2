@@ -979,17 +979,17 @@
                         if (!silent && !failed.length) showToast('☁️ همه داده‌ها روی رله ابری بارگذاری شد');
                     });
                 }
-                if (srvRev > _lastRev) {
-                    /* ✅ v2.3.4 — دیگر «اگر صف پوش پر است اسنپ‌شات نگیر» نیست؛
-                       دریافت همیشه ادامه دارد و تعارض با ادغام حل می‌شود */
-                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
-                        .then(function (snap) { return _applySnapshot(snap); });
-                }
-                return null;
+                /* ✅ v2.3.7 — «پایگاه دادهٔ اصلی = کلادفلر»:
+                   هر بار باز شدن اپ، مستقل از rev، اسنپ‌شات کامل رله خوانده و ادغام می‌شود
+                   تا همهٔ دستگاه‌ها همیشه از حقیقتِ ابری شروع کنند؛ دادهٔ محلی فقط کش است.
+                   اسنپ‌شات فقط بخش‌های واقعاً متفاوت را می‌نویسد و صف پوش هم با ادغام
+                   محافظت می‌شود، پس هیچ دادهٔ محلیِ پوش‌نشده‌ای از بین نمی‌رود. */
+                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
+                    .then(function (snap) { return _applySnapshot(snap); });
             })
             .then(function () {
                 _startPolling();
-                if (!silent) _setStatus('<span style="color:#059669">✅ همگام‌سازی ابری فعال است (rev=' + _lastRev + ')</span>');
+                if (!silent) _setStatus('<span style="color:#059669">✅ همگام‌سازی ابری فعال — پایگاه دادهٔ اصلی: کلادفلر (rev=' + _lastRev + ')</span>');
             })
             .catch(function (err) {
                 var raw = String((err && err.message) || err || '');
@@ -1076,7 +1076,7 @@
             .then(function () {
                 _refreshUI();
                 _startPolling();
-                try { showToast('☁️ متصل به همگام‌سازی ابری — داده‌ها زنده دوطرفه سینک می‌شود'); } catch (e) {}
+                try { showToast('☁️ متصل به پایگاه دادهٔ کلادفلر — همه دستگاه‌ها با یک دیتا کار می‌کنند'); } catch (e) {}
             })
             .catch(function (err) {
                 var t = (_friendlyErr(err) === 'BAD_KEY')
@@ -1695,6 +1695,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.3.4');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.3.7');
 
 })();
