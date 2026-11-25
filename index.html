@@ -2066,8 +2066,8 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.3.4';</script>
-<script src="./js/core/db.js?v=2.3.4"></script>
+<script>window.__PARSIS_VER = '2.3.5';</script>
+<script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
     var _logBox = document.getElementById('boot-log');
@@ -2232,7 +2232,7 @@
     try { _isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) {}
     if (!_isNative) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=' + encodeURIComponent(window.__PARSIS_VER || '2.3.4'))
+        navigator.serviceWorker.register('./sw.js?v=' + encodeURIComponent(window.__PARSIS_VER || '2.3.5'))
           .then(reg => console.log('✅ Service Worker Registered'))
           .catch(err => console.error('❌ SW Registration Failed', err));
       });
