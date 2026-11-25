@@ -31,6 +31,17 @@
         پاک و صفحه رفرش می‌شود — مرورگر قدیمی دیگر هرگز گیر نمی‌کند.
      ۴) خط وضعیت اثر انگشت فضا و نسخه را نشان می‌دهد تا دو دستگاه قابل مقایسه باشند.
 
+   ✅ v2.3.8 — پایانِ «همش پیغام اینترنت در دسترس نیست میاد»:
+     ۱) شکستِ یک‌باره و گذرا دیگر پیام نمی‌دهد؛ پیام فقط از سومین شکستِ پیاپی و
+        حداکثر هر ۵–۱۵ دقیقه یک‌بار (هر نوع خطا) نمایش داده می‌شود.
+     ۲) قبل از پیام، تستِ واقعیِ ارتباط می‌گیرد: اینترنتِ دستگاه خاموش است، یا
+        اینترنت وصل است ولی راهِ سرور باز نمی‌شود (اختلال/فیلترینگ)، یا فقط
+        یک لحنِ گذرا بوده — پیام حالا علتِ واقعی را می‌گوید، نه جملهٔ مبهم.
+     ۳) مهلتِ ارسال متناسب با حجم داده (۶۰ تا ۲۴۰ ثانیه) — اینترنتِ کند با
+        دادهٔ بزرگ دیگر تایم‌اوتِ چرخشی نمی‌شود؛ مهلتِ دریافت هم ۱۲۰ ثانیه.
+     ۴) وقتی ارتباط برگشت، پیامِ «✅ برقرار شد» می‌آید تا کاربر مطمئن شود سینک
+        دوباره فعال است.
+
    آدرس برای دوستان:
      https://نام-ورکر.sub.workers.dev/?space=XXXX&key=YYYY
    ============================================================ */
@@ -388,28 +399,82 @@
 
     /* ✅ v2.3.4 — طبقه‌بندی دقیق خطا + هشدار نام‌دار:
        قبلاً یک پیام مبهم برای همهٔ خطاها می‌آمد و کاربر نمی‌فهمید مشکل چیست */
-    var _lastPushErrAt = 0, _lastPushErrKind = '';
+    /* ✅ v2.3.8 — تفکیک «کندی/تایم‌اوت» از «قطعِ کاملِ مسیر»:
+       قبلاً هر دو یک پیام می‌گرفتند و کاربر فکر می‌کرد اینترنتش کلاً قطع است */
     function _errKind(err) {
         var m = String((err && err.message) || err || '');
         if (m.indexOf('store-too-large') !== -1 || m.indexOf('SQLITE_TOOBIG') !== -1 || (err && err.status === 413)) return 'SIZE';
         if (m.indexOf('bad-key') !== -1 || (err && err.status === 401)) return 'KEY';
-        if (m.indexOf('timeout') !== -1 || m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 ||
-            m.indexOf('load failed') !== -1 || m.indexOf('aborted') !== -1) return 'NET';
+        if (m.indexOf('timeout') !== -1 || m.indexOf('aborted') !== -1) return 'TIMEOUT';
+        if (m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 ||
+            m.indexOf('load failed') !== -1) return 'NET';
         return 'HTTP';
     }
-    function _toastPushErr(storeName, err) {
+
+    /* ✅ v2.3.8 — تشخیصِ واقعیِ وضعیتِ ارتباط قبل از نمایش هر پیام:
+       OFFLINE = اینترنت دستگاه خاموش است | RELAY_BLOCKED = اینترنت وصل است ولی راهِ رله باز نمی‌شود
+       RELAY_OK = مسیر باز است (پس شکست، گذرا بوده). نتیجه ۳۰ ثانیه کش می‌شود تا شبکه شلوغ نشود */
+    var _probeAt = 0, _probeVal = '';
+    function _connProbe() {
+        var st = '';
+        try { if (navigator.onLine === false) st = 'OFFLINE'; } catch (e0) {}
+        if (st) { _probeAt = Date.now(); _probeVal = st; return Promise.resolve(st); }
+        if (_probeVal && Date.now() - _probeAt < 30000) return Promise.resolve(_probeVal);
+        return new Promise(function (res) {
+            var done = false;
+            var fin = function (v) { if (!done) { done = true; _probeAt = Date.now(); _probeVal = v; res(v); } };
+            try {
+                var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+                var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e1) {} fin('RELAY_BLOCKED'); }, 8000) : null;
+                fetch((_base || '') + '/api/ping', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+                    .then(function (r) { if (tm) clearTimeout(tm); fin(r && r.ok ? 'RELAY_OK' : 'RELAY_BLOCKED'); })
+                    .catch(function () { if (tm) clearTimeout(tm); fin('RELAY_BLOCKED'); });
+            } catch (e2) { fin('RELAY_BLOCKED'); }
+        });
+    }
+
+    /* ✅ v2.3.8 — سیاستِ ساکت‌سازی پیام‌های ارسال (پاسخ به «همش پیغام اینترنت در دسترس نیست میاد»):
+       • شکستِ یک‌باره و گذرا = هیچ پیامی؛ فقط در کنسول ثبت می‌شود
+       • پیام فقط از سومین شکستِ پیاپی به بعد نمایش داده می‌شود (قطعیِ واقعی، نه لرزشِ شبکه)
+       • هر نوع خطا حداکثر یک‌بار در ۵ تا ۱۵ دقیقه — دیگر هر دقیقه تکرار نمی‌شود
+       • قبل از پیامِ «قطع»، تستِ واقعیِ ارتباط گرفته می‌شود تا علتِ درست اعلام شود
+       • به‌محض برقراریِ دوباره، یک پیامِ «✅ برقرار شد» می‌آید و شمارنده‌ها ریست می‌شوند */
+    var _netFailStreak = 0, _netWasDown = false;
+    var _kindDedupe = {};
+    var _DEDUPE_MS = { KEY: 600000, TIMEOUT: 600000, NET: 900000, HTTP: 300000, SIZE: 60000 };
+    function _pushFailToast(storeName, err) {
+        _netFailStreak++;
         var kind = _errKind(err);
+        try { console.warn('[cloud-sync] ارسال ناموفق (' + kind + ') — تلاشِ پیاپیِ شمارهٔ ' + _netFailStreak + ':', (err && err.message) || err); } catch (eL) {}
         var now = Date.now();
-        if (now - _lastPushErrAt < 60000 && _lastPushErrKind === kind) return;
-        _lastPushErrAt = now; _lastPushErrKind = kind;
-        var msg = kind === 'SIZE'
+        if (now - (_kindDedupe[kind] || 0) < (_DEDUPE_MS[kind] || 300000)) return;
+        if (_netFailStreak < 3 && kind !== 'KEY') return;
+        try { if (document.visibilityState === 'hidden') return; } catch (eH) {}
+        _kindDedupe[kind] = now;
+        if (kind === 'KEY') {
+            _netWasDown = true;
+            try { showToast('⛔ ارسال به ابر ناموفق: کد دسترسی با رله نمی‌خواند (bad-key) — کد را در تنظیمات چک کنید', 6000); } catch (eT1) {}
+            return;
+        }
+        if (kind === 'NET') {
+            _connProbe().then(function (st) {
+                _netWasDown = true;
+                var msg = st === 'OFFLINE'
+                    ? '📶 اینترنت دستگاه در دسترس نیست — تغییرات روی همین دستگاه محفوظ است و به‌محض وصل‌شدن خودکار به ابر می‌رود'
+                    : st === 'RELAY_BLOCKED'
+                    ? '🌐 اینترنت دستگاه وصل است ولی راهِ پایگاه ابری باز نمی‌شود (اختلال یا فیلترینگِ مسیر سرور روی این اپراتور) — وای‌فای یا اپراتورِ دیگر را امتحان کنید؛ داده‌ها محفوظ است و خودکار تلاش می‌شود'
+                    : '⚠️ ارتباط با پایگاه ابری لحظه‌ای ناتمام ماند — داده‌ها محفوظ است و تلاش خودکار ادامه دارد';
+                try { showToast(msg, 7000); } catch (eT2) {}
+            }).catch(function () {});
+            return;
+        }
+        _netWasDown = true;
+        var msg2 = kind === 'TIMEOUT'
+            ? '🐢 ارسال به‌خاطر کندی اینترنت یا حجمِ زیادِ داده ناتمام ماند — داده‌ها محفوظ است؛ تلاش خودکار با فرصتِ بیشتر ادامه دارد'
+            : kind === 'SIZE'
             ? '⛔ ارسال بخش «' + storeName + '» ممکن نشد — حجم بیش از حد مجاز ابر (بقیهٔ بخش‌ها سینک می‌شوند)'
-            : kind === 'KEY'
-            ? '⛔ ارسال به ابر ناموفق: کد دسترسی با رله نمی‌خواند (bad-key) — کد را در تنظیمات چک کنید'
-            : kind === 'NET'
-            ? '⚠️ اینترنت در دسترس نیست — تغییرات محفوظ است و به‌محض برگشت اینترنت ارسال می‌شود'
-            : '⚠️ ارسال به ابر ناموفق بود — تلاش دوبارهٔ خودکار انجام می‌شود';
-        try { showToast(msg); } catch (e) {}
+            : '⚠️ سرور ابری موقتاً خطا داد — داده‌ها محفوظ است و تلاش خودکار ادامه دارد';
+        try { showToast(msg2, 6000); } catch (eT3) {}
     }
 
     /* ✅ v2.3.2 — flush دیتابیس + پوش فوری صف (برای شروع صفحه و ترک صفحه) */
@@ -523,10 +588,14 @@
                 deletes = deletes.concat(pr.deletes);
             });
             var body = JSON.stringify(deletes.length ? { stores: stores, deletes: deletes } : { stores: stores });
+            /* ✅ v2.3.8 — مهلتِ ارسال متناسب با حجم بدنه (۶۰ تا ۲۴۰ ثانیه):
+               قبلاً ۶۰ ثانیهٔ ثابت بود؛ آپلود تکهٔ ۵MB روی اینترنتِ ضعیف همین را تایم‌اوت
+               می‌کرد و پیام «اینترنت در دسترس نیست» به‌صورت چرخشی تکرار می‌شد */
+            var tmo = Math.max(60000, Math.min(240000, Math.round(body.length / 30)));
             return _api('/api/sync?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), {
                 method: 'POST',
                 body: body,
-                timeout: 60000
+                timeout: tmo
             }).then(function (res) {
                 g.forEach(function (pr) {
                     _lastSyncVals[pr.name] = pr.val;
@@ -583,21 +652,24 @@
             return _sendGroups(_groupPacked(packed));
         }).then(function (failed) {
             _pushInFlight = false;
-            if (failed.length) {
-                var retryable = failed.filter(function (f) { return !_sizeBlocked[f.name]; });
-                if (retryable.length) {
-                    _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
-                    _toastPushErr(retryable[0].name, retryable[0].err);
-                    _pushRetryTimer = setTimeout(_drainPush, 5000 * _pushBackoff);
-                }
+            var retryable = failed.filter(function (f) { return !_sizeBlocked[f.name]; });
+            if (retryable.length) {
+                _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
+                _pushFailToast(retryable[0].name, retryable[0].err);
+                _pushRetryTimer = setTimeout(_drainPush, 5000 * _pushBackoff);
+            } else if (_netWasDown && _netFailStreak >= 3) {
+                /* ✅ v2.3.8 — پیامِ آشتی: بعد از یک دورهٔ قطعیِ واقعی، برقراریِ دوباره اعلام می‌شود */
+                _netFailStreak = 0; _netWasDown = false;
+                try { showToast('✅ ارتباط با پایگاه دادهٔ ابری دوباره برقرار شد — داده‌های در صف ارسال شد', 4000); } catch (eR) {}
+            } else {
+                _netFailStreak = 0;
             }
             /* ✅ v2.3.3 — بلافاصله بعد از پوش، یک دریافت هم بزن */
             setTimeout(_pollOnce, 150);
         }).catch(function (err) {
             _pushInFlight = false;
             _pushBackoff = Math.min((_pushBackoff || 0) + 1, 10);
-            try { console.warn('[cloud-sync] پوش ناموفق:', (err && err.message) || err); } catch (e) {}
-            _toastPushErr('داده‌ها', err);
+            _pushFailToast('داده‌ها', err);
             _pushRetryTimer = setTimeout(_drainPush, 5000 * _pushBackoff);
         });
     }
@@ -757,7 +829,7 @@
                     /* ✅ v2.3.4 — دیگر «گاردِ کلیِ صفِ پوش» وجود ندارد؛ حتی اگر پوش شکست
                        بخورد دریافت ادامه دارد و تعارض در _applySnapshot با ادغام حل
                        می‌شود، نه با مسدودکردنِ کل مسیر مرورگر→اندروید. */
-                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
+                    return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 120000 })
                         .then(function (snap) { return _applySnapshot(snap); });
                 });
             })
@@ -984,7 +1056,7 @@
                    تا همهٔ دستگاه‌ها همیشه از حقیقتِ ابری شروع کنند؛ دادهٔ محلی فقط کش است.
                    اسنپ‌شات فقط بخش‌های واقعاً متفاوت را می‌نویسد و صف پوش هم با ادغام
                    محافظت می‌شود، پس هیچ دادهٔ محلیِ پوش‌نشده‌ای از بین نمی‌رود. */
-                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
+                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 120000 })
                     .then(function (snap) { return _applySnapshot(snap); });
             })
             .then(function () {
@@ -1070,7 +1142,7 @@
             .then(function () {
                 /* ✅ v2.3.4 — دریافت همیشه انجام می‌شود؛ صف پوش با ادغام محافظت می‌شود،
                    نه با مسدودکردنِ دریافت (قبلاً علتِ «ویرایش مرورگر گم می‌شد») */
-                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 60000 })
+                return _api('/api/snapshot?space=' + encodeURIComponent(_space) + '&key=' + encodeURIComponent(_apiKey), { timeout: 120000 })
                     .then(function (snap) { return _applySnapshot(snap); });
             })
             .then(function () {
