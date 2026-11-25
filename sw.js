@@ -19,7 +19,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v39';
+const CACHE_VERSION = 'v40';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 

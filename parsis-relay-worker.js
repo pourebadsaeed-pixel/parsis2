@@ -1,7 +1,11 @@
 /* ============================================================
-   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.3.1)
+   پارسیس — رله همگام‌سازی ابری دوطرفه (v2.3.4)
    فایل: parsis-relay-worker.js
 
+   ✅ v2.3.4 — تغییرات نسبت به قبل:
+     • /api/sync حالا پارامتر اختیاری "deletes":["نام store"] را می‌پذیرد —
+       پاک‌سازی تکه‌های کهنهٔ storeهای بزرگ (chunk) در همان تراکنش اتمیک؛
+       اگر اپ قدیمی پارامتر را نفرستد، هیچ فرقی نمی‌کند (سازگار با عقب).
    ✅ v2.3.1 — تغییرات نسبت به قبل:
      • /api/ping حالا نسخه اپ منتشرشده روی رله را هم می‌دهد (appVer)
      • /api/publish نسخه اپ را از constants.js استخراج و ذخیره می‌کند
@@ -34,7 +38,7 @@
      GET  /api/ping                                → سلام + وضعیت + appVer (نسخه اپ منتشرشده)
      GET  /api/rev?space=&key=                     → شماره نسخه داده
      GET  /api/snapshot?space=&key=                → کل داده (رمز)
-     POST /api/sync?space=&key=      {stores:{}}   → نوشتن تغییرات (رمز)
+     POST /api/sync?space=&key=      {stores:{}, deletes?:[]} → نوشتن/پاک‌کردن (رمز)
      POST /api/publish?space=&key=   {files:{}}    → انتشار اپ وب روی رله
      GET  /<هر مسیر>                               → سرو اپ وب (از KV داخلی D1)
    ============================================================ */
@@ -188,6 +192,13 @@ export default {
                     "INSERT INTO meta (space,k,val) VALUES(?,'auth',?) ON CONFLICT(space,k) DO UPDATE SET val=excluded.val"
                 ).bind(space, hex));
             }
+            /* ✅ v2.3.4 — پاک‌سازی storeهای کهنه (تکه‌های قدیمی chunk)
+               در همان تراکنش اتمیکِ نوشتن؛ اول پاک، بعد بنویس (نوشتن بُرد می‌کند) */
+            const dels = (Array.isArray(body.deletes) ? body.deletes : [])
+                .filter(d => typeof d === 'string' && d.length > 0 && d.length <= 300);
+            for (const d of dels) {
+                stmts.push(env.DB.prepare("DELETE FROM stores WHERE space=? AND name=?").bind(space, d));
+            }
             const revRow = await env.DB.prepare("SELECT val FROM meta WHERE space=? AND k='rev'").bind(space).first();
             const prev = parseInt(revRow && revRow.val || '0', 10) || 0;
             const newRev = Math.max(prev + 1, Date.now()); /* یکتا و صعودی حتی در نوشتن همزمان */
@@ -202,7 +213,7 @@ export default {
             ).bind(space, String(newRev)));
 
             await env.DB.batch(stmts);
-            return this.jr(200, { ok: true, rev: newRev, count: names.length }, cors);
+            return this.jr(200, { ok: true, rev: newRev, count: names.length, deleted: dels.length }, cors);
         }
 
         /* ---------- publish (انتشار اپ وب) ---------- */
