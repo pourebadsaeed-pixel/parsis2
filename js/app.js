@@ -139,6 +139,13 @@ function bindBaseDataForms() {
     try { if (typeof bindTemplatesForm === 'function') bindTemplatesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindNotesForm === 'function') bindNotesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindThemeFontButtons === 'function') bindThemeFontButtons(); } catch(e){ console.warn(e); }
+    /* ✅ v2.4.0 — فرم‌های بخش امنیت و ماژول‌های جدید */
+    try { if (typeof bindSecGroupsForm === 'function') bindSecGroupsForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindTreasuryForm === 'function') bindTreasuryForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindAssetsForm === 'function') bindAssetsForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindInvItemsForm === 'function') bindInvItemsForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindInvMovesForm === 'function') bindInvMovesForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindSalesForm === 'function') bindSalesForm(); } catch(e){ console.warn(e); }
 }
 
 function bindFilterInputs() {
@@ -148,7 +155,14 @@ function bindFilterInputs() {
         'cb-filter': 'renderCashBoxesList', 'proj-filter': 'renderProjectsList',
         'fac-filter': 'renderFacilitiesList', 'cfs-filter': 'renderCfsList',
         'est-filter': 'renderEstimateList', 'users-filter': 'renderUsersList',
-        'vlist-search': 'renderVoucherList'
+        'vlist-search': 'renderVoucherList',
+        /* ✅ v2.4.0 */
+        'sec-groups-filter': 'renderSecGroupsList',
+        'tr-filter': 'renderTreasuryList',
+        'as-filter': 'renderAssetsList',
+        'iv-filter': 'renderInvItemsList',
+        'im-filter': 'renderInvMovesList',
+        'si-filter': 'renderSalesList'
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
@@ -213,6 +227,9 @@ function startApp() {
     }
 
     try { if (typeof aiInit === 'function') aiInit(); } catch(e){}
+
+    /* ✅ v2.4.0 — بایند ثابت پنجره «تاریخچه تغییر وضعیت» */
+    try { if (typeof Hist !== 'undefined' && Hist.bindModalStatic) Hist.bindModalStatic(); } catch(e){ console.warn('Hist modal bind error:', e); }
     
     setTimeout(function () { if (typeof fetchLiveRates === 'function') fetchLiveRates(true); }, 1500);
 }
