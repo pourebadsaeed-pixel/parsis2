@@ -86,8 +86,12 @@ function bindCompaniesForm() {
 
         var l = DB.load('companies', []);
         if (!Array.isArray(l)) l = [];
+        /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+        var _before = null;
+        if (id) { for (var i2 = 0; i2 < l.length; i2++) { if (l[i2].id === id) _before = l[i2]; } }
         if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } } 
         else { l.push(o); }
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('companies', o.id, _before ? 'ویرایش' : 'ایجاد', _before, o); } catch (eH) {}
         DB.save('companies', l);
         showToast('✅ شرکت ذخیره شد.');
         clearCompanyForm();

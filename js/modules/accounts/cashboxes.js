@@ -98,8 +98,12 @@ function bindCashBoxesForm() {
 
         var l = DB.load('cashBoxes', []);
         if (!Array.isArray(l)) l = [];
+        /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+        var _before = null;
+        if (id) { for (var i2 = 0; i2 < l.length; i2++) { if (l[i2].id === id) _before = l[i2]; } }
         if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o2; } } 
         else { l.push(o2); }
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('cashBoxes', o2.id, _before ? 'ویرایش' : 'ایجاد', _before, o2); } catch (eH) {}
         DB.save('cashBoxes', l);
         showToast('✅ صندوق ذخیره شد.');
         clearCBForm();

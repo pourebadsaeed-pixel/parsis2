@@ -9,6 +9,11 @@ function attachRowActions(tb, sk, rf, ef) {
     var eds = tb.querySelectorAll('.row-btn.edit');
     var dls = tb.querySelectorAll('.row-btn.del');
 
+    /* ✅ v2.4.0 — دکمه 🕘 تاریخچه در همه فهرست‌هایی که از این تابع استفاده می‌کنند */
+    try {
+        if (typeof Hist !== 'undefined' && Hist.bindRowButtons) Hist.bindRowButtons(tb, sk);
+    } catch (eH2) {}
+
     for (var j = 0; j < eds.length; j++) {
         eds[j].addEventListener('click', function () {
             var id = this.getAttribute('data-id');
@@ -45,6 +50,13 @@ function attachRowActions(tb, sk, rf, ef) {
             if (!confirm('حذف شود؟')) return;
 
             var list = DB.load(sk);
+            /* ✅ v2.4.0 — ثبت حذف در تاریخچه تغییر وضعیت */
+            try {
+                if (typeof Hist !== 'undefined' && Hist.log) {
+                    var _delRec = list.filter(function (x) { return x.id === id; })[0];
+                    if (_delRec) Hist.log(sk, id, 'حذف', _delRec, null, (_delRec.name || _delRec.title || _delRec.bank || (( _delRec.first || '') + ' ' + (_delRec.last || '')) || ''));
+                }
+            } catch (eH) {}
             list = list.filter(function (x) { return x.id !== id; });
             DB.save(sk, list);
 
@@ -174,6 +186,9 @@ function bindFiscalForm() {
             }
 
             var l = DB.load('fiscalPeriods', []);
+            /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+            var _fBefore = null;
+            if (id) { var _fp = l.filter(function (x) { return x.id === id; })[0]; if (_fp) _fBefore = JSON.parse(JSON.stringify(_fp)); }
             if (id) {
                 var p = l.find(function (x) { return x.id === id; });
                 if (p) {
@@ -189,6 +204,16 @@ function bindFiscalForm() {
                     saveState(LS_KEYS.ACTIVE_PERIOD);
                 }
             }
+            /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+            try {
+                if (typeof Hist !== 'undefined' && Hist.log) {
+                    if (_fBefore) Hist.log('fiscalPeriods', _fBefore.id, 'ویرایش', _fBefore, l.filter(function (x) { return x.id === _fBefore.id; })[0]);
+                    else {
+                        var _fNew = l[l.length - 1];
+                        Hist.log('fiscalPeriods', _fNew.id, 'ایجاد', null, _fNew);
+                    }
+                }
+            } catch (eH) {}
             DB.save('fiscalPeriods', l);
             clearFiscalForm();
             showToast('✅ دوره مالی ذخیره شد.');

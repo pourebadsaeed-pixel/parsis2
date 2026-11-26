@@ -548,11 +548,15 @@ function bindTemplatesForm() {
         };
 
         var l = DB.load('voucherTemplates', []);
+        /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+        var _before = null;
+        if (id) { var _bt = l.filter(function (x) { return x.id === id; })[0]; if (_bt) _before = JSON.parse(JSON.stringify(_bt)); }
         if (id) {
             for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; }
         } else {
             l.push(o);
         }
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('voucherTemplates', o.id, _before ? 'ویرایش' : 'ایجاد', _before, o); } catch (eH) {}
         DB.save('voucherTemplates', l);
         showToast('✅ الگو ذخیره شد.');
         
