@@ -5,13 +5,28 @@
 'use strict';
 
 /* ============================================================
+   ✅ v2.5.0 — مهاجرتِ یک‌باره به طرحِ نو:
+   تمِ «زمردِ مالی» + فونتِ وزیرمتن برای همه
+   فقط یک بار اجرا می‌شود؛ بعد از آن، انتخابِ کاربر در تنظیمات حاکم است
+   ============================================================ */
+(function migrateToV3Design() {
+    try {
+        if (!DB.load('ui.v3.migrated', 0)) {
+            DB.save(LS_KEYS.THEME, 'emerald');
+            DB.save(LS_KEYS.FONT, 'vazirmatn');
+            DB.save('ui.v3.migrated', 1);
+        }
+    } catch (e) {}
+})();
+
+/* ============================================================
    بخش ۱ — تعریف state مرکزی
    ============================================================ */
 var state = {
     /* ظاهر */
-    theme:           DB.load(LS_KEYS.THEME, 'sky'),
+    theme:           DB.load(LS_KEYS.THEME, 'emerald'),
     language:        DB.load(LS_KEYS.LANGUAGE, 'fa'),
-    font:            DB.load(LS_KEYS.FONT, 'tahoma'),
+    font:            DB.load(LS_KEYS.FONT, 'vazirmatn'),
 
     /* واحد پول و نمایش */
     currency:        DB.load(LS_KEYS.CURRENCY, 'rial'),
