@@ -5,7 +5,7 @@
 'use strict';
 
 var APP_NAME    = 'پارسیس';
-var APP_VERSION = '2.3.8';
+var APP_VERSION = '2.4.0';
 
 var JALALI_MONTHS = [
     'فروردین', 'اردیبهشت', 'خرداد',
@@ -87,7 +87,17 @@ var NAVIGABLE_PAGES = {
     'report-facility':      'خلاصه تسهیلات',
     'report-facility-full': 'گزارش جامع تسهیلات',
     'report-compare':       'گزارش مقایسه‌ای دوره‌ها',
-    'jalali-calendar':      'مدیریت تقویم'
+    'jalali-calendar':      'مدیریت تقویم',
+    /* ✅ v2.4.0 — بخش امنیت + ماژول‌های جدید */
+    'users':                'معرفی کاربر',
+    'sec-groups':           'گروه کاربران',
+    'sec-perms':            'حقوق دسترسی',
+    'sec-limits':           'محدودیت حقوق دسترسی',
+    'treasury':             'خزانه — دریافت و پرداخت',
+    'assets':               'اموال و دارایی',
+    'inventory-items':      'کالاهای انبار',
+    'inventory-moves':      'حواله‌های انبار',
+    'sales':                'فروش — فاکتورها'
 };
 
 var PAGE_TITLES_FA = {
@@ -123,7 +133,18 @@ var PAGE_TITLES_FA = {
     'report-facility':      { icon: '🏦', title: 'خلاصه تسهیلات' },
     'report-facility-full': { icon: '📊', title: 'گزارش جامع تسهیلات' },
     'report-compare':       { icon: '📊', title: 'گزارش مقایسه‌ای' },
-    'jalali-calendar':      { icon: '📅', title: 'مدیریت تقویم' }
+    'jalali-calendar':      { icon: '📅', title: 'مدیریت تقویم' },
+    /* ✅ v2.4.0 — بخش امنیت */
+    'users':                { icon: '👤', title: 'معرفی کاربر' },
+    'sec-groups':           { icon: '👥', title: 'گروه کاربران' },
+    'sec-perms':            { icon: '🔐', title: 'حقوق دسترسی' },
+    'sec-limits':           { icon: '🚫', title: 'محدودیت حقوق دسترسی' },
+    /* ✅ v2.4.0 — ماژول‌های جدید */
+    'treasury':             { icon: '💧', title: 'خزانه — دریافت و پرداخت' },
+    'assets':               { icon: '🏗', title: 'اموال و دارایی' },
+    'inventory-items':      { icon: '📦', title: 'کالاهای انبار' },
+    'inventory-moves':      { icon: '🔄', title: 'حواله‌های انبار' },
+    'sales':                { icon: '🛒', title: 'فروش — فاکتورها' }
 };
 
 var LINK_TYPES = ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
@@ -183,4 +204,4 @@ window.NOTE_CATEGORIES      = NOTE_CATEGORIES;
 window.CHECKLIST_CATEGORIES = CHECKLIST_CATEGORIES;
 window.MAX_HOME_PAGES       = MAX_HOME_PAGES;
 
-console.log('✅ [core/constants.js] loaded — ledger report added');
+console.log('✅ [core/constants.js] loaded — v2.4.0');

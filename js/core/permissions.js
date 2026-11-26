@@ -1,18 +1,20 @@
 /* ============================================================
-   پارسیس — موتور حقوق دسترسی و محدودیت داده (✅ v2.2.0)
+   پارسیس — موتور حقوق دسترسی و محدودیت داده (✅ v2.4.0)
    مسیر: js/core/permissions.js
 
-   دو فرم در «معرفی کاربران» (✍ user-perms.js):
-     ۱) درختوارهٔ دسترسی → هر صفحه با عمل‌هایش (دیدن/ایجاد/ویرایش/حذف/گزارش)
-     ۲) قواعد شرطی نمایش اسناد → «فقط اسنادی که تفصیلِ بانکی/شرکتی/... آن
-        مساوی موارد انتخابی است» یا «اسنادی که تفصیلِ آن‌ها مساوی موارد
-        انتخابی است نمایش داده نشود» — بدون نمایش لیست موجودیت‌ها
+   ✅ v2.4.0 — بخش «امنیت»:
+     • کاربر می‌تواند عضو «گروه کاربران» باشد؛ دسترسیِ مؤثر =
+       گروه + کاربر (تنظیمِ صریحِ کاربر بر گروه مقدم است).
+     • فرم‌های دسترسی/محدودیت به بخش «امنیت» منتقل شدند
+       (کاربر / گروه قابل انتخاب) — فرم‌ها در user-perms.js.
+     • ماژول‌های خزانه/اموال/انبار/فروش هم زیر پوشش دسترسی رفتند.
+     • درختِ دسترسی (PERM_TREE_CATEGORIES) مشترک بین موتور و فرم‌ها.
 
    اصول:
      • سرپرست (isAdmin) همیشه دسترسی کامل دارد.
      • کاربر عادی بدون هیچ تنظیمی = دسترسی کامل (سازگاری با نسخه‌های قبل).
      • هر مقداری که در فرم‌ها ذخیره شود، دقیقاً همان اعمال می‌شود.
-     • صفحات مدیریتی (معرفی کاربران) فقط برای سرپرست.
+     • صفحات مدیریتی (بخش امنیت) فقط برای سرپرست.
    ============================================================ */
 'use strict';
 
@@ -42,12 +44,18 @@ var PERM_DATA_PAGES = [
     ['estimate-daily',     '📝 برآورد هزینه‌های روزانه'],
     ['cashflow-sources',   '📌 برآورد منابع دریافتنی'],
     ['facilities',         '🏦 تسهیلات'],
-    ['voucher-list',       '📄 فهرست اسناد'],
-    ['voucher-new',        '✏️ صدور سند'],
-    ['templates',          '🧩 الگوهای سند'],
+    ['voucher-list',       '📄 فهرست اسناد حسابداری'],
+    ['voucher-new',        '✏️ صدور سند حسابداری'],
+    ['templates',          '🧩 الگوهای سند و شرح استاندارد'],
     ['notes',              '📔 دفترچه یادداشت'],
     ['sms',                '📱 پیامک بانکی'],
-    ['jalali-calendar',    '📅 مدیریت تقویم']
+    ['jalali-calendar',    '📅 مدیریت تقویم'],
+    /* ✅ v2.4.0 — ماژول‌های جدید */
+    ['treasury',           '💧 خزانه — دریافت و پرداخت'],
+    ['assets',             '🏗 اموال و دارایی'],
+    ['inventory-items',    '📦 کالاهای انبار'],
+    ['inventory-moves',    '🔄 حواله‌های انبار'],
+    ['sales',              '🛒 فروش — فاکتورها']
 ];
 
 /* صفحات گزارش — دو عمل: دیدن / گزارش‌گیری و چاپ */
@@ -67,8 +75,22 @@ var PERM_REPORT_PAGES = [
 /* ✅ v2.3.0 — صفحه زبان/تنظیمات پایه هم زیر پوشش دسترسی رفت (پوشش کامل همه صفحات) */
 PERM_DATA_PAGES.push(['language', '🌐 زبان']);
 
-/* صفحاتی که فقط سرپرست به آن‌ها دسترسی دارد */
-var PERM_ADMIN_PAGES = ['users'];
+/* صفحاتی که فقط سرپرست به آن‌ها دسترسی دارد — ✅ v2.4.0: کل بخش «امنیت» */
+var PERM_ADMIN_PAGES = ['users', 'sec-groups', 'sec-perms', 'sec-limits'];
+
+/* ✅ v2.4.0 — درختوارهٔ دسته‌های دسترسی (مشترک بین موتور و فرم امنیت) */
+var PERM_TREE_CATEGORIES = [
+    { id: 'home-cat',     title: '🏠 خانه',                pages: ['dashboard'] },
+    { id: 'base-cat',     title: '👥 پایه‌ها',              pages: ['persons', 'companies', 'phonebook'] },
+    { id: 'acc-cat',      title: '🏦 حساب‌ها و دوره مالی',   pages: ['bank-accounts', 'cash-boxes', 'projects', 'fiscal'] },
+    { id: 'voucher-cat',  title: '🧾 اسناد حسابداری',       pages: ['voucher-list', 'voucher-new', 'templates'] },
+    { id: 'treasury-cat', title: '💧 خزانه',               pages: ['treasury', 'facilities'] },
+    { id: 'assets-cat',   title: '🏗 اموال',               pages: ['assets'] },
+    { id: 'inv-cat',      title: '📦 انبار',               pages: ['inventory-items', 'inventory-moves'] },
+    { id: 'sales-cat',    title: '🛒 فروش',                pages: ['sales'] },
+    { id: 'report-cat',   title: '📚 گزارش‌ها',             pages: ['report-cashflow', 'report-cashflow-desc', 'report-account', 'report-ledger', 'report-trial', 'report-incomplete', 'report-facility', 'report-facility-full', 'report-compare'] },
+    { id: 'def-cat',      title: '⚙️ تعریف‌ها و ابزارها',    pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'notes', 'sms', 'jalali-calendar', 'language'] }
+];
 
 /* عمل‌های مجاز برای هر نوع صفحه (در فرم نمایش داده می‌شود) */
 function permsPageActions(page) {
@@ -78,6 +100,7 @@ function permsPageActions(page) {
     if (page === 'voucher-new') return ['view', 'create'];
     if (page === 'dashboard')   return ['view'];
     if (page === 'language')    return ['view']; /* ✅ v2.3.0 */
+    /* ✅ v2.4.0 — صفحات ماژول‌های جدید هم چهارجانبه */
     return ['view', 'create', 'edit', 'delete'];
 }
 
@@ -86,7 +109,11 @@ function permsPageTitle(page) {
     var i;
     for (i = 0; i < PERM_DATA_PAGES.length; i++) if (PERM_DATA_PAGES[i][0] === page) return PERM_DATA_PAGES[i][1];
     for (i = 0; i < PERM_REPORT_PAGES.length; i++) if (PERM_REPORT_PAGES[i][0] === page) return PERM_REPORT_PAGES[i][1];
-    if (page === 'users') return '👤 معرفی کاربران';
+    if (page === 'users') return '👤 معرفی کاربر';
+    /* ✅ v2.4.0 — صفحات امنیت */
+    if (page === 'sec-groups') return '👥 گروه کاربران';
+    if (page === 'sec-perms')  return '🔐 حقوق دسترسی';
+    if (page === 'sec-limits') return '🚫 محدودیت حقوق دسترسی';
     return page;
 }
 
@@ -122,9 +149,55 @@ function permsIsAdmin() {
     return !!(u && u.isAdmin === true);
 }
 
-/* تنظیمات دسترسی کاربر فعلی (خالی = همه‌چیز باز) */
+/* ============================================================
+   ✅ v2.4.0 — دسترسی مؤثر = گروه + کاربر
+   کاربر می‌تواند عضو یک «گروه کاربران» باشد؛ اول تنظیمِ گروه اعمال می‌شود،
+   بعد هر مقداری که خودِ کاربر صریحاً ذخیره کرده روی آن سوار می‌شود.
+   خروجی: { pages:{page:{action:true|false}}, rules:[...], limits:{...} }
+   ============================================================ */
+function _permsMergeEff(groupPerms, userPerms) {
+    var out = { pages: {}, rules: [], limits: {} };
+    var gp = (groupPerms && typeof groupPerms === 'object' && groupPerms.pages) ? groupPerms.pages : {};
+    var up = (userPerms && typeof userPerms === 'object' && userPerms.pages) ? userPerms.pages : {};
+    var ids = {}, k;
+    for (k in gp) ids[k] = 1;
+    for (k in up) ids[k] = 1;
+    Object.keys(ids).forEach(function (p) {
+        var rec = {}, g = gp[p] || {}, u2 = up[p] || {}, a;
+        for (a in g) rec[a] = g[a];
+        for (a in u2) if (u2[a] !== undefined) rec[a] = u2[a];
+        out.pages[p] = rec;
+    });
+    /* قواعد: قواعد گروه + قواعد کاربر */
+    if (groupPerms && Array.isArray(groupPerms.rules)) out.rules = out.rules.concat(groupPerms.rules);
+    if (userPerms && Array.isArray(userPerms.rules)) out.rules = out.rules.concat(userPerms.rules);
+    /* limits: از قواعد «فقط این‌ها» مشتق می‌شود (برای سازگاری فیلترها) */
+    out.rules.forEach(function (r) {
+        if (r && r.target === 'voucher' && r.mode === 'only' && Array.isArray(r.ids)) {
+            var arr = out.limits[r.kind] || (out.limits[r.kind] = []);
+            r.ids.forEach(function (idv) { if (arr.indexOf(idv) === -1) arr.push(idv); });
+        }
+    });
+    return out;
+}
+
+/* تنظیمات دسترسی مؤثر کاربر (خالی = همه‌چیز باز) */
 function permsOfUser(u) {
-    return (u && u.perms && typeof u.perms === 'object') ? u.perms : null;
+    var up = (u && u.perms && typeof u.perms === 'object') ? u.perms : null;
+    /* ✅ v2.4.0 — عضویت گروه کاربری */
+    var grp = null;
+    if (u && u.groupId) {
+        try {
+            grp = (DB.load('userGroups', []) || []).filter(function (g) {
+                return g && g.id === u.groupId;
+            })[0] || null;
+        } catch (e) { grp = null; }
+    }
+    var gp = (grp && grp.perms && typeof grp.perms === 'object') ? grp.perms : null;
+    if (!gp && !up) return null;
+    /* ✅ v2.4.0 — همیشه از ادغام می‌گذرد تا limits از قواعد «فقط» مشتق شود
+       (کاربرِ فقط-گروهی یا فقط-کاربری هم به فیلترها محدودیت می‌دهد) */
+    return _permsMergeEff(gp, up);
 }
 
 /* آیا صفحه برای کاربر فعلی قابل دیدن است؟ */
@@ -500,12 +573,14 @@ window.permsVoucherDetailIds = _voucherDetailIds;
 window.permsApplyNavVisibility = permsApplyNavVisibility;
 window.permsRouterGuard = permsRouterGuard;
 window.permsInit = permsInit;
+window.PERMS_MERGE = _permsMergeEff; /* ✅ v2.4.0 — ادغام گروه/کاربر برای فرم امنیت */
 window.PERMS_REGISTRY = {
     actions: PERM_ACTIONS,
     dataPages: PERM_DATA_PAGES,
     reportPages: PERM_REPORT_PAGES,
     adminPages: PERM_ADMIN_PAGES,
     limitKinds: PERM_LIMIT_KINDS,
+    treeCategories: PERM_TREE_CATEGORIES, /* ✅ v2.4.0 */
     linkTypes: (typeof LINK_TYPES !== 'undefined') ? LINK_TYPES : ['person', 'company', 'bank', 'cashbox', 'project', 'facility'],
     pageActions: permsPageActions,
     pageTitle: permsPageTitle
@@ -518,4 +593,4 @@ if (document.readyState === 'loading') {
     setTimeout(permsInit, 400);
 }
 
-console.log('✅ [core/permissions.js] loaded — v2.3.0');
+console.log('✅ [core/permissions.js] loaded — v2.4.0 (امنیت + گروه کاربران)');

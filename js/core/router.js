@@ -40,14 +40,23 @@ function goToPage(name) {
 function runPageRenderer(name) {
     var dispatch = {
         'chart-define':         function () { if (typeof renderChartTree === 'function') renderChartTree('chart-tree', true); },
-        'fiscal':               function () { if (typeof renderFiscalList === 'function') renderFiscalList(); },
-        'persons':              function () { if (typeof renderPersonsList === 'function') renderPersonsList(); },
-        'companies':            function () { if (typeof renderCompaniesList === 'function') renderCompaniesList(); },
-        'bank-accounts':        function () { if (typeof renderBankAccountsList === 'function') renderBankAccountsList(); if (typeof refreshBankTypeSelect === 'function') refreshBankTypeSelect(); },
-        'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); },
-        'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); },
+        'fiscal':               function () { if (typeof renderFiscalList === 'function') renderFiscalList(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('fiscalPeriods', '#fiscal-id', '#hist-fiscal'); },
+        'persons':              function () { if (typeof renderPersonsList === 'function') renderPersonsList(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('persons', '#pr-id', '#hist-persons'); },
+        'companies':            function () { if (typeof renderCompaniesList === 'function') renderCompaniesList(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('companies', '#co-id', '#hist-comp'); },
+        'bank-accounts':        function () { if (typeof renderBankAccountsList === 'function') renderBankAccountsList(); if (typeof refreshBankTypeSelect === 'function') refreshBankTypeSelect(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('bankAccounts', '#ba-id', '#hist-ba'); },
+        'cash-boxes':           function () { if (typeof renderCashBoxesList === 'function') renderCashBoxesList(); if (typeof refreshCashTypeSelect === 'function') refreshCashTypeSelect(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('cashBoxes', '#cb-id', '#hist-cb'); },
+        'projects':             function () { if (typeof renderProjectsList === 'function') renderProjectsList(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('projects', '#pj-id', '#hist-proj'); },
         'phonebook':            function () { if (typeof initPhonebookPage === 'function') initPhonebookPage(); },
         'users':                function () { if (typeof initUsersPage === 'function') initUsersPage(); },
+        /* ✅ v2.4.0 — بخش امنیت + ماژول‌های جدید */
+        'sec-groups':           function () { if (typeof initSecGroupsPage === 'function') initSecGroupsPage(); },
+        'sec-perms':            function () { if (typeof initSecPermsPage === 'function') initSecPermsPage(); },
+        'sec-limits':           function () { if (typeof initSecLimitsPage === 'function') initSecLimitsPage(); },
+        'treasury':             function () { if (typeof initTreasuryPage === 'function') initTreasuryPage(); },
+        'assets':               function () { if (typeof initAssetsPage === 'function') initAssetsPage(); },
+        'inventory-items':      function () { if (typeof initInvItemsPage === 'function') initInvItemsPage(); },
+        'inventory-moves':      function () { if (typeof initInvMovesPage === 'function') initInvMovesPage(); },
+        'sales':                function () { if (typeof initSalesPage === 'function') initSalesPage(); },
         'bank-types':           function () {
             if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         },
@@ -56,13 +65,14 @@ function runPageRenderer(name) {
         },
         'estimate-daily':       function () { if (typeof refreshEstPeriodSelect === 'function') refreshEstPeriodSelect(); if (typeof renderEstimateList === 'function') renderEstimateList(); },
         'cashflow-sources':     function () { if (typeof refreshCfsMoeinSelect === 'function') refreshCfsMoeinSelect(); if (typeof renderCfsList === 'function') renderCfsList(); },
-        'facilities':           function () { if (typeof renderFacilitiesList === 'function') renderFacilitiesList(); if (typeof refreshFacBankSelect === 'function') refreshFacBankSelect(); },
+        'facilities':           function () { if (typeof renderFacilitiesList === 'function') renderFacilitiesList(); if (typeof refreshFacBankSelect === 'function') refreshFacBankSelect(); if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('facilities', '#fc-id', '#hist-fac'); },
         'voucher-list':         function () {
             if (typeof updateTopbarPeriod === 'function') updateTopbarPeriod();
             if (typeof renderVoucherList === 'function') renderVoucherList();
         },
         'voucher-new':          function () {
             if (typeof refreshTemplateSelect === 'function') refreshTemplateSelect();
+            if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('vouchers', '#v-id', '#hist-vouchers'); /* ✅ v2.4.0 */
             if (typeof voucherLines !== 'undefined' && Array.isArray(voucherLines) && voucherLines.length === 0) {
                 if (typeof newVoucherForm === 'function') newVoucherForm();
             } else if (typeof renderVoucherLines === 'function') {
@@ -74,6 +84,7 @@ function runPageRenderer(name) {
             if (typeof renderTemplateLines === 'function') renderTemplateLines();
             if (typeof renderStdDescChips === 'function') renderStdDescChips();
             if (typeof refreshStdDescDatalist === 'function') refreshStdDescDatalist();
+            if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('voucherTemplates', '#tpl-id', '#hist-tpl');
         },
         'notes':                function () { if (typeof renderNotesList === 'function') renderNotesList(); },
         'sms':                  function () {
@@ -272,6 +283,13 @@ function rerenderCurrentPage() {
         'report-compare':       'runComparisonReport',
         'notes':                'renderNotesList',
         'users':                'renderUsersList',
+        /* ✅ v2.4.0 — ماژول‌های جدید */
+        'sec-groups':           'renderSecGroupsList',
+        'treasury':             'renderTreasuryList',
+        'assets':               'renderAssetsList',
+        'inventory-items':      'renderInvItemsList',
+        'inventory-moves':      'renderInvMovesList',
+        'sales':                'renderSalesList',
         'dashboard':            'renderDashboard',
         'home':                 'updateHomeWidgets'
     };
@@ -286,4 +304,4 @@ window.getActiveFiscalYearStart = getActiveFiscalYearStart;
 window.updateTopbarPeriod     = updateTopbarPeriod;
 window.rerenderCurrentPage    = rerenderCurrentPage;
 
-console.log('✅ [core/router.js] loaded — v7 (ledger report added)');
+console.log('✅ [core/router.js] loaded — v2.4.0 (امنیت + خزانه + اموال + انبار + فروش)');
