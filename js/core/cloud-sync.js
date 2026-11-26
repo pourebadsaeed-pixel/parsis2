@@ -1,5 +1,5 @@
 /* ============================================================
-   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.3.5)
+   پارسیس — همگام‌سازی ابری دوطرفه و رایگان (✅ v2.6.0)
    مسیر: js/core/cloud-sync.js
 
    معماری:
@@ -42,8 +42,22 @@
      ۴) وقتی ارتباط برگشت، پیامِ «✅ برقرار شد» می‌آید تا کاربر مطمئن شود سینک
         دوباره فعال است.
 
+   ✅ v2.6.0 — ریشهٔ «اپ فقط روی اینترنتِ من باز می‌شود، روی اینترنت دوستم نه»:
+     ۱) علت واقعی، باگِ اپ نیست: دامنهٔ workers.dev روی بعضی اپراتورهای ایران فیلتر
+        است؛ مرورگرِ روی آن اپراتور اصلاً صفحه را از رله نمی‌گیرد (و با هات‌اسپات
+        اینترنتِ صاحب اپ، باز می‌شود چون از مسیر اپراتورِ باز می‌رود). راه‌حل پایدار:
+        دامنهٔ شخصی روی همان ورکر (راهنمای گام‌به‌گام داخل تنظیمات ← ☁️) — هر دو
+        دامنه به یک ورکر و یک پایگاه داده وصل‌اند؛ هیچ داده‌ای عوض نمی‌شود.
+     ۲) لینک دوستان دیگر با بستن مرورگر فراموش نمی‌شود: فضا و کد دسترسی حالا
+        پایدار (localStorage) ذخیره می‌شود؛ دوست می‌تواند دفعه بعد آدرس ساده یا
+        آیکون اپ را باز کند و باز هم سینک می‌شود (قبلاً «لینک ناقص» می‌آمد).
+     ۳) پیام علتِ دقیق: اگر مسیر ابر باز نشود، اپ می‌گوید اینترنت خاموش است یا
+        مسیر روی این اپراتور فیلتر است — دیگر حدس زدن لازم نیست.
+     ۴) دکمهٔ «🩺 آزمون مسیر ابر» در تنظیمات ← ☁️: تشخیص خودکارِ وضعیت اتصال.
+
    آدرس برای دوستان:
      https://نام-ورکر.sub.workers.dev/?space=XXXX&key=YYYY
+     (یا دامنهٔ شخصی: https://app.دامنهٔ‌شما/?space=XXXX&key=YYYY)
    ============================================================ */
 'use strict';
 
@@ -1101,16 +1115,53 @@
             .catch(function () { return false; });
     }
 
+    /* ✅ v2.6.0 — فضا و کد دسترسیِ مرورگرِ دوست، «پایدار» ذخیره می‌شود (localStorage)
+       نه جلسه‌ای (sessionStorage). قبلاً با بستن تب/مرورگر، همه‌چیز فراموش می‌شد و
+       دفعهٔ بعدی که دوست آدرس ساده یا آیکون اپ را باز می‌کرد، «لینک ناقص» می‌آمد
+       و سینک قطع می‌شد. حالا روی همان دستگاه یاد می‌ماند؛ بازکردنِ لینک جدید،
+       مقدارِ ذخیره‌شده را به‌روز می‌کند (بدون هیچ دخالتی در داده‌ها). */
+    var _LS_PARAMS = 'parsis.cloudParams';
+
+    function _loadParams() {
+        try {
+            var p = JSON.parse(localStorage.getItem(_LS_PARAMS) || '{}');
+            return (p && typeof p === 'object') ? p : {};
+        } catch (e) { return {}; }
+    }
+
+    function _saveParams(space, key) {
+        try {
+            var p = _loadParams();
+            if (typeof space === 'string' && space) p.space = space;
+            if (typeof key === 'string' && key) p.key = key;
+            localStorage.setItem(_LS_PARAMS, JSON.stringify(p));
+        } catch (e) {}
+    }
+
+    /* ✅ v2.6.0 — خروج این مرورگر از فضای ابری (دکمه در تنظیمات):
+       فقط حافظهٔ همین مرورگر پاک می‌شود؛ دادهٔ رله و دستگاه صاحب اپ دست‌نخورده می‌ماند */
+    function _forgetParams() {
+        try { localStorage.removeItem(_LS_PARAMS); } catch (e1) {}
+        try { sessionStorage.removeItem('parsis.cloudSpace'); } catch (e2) {}
+        try { sessionStorage.removeItem('parsis.cloudKey'); } catch (e3) {}
+    }
+
     function _getUrlParams() {
         try {
+            var saved = _loadParams();
+            /* مهاجرت از نسخهٔ قدیمی (sessionStorage) — یک‌بارهای اول کار می‌کند */
+            try {
+                var oSp = sessionStorage.getItem('parsis.cloudSpace');
+                var oKy = sessionStorage.getItem('parsis.cloudKey');
+                if (oSp && !saved.space) saved.space = oSp;
+                if (oKy && !saved.key) saved.key = oKy;
+            } catch (eSS) {}
             var sp = (location.search || '').match(/[?&]space=([^&]+)/);
             var ky = (location.search || '').match(/[?&]key=([^&]+)/);
-            if (sp) sessionStorage.setItem('parsis.cloudSpace', decodeURIComponent(sp[1]));
-            if (ky) sessionStorage.setItem('parsis.cloudKey', decodeURIComponent(ky[1]));
-            return {
-                space: sessionStorage.getItem('parsis.cloudSpace') || '',
-                key: sessionStorage.getItem('parsis.cloudKey') || ''
-            };
+            if (sp) saved.space = decodeURIComponent(sp[1]);
+            if (ky) saved.key = decodeURIComponent(ky[1]);
+            if (sp || ky) _saveParams(saved.space, saved.key);
+            return { space: String(saved.space || ''), key: String(saved.key || '') };
         } catch (e) { return { space: '', key: '' }; }
     }
 
@@ -1118,12 +1169,14 @@
         var p = _getUrlParams();
         var space = p.space, key = p.key;
         if (!space) {
-            try { alert('⚠️ لینک ناقص است؛ پارامتر space در آدرس نیست. آدرس کامل را از صاحب نرم‌افزار بگیرید.'); } catch (e) {}
+            try { alert('⚠️ لینک ناقص است؛ «فضای کاری» در آدرس نیست.\n\nلینک کامل را از صاحب نرم‌افزار بگیرید (لینکی که با ?space=...&key=... تمام می‌شود) و در همین مرورگر باز کنید.'); } catch (e) {}
             _readyResolve(true);
             return;
         }
         if (!key) {
             try { key = window.prompt('🔑 کد دسترسی همگام‌سازی ابری را وارد کنید:', '') || ''; } catch (e) { key = ''; }
+            /* ✅ v2.6.0 — کدی که دوست یک‌بار درست وارد کرد، دیگر هر بار پرسیده نمی‌شود */
+            if (key) _saveParams(space, key);
         }
         if (!key) { _readyResolve(true); return; }
 
@@ -1151,10 +1204,27 @@
                 try { showToast('☁️ متصل به پایگاه دادهٔ کلادفلر — همه دستگاه‌ها با یک دیتا کار می‌کنند'); } catch (e) {}
             })
             .catch(function (err) {
-                var t = (_friendlyErr(err) === 'BAD_KEY')
-                    ? '⛔ اتصال ابری ناموفق: این فضا با کد دسترسی دیگری ثبت شده — کد دسترسی درست را از صاحب لینک بگیرید.'
-                    : '⛔ اتصال ابری ناموفق: ' + ((err && err.message) || err);
-                try { showToast(t); } catch (e2) {}
+                /* ✅ v2.6.0 — پیام «علتِ دقیق» به‌جای متن خام خطا: اگر مسیر ابر باز نشد،
+                   قبل از پیام، وضعیت واقعیِ اینترنت آزموده می‌شود (خاموش / فیلترِ
+                   اپراتور / خطای گذرا) تا کاربر بداند مشکل از اپ نیست. */
+                if (_friendlyErr(err) === 'BAD_KEY') {
+                    try { showToast('⛔ اتصال ابری ناموفق: این فضا با کد دسترسی دیگری ثبت شده — کد دسترسی درست را از صاحب لینک بگیرید.'); } catch (e2) {}
+                    return;
+                }
+                _connProbe().then(function (st) {
+                    var msg = st === 'OFFLINE'
+                        ? '📶 اینترنت این دستگاه وصل نیست — اپ با آخرین داده‌های ذخیره‌شده باز می‌شود و به‌محض وصل‌شدن، خودکار سینک می‌شود'
+                        : st === 'RELAY_BLOCKED'
+                        ? '🌐 اینترنت وصل است ولی مسیر این دامنهٔ ابری روی همین اپراتور باز نمی‌شود (فیلترینگ/اختلال) — مشکل از اپ نیست؛ اینترنتِ دیگر (وای‌فای/اپراتور دیگر) را امتحان کنید. راه‌حل همیشگی: دامنهٔ شخصی برای رله (تنظیمات ← ☁️ ← راهنما). داده‌ها محفوظ است'
+                        : '⛔ اتصال ابری ناموفق: ' + ((err && err.message) || err);
+                    try { showToast(msg, 8000); } catch (e2) {}
+                    try { _setStatus('<span style="color:#b91c1c">' + msg + '</span>'); } catch (e3) {}
+                }).catch(function () {});
+                /* ✅ v2.6.0 — حتی وقتی همین الان مسیر باز نیست، موتور سینک روشن می‌ماند
+                   تا بازشدن مسیر (رفتن به وای‌فای/اپراتور دیگر) خودکار دیده شود و
+                   داده‌ها تازه شوند؛ قبلاً بعد از اولین شکست، تا رفرشِ دستیِ صفحه
+                   هیچ تلاشی برای وصل‌شدن دوباره انجام نمی‌شد. */
+                try { _startPolling(); } catch (eP2) {}
             })
             .then(function () { _readyResolve(true); });
     }
@@ -1724,6 +1794,95 @@
                 _runWizardFlow();
             };
         }
+
+        /* ✅ v2.6.0 — دکمهٔ «🩺 آزمون مسیر ابر» — تشخیص خودکار علت وصل‌نشدن */
+        _bindBtn('set-cloud-diag', function () { _diagRun(); });
+
+        /* ✅ v2.6.0 — خروج این مرورگر از فضای ابری (مکملِ ذخیرهٔ پایدار فضا/کد) */
+        _bindBtn('set-cloud-forget', function () {
+            if (!window.confirm('🔌 این مرورگر از فضای ابری خارج شود؟\n\n• داده‌های روی رله و گوشیِ صاحب اپ دست‌نخورده می‌ماند.\n• این مرورگر دیگر خودکار وصل نمی‌شود تا دوباره لینک را باز کنید.')) return;
+            _forgetParams();
+            try { showToast('🔌 این مرورگر از فضای ابری خارج شد — برای برگشتن، لینک کامل را دوباره باز کنید'); } catch (eF) {}
+        });
+    }
+
+    /* ✅ v2.6.0 — اتصالِ امنِ دکمه (بدون دوبار بستن) */
+    function _bindBtn(id, fn) {
+        try {
+            var b = document.getElementById(id);
+            if (b && !b.dataset.bound) { b.dataset.bound = '1'; b.onclick = fn; }
+        } catch (e) {}
+    }
+
+    /* ✅ v2.6.0 — در حالت مرورگرِ دوست (relay-client) فقط ابزارهای خودِ او وصل می‌شود:
+       «آزمون مسیر ابر» و «خروج این مرورگر» — دکمه‌های مالک (انتشار و فعال‌سازی) در
+       مرورگرِ دوست معنا ندارد و وصل نمی‌شود. */
+    function _wireClientTools() {
+        _bindBtn('set-cloud-diag', function () { _diagRun(); });
+        _bindBtn('set-cloud-forget', function () {
+            if (!window.confirm('🔌 این مرورگر از فضای ابری خارج شود؟\n\n• داده‌های روی رله و گوشیِ صاحب اپ دست‌نخورده می‌ماند.\n• این مرورگر دیگر خودکار وصل نمی‌شود تا دوباره لینک را باز کنید.')) return;
+            _forgetParams();
+            try { showToast('🔌 این مرورگر از فضای ابری خارج شد — برای برگشتن، لینک کامل را دوباره باز کنید'); } catch (eF) {}
+        });
+    }
+
+    /* ============================================================
+       ✅ v2.6.0 — آزمون مسیر ابر: «چرا وصل نمی‌شود؟»
+       به‌جای حدس‌زدن، همین دکمه می‌گوید:
+         • اینترنت دستگاه خاموش است، یا
+         • اینترنت وصل است ولی مسیر دامنهٔ رله روی این اپراتور فیلتر/مختل است
+           (راه‌حل: اینترنت دیگر یا دامنهٔ شخصی برای ورکر — راهنما داخل همین صفحه)، یا
+         • مسیر باز است و سرور سالم است (+ نسخهٔ اپ روی رله)
+       روی هر دو حالت کار می‌کند: مرورگرِ بازشده از خود رله و اپ اصلی (peer).
+       ============================================================ */
+    function _diagRun() {
+        var st = null;
+        try { st = document.getElementById('set-cloud-status'); } catch (e0) {}
+        var put = function (html) { try { if (st) st.innerHTML = html; } catch (eP) {} };
+        var fa = function (x) { try { return (typeof toFa === 'function') ? toFa(x) : x; } catch (eT) { return x; } };
+
+        var base = '';
+        if (MODE === 'relay-client') {
+            base = ''; /* همان مرجع اپ (relay-client) */
+        } else {
+            var c = _cfg();
+            base = _normUrl(c.url);
+            if (!base) {
+                put('<span style="color:#b45309">⚠️ آدرس رله هنوز وارد نشده — بالای همین بخش (تنظیمات دستی ← «آدرس رله») پر کنید</span>');
+                return;
+            }
+        }
+        put('<span style="color:#475569">🩺 در حال آزمون مسیر ابر…</span>');
+
+        try { if (navigator.onLine === false) { put('<span style="color:#b91c1c">📶 اینترنت این دستگاه خاموش است (وای‌فای/دادهٔ همراه) — روشنش کنید و دوباره آزمون بگیرید</span>'); return; } } catch (eOL) {}
+
+        var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+        var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (eA) {} }, 8000) : null;
+        fetch(base + '/api/ping', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+            .then(function (r) { return r.ok ? r.json() : { __http: r.status }; })
+            .then(function (j) {
+                if (tm) clearTimeout(tm);
+                if (j && j.ok && j.db) {
+                    put('<span style="color:#059669">✅ مسیر ابر باز است و سرور سالم است'
+                        + (j.appVer ? ' — نسخهٔ اپ روی رله: ' + fa(j.appVer) : '')
+                        + (MODE === 'relay-client' ? ' — این مرورگر همگام‌سازی فعال دارد' : '')
+                        + '</span>');
+                    return;
+                }
+                if (j && j.__http) {
+                    put('<span style="color:#b91c1c">⚠️ سرور جواب داد ولی خطای HTTP ' + fa(j.__http) + ' داد — چند لحظه بعد دوباره آزمون بگیرید؛ اگر ادامه داشت، اپ روی رله را دوباره منتشر کنید</span>');
+                    return;
+                }
+                if (j && j.ok && j.db === false) {
+                    put('<span style="color:#b91c1c">⚠️ رله می‌جوابد ولی پایگاه داده (D1) وصل نیست — در تنظیمات ورکر، Binding با نام DB را چک کنید</span>');
+                    return;
+                }
+                put('<span style="color:#b91c1c">⚠️ پاسخ نامعتبر از سرور — دوباره آزمون بگیرید</span>');
+            })
+            .catch(function () {
+                if (tm) clearTimeout(tm);
+                put('<span style="color:#b91c1c">🌐 اینترنت وصل است ولی مسیر این دامنهٔ ابری روی همین اپراتور باز نمی‌شود (فیلترینگ/اختلال) — مشکل از اپ نیست.<br>راه‌حل‌ها: ۱) وای‌فای/اپراتور دیگر ۲) راه‌حل همیشگی: دامنهٔ شخصی برای ورکر (راهنمای «🌍 چرا روی اینترنتِ بعضی‌ها باز می‌شود؟» همین بخش)</span>');
+            });
     }
 
     /* ============================================================
@@ -1745,8 +1904,26 @@
         _detectRelay().then(function (isRelay) {
             if (isRelay) {
                 _startRelayClient();
+                /* ✅ v2.6.0 — ابزارهای خودِ مرورگرِ دوست: آزمون مسیر + خروج از ابر */
+                setTimeout(_wireClientTools, 800);
                 return;
             }
+            /* ✅ v2.6.0 — صفحه از کشِ سرویس‌ورکر باز شده ولی همین الان مسیرِ رله باز نیست
+               (مثلاً اپراتورِ اینترنت دامنه را فیلتر کرده) و فضا/کدِ این مرورگر ذخیره
+               شده → باز هم حالتِ کلاینتِ رله شروع می‌شود: اپ با آخرین داده‌های محلی باز
+               می‌شود، علتِ قطعی با پیام دقیق گفته می‌شود و به‌محض بازشدن مسیر (وای‌فای/
+               اپراتور دیگر) سینک خودکار برمی‌گردد. قبلاً: حالتِ «خاموش» می‌شد و تا
+               رفرشِ دستی، دیگر هرگز تلاش نمی‌کرد. */
+            try {
+                if (location.protocol === 'https:') {
+                    var p0 = _getUrlParams();
+                    if (p0.space && p0.key) {
+                        _startRelayClient();
+                        setTimeout(_wireClientTools, 800);
+                        return;
+                    }
+                }
+            } catch (eRC) {}
             /* مرورگر معمولی (کپی محلی) — اگر سینک فعال باشد، موتور peer روشن شود */
             var cfg = _cfg();
             if (cfg.enabled && cfg.url && cfg.space && cfg.key) {
@@ -1767,6 +1944,6 @@
         pollNow: _pollOnce
     };
 
-    console.log('✅ [core/cloud-sync.js] loaded — v2.3.7');
+    console.log('✅ [core/cloud-sync.js] loaded — v2.6.0');
 
 })();

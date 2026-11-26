@@ -5,7 +5,7 @@
 'use strict';
 
 var APP_NAME    = 'پارسیس';
-var APP_VERSION = '2.5.0';
+var APP_VERSION = '2.6.0';
 
 var JALALI_MONTHS = [
     'فروردین', 'اردیبهشت', 'خرداد',
