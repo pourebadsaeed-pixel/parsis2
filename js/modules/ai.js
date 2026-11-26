@@ -360,6 +360,24 @@ var AI = {
     _contextCache: null
 };
 
+/* ✅ v2.3.9 — پشتیبانِ محلیِ کلید API: localStorage سینک نمی‌شود و با پاک‌شدن
+   دادهٔ اپ هم می‌ماند. اگر همگام‌سازی یا یک پاک‌سازیِ اتفاقی، کلید را از بین
+   ببرد، از همین پشتیبان خودکار برمی‌گردد — «دستیار ناگهان کلید ندارد» دیگر رخ نمی‌دهد */
+(function aiKeyBak() {
+    try {
+        if (!AI.apiKey) {
+            var bak = localStorage.getItem(LS_PREFIX + 'ai.keyBak');
+            if (bak) {
+                AI.apiKey = bak;
+                try { DB.save('ai.apiKey', bak); } catch (e1) {}
+                console.log('🔑 [ai.js] کلید API از پشتیبانِ محلی بازیابی شد');
+            }
+        } else {
+            localStorage.setItem(LS_PREFIX + 'ai.keyBak', AI.apiKey);
+        }
+    } catch (e0) {}
+})();
+
 var AI_PENDING_IMAGE = null;
 var AI_VOICE_ACTIVE = false;
 var AI_REC = null;
@@ -370,6 +388,8 @@ function aiSaveSettings() {
     DB.save('ai.model', AI.model);
     DB.save('ai.autoFallback', AI.autoFallback);
     DB.save('ai.failedModels', AI.failedModels);
+    /* ✅ v2.3.9 — پشتیبانِ محلیِ کلید فقط وقتی کلیدِ واقعی وجود دارد به‌روز می‌شود */
+    try { if (AI.apiKey) localStorage.setItem(LS_PREFIX + 'ai.keyBak', AI.apiKey); } catch (eB) {}
 }
 
 /* ============================================================
@@ -693,7 +713,11 @@ async function aiAvalaiTTSFetch(text) {
     });
     if (!res.ok) {
         var t = await res.text();
-        throw new Error('AvalAI TTS ' + res.status + ': ' + t.substring(0, 200));
+        /* ✅ v2.4.1 — خطای TTS هم فارسی و قابل‌فهم می‌شود، نه JSON خام */
+        var te = new Error('AvalAI TTS ' + res.status + ': ' + t.substring(0, 200));
+        te.status = res.status;
+        te.persian = _aiHttpErrorFa(res.status, t) + ' (خواندنِ با صدا)';
+        throw te;
     }
     var blob = await res.blob();
     return URL.createObjectURL(blob);
@@ -740,7 +764,7 @@ async function aiSpeakAvalai(text) {
             AI_TTS.lastError = e.message;
             console.error('AvalAI TTS error:', e);
             if (i === 0 && !playedAny) {
-                showToast('⚠️ خطای TTS: ' + (e.message || '').substring(0, 80));
+                showToast('⚠️ خطای صدا: ' + ((e.persian || e.message || '') + '').substring(0, 90));
                 break;
             }
         }
@@ -1485,7 +1509,73 @@ function renderAIMarkdown(text) {
 /* ============================================================
    بخش ۱۴ — API Calls
    ============================================================ */
-async function _aiDoFetch(modelId, userMessage, includeTools, imageData) {
+/* ============================================================
+   ✅ v2.3.9 — ترجمهٔ خطاهای سرویس AI به فارسیِ قابل‌فهم:
+   کاربر دیگر کد خام (401/402/...) نمی‌بیند؛ علتِ واقعی و کارِ لازم را می‌خواند
+   ============================================================ */
+function _aiHttpErrorFa(status, body) {
+    body = String(body || '');
+    /* ✅ v2.4.1 — پیامِ 401 مستقیماً «کارِ لازم» را می‌گوید: کلید تازه از ava.al/keys */
+    if (status === 401) return 'کلید API نزد این سرویس معتبر نیست — کلیدِ تازه از ava.al/keys بگیر و در ⚙ تنظیمات دستیار جای‌گذاری کن';
+    if (status === 402 || /insufficient|credit|balance|quota/i.test(body)) return 'اعتبار سرویس AI تمام شده — در avalai.ir حساب را شارژ کنید';
+    if (status === 403) return 'دسترسی به این مدل/سرویس مجاز نیست — مدل دیگری انتخاب کنید';
+    if (status === 404) return 'این مدل روی سرویس پیدا نشد — مدل دیگری انتخاب کنید';
+    if (status === 429) return 'تعداد درخواست‌ها زیاد است (محدودیت سرویس) — چند دقیقه بعد تلاش کنید';
+    if (status >= 500) return 'سرویس AI موقتاً از درونِ خودش خراب است — چند دقیقه بعد تلاش کنید';
+    return 'خطای سرویس AI (کد ' + (typeof toFa === 'function' ? toFa(status) : status) + ')';
+}
+
+/* ✅ v2.3.9 — انقضای «مدل ناموفق»: نشانه‌گذاری فقط ۱۰ دقیقه اعتبار دارد؛
+   بعد از آن همان مدل دوباره در حلقهٔ جایگزین شرکت می‌کند */
+function _failedRecently(m) {
+    var v = AI.failedModels[m];
+    if (!v) return false;
+    if (typeof v === 'number') {
+        if (Date.now() - v > 600000) { delete AI.failedModels[m]; return false; }
+        return true;
+    }
+    return true; /* مقدار قدیمیِ boolean — تا ریستِ بعدی معتبر است */
+}
+
+/* ============================================================
+   ✅ v2.4.1 — شناختِ «کلید اشتباه» از متنِ خطا
+   بعضی سرویس‌ها 401 را با بدنهٔ متفاوت می‌دهند؛ متنِ فارسیِ ترجمه‌شده هم چک می‌شود
+   ============================================================ */
+function _aiIsBadKeyBody(status, body) {
+    body = String(body || '');
+    return status === 401
+        || /Incorrect API key provided/i.test(body)
+        || /invalid[ _-]?api[ _-]?key/i.test(body)
+        || body.indexOf('کلید API نزد این سرویس معتبر نیست') !== -1;
+}
+
+/* ✅ v2.4.1 — کارتِ راهنمای گام‌به‌گامِ رفعِ کلید، با دو دکمهٔ عملی:
+   «دریافت کلید جدید» (ava.al/keys) و «تنظیمات دستیار» (بازکردن مستقیم ⚙) */
+function _aiErrorFixCardHtml() {
+    return '<div style="margin-top:8px;padding:10px;border-radius:8px;background:rgba(255,255,255,.92);'
+        + 'border:1px solid rgba(0,0,0,.12);color:#1f2937;font-size:0.78rem;line-height:2">'
+        + '<b>🔑 کلید API را این‌طوری درست کن:</b><br>'
+        + '۱) در مرورگر، با حساب avalai.ir برو به <a href="https://ava.al/keys" target="_blank" rel="noopener" dir="ltr" style="color:#2563eb">ava.al/keys</a><br>'
+        + '۲) یک کلید جدید بساز و کامل کپی کن (کلید قبلی باطل شده یا ناقص کپی شده)<br>'
+        + '۳) در پارسیس: دستیار ← ⚙ تنظیمات ← کلید را جای‌گذاری کن ← «ذخیره» — اپ خودش کلید را تست می‌کند'
+        + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+        + '<a href="https://ava.al/keys" target="_blank" rel="noopener" class="btn-secondary btn-mini" style="text-decoration:none">🔑 دریافت کلید جدید</a>'
+        + '<button type="button" class="btn-secondary btn-mini" onclick="aiOpenSettings()">⚙ تنظیمات دستیار</button>'
+        + '</div>'
+        + '<div style="font-size:0.68rem;opacity:.75;margin-top:6px">اگر بعد از گذاشتن کلیدِ تازه باز همین خطا آمد، نسخهٔ اپ قدیمی است: اپ را کامل ببند و دوباره باز کن (در مرورگر: Ctrl+Shift+R).</div>'
+        + '</div>';
+}
+
+/* ✅ v2.3.9 — نمایشِ زندهٔ پیشرفت داخل حبابِ «در حال فکر کردن»:
+   کاربر می‌بیند اپ دارد با کدام مدل تلاش می‌کند — دیگر صفحه مُرد به نظر نمی‌رسد */
+function aiSetThinking(txt) {
+    try {
+        var el = document.querySelector('.ai-msg.thinking');
+        if (el) el.innerHTML = txt;
+    } catch (e) {}
+}
+
+async function _aiDoFetch(modelId, userMessage, includeTools, imageData, timeoutMs) {
     if (!AI._contextCache) AI._contextCache = aiBuildSystemPrompt();
     var sys = AI._contextCache;
 
@@ -1550,9 +1640,10 @@ async function _aiDoFetch(modelId, userMessage, includeTools, imageData) {
     }
 
     var controller = new AbortController();
+    /* ✅ v2.3.9 — مهلتِ قابل‌تنظیم: ۶۰ ثانیه برای مدلِ اصلی، ۳۵ ثانیه در حلقهٔ جایگزین */
     var timer = setTimeout(function () {
         try { controller.abort(); } catch (e) {}
-    }, 60000);
+    }, timeoutMs || 60000);
 
     var res;
     try {
@@ -1562,6 +1653,16 @@ async function _aiDoFetch(modelId, userMessage, includeTools, imageData) {
             signal: controller.signal,
             body: JSON.stringify(bodyObj)
         });
+    } catch (fe) {
+        /* ✅ v2.3.9 — تایم‌اوت و قطعیِ شبکه دیگر پیامِ خام انگلیسی نمی‌دهند */
+        if (fe && fe.name === 'AbortError') {
+            var te = new Error('timeout');
+            te.persian = 'پاسخ مدل بیش از حد طول کشید (اینترنتِ کند یا شلوغیِ سرویس)';
+            throw te;
+        }
+        var ne = new Error((fe && fe.message) || 'Failed to fetch');
+        ne.persian = 'ارتباط با سرویس AI برقرار نشد — اینترنت یا مسیرِ دسترسی (فیلترینگ) را چک کنید';
+        throw ne;
     } finally {
         clearTimeout(timer);
     }
@@ -1570,6 +1671,7 @@ async function _aiDoFetch(modelId, userMessage, includeTools, imageData) {
         var t = await res.text();
         var e = new Error(res.status + ': ' + t.substring(0, 300));
         e.status = res.status;
+        e.persian = _aiHttpErrorFa(res.status, t);
         throw e;
     }
 
@@ -1585,12 +1687,12 @@ async function _aiDoFetch(modelId, userMessage, includeTools, imageData) {
     return { type: 'text', content: msg.content || '' };
 }
 
-async function aiCallOnce(modelId, userMessage, imageData) {
+async function aiCallOnce(modelId, userMessage, imageData, unused, timeoutMs) {
     try {
-        return await _aiDoFetch(modelId, userMessage, true, imageData);
+        return await _aiDoFetch(modelId, userMessage, true, imageData, timeoutMs);
     } catch (e) {
         if (e.status === 400 && /tool/i.test(String(e.message || ''))) {
-            return await _aiDoFetch(modelId, userMessage, false, imageData);
+            return await _aiDoFetch(modelId, userMessage, false, imageData, timeoutMs);
         }
         throw e;
     }
@@ -1614,16 +1716,24 @@ async function aiCallAPI(userMessage, imageData) {
     });
     if (candidates.indexOf('gpt-4o-mini') === -1) candidates.push('gpt-4o-mini');
 
+    /* ✅ v2.3.9 — سقفِ تلاش: حداکثر ۴ مدل به‌جای ۱۳ تا؛ بدترین حالت
+       ۶۰ + ۳×۳۵ ثانیه ≈ ۳ دقیقه است، با نمایشِ زندهٔ پیشرفت — نه ۱۳ دقیقهٔ ساکت */
+    candidates = candidates.slice(0, 4);
+
     if (!AI.autoFallback) {
         return await aiCallOnce(AI.model, userMessage, imageData);
     }
 
-    var errors = [];
+    var errors = [], persians = [];
     for (var i = 0; i < candidates.length; i++) {
         var m = candidates[i];
-        if (AI.failedModels[m]) continue;
+        /* ✅ v2.3.9 — مدل‌هایی که همین ۱۰ دقیقه شکست خورده‌اند دوباره تلاش نمی‌شوند */
+        if (_failedRecently(m)) continue;
+        aiSetThinking('⏳ در حال فکر کردن — تلاش با مدل «' + m + '» ('
+            + (typeof toFa === 'function' ? toFa(i + 1) : (i + 1)) + ' از '
+            + (typeof toFa === 'function' ? toFa(candidates.length) : candidates.length) + ')…');
         try {
-            var result = await aiCallOnce(m, userMessage, imageData);
+            var result = await aiCallOnce(m, userMessage, imageData, undefined, i === 0 ? 60000 : 35000);
             if (i > 0) {
                 showToast('⚠️ مدل ' + candidates[0] + ' پاسخ نداد → ' + m, 4000);
             }
@@ -1635,12 +1745,22 @@ async function aiCallAPI(userMessage, imageData) {
             return result;
         } catch (e) {
             errors.push(m + ': ' + (e.message || e));
-            AI.failedModels[m] = true;
+            persians.push('«' + m + '»: ' + (e.persian || (e.message || 'خطا')));
+            AI.failedModels[m] = Date.now(); /* ✅ v2.3.9 — مُهرِ زمان؛ ۱۰ دقیقه بعد دوباره تلاش می‌شود */
+            try { DB.save('ai.failedModels', AI.failedModels); } catch (eF) {}
             console.warn('AI model failed:', m, e);
         }
     }
 
-    throw new Error('همه مدل‌ها ناموفق بودند. آخرین خطا: ' + (errors[errors.length - 1] || 'نامشخص'));
+    /* ✅ v2.3.9 — اگر همهٔ نامزدها به‌خاطر شکست‌های اخیر رد شدند، دیگر «نامشخص» نمی‌گوییم */
+    if (!errors.length) {
+        throw new Error('همهٔ مدل‌ها به‌خاطر شکست‌های چند دقیقهٔ قبل رد شدند — دکمهٔ ↻ بالای چت را بزنید یا ۱۰ دقیقهٔ دیگر تلاش کنید؛ اینترنت و اعتبار سرویس را هم چک کنید');
+    }
+    var lastP = persians[persians.length - 1] || (errors[errors.length - 1] || 'نامشخص');
+    var outErr = new Error('همهٔ تلاش‌ها ناموفق بود — ' + lastP);
+    outErr.persian = 'هیچ‌کدام از مدل‌ها پاسخ ندادند — آخرین علت: ' + lastP
+        + ' | راهنما: دکمهٔ ↻ بالای چت، یا «تست اتصال و کلید» در تنظیمات ⚙';
+    throw outErr;
 }
 
 /* ============================================================
@@ -2296,6 +2416,12 @@ function aiRender() {
             content += '<img class="ai-msg-image" src="' + m.image.dataUrl + '" alt="">';
         }
 
+        /* ✅ v2.4.1 — حبابِ خطای «کلید اشتباه»: کارتِ گام‌به‌گام با دکمه‌های «دریافت کلید» و «تنظیمات» */
+        if (m.role === 'error' && m.badKey) {
+            html += '<div class="ai-msg error">' + esc(m.content) + _aiErrorFixCardHtml() + '</div>';
+            return;
+        }
+
         html += '<div class="ai-msg ' + cls + '">' + content;
 
         /* پیش‌نویس‌ها */
@@ -2480,7 +2606,10 @@ async function aiSend() {
             AI.history = AI.history.slice(-AI.MAX_HISTORY * 2);
         }
     } catch (e) {
-        AI.history.push({ role: 'error', content: '⚠️ ' + (e.message || 'خطا') });
+        /* ✅ v2.3.9 — پیامِ فارسیِ دقیق؛ کدِ خام دیگر به کاربر نشان داده نمی‌شود
+           ✅ v2.4.1 — اگر علت «کلید اشتباه» است، پرچمِ badKey می‌خورد تا کارتِ رفع نمایش داده شود */
+        var _msgAll = ((e.persian || '') + ' ' + (e.message || ''));
+        AI.history.push({ role: 'error', content: '⚠️ ' + (e.persian || e.message || 'خطا'), badKey: _aiIsBadKeyBody(e.status, _msgAll) });
     } finally {
         AI.isThinking = false;
         if (btn) btn.disabled = false;
@@ -2731,6 +2860,91 @@ async function _tryFetchCreditOnce(url, apiKey) {
     } catch (e) {
         console.warn('❌ [Credit] failed:', e.message);
         return null;
+    }
+}
+
+/* ============================================================
+   ✅ v2.3.9 — تست اتصال و کلید: کاربر در ۲۵ ثانیه می‌فهمد مشکل دقیقاً کجاست
+   (کلید نامعتبر؟ اعتبار؟ سرویس خراب؟ اینترنت/فیلترینگ؟) — بدون حدس‌زدن
+   ============================================================ */
+/* ✅ v2.4.1 — تستِ سریعِ کلید (پیش‌فرض ۲۰ ثانیه) برای گیتِ ذخیرهٔ تنظیمات:
+   خروجی {ok, status, body, netErr} — قطعیِ شبکه از «کلید بد» جدا می‌شود */
+async function _aiQuickKeyTest(key, provider, timeoutMs) {
+    var map = {
+        avalai:       { url: 'https://api.avalai.ir/v1/chat/completions',        model: 'gpt-4o-mini' },
+        chatanywhere: { url: 'https://api.chatanywhere.tech/v1/chat/completions', model: 'deepseek-chat' },
+        deepseek:     { url: 'https://api.deepseek.com/v1/chat/completions',      model: 'deepseek-chat' },
+        groq:         { url: 'https://api.groq.com/openai/v1/chat/completions',   model: 'openai/gpt-oss-120b' }
+    };
+    var m = map[provider] || map.avalai;
+    var controller = new AbortController();
+    var timer = setTimeout(function () { try { controller.abort(); } catch (e) {} }, timeoutMs || 20000);
+    try {
+        var res = await fetch(m.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model: m.model, messages: [{ role: 'user', content: 'سلام' }], max_tokens: 5 }),
+            signal: controller.signal
+        });
+        var bodyText = '';
+        try { bodyText = await res.text(); } catch (eT) {}
+        return { ok: res.ok, status: res.status, body: bodyText, netErr: false };
+    } catch (e) {
+        return { ok: false, status: null, body: '', netErr: true };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function aiTestConnection() {
+    var box = document.getElementById('ai-conn-test-result');
+    if (!box) return;
+
+    var keyInput = document.getElementById('ai-apikey-input');
+    var activeKey = (keyInput && keyInput.value.trim()) ? keyInput.value.trim() : AI.apiKey;
+    if (!activeKey) {
+        box.innerHTML = '<div class="widget-empty">⚠️ اول کلید API را در کادر بالا وارد کنید، بعد تست بزنید.</div>';
+        return;
+    }
+
+    var provEl = document.getElementById('ai-provider-select');
+    var provider = (provEl && provEl.value) || AI.provider;
+    var url, model;
+    if (provider === 'avalai')            { url = 'https://api.avalai.ir/v1/chat/completions';          model = 'gpt-4o-mini'; }
+    else if (provider === 'chatanywhere') { url = 'https://api.chatanywhere.tech/v1/chat/completions';  model = 'deepseek-chat'; }
+    else if (provider === 'deepseek')     { url = 'https://api.deepseek.com/v1/chat/completions';       model = 'deepseek-chat'; }
+    else if (provider === 'groq')         { url = 'https://api.groq.com/openai/v1/chat/completions';    model = 'openai/gpt-oss-120b'; }
+    else { box.innerHTML = '<div class="widget-empty">⛔ سرویس‌دهنده نامعتبر است.</div>'; return; }
+
+    box.innerHTML = '<div class="widget-empty">⏳ در حال تست اتصال و کلید… (تا ۲۵ ثانیه)</div>';
+
+    var controller = new AbortController();
+    var timer = setTimeout(function () { try { controller.abort(); } catch (e) {} }, 25000);
+    var t0 = Date.now();
+    try {
+        var res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + activeKey },
+            body: JSON.stringify({ model: model, messages: [{ role: 'user', content: 'سلام' }], max_tokens: 5 }),
+            signal: controller.signal
+        });
+        if (!res.ok) {
+            var t = await res.text();
+            /* ✅ v2.4.1 — اگر مشکل کلید است، کارتِ راهنمای رفع هم زیرِ نتیجه می‌نشیند */
+            var extra = _aiIsBadKeyBody(res.status, t) ? _aiErrorFixCardHtml() : '';
+            box.innerHTML = '<div class="widget-empty" style="color:#dc2626">⛔ ' + _aiHttpErrorFa(res.status, t)
+                + '<br><span dir="ltr" style="font-size:0.7rem;opacity:.75">HTTP ' + res.status + ' — ' + esc(t.substring(0, 120)) + '</span>' + extra + '</div>';
+            return;
+        }
+        var ms = Math.round((Date.now() - t0) / 100) / 10;
+        box.innerHTML = '<div class="widget-empty" style="color:#059669">✅ اتصال برقرار است — کلید معتبر است و مدل «' + model + '» پاسخ داد ('
+            + (typeof toFa === 'function' ? toFa(ms) : ms) + ' ثانیه).'
+            + '<br><span style="font-size:0.72rem;opacity:.8">اگر چت باز هم جواب نمی‌دهد، اعتبارِ کافی را از بخش پایین همین صفحه چک کنید.</span></div>';
+    } catch (e) {
+        box.innerHTML = '<div class="widget-empty" style="color:#dc2626">⛔ ارتباط با سرویس برقرار نشد (تایم‌اوت یا مسدودیِ مسیر).'
+            + '<br><span style="font-size:0.72rem;opacity:.8">اینترنت دستگاه را چک کنید؛ برای سرویس‌های AI معمولاً مشکل از فیلترینگِ موقت یا شلوغیِ سرویس است — بعداً دوباره تست بزنید.</span></div>';
+    } finally {
+        clearTimeout(timer);
     }
 }
 
@@ -3061,7 +3275,8 @@ function aiInit() {
     if (sOverlay) sOverlay.addEventListener('click', aiCloseSettings);
 
     var sSave = document.getElementById('ai-settings-save');
-    if (sSave) sSave.addEventListener('click', function () {
+    if (sSave) sSave.addEventListener('click', async function () {
+        var oldKey = AI.apiKey;
         AI.provider = document.getElementById('ai-provider-select').value;
         AI.apiKey = document.getElementById('ai-apikey-input').value.trim();
 
@@ -3073,6 +3288,30 @@ function aiInit() {
 
         AI.autoFallback = document.getElementById('ai-auto-fallback').checked;
         AI.failedModels = {};
+
+        /* ✅ v2.4.1 — اگر «کلید عوض شده» باشد، قبل از ذخیره واقعاً تست می‌شود؛
+           کلیدِ نامعتبر (401) ذخیره نمی‌شود تا چتِ دستیار بی‌جهت خطا ندهد؛
+           فقط قطعیِ شبکه باعث می‌شود با هشدار ذخیره شود */
+        var keyChanged = AI.apiKey !== oldKey;
+        if (AI.apiKey && keyChanged) {
+            var tbox = document.getElementById('ai-conn-test-result');
+            if (tbox) tbox.innerHTML = '<div class="widget-empty">⏳ قبل از ذخیره، کلید تست می‌شود…</div>';
+            sSave.disabled = true;
+            var kt = await _aiQuickKeyTest(AI.apiKey, AI.provider);
+            sSave.disabled = false;
+            if (kt.status === 401 || (!kt.netErr && !kt.ok && _aiIsBadKeyBody(kt.status, kt.body))) {
+                if (tbox) tbox.innerHTML = '<div class="widget-empty" style="color:#dc2626">⛔ کلید تست نشد (HTTP ' + (kt.status || '—') + ') — ذخیره نشد.<br>'
+                    + esc(_aiHttpErrorFa(kt.status, kt.body)) + _aiErrorFixCardHtml() + '</div>';
+                return;
+            }
+            if (kt.netErr) {
+                showToast('⚠️ تستِ کلید ممکن نشد (اینترنت) — کلید ذخیره شد؛ بعداً «🩺 تست اتصال و کلید» را بزن');
+            } else if (!kt.ok) {
+                /* ✅ v2.4.1 — کلید معتبر نیست ولی «کلیدِ بد» هم نیست (مثل 402 اعتبار) — ذخیره با هشدار */
+                showToast('⚠️ کلید ذخیره شد ولی سرویس پاسخ ' + (kt.status || '?') + ' داد — «🩺 تست اتصال و کلید» را بزن');
+            }
+        }
+
         aiSaveSettings();
         aiCloseSettings();
         aiRender();
@@ -3184,6 +3423,12 @@ function aiInit() {
         aiFetchAvalaiCredit();
     });
 
+    /* ✅ v2.3.9 — دکمهٔ «تست اتصال و کلید» در تنظیمات دستیار */
+    var connBtn = document.getElementById('ai-conn-test');
+    if (connBtn) connBtn.addEventListener('click', function () {
+        aiTestConnection();
+    });
+
     if (window.speechSynthesis) {
         AI_TTS.voice = aiFindBestPersianVoice();
     }
@@ -3257,6 +3502,7 @@ window.aiFetchAvalaiCredit       = aiFetchAvalaiCredit;
 window._tryFetchCredit           = _tryFetchCredit;
 window._tryFetchCreditOnce       = _tryFetchCreditOnce;
 window.renderAvalaiCreditBox     = renderAvalaiCreditBox;
+window.aiTestConnection          = aiTestConnection;
 window.loadCachedAvalaiCredit    = loadCachedAvalaiCredit;
 window.initDraggableFab          = initDraggableFab;
 window.openTtsDiagnosticPanel    = openTtsDiagnosticPanel;
