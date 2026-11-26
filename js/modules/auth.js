@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — احراز هویت + قفل بیومتریک
-   مسیر: js/modules/auth.js
+   مسیر: js/modules/auth.js   (✅ v2.4.0 — در اپ اندروید همیشه مسیر نیتیو مقدم است)
    ✅ v2.0.5 — دو مسیر پشتیبانی:
      • اپ اندروید: قفل بیومتریک نیتیو از طریق BiometricPrompt سیستم‌عامل
        (WebView اندروید استاندارد WebAuthn را پیاده‌سازی نمی‌کند و پیش‌تر
@@ -203,26 +203,25 @@ async function loginWithBiometric() {
     var P = _parsisNativePlugin();
     var method = DB.load(LS_KEYS.BIOMETRIC_METHOD, '');
 
-    /* ۱) مسیر نیتیو اندروید — BiometricPrompt سیستم‌عامل */
-    if (P && method !== 'webauthn') {
+    /* ۱) مسیر نیتیو اندروید — BiometricPrompt سیستم‌عامل
+       ✅ v2.4.0 — در اپ اندروید همیشه اول مسیر نیتیو امتحان می‌شود؛
+       قبلاً اگر کاربر قبلاً بیومتریک را در «مرورگر» فعال کرده بود
+       (method = webauthn) در اپ اندروید به WebAuthn می‌رفت که داخل
+       WebView اندروید پشتیبانی نمی‌شود و دکمه بی‌عملکرد می‌ماند. */
+    if (P) {
         var nativeOk = await nativeAuthenticate(found);
         if (nativeOk) {
             _finishBiometricLogin(found);
         } else {
-            showToast('❌ ورود با اثر انگشت ناموفق بود یا لغو شد.');
+            showToast('❌ ورود با اثر انگشت ناموفق بود یا لغو شد. اگر اثر انگشت/چهره یا قفل صفحه روی گوشی ثبت نشده، از تنظیمات اندروید فعالش کنید.');
         }
         return;
     }
 
-    /* ۲) مسیر مرورگر — WebAuthn */
+    /* ۲) مسیر مرورگر — WebAuthn (فقط وقتی پلاگین نیتیو موجود نیست) */
     var storedId = DB.load(LS_KEYS.BIOMETRIC_CRED_ID, null);
     if (!storedId) {
-        /* اگر اعتبارنامه مرورگر موجود نیست ولی اپ نیتیو است، مسیر نیتیو را امتحان کن */
-        if (P) {
-            var ok2 = await nativeAuthenticate(found);
-            if (ok2) _finishBiometricLogin(found);
-            else showToast('❌ ورود با اثر انگشت ناموفق بود یا لغو شد.');
-        }
+        showToast('⚠️ اطلاعات اثر انگشت یافت نشد؛ یک‌بار از تنظیمات دوباره فعال کنید یا با نام کاربری وارد شوید.');
         return;
     }
     if (!_webauthnAvailable()) return;

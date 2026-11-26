@@ -1,6 +1,6 @@
 /* ============================================================
    پارسیس — مدیریت کاربران (نسخه ۲ — کامل)
-   مسیر: js/modules/users.js
+   مسیر: js/modules/users.js   (✅ v2.4.0 — گروه کاربری + تاریخچه تغییر وضعیت + انتقال به بخش امنیت)
    
    ویژگی‌ها:
      ✅ رفرنس به شخص
@@ -54,6 +54,8 @@ function runUserMigrations() {
             if (typeof u.isAdmin === 'undefined') { u.isAdmin = false; changed = true; }
             if (typeof u.active === 'undefined') { u.active = true; changed = true; }
             if (typeof u.personId === 'undefined') { u.personId = ''; changed = true; }
+            /* ✅ v2.4.0 — عضویت گروه کاربری */
+            if (typeof u.groupId === 'undefined') { u.groupId = ''; changed = true; }
         });
 
         /* ✅ v2.0.1 — migration امنیتی: هش کردن رمزهای متن‌ساده قدیمی.
@@ -188,6 +190,25 @@ function populatePersonSelect() {
     if (currentVal) pSel.value = currentVal;
 }
 
+/* ✅ v2.4.0 — پر کردن dropdown گروه‌های کاربری */
+function populateGroupSelect() {
+    var gSel = _upEl('user-group');
+    if (!gSel) return;
+    var currentVal = gSel.value;
+    var groups = DB.load('userGroups', []);
+    if (!Array.isArray(groups)) groups = [];
+
+    gSel.innerHTML = '<option value="">— بدون گروه —</option>';
+    groups.forEach(function (g) {
+        if (g.active === false) return;
+        var o = document.createElement('option');
+        o.value = g.id;
+        o.textContent = g.name || 'گروه';
+        gSel.appendChild(o);
+    });
+    if (currentVal) gSel.value = currentVal;
+}
+
 /* ============================================================
    بخش ۴ — رندر فهرست
    ============================================================ */
@@ -208,15 +229,23 @@ function renderUsersList() {
         persons.forEach(function (p) { pMap[p.id] = ((p.first || '') + ' ' + (p.last || '')).trim(); });
     }
 
+    /* ✅ v2.4.0 — نقشه نام گروه‌ها */
+    var groups = DB.load('userGroups', []);
+    var gMap = {};
+    if (Array.isArray(groups)) {
+        groups.forEach(function (g) { gMap[g.id] = g.name || 'گروه'; });
+    }
+
     var cu = _upCurrentUser();
     var iAmAdmin = _upIsAdmin();
 
     var shown = 0;
     list.forEach(function (u) {
         var pName = (u.personId && pMap[u.personId]) ? pMap[u.personId] : '—';
+        var gName = (u.groupId && gMap[u.groupId]) ? gMap[u.groupId] : '—';
 
         if (filter) {
-            var hay = ((u.username || '') + ' ' + pName).toLowerCase();
+            var hay = ((u.username || '') + ' ' + pName + ' ' + gName).toLowerCase();
             if (hay.indexOf(filter) === -1) return;
         }
         shown++;
@@ -241,10 +270,12 @@ function renderUsersList() {
         tr.innerHTML =
               '<td dir="rtl">' + esc(u.username) + (u.id === cu.id ? ' <span style="font-size:.68rem;color:#1e40af;background:#dbeafe;padding:1px 8px;border-radius:8px;font-weight:800">(شما)</span>' : '') + '</td>'
             + '<td>' + esc(pName) + '</td>'
+            + '<td>' + esc(gName) + '</td>'
             + '<td>' + roleBadge + '</td>'
             + '<td>' + activeBadge + '</td>'
             + '<td><div class="row-actions">'
             +   (canPerms ? '<button class="row-btn perms" data-id="' + u.id + '" title="حقوق دسترسی و محدودیت">🔐</button>' : '')
+            +   Hist.rowBtn(u.id, u.username || '')
             +   (canEdit ? '<button class="row-btn edit" data-id="' + u.id + '" title="ویرایش">✎</button>' : '')
             +   (canDelete ? '<button class="row-btn del" data-id="' + u.id + '" title="حذف">×</button>' : '')
             + '</div></td>';
@@ -252,8 +283,11 @@ function renderUsersList() {
     });
 
     if (shown === 0) {
-        tb.innerHTML = '<tr><td colspan="5" class="empty-row">یافت نشد.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" class="empty-row">یافت نشد.</td></tr>';
     }
+
+    /* ✅ v2.4.0 — بایند دکمه‌های تاریخچه */
+    if (typeof Hist !== 'undefined' && Hist.bindRowButtons) Hist.bindRowButtons(tb, 'users');
 
     var countEl = _upEl('users-count');
     if (countEl) countEl.textContent = toFa(shown);
@@ -262,6 +296,7 @@ function renderUsersList() {
     tb.querySelectorAll('.row-btn.perms').forEach(function (b) {
         b.onclick = function () {
             var id = this.getAttribute('data-id');
+            /* ✅ v2.4.0 — فرم دسترسی به بخش «امنیت» منتقل شد */
             if (typeof openUserPerms === 'function') openUserPerms(id);
         };
     });
@@ -308,6 +343,8 @@ function renderUsersList() {
             if (!confirm('حذف کاربر «' + u.username + '»؟')) return;
 
             var l = DB.load('users', []).filter(function (x) { return x.id !== id; });
+            /* ✅ v2.4.0 — ثبت حذف در تاریخچه */
+            if (typeof Hist !== 'undefined' && Hist.log) Hist.log('users', id, 'حذف', u, null, u.username || '');
             DB.save('users', l);
             renderUsersList();
             showToast('🗑 کاربر حذف شد');
@@ -342,6 +379,9 @@ function fillUserForm(u) {
     populatePersonSelect();
 
     _upSetVal('user-person', u.personId || '');
+    /* ✅ v2.4.0 — گروه کاربری */
+    populateGroupSelect();
+    _upSetVal('user-group', u.groupId || '');
     _upSetCheck('user-is-admin', u.isAdmin === true);
     _upSetCheck('user-active', u.active !== false);
 
@@ -382,6 +422,9 @@ function clearUserForm() {
     _upSetVal('user-password', '');
     _upSetVal('user-password-confirm', '');
     _upSetVal('user-person', '');
+    /* ✅ v2.4.0 — گروه کاربری */
+    populateGroupSelect();
+    _upSetVal('user-group', '');
     _upSetCheck('user-is-admin', false);
     _upSetCheck('user-active', true);
 
@@ -421,6 +464,7 @@ function bindUsersForm() {
             var password = _upGetVal('user-password') || '';
             var passwordConfirm = _upGetVal('user-password-confirm') || '';
             var personId = _upGetVal('user-person') || '';
+            var groupId = _upGetVal('user-group') || ''; /* ✅ v2.4.0 */
             var isAdmin = _upGetCheck('user-is-admin');
             var active = _upGetCheck('user-active');
 
@@ -489,8 +533,10 @@ function bindUsersForm() {
                     return;
                 }
 
+                var _uBefore = JSON.parse(JSON.stringify(u)); /* ✅ v2.4.0 — برای تاریخچه */
                 u.username = username;
                 u.personId = personId;
+                u.groupId = groupId;
                 u.isAdmin = isAdmin;
                 u.active = active;
                 /* ✅ v2.0.1 — ذخیره امن رمز جدید (هش + salt، حذف متن ساده) */
@@ -513,6 +559,8 @@ function bindUsersForm() {
                     try { sessionStorage.setItem('parsis.session', JSON.stringify(cu)); } catch (e) {}
                 }
 
+                /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+                if (typeof Hist !== 'undefined' && Hist.log) Hist.log('users', u.id, 'ویرایش', _uBefore, u);
                 showToast('✅ تغییرات ذخیره شد.');
 
             } else {
@@ -523,12 +571,15 @@ function bindUsersForm() {
                     id: uid(),
                     username: username,
                     personId: personId,
+                    groupId: groupId,
                     isAdmin: iAmAdmin ? isAdmin : false,
                     active: active
                 };
                 if (recN) { newUser.passHash = recN.passHash; newUser.salt = recN.salt; }
                 else { newUser.password = password; }
                 list.push(newUser);
+                /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+                if (typeof Hist !== 'undefined' && Hist.log) Hist.log('users', newUser.id, 'ایجاد', null, newUser);
                 showToast('✅ کاربر جدید «' + username + '» ایجاد شد.');
             }
 
@@ -570,8 +621,11 @@ function bindUsersForm() {
 function initUsersPage() {
     initUsers();
     populatePersonSelect();
+    populateGroupSelect();
     renderUsersList();
     bindUsersForm();
+    /* ✅ v2.4.0 — تب تاریخچه تغییر وضعیت کاربران */
+    if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('users', '#user-id', '#hist-users');
 }
 
 /* ============================================================
@@ -584,6 +638,7 @@ window.populatePersonSelect = populatePersonSelect;
 window.fillUserForm         = fillUserForm;
 window.clearUserForm        = clearUserForm;
 window.bindUsersForm        = bindUsersForm;
+window.populateGroupSelect  = populateGroupSelect;
 window.runUserMigrations    = runUserMigrations;
 
 console.log('✅ [modules/users.js] loaded — complete rewrite');
