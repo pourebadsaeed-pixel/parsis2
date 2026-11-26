@@ -2188,6 +2188,8 @@
             <summary class="settings-summary">☁️ همگام‌سازی ابری دوطرفه (رایگان، بدون وی‌پی‌ان)</summary>
             <p class="muted" style="font-size:.72rem;margin-top:8px;line-height:1.8">راه‌اندازی فقط <b>یک‌بار برای همیشه</b> است — سه قدم که همه را یک دکمه برایت انجام می‌دهد. بعد از آن، داده‌ها رمزنگاری‌شده دوطرفه و زنده سینک می‌شوند و هیچ‌وقت لازم نیست «انتشار» را دوباره بزنی (انتشار فقط وقتی است که نسخه جدید اپ بدهی).</p>
             <button id="set-cloud-wizard" class="btn-primary" style="width:100%;margin-top:10px;padding:11px;font-size:.8rem">⚡ راه‌اندازی خودکار (۱ و ۲ و ۳ با هم)</button>
+            <!-- ✅ v2.6.0 — آزمون مسیر ابر: تشخیص خودکار «اینترنت خاموش / فیلترینگ اپراتور / سرور سالم» -->
+            <button id="set-cloud-diag" class="btn-secondary" style="width:100%;margin-top:6px;padding:9px;font-size:.74rem">🩺 آزمون مسیر ابر (چرا وصل نمی‌شود؟)</button>
             <div style="display:flex;gap:6px;margin-top:8px;font-size:.66rem;color:#475569;text-align:center">
                 <div style="flex:1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:6px 4px"><b style="color:#1d4ed8">۱. اتصال</b><br>تست رله و ساخت کد</div>
                 <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:6px 4px"><b style="color:#15803d">۲. انتشار اپ</b><br>چند دقیقه، یک‌بار</div>
@@ -2230,6 +2232,22 @@
                     <!-- ✅ v2.2.2 — خروج یک‌ضربه از بن‌بست bad-key -->
                     <button id="set-cloud-newspace" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🆕 فضای کاری جدید (شروع تازه — رفع bad-key)</button>
                 </div>
+                <div class="form-buttons" style="gap:8px;margin-top:6px">
+                    <!-- ✅ v2.6.0 — خروج این مرورگر از فضای ابری (فضا و کدِ ذخیره‌شده پاک می‌شود) -->
+                    <button id="set-cloud-forget" class="btn-secondary" style="padding:6px 10px;font-size:.72rem">🔌 خروج این مرورگر از فضای ابری</button>
+                </div>
+            </details>
+            <details style="margin-top:10px">
+                <summary style="cursor:pointer;font-size:.75rem;font-weight:800;color:#b45309">🌍 چرا اپ روی اینترنتِ بعضی‌ها باز نمی‌شود؟ (راه‌حل قطعی: دامنهٔ شخصی)</summary>
+                <p class="muted" style="font-size:.72rem;line-height:2;margin-top:8px">دامنهٔ رایگان <b>workers.dev</b> روی بعضی اپراتورهای ایران فیلتر است؛ برای همین اپ روی اینترنتِ بعضی‌ها (مثل گوشی دوستان) باز نمی‌شود ولی روی اینترنت شما باز می‌شود. <b>مشکل از اپ نیست.</b> راه‌حل قطعی و یک‌باره: وصل‌کردن یک دامنهٔ شخصی (ارزان) به همین ورکر — هر دو آدرس به یک ورکر و یک پایگاه داده وصل‌اند و هیچ داده‌ای عوض نمی‌شود.</p>
+                <ol class="muted" style="font-size:.72rem;line-height:2;margin-top:6px;padding-inline-start:18px">
+                    <li>یک دامنهٔ ارزان از هر سایت فروش دامنه بخرید (یا زیردامنهٔ رایگان از دامنهٔ یک دوست)</li>
+                    <li>در <b>dash.cloudflare.com</b> ← <b>Add a domain</b> ← دامنهٔ خودتان ← پلن <b>Free</b> ← دکمهٔ ادامه</li>
+                    <li>دو <b>Nameserver</b>ی که کلادفلر نشان می‌دهد را در سایتِ خرید دامنه جایگزین کنید و چند دقیقه صبر کنید تا «Active» شود</li>
+                    <li>منوی <b>Workers</b> ← ورکر <b>parsis-relay</b> ← <b>Settings</b> ← <b>Domains &amp; Routes</b> ← <b>Add</b> ← <b>Custom domain</b> ← مثلاً <b>app.دامنهٔ‌شما</b> ← تأیید</li>
+                    <li>در همین صفحهٔ تنظیمات اپ (تنظیمات دستی ← «آدرس رله») بگذارید <b>https://app.دامنهٔ‌شما</b> ← «🔌 اتصال و ساخت کد» ← تمام. لینک دوستان را دوباره بگیرید و برای دوستان بفرستید</li>
+                </ol>
+                <p class="muted" style="font-size:.7rem;line-height:1.9">💡 آدرس قدیمی workers.dev هم به کار خودش ادامه می‌دهد (هر دو به یک داده وصل‌اند)؛ فقط آدرس جدید فیلتر نیست. برای اطمینان، بعد از تغییر دکمهٔ «🩺 آزمون مسیر ابر» را بزنید.</p>
             </details>
             <details style="margin-top:10px">
                 <summary style="cursor:pointer;font-size:.75rem;font-weight:800;color:#1d4ed8">📖 راهنمای ساخت رله رایگان (۵ دقیقه، یک‌بار برای همیشه)</summary>
@@ -2465,7 +2483,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.5.0';</script>
+<script>window.__PARSIS_VER = '2.6.0';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
