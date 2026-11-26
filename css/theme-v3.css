@@ -1,0 +1,267 @@
+/* ============================================================
+   پارسیس — لایهٔ طراحی نسخهٔ ۳ (v2.5.0)
+   مسیر: css/theme-v3.css
+   ✅ فونت وزیرمتن داخل اپ (آفلاین) + تم «زمردِ مالی» +
+      پرداخت نهایی اجزا: جدول‌ها، فرم‌ها، دکمه‌ها، مودال‌ها،
+      صفحهٔ ورود، گزارش‌ها و چاپ
+   این فایل بعد از بقیهٔ استایل‌ها لود می‌شود و روی همهٔ تم‌ها
+   (به‌جز جاهایی که صریحاً گفته شده) به‌درستی کار می‌کند.
+   ============================================================ */
+
+/* ============================================================
+   بخش ۱ — فونت وزیرمتن (داخل اپ؛ همهٔ وزن‌ها در ۲ فایل کوچک)
+   ============================================================ */
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 100 900; /* فونت متغیر: همهٔ وزن‌ها از یک فایل */
+  font-display: swap;
+  src: url('../fonts/vazirmatn-arabic.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF,
+                 U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF,
+                 U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/vazirmatn-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* انتخاب فونت وزیرمتن از تنظیمات */
+body.font-vazirmatn { --app-font: 'Vazirmatn', Tahoma, sans-serif; }
+
+/* ============================================================
+   بخش ۲ — تایپوگرافی پایه
+   ============================================================ */
+body {
+  font-size: 14.5px;
+  line-height: 1.85;
+}
+h1, h2, h3, h4 { letter-spacing: 0; }
+input, select, textarea, button { font-family: var(--app-font); }
+@media (max-width: 480px) {
+  body { font-size: 14px; line-height: 1.8; }
+}
+
+/* ============================================================
+   بخش ۳ — تم «زمردِ مالی» (تم پیش‌فرضِ v2.5.0)
+   سبزِ زمردی روی پس‌زمینهٔ سردِ روشن — حس اعتماد مالی
+   ============================================================ */
+body.theme-emerald {
+  --bg: #f2f7f4;
+  --bg-grad: linear-gradient(165deg, #edf6f1 0%, #f5faf7 45%, #eff5f2 100%);
+  --card: rgba(255,255,255,0.94);
+  --card-solid: #ffffff;
+  --card-alt: #f4f9f6;
+  --border: #dfeae4;
+  --border-strong: #c2d8cc;
+  --primary: #059669;
+  --primary-dark: #047857;
+  --primary-light: #d3f1e3;
+  --primary-soft: #eaf8f0;
+  --topbar-from: #10b981;
+  --topbar-to: #047857;
+  --text: #14261d;
+  --text-muted: #5b7065;
+  --accent: #10b981;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --gradient-card: linear-gradient(135deg, #ffffff 0%, #f4fbf7 100%);
+  --gradient-accent: linear-gradient(135deg, #10b981 0%, #059669 55%, #047857 100%);
+  --shadow-glow: 0 10px 40px rgba(5, 150, 105, 0.28);
+}
+
+/* ============================================================
+   بخش ۴ — پرداخت اجزا (هماهنگ با همهٔ تم‌ها)
+   ============================================================ */
+
+/* ---- دکمه‌ها: سایهٔ خنثی و لطیف (به‌جای ته‌رنگِ بنفش قدیمی) ---- */
+.btn-primary {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+}
+.btn-primary:hover {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+}
+.btn-secondary {
+  border: 1px solid var(--border);
+}
+.tab-btn.active {
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+}
+
+/* ---- فیلدهای فرم: حالت hover و حلقهٔ فوکِس لطیف‌تر ---- */
+.field input:hover,
+.field select:hover,
+.field textarea:hover { border-color: var(--border-strong); }
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.sidebar-search input:focus {
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+/* ---- جدول‌ها: سرصفحهٔ تختِ تمیز، خط‌کشِ زمردی، ردیف‌های یک‌درمیان ---- */
+.data-table th,
+.report-table thead th {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  border-bottom: 2px solid var(--primary);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.data-table th[data-sortable]:hover { background: var(--primary-light); }
+.data-table td {
+  font-variant-numeric: tabular-nums;
+}
+.data-table tbody tr:nth-child(even),
+.report-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.026);
+}
+.data-table tbody tr:hover,
+.report-table tbody tr:hover {
+  background: var(--primary-soft);
+}
+.report-table tfoot td {
+  background: var(--primary-soft);
+  border-top: 2px solid var(--primary);
+  color: var(--primary-dark);
+}
+
+/* ---- مودال: گوشهٔ نرم‌تر و هم‌راستا با کارت ورود ---- */
+.modal { border-radius: 24px; }
+.modal-head { border-radius: 23px 23px 0 0; }
+
+/* ---- پیام‌ها (toast): نوار لطیف و مدرن ---- */
+.toast {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.4);
+  font-weight: 600;
+  font-family: var(--app-font);
+}
+
+/* ---- تاپ‌بار و سایدبار ---- */
+.topbar { box-shadow: 0 4px 22px rgba(6, 78, 59, 0.16); }
+.sidebar { box-shadow: -14px 0 44px rgba(15, 23, 42, 0.2); }
+
+/* ---- اسکرول‌بار باریک‌تر ---- */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+
+/* ---- دکمهٔ شناور دستیار هوشمند: هاله و گرادیانِ زمردی
+   (قبلاً بنفش‌آبی بود و با تمِ زمرد نمی‌خواند) ---- */
+.ai-fab {
+  background: linear-gradient(135deg, #10b981 0%, #059669 60%, #047857 100%);
+  box-shadow: 0 10px 32px rgba(5, 150, 105, 0.5), 0 0 0 0 rgba(5, 150, 105, 0.6);
+  animation: aiPulseEmerald 3s ease-in-out infinite;
+}
+.ai-fab::before {
+  background: conic-gradient(from 0deg, #34d399, #059669, #0d9488, #34d399);
+}
+@keyframes aiPulseEmerald {
+  0%, 100% { box-shadow: 0 10px 32px rgba(5, 150, 105, 0.5), 0 0 0 0 rgba(5, 150, 105, 0.6); }
+  50% { box-shadow: 0 10px 40px rgba(5, 150, 105, 0.7), 0 0 0 12px rgba(5, 150, 105, 0); }
+}
+
+/* ============================================================
+   بخش ۵ — صفحهٔ ورود: کارتِ شیشه‌ای روی پُردهٔ زمردی
+   ============================================================ */
+#login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+  background:
+    radial-gradient(900px 520px at 88% -12%, rgba(16, 185, 129, 0.18), transparent 60%),
+    radial-gradient(760px 520px at -12% 112%, rgba(4, 120, 87, 0.16), transparent 55%),
+    linear-gradient(165deg, #eef6f1 0%, #f3f8f5 55%, #edf4f0 100%) !important;
+}
+#login-overlay .card.login-card {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  padding: 30px 26px 26px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 70px rgba(6, 78, 59, 0.18), 0 4px 16px rgba(6, 78, 59, 0.08);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.login-logo {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 55%, #047857 100%);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 28px rgba(5, 150, 105, 0.35);
+}
+.login-title {
+  color: var(--primary-dark, #047857);
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.login-sub {
+  color: var(--text-muted, #5b7065);
+  font-size: 0.85rem;
+  margin-bottom: 22px;
+}
+.login-card .field { text-align: right; }
+.login-card .btn-primary { width: 100%; margin-top: 14px; }
+.login-card #login-bio-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: #10b981;
+  color: #fff;
+  border: none;
+}
+.login-card #login-bio-btn:hover { background: #059669; }
+.login-card #login-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin-top: 10px;
+  display: none;
+}
+.login-foot {
+  margin-top: 18px;
+  color: var(--text-muted, #5b7065);
+  font-size: 0.72rem;
+}
+
+/* ============================================================
+   بخش ۶ — چاپ گزارش‌ها: سیاه روی سفید، بدون سایه و رنگِ اضافی
+   ============================================================ */
+@media print {
+  body, .data-table td, .data-table th, .report-table td {
+    color: #000 !important;
+  }
+  .data-table th, .report-table thead th, .report-table tfoot td {
+    background: #f0f4f1 !important;
+    color: #000 !important;
+    border-bottom: 2px solid #059669 !important;
+    border-top: none !important;
+  }
+  .data-table tbody tr:nth-child(even),
+  .report-table tbody tr:nth-child(even) {
+    background: #fafcfa !important;
+  }
+  .card, .table-wrap { box-shadow: none !important; }
+}
