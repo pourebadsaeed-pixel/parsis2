@@ -65,7 +65,7 @@ jobs:
           JSON
           npx cap add android
 
-      - name: Inject Parsis native plugin, manifest, version, icons
+      - name: Inject Parsis native plugin, manifest, version, icons (v2.4.0 biometric)
         env:
           APP_CODE: ${{ github.run_number }}
         run: |
@@ -93,6 +93,12 @@ jobs:
           import android.webkit.WebViewClient;
 
           import androidx.core.content.ContextCompat;
+          /* v2.4.0 — قفل بیومتریک (اثر انگشت/چهره/قفل صفحه) */
+          import androidx.biometric.BiometricManager;
+          import androidx.biometric.BiometricPrompt;
+          import androidx.fragment.app.FragmentActivity;
+
+          import java.util.concurrent.Executor;
 
           import com.getcapacitor.JSArray;
           import com.getcapacitor.JSObject;
@@ -304,6 +310,82 @@ jobs:
                   call.resolve(res);
               }
 
+              /* ============================================================
+                 v2.4.0 — قفل بیومتریک: اثر انگشت / چهره / قفل صفحه
+                 قبلاً پلاگین هیچ متد بیومتری نداشت؛ JS داخل اپ اندروید به
+                 WebAuthn می‌افتاد که WebView اندروید پشتیبانی نمی‌کند —
+                 نتیجه: دکمه «ورود با اثر انگشت» کار نمی‌کرد. حالا با
+                 BiometricPrompt سیستم‌عامل (androidx.biometric) پیاده شده است؛
+                 اگر بیومتریک ثبت نشده باشد، خودکار قفل صفحه (پین/الگو) هم
+                 پذیرفته می‌شود.
+                 ============================================================ */
+              private boolean _bioAvailable() {
+                  try {
+                      BiometricManager bm = BiometricManager.from(getContext());
+                      int can = bm.canAuthenticate(
+                          BiometricManager.Authenticators.BIOMETRIC_WEAK |
+                          BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                      return can == BiometricManager.BIOMETRIC_SUCCESS;
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              @PluginMethod
+              public void isBiometricAvailable(PluginCall call) {
+                  JSObject res = new JSObject();
+                  res.put("available", _bioAvailable());
+                  call.resolve(res);
+              }
+
+              @PluginMethod
+              public void authenticate(final PluginCall call) {
+                  String title = call.getString("title", "ورود به پارسیس");
+                  String subtitle = call.getString("subtitle", "");
+                  Activity activity = getActivity();
+                  if (activity == null || !(activity instanceof FragmentActivity)) {
+                      JSObject err = new JSObject();
+                      err.put("success", false);
+                      err.put("error", "no-activity");
+                      call.resolve(err);
+                      return;
+                  }
+                  try {
+                      FragmentActivity fa = (FragmentActivity) activity;
+                      Executor executor = ContextCompat.getMainExecutor(getContext());
+                      BiometricPrompt prompt = new BiometricPrompt(fa, executor,
+                          new BiometricPrompt.AuthenticationCallback() {
+                              @Override
+                              public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                                  JSObject res = new JSObject();
+                                  res.put("success", true);
+                                  call.resolve(res);
+                              }
+                              @Override
+                              public void onAuthenticationError(int code, CharSequence errString) {
+                                  JSObject err = new JSObject();
+                                  err.put("success", false);
+                                  err.put("error", String.valueOf(code));
+                                  call.resolve(err);
+                              }
+                          });
+                      BiometricPrompt.PromptInfo.Builder b = new BiometricPrompt.PromptInfo.Builder()
+                          .setTitle(title)
+                          .setAllowedAuthenticators(
+                              BiometricManager.Authenticators.BIOMETRIC_WEAK |
+                              BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                      if (subtitle != null && !subtitle.isEmpty()) {
+                          b.setSubtitle(subtitle);
+                      }
+                      prompt.authenticate(b.build());
+                  } catch (Exception e) {
+                      JSObject err = new JSObject();
+                      err.put("success", false);
+                      err.put("error", e.getMessage() == null ? "biometric-error" : e.getMessage());
+                      call.resolve(err);
+                  }
+              }
+
               /* ✅ v2.3.2 — چاپ نیتیو اندروید با PrintManager سیستم.
                  قبلاً هیچ روش چاپی در پلاگین نبود؛ JS به iframe/ window.print می‌افتاد
                  که داخل WebView اندروید هیچ کاری نمی‌کند — نتیجه: دکمهٔ چاپ هیچ می‌زد.
@@ -401,6 +483,7 @@ jobs:
           perms = [
               '<uses-permission android:name="android.permission.READ_SMS" />',
               '<uses-permission android:name="android.permission.RECEIVE_SMS" />',
+              '<uses-permission android:name="android.permission.USE_BIOMETRIC" />',
           ]
           to_add = [p for p in perms if p not in s]
           if to_add:
@@ -418,6 +501,15 @@ jobs:
           g = open(bg, encoding='utf-8').read()
           code = os.environ.get('APP_CODE', '1')
           ver = os.environ.get('APP_VERSION', '2.1.0')
+          # v2.4.0 — وابستگی بیومتریک برای قفل اثر انگشت
+          if 'androidx.biometric' not in g:
+              k = g.find('dependencies {')
+              if k != -1:
+                  j = g.find('\n', k)
+                  g = g[:j + 1] + "    implementation 'androidx.biometric:biometric:1.1.0'\n" + g[j + 1:]
+                  print('biometric dependency added')
+              else:
+                  print('WARN: dependencies block not found in build.gradle')
           g = re.sub(r'versionCode\s+\d+', 'versionCode ' + code, g)
           g = re.sub(r'versionName\s+"[^"]*"', 'versionName "' + ver + '"', g)
           open(bg, 'w', encoding='utf-8').write(g)
