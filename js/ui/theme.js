@@ -8,7 +8,9 @@
 /* ============================================================
    بخش ۱ — تم‌ها
    ============================================================ */
+/* ✅ v2.5.0 — «emerald» (زمردِ مالی) و «vazirmatn» اضافه شدند: پیش‌فرضِ طرحِ نو */
 var THEMES = [
+    'emerald',
     'sky', 'beige', 'jade', 'ocean', 'sunset', 'forest',
     'midnight', 'glass3d', 'neu3d', 'cyber3d', 'gold3d'
 ];
@@ -32,7 +34,8 @@ function applyTheme(theme) {
 /* ============================================================
    بخش ۲ — فونت‌ها
    ============================================================ */
-var FONTS = ['bnazanin', 'bsans', 'tahoma'];
+/* ✅ v2.5.0 — وزیرمتن: فونتِ داخلیِ اپ (دو فایل woff2 داخل پوشهٔ fonts) */
+var FONTS = ['vazirmatn', 'bnazanin', 'bsans', 'tahoma'];
 
 function applyFont(font) {
     if (!font) return;
