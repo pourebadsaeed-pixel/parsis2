@@ -19,7 +19,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v47';
+const CACHE_VERSION = 'v48';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -33,6 +33,9 @@ const PRECACHE_ASSETS = [
     './css/layout.css',
     './css/components.css',
     './css/calendar.css',
+    './css/theme-v3.css',
+    './fonts/vazirmatn-arabic.woff2',
+    './fonts/vazirmatn-latin.woff2',
     './js/app.js',
     './js/core/calendar-popup.js',
     './js/core/constants.js',

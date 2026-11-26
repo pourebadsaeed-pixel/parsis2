@@ -119,19 +119,21 @@
   @keyframes bootLogIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 </style>
 <link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#4a90e2">
+<meta name="theme-color" content="#059669">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%234a90e2'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-size='96' font-family='Tahoma,sans-serif' font-weight='900' fill='%23ffffff'%3E%D9%BE%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23059669'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-size='96' font-family='Tahoma,sans-serif' font-weight='900' fill='%23ffffff'%3E%D9%BE%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="./css/base.css">
 <link rel="stylesheet" href="./css/layout.css">
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/calendar.css">
+<!-- ✅ v2.5.0 — لایهٔ طراحی نسخهٔ ۳: وزیرمتن + زمردِ مالی + پرداخت اجزا -->
+<link rel="stylesheet" href="./css/theme-v3.css">
 <!-- ✅ v2.0.1 — SheetJS بومی‌سازی شد تا خروجی اکسل بدون اینترنت هم کار کند -->
 <script src="./vendor/xlsx.full.min.js"></script>
 </head>
-<body class="theme-sky font-tahoma">
+<body class="theme-emerald">
 <!-- 🚀 Boot Loader (پوشش صفحه سفید در زمان بارگذاری) -->
 <div id="boot-loader">
   <div class="boot-logo">📊</div>
@@ -143,26 +145,28 @@
   <div class="boot-log" id="boot-log"></div>
   <div class="boot-hint" id="boot-hint">⏳ لطفاً چند لحظه صبر کنید...</div>
 </div>
-<div id="login-overlay" style="position:fixed; inset:0; background:var(--bg-grad); z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
-    <!-- اضافه کردن autocomplete="off" به کل فرم -->
-    <form class="card" style="width:100%; max-width:400px; text-align:center; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;" autocomplete="off" onsubmit="event.preventDefault(); login();">
-        <h2 style="color:var(--primary-dark); margin-bottom:20px;">ورود به پارسیس</h2>
-        
-        <div class="field" style="text-align:right;">
-            <label>نام کاربری</label>
-            <!-- غیرفعال کردن ذخیره نام کاربری -->
+<div id="login-overlay">
+    <!-- ✅ v2.5.0 — صفحهٔ ورودِ بازطراحی‌شده: لوگو + کارتِ شیشه‌ای روی پُردهٔ زمردی -->
+    <form class="card login-card" autocomplete="off" onsubmit="event.preventDefault(); login();">
+        <div class="login-logo">پ</div>
+        <h2 class="login-title">ورود به پارسیس</h2>
+        <p class="login-sub">دفترچهٔ حسابداری هوشمند شما</p>
+
+        <div class="field">
+            <label for="login-username">نام کاربری</label>
             <input type="text" id="login-username" name="username" placeholder="سرپرست" dir="rtl" autocomplete="off">
         </div>
-        
-        <div class="field" style="text-align:right;">
-            <label>کلمه عبور</label>
-            <!-- ترفند اصلی: new-password باعث می‌شود مرورگر فکر کند در حال ساخت رمز جدید هستیم و رمز قبلی را پر نمی‌کند -->
-            <input type="password" id="login-password" name="password" placeholder="****" dir="rtl" autocomplete="new-password">
+
+        <div class="field">
+            <label for="login-password">کلمه عبور</label>
+            <input type="password" id="login-password" name="password" placeholder="●●●●" dir="rtl" autocomplete="new-password">
         </div>
-        
-        <button id="login-btn" type="submit" class="btn-primary" style="width:100%; margin-top:10px;">ورود</button>
-        <button id="login-bio-btn" class="btn-secondary hidden" style="width:100%; margin-top:10px; background:#10b981; color:#fff; border:none;">👤 ورود با اثر انگشت / چهره</button>
-        <div id="login-error" style="color:red; font-size:0.85rem; margin-top:10px; display:none;"></div>
+
+        <button id="login-btn" type="submit" class="btn-primary">ورود</button>
+        <button id="login-bio-btn" type="button" class="btn-secondary hidden">👤 ورود با اثر انگشت / چهره</button>
+        <div id="login-error"></div>
+
+        <div class="login-foot">🔒 داده‌های شما روی همین دستگاه و فضای ابریِ خودتان می‌ماند</div>
     </form>
 </div>
 
@@ -2093,6 +2097,7 @@
         <details class="settings-details">
             <summary class="settings-summary">🎨 تم ظاهری</summary>
             <div class="theme-grid">
+                <button class="theme-card" data-theme="emerald"><span class="theme-swatch" style="background:linear-gradient(135deg,#10b981,#047857)"></span><span>زمرد (پیشنهادی)</span></button>
                 <button class="theme-card" data-theme="sky"><span class="theme-swatch" style="background:linear-gradient(135deg,#4a90e2,#3b7fc4)"></span><span>آبی</span></button>
                 <button class="theme-card" data-theme="beige"><span class="theme-swatch" style="background:linear-gradient(135deg,#c9a574,#a67f4d)"></span><span>بژ</span></button>
                 <button class="theme-card" data-theme="jade"><span class="theme-swatch" style="background:linear-gradient(135deg,#1e9e6a,#167a52)"></span><span>یشمی</span></button>
@@ -2109,6 +2114,7 @@
         <details class="settings-details">
             <summary class="settings-summary">🖋 فونت</summary>
             <div class="font-grid">
+                <button class="font-card" data-font="vazirmatn"><span class="sample" style="font-family:'Vazirmatn',Tahoma,sans-serif">نمونه</span><span>وزیرمتن (پیشنهادی)</span></button>
                 <button class="font-card" data-font="bnazanin"><span class="sample" style="font-family:'B Nazanin',Tahoma,sans-serif">نمونه</span><span>بی نازنین</span></button>
                 <button class="font-card" data-font="bsans"><span class="sample" style="font-family:'B Sans',Tahoma,sans-serif">نمونه</span><span>بی سنس</span></button>
                 <button class="font-card" data-font="tahoma"><span class="sample" style="font-family:Tahoma,sans-serif">نمونه</span><span>تاهوما</span></button>
@@ -2459,7 +2465,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.4.1';</script>
+<script>window.__PARSIS_VER = '2.5.0';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
