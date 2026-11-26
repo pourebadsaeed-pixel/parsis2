@@ -176,7 +176,26 @@ function bindSidebarNav() {
                 if (typeof goToPage === 'function') goToPage('home');
             } else {
                 // ✅ قابلیت باز کردن تب جدید با true
-                if (typeof goToPage === 'function') goToPage(pageName, true); 
+                if (typeof goToPage === 'function') goToPage(pageName, true);
+            }
+            /* ✅ v2.4.0 — الگوی «فهرست/ایجاد»: اگر دکمه منو تب مقصد داشت،
+               بعد از باز شدن صفحه همان تب فعال می‌شود */
+            var tabName = btn.getAttribute('data-tab');
+            if (tabName) {
+                setTimeout(function () {
+                    var page = document.getElementById('page-' + pageName);
+                    var tabBtn = page ? page.querySelector('.tab-btn[data-tab="' + tabName + '"]') : null;
+                    if (tabBtn) tabBtn.click();
+                    /* پیش‌تنظیم نوع (مثلاً «ثبت دریافت» در خزانه) */
+                    var preset = btn.getAttribute('data-preset');
+                    if (preset) {
+                        var kindSel = page ? page.querySelector('.nav-preset-kind') : null;
+                        if (kindSel) {
+                            kindSel.value = preset;
+                            if (typeof kindSel.onchange === 'function') kindSel.onchange();
+                        }
+                    }
+                }, 300);
             }
             closeSidebar(); 
             return; 

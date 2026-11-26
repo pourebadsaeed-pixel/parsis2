@@ -82,7 +82,14 @@ var PAGE_BINDERS = {
     'templates':        'bindTemplatesForm',
     'notes':            'bindNotesForm',
     'users':            'bindUsersForm',
-    'sms':              'bindSmsButtons'
+    'sms':              'bindSmsButtons',
+    /* ✅ v2.4.0 — بخش امنیت + ماژول‌های جدید */
+    'sec-groups':       'bindSecGroupsForm',
+    'treasury':         'bindTreasuryForm',
+    'assets':           'bindAssetsForm',
+    'inventory-items':  'bindInvItemsForm',
+    'inventory-moves':  'bindInvMovesForm',
+    'sales':            'bindSalesForm'
 };
 
 function getPageMeta(pageId) {
