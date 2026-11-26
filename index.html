@@ -198,20 +198,25 @@
                 <button data-page="bank-types">🏦 انواع حساب بانکی</button>
                 <button data-page="cash-types">💰 انواع صندوق</button>
                 <button data-page="currency">💱 ارز و واحد پول</button>
-                <button data-page="fiscal">📅 دوره مالی</button>
+                <button data-page="fiscal" data-tab="fiscal-list">📅 فهرست دوره‌های مالی</button>
+                <button data-page="fiscal" data-tab="fiscal-add">➕ ایجاد دوره مالی</button>
                 <button data-page="chart-define">✏️ تعریف حساب‌ها</button>
-                <button data-page="users">👤 معرفی کاربران</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="data">
             <button class="nav-group-title"><span>🗂 اطلاعات پایه</span><span class="caret">▾</span></button>
             <div class="nav-group-items">
-                <button data-page="persons">👥 اشخاص</button>
-                <button data-page="companies">🏢 شرکت‌ها</button>
+                <button data-page="persons" data-tab="persons-list">👥 فهرست اشخاص</button>
+                <button data-page="persons" data-tab="persons-add">➕ ایجاد شخص</button>
+                <button data-page="companies" data-tab="comp-list">🏢 فهرست شرکت‌ها</button>
+                <button data-page="companies" data-tab="comp-add">➕ ایجاد شرکت</button>
                 <button data-page="phonebook">📞 دفترچه تلفن</button>
-                <button data-page="bank-accounts">🏦 حساب‌های بانکی</button>
-                <button data-page="cash-boxes">💰 صندوق‌ها</button>
-                <button data-page="projects">📁 پروژه‌ها</button>
+                <button data-page="bank-accounts" data-tab="ba-list">🏦 فهرست حساب‌های بانکی</button>
+                <button data-page="bank-accounts" data-tab="ba-add">➕ ایجاد حساب بانکی</button>
+                <button data-page="cash-boxes" data-tab="cb-list">💰 فهرست صندوق‌ها</button>
+                <button data-page="cash-boxes" data-tab="cb-add">➕ ایجاد صندوق</button>
+                <button data-page="projects" data-tab="proj-list">📁 فهرست پروژه‌ها</button>
+                <button data-page="projects" data-tab="proj-add">➕ ایجاد پروژه</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="cash">
@@ -219,17 +224,68 @@
             <div class="nav-group-items">
                 <button data-page="estimate-daily">📝 برآورد هزینه‌های روزانه</button>
                 <button data-page="cashflow-sources">📌 برآورد منابع دریافتنی</button>
-                <button data-page="facilities">🏦 تسهیلات</button>
+            </div>
+        </div>
+        <!-- ✅ v2.4.0 — ماژول خزانه -->
+        <div class="nav-group collapsed" data-nav-group="treasury">
+            <button class="nav-group-title"><span>💧 خزانه</span><span class="caret">▾</span></button>
+            <div class="nav-group-items">
+                <button data-page="treasury" data-tab="tr-list">📄 فهرست دریافت و پرداخت</button>
+                <button data-page="treasury" data-tab="tr-add" data-preset="in">📥 ثبت دریافت</button>
+                <button data-page="treasury" data-tab="tr-add" data-preset="out">📤 ثبت پرداخت</button>
+                <button data-page="facilities" data-tab="fac-list">🏦 فهرست تسهیلات</button>
+                <button data-page="facilities" data-tab="fac-add">➕ ایجاد تسهیلات</button>
+            </div>
+        </div>
+        <!-- ✅ v2.4.0 — ماژول اموال -->
+        <div class="nav-group collapsed" data-nav-group="assets">
+            <button class="nav-group-title"><span>🏗 اموال</span><span class="caret">▾</span></button>
+            <div class="nav-group-items">
+                <button data-page="assets" data-tab="as-list">📋 فهرست اموال</button>
+                <button data-page="assets" data-tab="as-add">➕ ثبت دارایی</button>
+            </div>
+        </div>
+        <!-- ✅ v2.4.0 — ماژول انبار -->
+        <div class="nav-group collapsed" data-nav-group="inventory">
+            <button class="nav-group-title"><span>📦 انبار</span><span class="caret">▾</span></button>
+            <div class="nav-group-items">
+                <button data-page="inventory-items" data-tab="iv-list">📋 فهرست کالاها</button>
+                <button data-page="inventory-items" data-tab="iv-add">➕ ایجاد کالا</button>
+                <button data-page="inventory-moves" data-tab="im-list">🔄 فهرست حواله‌ها</button>
+                <button data-page="inventory-moves" data-tab="im-add" data-preset="in">➕ ثبت حواله ورود</button>
+                <button data-page="inventory-moves" data-tab="im-add" data-preset="out">➕ ثبت حواله خروج</button>
+            </div>
+        </div>
+        <!-- ✅ v2.4.0 — ماژول فروش -->
+        <div class="nav-group collapsed" data-nav-group="sales">
+            <button class="nav-group-title"><span>🛒 فروش</span><span class="caret">▾</span></button>
+            <div class="nav-group-items">
+                <button data-page="sales" data-tab="si-list">📄 فهرست فاکتورها</button>
+                <button data-page="sales" data-tab="si-add">➕ صدور فاکتور</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="ops">
             <button class="nav-group-title"><span>📝 عملیات</span><span class="caret">▾</span></button>
             <div class="nav-group-items">
-                <button data-page="voucher-list">📄 فهرست اسناد</button>
-                <button data-page="voucher-new">✏️ صدور سند</button>
-                <button data-page="templates">🧩 الگوهای سند و شرح استاندارد</button>
+                <button data-page="voucher-list">📄 فهرست اسناد حسابداری</button>
+                <button data-page="voucher-new">✏️ صدور سند حسابداری</button>
+                <button data-page="templates" data-tab="tpl-list">🧩 فهرست الگوهای سند</button>
+                <button data-page="templates" data-tab="tpl-add">➕ ایجاد الگوی سند</button>
+                <button data-page="templates" data-tab="desc-list">💬 شرح‌های استاندارد</button>
                 <button data-page="notes">📔 دفترچه یادداشت</button>
                 <button data-page="sms" id="nav-sms-btn">📱 پیامک بانکی <span class="nav-badge hidden" id="sms-nav-badge">۰</span></button>
+            </div>
+        </div>
+        <!-- ✅ v2.4.0 — بخش امنیت (فقط سرپرست) -->
+        <div class="nav-group collapsed" data-nav-group="security">
+            <button class="nav-group-title"><span>🛡 امنیت</span><span class="caret">▾</span></button>
+            <div class="nav-group-items">
+                <button data-page="users" data-tab="users-list">👤 فهرست کاربران</button>
+                <button data-page="users" data-tab="users-add">➕ ایجاد کاربر</button>
+                <button data-page="sec-groups" data-tab="sg-list">👥 فهرست گروه‌های کاربری</button>
+                <button data-page="sec-groups" data-tab="sg-add">➕ ایجاد گروه کاربری</button>
+                <button data-page="sec-perms">🔐 حقوق دسترسی</button>
+                <button data-page="sec-limits">🚫 محدودیت حقوق دسترسی</button>
             </div>
         </div>
         <div class="nav-group collapsed" data-nav-group="reports">
@@ -334,6 +390,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="users-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="users-add">✏️ تعریف</button>
+        <button class="tab-btn" data-tab="users-hist">🕘 تاریخچه تغییر وضعیت</button>
     </div>
     <div id="tab-users-list" class="tab-content active"><div class="card">
         <div class="list-header">
@@ -343,6 +400,7 @@
         <div class="table-wrap"><table class="data-table" id="users-table"><thead><tr>
             <th>نام کاربری</th>
             <th>شخص مرتبط</th>
+            <th>گروه کاربری</th>
             <th>نقش</th>
             <th>وضعیت</th>
             <th>عملیات</th>
@@ -359,6 +417,11 @@
                 <label>شخص مرتبط</label>
                 <select id="user-person"></select>
             </div>
+        </div>
+        <!-- ✅ v2.4.0 — گروه کاربری -->
+        <div class="field">
+            <label>گروه کاربری</label>
+            <select id="user-group"></select>
         </div>
         <div class="grid-2">
             <div class="field">
@@ -406,6 +469,330 @@
             <button id="new-user" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-users-hist" class="tab-content"><div class="card"><div id="hist-users"></div></div></div>
+</section>
+
+
+<!-- ============================================================
+     ✅ v2.4.0 — بخش «امنیت» + ماژول‌های خزانه/اموال/انبار/فروش
+     ============================================================ -->
+
+<section id="page-sec-groups" class="page">
+    <h2>👥 گروه کاربران</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="sg-list">📋 فهرست گروه‌ها</button>
+        <button class="tab-btn" data-tab="sg-add">✏️ تعریف گروه</button>
+    </div>
+    <div id="tab-sg-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="sec-groups-count">۰</span>
+            <input type="text" class="filter-input" id="sec-groups-filter" placeholder="🔍 جستجو">
+        </div>
+        <div class="table-wrap"><table class="data-table" id="sec-groups-table"><thead><tr>
+            <th>نام گروه</th><th>توضیح</th><th>اعضا</th><th>دسترسی</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="sec-groups-body"></tbody></table></div>
+        <p style="font-size:.7rem;color:#64748b;line-height:1.9">💡 اعضای گروه، دسترسی‌های گروه را می‌گیرند؛ تنظیم شخصیِ هر کاربر بر تنظیم گروه مقدم است. برای تنظیم دسترسی گروه، دکمه 🔐 کنار هر ردیف را بزنید.</p>
+    </div></div>
+    <div id="tab-sg-add" class="tab-content"><div class="card">
+        <input type="hidden" id="sg-id">
+        <div class="field"><label>نام گروه *</label><input type="text" id="sg-name" placeholder="مثلاً: حسابداران، انبارداران، فروشندگان"></div>
+        <div class="field"><label>توضیح</label><input type="text" id="sg-desc"></div>
+        <div class="field" style="padding:14px;background:var(--card-alt);border-radius:12px;border:1px solid var(--border)">
+            <label class="checkbox-item" style="margin:0;cursor:pointer;background:none;padding:0;display:flex;align-items:center;gap:8px">
+                <input type="checkbox" id="sg-active" checked style="width:18px;height:18px;accent-color:var(--primary)">
+                <span style="font-weight:700">✅ گروه فعال است</span>
+            </label>
+        </div>
+        <div class="form-buttons">
+            <button id="save-sec-group" class="btn-primary">💾 ذخیره</button>
+            <button id="new-sec-group" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+</section>
+
+<section id="page-sec-perms" class="page">
+    <h2>🔐 حقوق دسترسی</h2>
+    <div class="card">
+        <div class="grid-2">
+            <div class="field"><label>اعمال برای</label>
+                <select id="sp-target-type">
+                    <option value="user">👤 کاربر</option>
+                    <option value="group">👥 گروه کاربری</option>
+                </select>
+            </div>
+            <div class="field"><label>انتخاب مقصد</label>
+                <select id="sp-target"></select>
+            </div>
+        </div>
+        <div id="sec-perms-info" style="font-size:.76rem;color:#334155;margin:6px 0"></div>
+        <div class="form-buttons">
+            <button id="sec-perms-load" class="btn-secondary">🔄 بارگذاری تنظیمات فعلی</button>
+            <button id="sec-perms-save" class="btn-primary">💾 ذخیره دسترسی‌ها</button>
+            <button id="sec-perms-expand-all" class="btn-secondary btn-mini">⬇ باز کردن همه</button>
+            <button id="sec-perms-collapse-all" class="btn-secondary btn-mini">⬆ بستن همه</button>
+        </div>
+        <div id="sec-perms-summary" style="font-size:.72rem;font-weight:800;margin:4px 0 8px"></div>
+        <div id="sec-perms-tree"></div>
+    </div>
+</section>
+
+<section id="page-sec-limits" class="page">
+    <h2>🚫 محدودیت حقوق دسترسی</h2>
+    <div class="card">
+        <p style="font-size:.72rem;color:#64748b;line-height:1.9;margin-top:0">
+            با این فرم مشخص می‌کنید که کاربر یا گروه، «کدام اسناد» را ببیند — مثلاً فقط اسنادِ
+            بانک ملی، یا همه به‌جز اسناد یک شرکت خاص. قواعد روی فهرست اسناد، داشبورد و همهٔ گزارش‌ها یک‌جا اعمال می‌شود.
+        </p>
+        <div class="grid-2">
+            <div class="field"><label>اعمال برای</label>
+                <select id="sl-target-type">
+                    <option value="user">👤 کاربر</option>
+                    <option value="group">👥 گروه کاربری</option>
+                </select>
+            </div>
+            <div class="field"><label>انتخاب مقصد</label>
+                <select id="sl-target"></select>
+            </div>
+        </div>
+        <div id="sec-lim-info" style="font-size:.76rem;color:#334155;margin:6px 0"></div>
+        <div class="form-buttons">
+            <button id="sec-lim-load" class="btn-secondary">🔄 بارگذاری قواعد فعلی</button>
+            <button id="sec-lim-save" class="btn-primary">💾 ذخیره محدودیت‌ها</button>
+        </div>
+        <div id="sec-lim-body"></div>
+    </div>
+</section>
+
+<section id="page-treasury" class="page">
+    <h2>💧 خزانه — دریافت و پرداخت</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="tr-list">📋 فهرست</button>
+        <button class="tab-btn" data-tab="tr-add">✏️ ثبت</button>
+        <button class="tab-btn" data-tab="tr-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-tr-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="tr-count">۰</span>
+            <input type="text" class="filter-input" id="tr-filter" placeholder="🔍 جستجو">
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:.76rem;font-weight:800">
+            <span style="background:#ecfdf5;color:#065f46;border-radius:10px;padding:5px 12px">جمع دریافت: <span id="tr-sum-in">۰</span></span>
+            <span style="background:#fef2f2;color:#991b1b;border-radius:10px;padding:5px 12px">جمع پرداخت: <span id="tr-sum-out">۰</span></span>
+            <span style="background:#eff6ff;color:#1e40af;border-radius:10px;padding:5px 12px">مانده: <span id="tr-sum-balance">۰</span></span>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="tr-table"><thead><tr>
+            <th>تاریخ</th><th>نوع</th><th>حساب</th><th>شخص</th><th>مبلغ</th><th>شرح</th><th>عملیات</th>
+        </tr></thead><tbody id="tr-list-body"></tbody></table></div>
+    </div></div>
+    <div id="tab-tr-add" class="tab-content"><div class="card">
+        <input type="hidden" id="tr-id">
+        <input type="hidden" id="tr-kind" class="nav-preset-kind" value="in">
+        <div style="text-align:center;margin-bottom:12px"><span id="tr-kind-badge">📥 ثبت دریافت</span></div>
+        <div class="grid-2">
+            <div class="field"><label>تاریخ *</label><input type="text" id="tr-date" class="date-picker" dir="ltr"></div>
+            <div class="field"><label>حساب (بانک/صندوق) *</label><select id="tr-account"></select></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>مبلغ *</label><input type="text" id="tr-amount" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>شخص</label><select id="tr-person"></select></div>
+        </div>
+        <div class="field"><label>شرح</label><input type="text" id="tr-desc"></div>
+        <div class="form-buttons">
+            <button id="save-treasury" class="btn-primary">💾 ذخیره</button>
+            <button id="new-treasury" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-tr-hist" class="tab-content"><div class="card"><div id="hist-treasury"></div></div></div>
+</section>
+
+<section id="page-assets" class="page">
+    <h2>🏗 اموال و دارایی</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="as-list">📋 فهرست اموال</button>
+        <button class="tab-btn" data-tab="as-add">✏️ ثبت دارایی</button>
+        <button class="tab-btn" data-tab="as-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-as-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="as-count">۰</span>
+            <input type="text" class="filter-input" id="as-filter" placeholder="🔍 جستجو">
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:.76rem;font-weight:800">
+            <span style="background:#eff6ff;color:#1e40af;border-radius:10px;padding:5px 12px">جمع خرید: <span id="as-sum-buy">۰</span></span>
+            <span style="background:#f0fdf4;color:#065f46;border-radius:10px;padding:5px 12px">جمع ارزش دفتری: <span id="as-sum-book">۰</span></span>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="as-table"><thead><tr>
+            <th>نام دارایی</th><th>گروه</th><th>تاریخ خرید</th><th>مبلغ خرید</th><th>نرخ استهلاک</th><th>استهلاک انباشته</th><th>ارزش دفتری</th><th>محل استقرار</th><th>متولی</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="as-list-body"></tbody></table></div>
+    </div></div>
+    <div id="tab-as-add" class="tab-content"><div class="card">
+        <input type="hidden" id="as-id">
+        <div class="grid-2">
+            <div class="field"><label>نام دارایی *</label><input type="text" id="as-name"></div>
+            <div class="field"><label>گروه دارایی</label><select id="as-group"></select></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>تاریخ خرید</label><input type="text" id="as-buy-date" class="date-picker" dir="ltr"></div>
+            <div class="field"><label>مبلغ خرید *</label><input type="text" id="as-buy-amount" class="money-input" inputmode="numeric" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>محل استقرار</label><input type="text" id="as-loc"></div>
+            <div class="field"><label>متولی</label><select id="as-person"></select></div>
+        </div>
+        <div class="field"><label>نرخ استهلاک سالانه (٪)</label>
+            <input type="text" id="as-rate" inputmode="numeric" dir="ltr" placeholder="مثلاً ۲۰ — خالی یعنی بدون استهلاک">
+        </div>
+        <div class="field"><label>توضیح</label><input type="text" id="as-desc"></div>
+        <div class="form-buttons">
+            <button id="save-asset" class="btn-primary">💾 ذخیره</button>
+            <button id="new-asset" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-as-hist" class="tab-content"><div class="card"><div id="hist-assets"></div></div></div>
+</section>
+
+<section id="page-inventory-items" class="page">
+    <h2>📦 کالاهای انبار</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="iv-list">📋 فهرست کالاها</button>
+        <button class="tab-btn" data-tab="iv-add">✏️ ایجاد کالا</button>
+        <button class="tab-btn" data-tab="iv-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-iv-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="iv-count">۰</span>
+            <input type="text" class="filter-input" id="iv-filter" placeholder="🔍 جستجو">
+        </div>
+        <div class="table-wrap"><table class="data-table" id="iv-table"><thead><tr>
+            <th>کد</th><th>نام کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداقل</th><th>فی خرید</th><th>فی فروش</th><th>عملیات</th>
+        </tr></thead><tbody id="iv-list-body"></tbody></table></div>
+        <p style="font-size:.7rem;color:#64748b;line-height:1.9">💡 موجودی از حواله‌های ورود و خروج محاسبه می‌شود؛ اگر موجودی به «حداقل» برسد، رنگ قرمز و ⚠️ می‌گیرد.</p>
+    </div></div>
+    <div id="tab-iv-add" class="tab-content"><div class="card">
+        <input type="hidden" id="iv-id">
+        <div class="grid-2">
+            <div class="field"><label>کد کالا</label><input type="text" id="iv-code" dir="ltr"></div>
+            <div class="field"><label>نام کالا *</label><input type="text" id="iv-name"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>واحد شمارش</label>
+                <select id="iv-unit"><option>عدد</option><option>کیلوگرم</option><option>گرم</option><option>متر</option><option>لیتر</option><option>بسته</option><option>کارتن</option><option>خدمت</option></select>
+            </div>
+            <div class="field"><label>گروه کالا</label><input type="text" id="iv-group" list="iv-groups-dl"><datalist id="iv-groups-dl"></datalist></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>حداقل موجودی (هشدار)</label><input type="text" id="iv-min-qty" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>فی خرید</label><input type="text" id="iv-buy-price" class="money-input" inputmode="numeric" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>فی فروش</label><input type="text" id="iv-sell-price" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>توضیح</label><input type="text" id="iv-desc"></div>
+        </div>
+        <div class="form-buttons">
+            <button id="save-inv-item" class="btn-primary">💾 ذخیره</button>
+            <button id="new-inv-item" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-iv-hist" class="tab-content"><div class="card"><div id="hist-inv-items"></div></div></div>
+</section>
+
+<section id="page-inventory-moves" class="page">
+    <h2>🔄 حواله‌های انبار</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="im-list">📋 فهرست حواله‌ها</button>
+        <button class="tab-btn" data-tab="im-add">✏️ ثبت حواله</button>
+        <button class="tab-btn" data-tab="im-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-im-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="im-count">۰</span>
+            <input type="text" class="filter-input" id="im-filter" placeholder="🔍 جستجو">
+        </div>
+        <div class="table-wrap"><table class="data-table" id="im-table"><thead><tr>
+            <th>تاریخ</th><th>نوع</th><th>کالا</th><th>تعداد</th><th>فی</th><th>جمع</th><th>طرف حساب</th><th>شماره مرجع</th><th>شرح</th><th>عملیات</th>
+        </tr></thead><tbody id="im-list-body"></tbody></table></div>
+    </div></div>
+    <div id="tab-im-add" class="tab-content"><div class="card">
+        <input type="hidden" id="im-id">
+        <div class="grid-2">
+            <div class="field"><label>نوع حواله</label>
+                <select id="im-kind" class="nav-preset-kind"><option value="in">📥 ورود به انبار</option><option value="out">📤 خروج از انبار</option></select>
+            </div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="im-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>کالا *</label><select id="im-item"></select></div>
+            <div class="field"><label>تعداد *</label><input type="text" id="im-qty" inputmode="numeric" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>فی</label><input type="text" id="im-price" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>طرف حساب</label><input type="text" id="im-party"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>شماره مرجع</label><input type="text" id="im-refno" dir="ltr"></div>
+            <div class="field"><label>شرح</label><input type="text" id="im-desc"></div>
+        </div>
+        <div class="form-buttons">
+            <button id="save-inv-move" class="btn-primary">💾 ذخیره</button>
+            <button id="new-inv-move" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-im-hist" class="tab-content"><div class="card"><div id="hist-inv-moves"></div></div></div>
+</section>
+
+<section id="page-sales" class="page">
+    <h2>🛒 فروش — فاکتورها</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="si-list">📋 فهرست فاکتورها</button>
+        <button class="tab-btn" data-tab="si-add">✏️ صدور فاکتور</button>
+        <button class="tab-btn" data-tab="si-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-si-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="si-count">۰</span>
+            <input type="text" class="filter-input" id="si-filter" placeholder="🔍 جستجو">
+        </div>
+        <div style="margin:8px 0;font-size:.76rem;font-weight:800">
+            <span style="background:#eff6ff;color:#1e40af;border-radius:10px;padding:5px 12px;display:inline-block">جمع کل فاکتورها: <span id="si-sum-total">۰</span></span>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="si-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>مشتری</th><th>اقلام</th><th>جمع اقلام</th><th>تخفیف</th><th>مبلغ نهایی</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="si-list-body"></tbody></table></div>
+    </div></div>
+    <div id="tab-si-add" class="tab-content"><div class="card">
+        <input type="hidden" id="si-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره فاکتور</label><input type="text" id="si-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="si-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="field"><label>مشتری</label><select id="si-person"></select></div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">اقلام فاکتور</h3>
+        <div id="si-lines"></div>
+        <div class="form-buttons">
+            <button id="si-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>تخفیف</label><input type="text" id="si-discount" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>مالیات بر ارزش افزوده (٪)</label><input type="text" id="si-tax" inputmode="numeric" dir="ltr" placeholder="مثلاً ۱۰"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:.78rem;font-weight:800">
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">جمع اقلام: <span id="si-subtotal">۰</span></span>
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">مالیات: <span id="si-tax-amt">۰</span></span>
+            <span style="background:#eff6ff;color:#1e40af;border-radius:10px;padding:5px 12px">مبلغ نهایی: <span id="si-total">۰</span></span>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>مبلغ پرداخت‌شده</label><input type="text" id="si-paid" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>وضعیت</label>
+                <select id="si-status"><option value="draft">پیش‌نویس</option><option value="unpaid" selected>در انتظار پرداخت</option><option value="paid">تسویه‌شده</option></select>
+            </div>
+        </div>
+        <div class="field"><label>توضیح</label><input type="text" id="si-desc"></div>
+        <div class="form-buttons">
+            <button id="save-sales" class="btn-primary">💾 ذخیره فاکتور</button>
+            <button id="new-sales" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-si-hist" class="tab-content"><div class="card"><div id="hist-sales"></div></div></div>
 </section>
 
 <section id="page-language" class="page">
@@ -458,7 +845,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="fiscal-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="fiscal-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="fiscal-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-fiscal-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="fiscal-table" data-hide-key="fiscal-list">
             <span class="count-badge" id="fiscal-count">۰</span>
@@ -484,6 +871,7 @@
             <button id="new-fiscal" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-fiscal-hist" class="tab-content"><div class="card"><div id="hist-fiscal"></div></div></div>
 </section>
 
 <section id="page-persons" class="page">
@@ -491,7 +879,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="persons-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="persons-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="persons-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-persons-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="persons-table" data-hide-key="persons-list">
             <span class="count-badge" id="persons-count">۰</span>
@@ -540,6 +928,7 @@
             <button id="new-person" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-persons-hist" class="tab-content"><div class="card"><div id="hist-persons"></div></div></div>
 </section>
 
 <section id="page-companies" class="page">
@@ -547,7 +936,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="comp-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="comp-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="comp-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-comp-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="comp-table" data-hide-key="comp-list">
             <span class="count-badge" id="comp-count">۰</span>
@@ -574,6 +963,7 @@
             <button id="new-company" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-comp-hist" class="tab-content"><div class="card"><div id="hist-comp"></div></div></div>
 </section>
 
 <section id="page-bank-accounts" class="page">
@@ -581,7 +971,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="ba-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="ba-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="ba-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-ba-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="ba-table" data-hide-key="ba-list">
             <span class="count-badge" id="ba-count">۰</span>
@@ -637,6 +1027,7 @@
             <button id="new-ba" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-ba-hist" class="tab-content"><div class="card"><div id="hist-ba"></div></div></div>
 </section>
 
 <section id="page-cash-boxes" class="page">
@@ -644,7 +1035,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="cb-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="cb-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="cb-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-cb-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="cb-table" data-hide-key="cb-list">
             <span class="count-badge" id="cb-count">۰</span>
@@ -672,6 +1063,7 @@
             <button id="new-cb" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-cb-hist" class="tab-content"><div class="card"><div id="hist-cb"></div></div></div>
 </section>
 
 <section id="page-projects" class="page">
@@ -679,7 +1071,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="proj-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="proj-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="proj-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-proj-list" class="tab-content active"><div class="card">
         <div class="list-header" data-col-table="proj-table" data-hide-key="proj-list">
             <span class="count-badge" id="proj-count">۰</span>
@@ -699,6 +1091,7 @@
             <button id="new-project" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-proj-hist" class="tab-content"><div class="card"><div id="hist-proj"></div></div></div>
 </section>
 
 <section id="page-phonebook" class="page">
@@ -874,7 +1267,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="fac-list">📋 فهرست</button>
         <button class="tab-btn" data-tab="fac-add">✏️ تعریف</button>
-    </div>
+    <button class="tab-btn" data-tab="fac-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-fac-list" class="tab-content active"><div class="card">
         <div class="list-header" data-hide-key="fac-list">
             <span class="count-badge" id="fac-count">۰</span>
@@ -923,6 +1316,7 @@
         </div>
     </div>
     </div>
+    <div id="tab-fac-hist" class="tab-content"><div class="card"><div id="hist-fac"></div></div></div>
 </section>
 
 <section id="page-chart-define" class="page">
@@ -1100,6 +1494,11 @@
             <p class="muted" style="font-size:0.7rem;margin-top:4px">💡 عکس با دوربین یا از گالری — تا ۳ عکس برای هر سند، با فشرده‌سازی خودکار.</p>
         </div>
     </div>
+    <!-- ✅ v2.4.0 — تاریخچه تغییر وضعیت سند -->
+    <div class="card" id="voucher-hist-card">
+        <h3 style="margin-bottom:10px;color:var(--primary-dark);font-size:0.95rem">🕘 تاریخچه تغییر وضعیت سند</h3>
+        <div id="hist-vouchers"></div>
+    </div>
     <div class="card">
         <h3 style="margin-bottom:12px;color:var(--primary-dark);font-size:0.95rem">اقلام سند</h3>
         <div id="voucher-lines"></div>
@@ -1123,7 +1522,7 @@
         <button class="tab-btn active" data-tab="tpl-list">📋 الگوهای سند</button>
         <button class="tab-btn" data-tab="tpl-add">✏️ تعریف الگو</button>
         <button class="tab-btn" data-tab="desc-list">💬 شرح‌های استاندارد</button>
-    </div>
+    <button class="tab-btn" data-tab="tpl-hist">🕘 تاریخچه تغییر وضعیت</button></div>
     <div id="tab-tpl-list" class="tab-content active"><div class="card">
         <div class="list-header">
             <span class="count-badge" id="tpl-count">۰</span>
@@ -1145,6 +1544,7 @@
             <button id="new-tpl" class="btn-secondary">جدید</button>
         </div>
     </div></div>
+    <div id="tab-tpl-hist" class="tab-content"><div class="card"><div id="hist-tpl"></div></div></div>
     <div id="tab-desc-list" class="tab-content"><div class="card">
         <div class="field">
             <label>جستجو در شرح‌های استاندارد</label>
@@ -1876,26 +2276,13 @@
 </div>
 <input type="file" id="restore-file" accept=".json" hidden>
 
-<!-- ✅ v2.1.0 — فرم حقوق دسترسی + فرم محدودیت دسترسی -->
-<div id="user-perms-overlay" class="overlay"></div>
-<div id="user-perms-modal" class="modal" style="max-width:860px">
-    <div class="modal-head"><h2 id="user-perms-title">🔐 دسترسی‌های کاربر</h2><button id="user-perms-close" class="close-btn">×</button></div>
-    <div class="modal-body" style="padding-top:8px">
-        <div style="display:flex;gap:6px;margin-bottom:10px">
-            <button class="btn-secondary user-perms-tab-btn active" data-uptab="perms" style="flex:1;padding:8px">🔐 حقوق دسترسی (صفحات و عمل‌ها)</button>
-            <button class="btn-secondary user-perms-tab-btn" data-uptab="limits" style="flex:1;padding:8px">🚫 محدودیت دسترسی (داده‌ها)</button>
-        </div>
-        <div id="user-perms-tab-perms">
-            <div id="user-perms-matrix"></div>
-        </div>
-        <div id="user-perms-tab-limits" style="display:none">
-            <div id="user-perms-limits"></div>
-        </div>
-    </div>
-    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-start;flex-wrap:wrap">
-        <button id="user-perms-save" class="btn-primary">💾 ذخیره دسترسی‌ها</button>
-        <button id="user-perms-reset" class="btn-secondary">↩️ بازگشت به پیش‌فرض (دسترسی کامل)</button>
-    </div>
+<!-- ✅ v2.4.0 — فرم‌های حقوق دسترسی و محدودیت به بخش «امنیت» در منو منتقل شدند -->
+
+<!-- ✅ v2.4.0 — پنجره «تاریخچه تغییر وضعیت» -->
+<div id="hist-modal-overlay" class="overlay"></div>
+<div id="hist-modal" class="modal" style="max-width:640px">
+    <div class="modal-head"><h2 id="hist-modal-title" style="font-size:.95rem">🕘 تاریخچه تغییر وضعیت</h2><button id="hist-modal-close" class="close-btn">×</button></div>
+    <div id="hist-modal-body" style="max-height:60vh;overflow:auto;padding:10px 14px"></div>
 </div>
 
 <div id="vpreview-overlay" class="overlay"></div>
@@ -1991,6 +2378,10 @@
         <div class="modal-section">
             <h3>🔑 کلید API</h3>
             <div class="field"><input type="password" id="ai-apikey-input" placeholder="sk-..." dir="ltr"></div>
+            <div class="form-buttons" style="margin-top:10px">
+                <button id="ai-conn-test" class="btn-secondary btn-mini" type="button">🩺 تست اتصال و کلید</button>
+            </div>
+            <div id="ai-conn-test-result" style="margin-top:10px"></div>
         </div>
         <div class="modal-section">
             <h3>🧠 مدل (AvalAI)</h3>
@@ -2066,7 +2457,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.3.8';</script>
+<script>window.__PARSIS_VER = '2.4.0';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
@@ -2127,7 +2518,7 @@
         bootLog('نسخهٔ پارسیس: ' + (window.__PARSIS_VER || '?'), 'info');
 
         var modules = [
-            './js/core/constants.js', './js/core/utils.js', './js/core/native-bridge.js', './js/core/lan-sync.js', './js/core/cloud-sync.js', './js/core/password.js', './js/core/state.js', './js/core/router.js', './js/core/permissions.js',
+            './js/core/constants.js', './js/core/utils.js', './js/core/native-bridge.js', './js/core/lan-sync.js', './js/core/cloud-sync.js', './js/core/password.js', './js/core/state.js', './js/core/router.js', './js/core/permissions.js', './js/core/history.js',
             './js/core/calendar-popup.js', './js/core/hide.js', './js/core/lookups.js',
             './js/ui/toast.js', './js/ui/nav.js', './js/ui/theme.js', './js/ui/table.js',
             './js/ui/form.js', './js/ui/time-picker.js', './js/ui/share.js', './js/ui/observers.js',
@@ -2141,7 +2532,7 @@
             './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/reminders.js', './js/modules/native-widgets.js', './js/modules/calendar.js',
             './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js', './js/modules/ai.js',
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
-            './js/modules/users.js', './js/modules/user-perms.js', './js/modules/auth.js', './js/app.js'
+            './js/modules/users.js', './js/modules/user-perms.js', './js/modules/treasury.js', './js/modules/assets.js', './js/modules/inventory.js', './js/modules/sales.js', './js/modules/auth.js', './js/app.js'
         ];
         var total = modules.length;
 
