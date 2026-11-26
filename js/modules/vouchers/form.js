@@ -526,6 +526,8 @@ function loadVoucherForEdit(v) {
 
             if (typeof bindVoucherForm === 'function') { activePage.dataset.rebound = '1'; bindVoucherForm(); }
             if (typeof setVoucherStatusBar === 'function') setVoucherStatusBar(v.status === 'approved' ? 'approved' : 'draft', v.id);
+            /* ✅ v2.4.0 — رندر تاریخچه سند در کارت اختصاصی */
+            try { if (typeof Hist !== 'undefined' && Hist.renderTab) Hist.renderTab('vouchers', '#v-id', '#hist-vouchers'); } catch (eH) {}
             return;
         }
         if (attempts < MAX) setTimeout(tryRender, 50);
@@ -559,11 +561,24 @@ function persistVoucher(approve) {
         if (issues.length > 0) { alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• ')); return; }
     }
     var l = DB.load('vouchers', []);
+    /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت سند */
+    var _vBefore = null;
+    if (id) { var _vb = l.filter(function (x) { return x.id === id; })[0]; if (_vb) _vBefore = JSON.parse(JSON.stringify(_vb)); }
     if (id) {
         var found = false;
         for (var kk = 0; kk < l.length; kk++) { if (l[kk].id === id) { l[kk] = vch; found = true; } }
         if (!found) l.push(vch);
     } else l.push(vch);
+    try {
+        if (typeof Hist !== 'undefined' && Hist.log) {
+            if (_vBefore) {
+                var _act = (_vBefore.status !== 'approved' && vch.status === 'approved') ? 'تأیید' : 'ویرایش';
+                Hist.log('vouchers', vch.id, _act, _vBefore, vch);
+            } else {
+                Hist.log('vouchers', vch.id, vch.status === 'approved' ? 'ایجاد و تأیید' : 'ایجاد', null, vch);
+            }
+        }
+    } catch (eH) {}
     DB.save('vouchers', l);
     if (approve) {
         showToast('✅ سند تأیید شد.'); window._voucherFormSavedAndClean = true; setVoucherStatusBar('approved', vch.id); goToPage('voucher-list');

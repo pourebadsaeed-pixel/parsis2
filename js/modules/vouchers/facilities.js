@@ -142,6 +142,8 @@ function tryDeleteFacility(f) {
     if (!confirm('حذف شود؟')) return;
 
     var l = DB.load('facilities', []);
+    /* ✅ v2.4.0 — ثبت حذف در تاریخچه */
+    try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('facilities', f.id, 'حذف', f, null, f.name || ''); } catch (eH) {}
     l = l.filter(function (x) { return x.id !== f.id; });
     DB.save('facilities', l);
     renderFacilitiesList();
@@ -478,6 +480,9 @@ function saveFacility() {
     };
 
     var l = DB.load('facilities', []);
+    /* ✅ v2.4.0 — ثبت در تاریخچه تغییر وضعیت */
+    var _before = null;
+    if (id) { var _bf = l.filter(function (x) { return x.id === id; })[0]; if (_bf) _before = JSON.parse(JSON.stringify(_bf)); }
     if (id) {
         for (var i = 0; i < l.length; i++) {
             if (l[i].id === id) l[i] = o;
@@ -485,6 +490,7 @@ function saveFacility() {
     } else {
         l.push(o);
     }
+    try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('facilities', o.id, _before ? 'ویرایش' : 'ایجاد', _before, o); } catch (eH) {}
     DB.save('facilities', l);
     showToast('✅ تسهیلات ذخیره شد.');
     clearFacForm();

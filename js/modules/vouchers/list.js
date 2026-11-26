@@ -348,7 +348,8 @@ function renderVoucherList() {
 
             var aH = '<div class="row-actions">'
                    + '<button class="row-btn open" data-id="' + v.id + '" data-action="preview" title="مشاهده">👁</button>'
-                   + '<button class="row-btn copy" data-id="' + v.id + '" data-action="copy" title="کپی سند">📋</button>';
+                   + '<button class="row-btn copy" data-id="' + v.id + '" data-action="copy" title="کپی سند">📋</button>'
+                   + '<button class="row-btn hist" data-id="' + v.id + '" data-hist="1" title="تاریخچه تغییر وضعیت">🕘</button>';
             if (status === 'draft') {
                 aH += '<button class="row-btn edit" data-id="' + v.id + '" data-action="edit" title="ویرایش">✎</button>';
                 aH += '<button class="row-btn approve" data-id="' + v.id + '" data-action="approve" title="تأیید">✓</button>';
@@ -400,6 +401,11 @@ function renderVoucherList() {
 
 function handleVoucherRowAction() {
     var id = this.getAttribute('data-id');
+    /* ✅ v2.4.0 — دکمه 🕘 تاریخچه سند */
+    if (this.getAttribute('data-hist') === '1' && typeof Hist !== 'undefined' && Hist.openModal) {
+        Hist.openModal('vouchers', id, 'سند شماره ' + (findVoucherById(id) || {}).number);
+        return;
+    }
     var action = this.getAttribute('data-action');
     var v = findVoucherById(id);
     if (!v) { showToast('سند یافت نشد.'); return; }
@@ -439,6 +445,13 @@ function handleVoucherRowAction() {
 
     if (action === 'delete') {
         if (!confirm('حذف شود؟')) return;
+        /* ✅ v2.4.0 — ثبت حذف سند در تاریخچه تغییر وضعیت */
+        try {
+            if (typeof Hist !== 'undefined' && Hist.log) {
+                var _vd = DB.load('vouchers', []).filter(function (x) { return x.id === id; })[0];
+                if (_vd) Hist.log('vouchers', id, 'حذف', _vd, null, 'سند شماره ' + (_vd.number || ''));
+            }
+        } catch (eH) {}
         var list3 = DB.load('vouchers', []).filter(function (x) { return x.id !== id; });
         DB.save('vouchers', list3); renderVoucherList();
         if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); return;
