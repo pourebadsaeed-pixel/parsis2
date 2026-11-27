@@ -3595,3 +3595,24 @@ body.nav-dragging-body { cursor:grabbing; user-select:none; -webkit-user-select:
   .topbar .date-line.jalali { font-size:0.85rem; }
   .nav-group-items .nav-item-btn { margin-left:12px; }
 }
+
+/* ============================================================
+   ✅ v2.7.1 — برچسب بخش‌های داخل گروه منو («فهرست‌ها» / «عملیات» / ...)
+   درخواست کاربر: فهرست‌ها در یک بخش و عملیات زیر بخش کلی فهرست‌ها
+   ============================================================ */
+.nav-sec-label {
+  margin: 7px 12px 2px 12px;
+  padding: 2px 8px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--primary, #4f46e5);
+  background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(99,102,241,0.02));
+  border-right: 3px solid var(--primary, #4f46e5);
+  border-radius: 6px;
+  text-align: right;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.nav-group-items .nav-item-btn:first-child { border-top: none; }
+.nav-sec-label + .nav-item-btn { border-top: none !important; }
