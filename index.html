@@ -2392,6 +2392,21 @@
                     <div id="set-andr-camera-status" style="font-size:0.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
                     <div id="set-andr-alarm-status" style="font-size:0.75rem;margin-top:4px;font-weight:bold;color:#64748b">…</div>
                 </div>
+                <!-- ✅ v2.7.3 — ویجت نیتیو تقویم هفتگی: صفحه اصلی + پس‌زمینهٔ قفل (درخواست کاربر) -->
+                <div style="border:1px solid #dbe7f6;border-radius:12px;padding:10px 12px;background:#f6f9ff">
+                    <div style="font-size:.8rem;font-weight:900;color:#1e40af;margin-bottom:6px">📅 ویجت تقویم هفتگی روی گوشی</div>
+                    <p class="muted" style="font-size:.7rem;line-height:1.9;margin-bottom:8px">💡 ویجت تقویم هفته (با ساعتِ زنده، روزهای تعطیل قرمز و فهرستِ قابل اسکرول رویدادها) روی صفحهٔ اصلی گوشی؛ و برای صفحهٔ قفل، تصویر همین تقویم به‌عنوان پس‌زمینه تنظیم می‌شود. انتخاب «کدام تقویم در ویجت دیده شود» از صفحهٔ مدیریت تقویم انجام می‌شود.</p>
+                    <div class="form-buttons" style="gap:8px">
+                        <button id="set-calw-pin-btn" class="btn-secondary" style="flex:1">📌 افزودن ویجت به صفحهٔ اصلی</button>
+                        <button id="set-calw-refresh-btn" class="btn-secondary" style="flex:1">🔄 به‌روزرسانی ویجت</button>
+                    </div>
+                    <div class="form-buttons" style="gap:8px;margin-top:8px">
+                        <button id="set-calw-preview-btn" class="btn-secondary" style="flex:1">🔍 پیش‌نمایش پس‌زمینه</button>
+                        <button id="set-calw-lock-btn" class="btn-primary" style="flex:1">🖼 پس‌زمینهٔ قفل گوشی</button>
+                        <button id="set-calw-home-btn" class="btn-secondary" style="flex:1">🖼 پس‌زمینهٔ صفحهٔ اصلی</button>
+                    </div>
+                    <div id="set-calw-status" style="font-size:0.75rem;margin-top:8px;font-weight:bold;color:#64748b">…</div>
+                </div>
                 <div class="admin-only-section" style="border-top:1px dashed #e2e8f0;padding-top:10px">
                     <div class="form-buttons" style="gap:8px">
                         <button id="set-lan-start-btn" class="btn-secondary" style="flex:1">📡 اشتراک‌گذاری در شبکه (سرور گوشی)</button>
@@ -2712,7 +2727,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.7.2';</script>
+<script>window.__PARSIS_VER = '2.7.3';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
