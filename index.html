@@ -188,7 +188,7 @@
 <aside id="sidebar" class="sidebar">
     <div class="sidebar-head"><h2 id="sidebar-app-title">پارسیس (۲.۷.۱)</h2><button id="close-sidebar" class="close-btn">×</button></div>
     <div class="sidebar-search"><input type="text" id="sidebar-search-input" placeholder="🔍 جستجوی فرم یا گزارش..."></div>
-    <div class="sidebar-actions"><button id="side-expand" class="mini-btn">باز کردن همه</button><button id="side-collapse" class="mini-btn">بستن همه</button><button id="nav-reset-order" class="mini-btn" title="بازگشت ترتیب منو به حالت پیش‌فرض">↺ ترتیب پیش‌فرض</button></div>
+    <div class="sidebar-actions"><button id="side-expand" class="mini-btn">باز کردن همه</button><button id="side-collapse" class="mini-btn">بستن همه</button><button id="nav-lock-order" class="mini-btn" title="قفل جابه‌جایی منو — وقتی فعال باشد آیتم‌ها تصادفی جابه‌جا نمی‌شوند">🔒 ترتیب قفل است</button><button id="nav-reset-order" class="mini-btn" title="بازگشت ترتیب منو به حالت پیش‌فرض">↺ ترتیب پیش‌فرض</button></div>
     <nav class="sidebar-nav" id="sidebar-nav">
         <div class="nav-group nav-frequent collapsed" id="nav-frequent-group" style="display:none">
             <button class="nav-group-title"><span>⭐ پرکاربرد</span><span class="caret">▾</span></button>
@@ -1655,7 +1655,13 @@
 
 <section id="page-voucher-new" class="page">
     <h2>✏️ صدور سند</h2>
+    <!-- ✅ v2.7.2 — باکس‌های «الگو» و «شماره و تاریخ» با چیورن جمع‌شدن (^) -->
     <div class="card" id="voucher-template-card">
+        <div class="vcard-head" id="voucher-template-card-head">
+            <span class="vcard-head-title">⚡ الگو</span>
+            <button type="button" class="vcard-toggle" data-vcard="voucher-template-card" title="جمع/باز کردن این بخش">▾</button>
+        </div>
+        <div class="vcard-body" id="voucher-template-card-body">
         <div class="grid-2">
             <div class="field"><label>⚡ الگو</label><select id="v-template"></select></div>
             <div class="field"><label>&nbsp;</label><button id="apply-template" class="btn-secondary" style="width:100%">اعمال الگو</button></div>
@@ -1664,8 +1670,14 @@
             <button id="save-as-template" class="btn-secondary btn-mini">💾 ذخیره الگو</button>
             <button id="goto-templates" class="btn-secondary btn-mini">مدیریت الگوها</button>
         </div>
+        </div>
     </div>
     <div class="card" id="voucher-head-card">
+        <div class="vcard-head" id="voucher-head-card-head">
+            <span class="vcard-head-title">🔢 شماره و تاریخ</span>
+            <button type="button" class="vcard-toggle" data-vcard="voucher-head-card" title="جمع/باز کردن این بخش">▾</button>
+        </div>
+        <div class="vcard-body" id="voucher-head-card-body">
         <input type="hidden" id="v-id">
         <div class="voucher-head-row">
             <div class="field" style="max-width:100px"><label>شماره</label><input type="text" id="v-number" dir="ltr" readonly></div>
@@ -1701,6 +1713,7 @@
                 <div id="voucher-attach-strip" style="display:flex;gap:8px;flex-wrap:wrap"></div>
             </div>
             <p class="muted" style="font-size:0.7rem;margin-top:4px">💡 عکس با دوربین یا از گالری — تا ۳ عکس برای هر سند، با فشرده‌سازی خودکار.</p>
+        </div>
         </div>
     </div>
     <!-- ✅ v2.4.0 — تاریخچه تغییر وضعیت سند -->
@@ -2359,6 +2372,8 @@
                     </div>
                     <div id="set-andr-notif-status" style="font-size:0.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
                     <label class="checkbox-item" style="margin-top:6px"><input type="checkbox" id="set-andr-rem"> <span>یادآور سرسید اقساط (۳ روز قبل، ۱ روز قبل و روز موعد — ساعت ۹ صبح)</span></label>
+                    <!-- ✅ v2.7.2 — نوتیفیکیشن پاپ‌آپی رویدادهای تقویم (زیر هم + کلیک = ورود به رویداد) -->
+                    <label class="checkbox-item" style="margin-top:6px"><input type="checkbox" id="set-andr-calnotif"> <span>🔔 نوتیفیکیشن رویدادهای تقویم (پاپ‌آپ روی صفحه اصلی گوشی — با کلیک، رویداد باز می‌شود)</span></label>
                 </div>
                 <div>
                     <div class="form-buttons" style="gap:8px">
@@ -2367,6 +2382,15 @@
                     </div>
                     <div id="set-andr-widgets-status" style="font-size:0.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
                     <div id="set-lan-files-status" style="font-size:0.75rem;margin-top:4px;font-weight:bold;color:#64748b">در اندروید ۱۱+ برای ذخیره مستقیم در حافظه گوشی</div>
+                </div>
+                <!-- ✅ v2.7.2 — درخواست دسترسی دوربین (عکس پیوست) و آلارم دقیق (یادآورها) -->
+                <div>
+                    <div class="form-buttons" style="gap:8px">
+                        <button id="set-andr-camera-btn" class="btn-secondary" style="flex:1">📷 فعال‌سازی دسترسی دوربین</button>
+                        <button id="set-andr-alarm-btn" class="btn-secondary" style="flex:1">⏰ فعال‌سازی آلارم دقیق</button>
+                    </div>
+                    <div id="set-andr-camera-status" style="font-size:0.75rem;margin-top:6px;font-weight:bold;color:#64748b">…</div>
+                    <div id="set-andr-alarm-status" style="font-size:0.75rem;margin-top:4px;font-weight:bold;color:#64748b">…</div>
                 </div>
                 <div class="admin-only-section" style="border-top:1px dashed #e2e8f0;padding-top:10px">
                     <div class="form-buttons" style="gap:8px">
@@ -2688,7 +2712,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.7.1';</script>
+<script>window.__PARSIS_VER = '2.7.2';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
@@ -2760,7 +2784,7 @@
             './js/modules/vouchers/sources.js', './js/modules/vouchers/facilities.js', './js/modules/voucher-photos.js',
             './js/modules/reports/cashflow.js', './js/modules/reports/account.js','./js/modules/reports/ledger.js', './js/modules/reports/trial.js',
             './js/modules/reports/facility.js', './js/modules/reports/rates.js',
-            './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/reminders.js', './js/modules/native-widgets.js', './js/modules/calendar.js',
+            './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/reminders.js', './js/modules/native-widgets.js', './js/modules/calendar-events.js', './js/modules/calendar.js', './js/modules/calendar-notifications.js', './js/modules/calculator.js',
             './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js', './js/modules/ai.js',
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
             './js/modules/users.js', './js/modules/user-perms.js', './js/modules/treasury.js', './js/modules/assets.js', './js/modules/inventory.js',

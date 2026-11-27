@@ -19,7 +19,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v51';
+const CACHE_VERSION = 'v52';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -60,6 +60,9 @@ const PRECACHE_ASSETS = [
     './js/modules/auth.js',
     './js/modules/backup.js',
     './js/modules/calendar.js',
+    './js/modules/calendar-events.js',
+    './js/modules/calendar-notifications.js',
+    './js/modules/calculator.js',
     './js/modules/dashboard.js',
     './js/modules/fix-sidebar.js',
     './js/modules/native-widgets.js',
