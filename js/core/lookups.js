@@ -361,6 +361,41 @@ function _printCleanupFrame(iframe) {
     _printState.busyAt = 0;
 }
 
+/* ✅ v2.7.1 — چاپ مسیر موبایل به‌صورت تابع مستقل:
+   در مرورگر موبایل و در «خطای چاپ نیتیو اندروید» استفاده می‌شود تا کاربر
+   هیچ‌وقت دکمهٔ چاپ بی‌عملکرد نبیند.
+   خروجی: true = پنجرهٔ چاپ باز شد / false = پنجره مسدود شد (مسیر iframe) */
+function _printMobileFallback(htmlContent, opts) {
+    try {
+        var _uaMob = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        if (!_uaMob || typeof window.open !== 'function') return false;
+        var _pw = null;
+        try { _pw = window.open('', '_blank'); } catch (eOpen) { _pw = null; }
+        if (!_pw) return false;
+        try {
+            var _pdoc = _pw.document;
+            _pdoc.open();
+            _pdoc.write(String(htmlContent || ''));
+            _pdoc.close();
+        } catch (eWrite) { /* ادامه — پنجره بسته می‌شود */ }
+        var _tries = 0;
+        var _pt = setInterval(function () {
+            _tries++;
+            try {
+                var _rdy = _pw.document && _pw.document.readyState === 'complete';
+                if (_rdy || _tries > 24) {
+                    clearInterval(_pt);
+                    try { _pw.focus(); _pw.print(); } catch (ePrint) {
+                        try { _pw.close(); } catch (eC) {}
+                    }
+                }
+            } catch (ePoll) { clearInterval(_pt); }
+        }, 250);
+        if (typeof showToast === 'function') showToast(opts.toast || 'گزارش در تب جدید باز شد؛ کادر چاپ مرورگر باز می‌شود.');
+        return true;
+    } catch (eMob) { return false; }
+}
+
 function printHtmlContent(htmlContent, opts) {
     opts = opts || {};
     /* ✅ v2.0.7 — اندروید: چاپ با PrintManager نیتیو سیستم.
@@ -372,23 +407,35 @@ function printHtmlContent(htmlContent, opts) {
         if (_nat) {
             var Pn = (window.Capacitor.Plugins && window.Capacitor.Plugins.Parsis) || null;
             if (Pn && typeof Pn.printHtml === 'function') {
-                Pn.printHtml({ html: String(htmlContent || ''), title: opts.title || 'گزارش پارسیس' })
-                    .then(function (r) {
-                        if (r && r.ok) {
-                            if (typeof showToast === 'function') showToast(opts.toast || 'کادر چاپ سیستم باز شد؛ چاپ کاغذی یا ذخیره به‌صورت PDF را انتخاب کنید.');
-                        } else if (typeof showToast === 'function') {
-                            showToast('چاپ نیتیو ممکن نشد؛ از خروجی اکسل گزارش استفاده کنید.');
-                        }
-                    })
-                    .catch(function () {
-                        if (typeof showToast === 'function') showToast('چاپ نیتیو ممکن نشد؛ از خروجی اکسل گزارش استفاده کنید.');
-                    });
+                /* ✅ v2.7.1 — رفع «دکمهٔ چاپ کار نمی‌کند» در اندروید:
+                   ۱) اگر متد نیتیو پاسخ نداد یا خطا داد، به‌جای پیام منفعل، مسیر
+                      جایگزین (پنجرهٔ جدید مرورگر) خودکار امتحان می‌شود؛
+                   ۲) اگر پلاگین بعد از ۹ ثانیه جواب نداد (APK قدیمی/قفل نیتیو)،
+                      باز هم مسیر جایگزین اجرا می‌شود — کاربر هیچ‌وقت بی‌عملکرد نمی‌ماند. */
+                var _nativeSettled = false;
+                var _nativeDone = function (ok, msg) {
+                    if (_nativeSettled) return;
+                    _nativeSettled = true;
+                    if (ok) {
+                        if (typeof showToast === 'function') showToast(opts.toast || 'کادر چاپ سیستم باز شد؛ چاپ کاغذی یا ذخیره به‌صورت PDF را انتخاب کنید.');
+                    } else {
+                        console.warn('[print] native failed:', msg, '→ fallback');
+                        _printMobileFallback(htmlContent, opts);
+                    }
+                };
+                try {
+                    Pn.printHtml({ html: String(htmlContent || ''), title: opts.title || 'گزارش پارسیس' })
+                        .then(function (r) { _nativeDone(!!(r && r.ok), (r && r.reason) || 'rejected-ok-false'); })
+                        .catch(function (eNat2) { _nativeDone(false, (eNat2 && eNat2.message) || eNat2); });
+                } catch (eNatCall) { _nativeDone(false, eNatCall); }
+                /* نگهبان زمانی: پاسخ نیتیو هرگز نیامد → مسیر جایگزین */
+                setTimeout(function () { _nativeDone(false, 'timeout-9s'); }, 9000);
                 return true;
             }
-            /* ✅ v2.3.2 — اپ اندروید هست ولی روش چاپ نیتیو ندارد یعنی APK قدیمی است.
-               چاپ iframe داخل WebView اندروید هیچ‌وقت کار نمی‌کند — پیام شفاف بده. */
-            if (typeof showToast === 'function') showToast('برای چاپ در اندروید، APK نسخه 2.3.3 یا جدیدتر را نصب کنید (تنظیمات ← درباره).');
-            return false;
+            /* اپ اندروید هست ولی روش چاپ نیتیو ندارد یعنی APK قدیمی است
+               — ✅ v2.7.1: مسیر جایگزین به‌جای پیام خشک */
+            _printMobileFallback(htmlContent, opts);
+            return true;
         }
     } catch (eNat) { /* مسیر وب ادامه می‌یابد */ }
 
@@ -396,37 +443,10 @@ function printHtmlContent(htmlContent, opts) {
        چاپ iframe در مرورگرهای موبایل یا اصلاً کاری نمی‌کند یا کل صفحه را چاپ می‌کند.
        راه درست: HTML گزارش در «پنجره/تب جدید» نوشته می‌شود و همان‌جا print() زده می‌شود —
        کادر چاپ واقعی مرورگر (چاپ کاغذی یا ذخیره PDF) باز می‌شود.
-       چون این تابع همیشه با کلیک کاربر صدا زده می‌شود، مسدودکنندهٔ پاپ‌آپ جلوی آن را نمی‌گیرد. */
-    try {
-        var _uaMob = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-        if (_uaMob && typeof window.open === 'function') {
-            var _pw = null;
-            try { _pw = window.open('', '_blank'); } catch (eOpen) { _pw = null; }
-            if (_pw) {
-                try {
-                    var _pdoc = _pw.document;
-                    _pdoc.open();
-                    _pdoc.write(String(htmlContent || ''));
-                    _pdoc.close();
-                } catch (eWrite) { /* ادامه — پنجره بسته می‌شود */ }
-                var _tries = 0;
-                var _pt = setInterval(function () {
-                    _tries++;
-                    try {
-                        var _rdy = _pw.document && _pw.document.readyState === 'complete';
-                        if (_rdy || _tries > 24) {
-                            clearInterval(_pt);
-                            try { _pw.focus(); _pw.print(); } catch (ePrint) {
-                                try { _pw.close(); } catch (eC) {}
-                            }
-                        }
-                    } catch (ePoll) { clearInterval(_pt); }
-                }, 250);
-                return true;
-            }
-            /* پنجره مسدود شد → مسیر iframe ادامه می‌یابد (دسکتاپ‌ها همیشه کار می‌کند) */
-        }
-    } catch (eMob) { /* مسیر iframe ادامه می‌یابد */ }
+       چون این تابع همیشه با کلیک کاربر صدا زده می‌شود، مسدودکنندهٔ پاپ‌آپ جلوی آن را نمی‌گیرد.
+       ✅ v2.7.1 — به تابع مستقل تبدیل شد تا مسیر «خطای چاپ نیتیو اندروید» هم از آن استفاده کند. */
+    var _wentMobile = _printMobileFallback(htmlContent, opts);
+    if (_wentMobile) return true;
 
     try {
         // جلوگیری از اجرای هم‌زمان دو چاپ (دابل‌کلیک)

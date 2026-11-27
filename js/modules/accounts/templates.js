@@ -279,6 +279,11 @@ function renderTemplateList() {
 
             if (action === 'delete') {
                 if (!confirm('حذف شود؟')) return;
+                /* ✅ v2.7.1 — ثبت حذف الگو در تاریخچه تغییر وضعیت */
+                try {
+                    var _tplDel = DB.load('voucherTemplates', []).filter(function (x) { return x.id === id; })[0];
+                    if (_tplDel && typeof Hist !== 'undefined' && Hist.log) Hist.log('voucherTemplates', id, 'حذف', _tplDel, null, _tplDel.name || '');
+                } catch (eH4) {}
                 var l2 = DB.load('voucherTemplates', []).filter(function (x) { return x.id !== id; });
                 DB.save('voucherTemplates', l2);
                 renderTemplateList();
@@ -590,6 +595,15 @@ function bindTemplatesForm() {
         d.forEach(function (x) {
             if (!l.some(function (y) { return y.name === x.name; })) { l.push(x); added++; }
         });
+        /* ✅ v2.7.1 — ثبت الگوهای افزوده‌شده در تاریخچه */
+        try {
+            if (added > 0 && typeof Hist !== 'undefined' && Hist.log) {
+                d.forEach(function (x) {
+                    var ex = l.filter(function (y) { return y.name === x.name; })[0];
+                    if (ex && typeof Hist !== 'undefined' && Hist.log) Hist.log('voucherTemplates', ex.id, 'ایجاد (الگوهای پیش‌فرض)', null, ex, ex.name || '');
+                });
+            }
+        } catch (eH5) {}
         DB.save('voucherTemplates', l);
         renderTemplateList();
         refreshTemplateSelect();

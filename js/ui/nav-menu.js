@@ -23,54 +23,60 @@
 
 var NAV_MENU_GROUPS = [
     {
-        id: 'general', icon: '🗂', color: '#3b82f6', title: 'عمومی', items: [
-            { page: 'language',            icon: '🌐', color: '#0ea5e9', label: 'زبان' },
-            { page: 'account-types',       icon: '📑', color: '#6366f1', label: 'لیست نوع حساب' },
-            { page: 'bank-types',          icon: '🏦', color: '#f59e0b', label: 'انواع حساب بانکی' },
-            { page: 'cash-types',          icon: '💰', color: '#10b981', label: 'انواع صندوق' },
-            { page: 'currency',            icon: '💱', color: '#8b5cf6', label: 'ارز و واحد پول' },
-            { page: 'fiscal', tab: 'fiscal-list', icon: '📅', color: '#f97316', label: 'فهرست دوره‌های مالی' },
-            { page: 'fiscal', tab: 'fiscal-add',  icon: '➕', color: '#22c55e', label: 'ایجاد دوره مالی' },
-            { page: 'chart-define',        icon: '✏️', color: '#ef4444', label: 'تعریف حساب‌ها' },
-            { page: 'persons', tab: 'persons-list', icon: '👥', color: '#3b82f6', label: 'فهرست اشخاص' },
-            { page: 'persons', tab: 'persons-add',  icon: '➕', color: '#06b6d4', label: 'ایجاد شخص' },
-            { page: 'companies', tab: 'comp-list',  icon: '🏢', color: '#6366f1', label: 'فهرست شرکت‌ها' },
-            { page: 'companies', tab: 'comp-add',   icon: '➕', color: '#8b5cf6', label: 'ایجاد شرکت' },
-            { page: 'phonebook',           icon: '📞', color: '#14b8a6', label: 'دفترچه تلفن' },
-            { page: 'bank-accounts', tab: 'ba-list', icon: '🏦', color: '#f59e0b', label: 'فهرست حساب‌های بانکی' },
-            { page: 'bank-accounts', tab: 'ba-add',  icon: '➕', color: '#f97316', label: 'ایجاد حساب بانکی' },
-            { page: 'cash-boxes', tab: 'cb-list', icon: '💰', color: '#10b981', label: 'فهرست صندوق‌ها' },
-            { page: 'cash-boxes', tab: 'cb-add',  icon: '➕', color: '#22c55e', label: 'ایجاد صندوق' },
-            { page: 'projects', tab: 'proj-list', icon: '📁', color: '#a855f7', label: 'فهرست پروژه‌ها' },
-            { page: 'projects', tab: 'proj-add',  icon: '➕', color: '#d946ef', label: 'ایجاد پروژه' },
-            { page: 'users', tab: 'users-list', icon: '👤', color: '#3b82f6', label: 'فهرست کاربران' },
-            { page: 'users', tab: 'users-add',  icon: '➕', color: '#2563eb', label: 'ایجاد کاربر' },
-            { page: 'sec-groups', tab: 'sg-list', icon: '👥', color: '#8b5cf6', label: 'فهرست گروه‌های کاربری' },
-            { page: 'sec-groups', tab: 'sg-add',  icon: '➕', color: '#7c3aed', label: 'ایجاد گروه کاربری' },
-            { page: 'sec-perms',  icon: '🔐', color: '#d97706', label: 'حقوق دسترسی' },
-            { page: 'sec-limits', icon: '🚫', color: '#dc2626', label: 'محدودیت حقوق دسترسی' }
+        id: 'general', icon: '🗂', color: '#3b82f6', title: 'عمومی',
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' } ],
+        items: [
+            { page: 'language',            icon: '🌐', color: '#0ea5e9', label: 'زبان', sec: 'list' },
+            { page: 'account-types',       icon: '📑', color: '#6366f1', label: 'لیست نوع حساب', sec: 'list' },
+            { page: 'bank-types',          icon: '🏦', color: '#f59e0b', label: 'انواع حساب بانکی', sec: 'list' },
+            { page: 'cash-types',          icon: '💰', color: '#10b981', label: 'انواع صندوق', sec: 'list' },
+            { page: 'currency',            icon: '💱', color: '#8b5cf6', label: 'ارز و واحد پول', sec: 'list' },
+            { page: 'fiscal', tab: 'fiscal-list', icon: '📅', color: '#f97316', label: 'فهرست دوره‌های مالی', sec: 'list' },
+            { page: 'persons', tab: 'persons-list', icon: '👥', color: '#3b82f6', label: 'فهرست اشخاص', sec: 'list' },
+            { page: 'companies', tab: 'comp-list',  icon: '🏢', color: '#6366f1', label: 'فهرست شرکت‌ها', sec: 'list' },
+            { page: 'phonebook',           icon: '📞', color: '#14b8a6', label: 'دفترچه تلفن', sec: 'list' },
+            { page: 'bank-accounts', tab: 'ba-list', icon: '🏦', color: '#f59e0b', label: 'فهرست حساب‌های بانکی', sec: 'list' },
+            { page: 'cash-boxes', tab: 'cb-list', icon: '💰', color: '#10b981', label: 'فهرست صندوق‌ها', sec: 'list' },
+            { page: 'projects', tab: 'proj-list', icon: '📁', color: '#a855f7', label: 'فهرست پروژه‌ها', sec: 'list' },
+            { page: 'users', tab: 'users-list', icon: '👤', color: '#3b82f6', label: 'فهرست کاربران', sec: 'list' },
+            { page: 'sec-groups', tab: 'sg-list', icon: '👥', color: '#8b5cf6', label: 'فهرست گروه‌های کاربری', sec: 'list' },
+            { page: 'sec-perms',  icon: '🔐', color: '#d97706', label: 'حقوق دسترسی', sec: 'list' },
+            { page: 'sec-limits', icon: '🚫', color: '#dc2626', label: 'محدودیت حقوق دسترسی', sec: 'list' },
+            { page: 'fiscal', tab: 'fiscal-add',  icon: '➕', color: '#22c55e', label: 'ایجاد دوره مالی', sec: 'op' },
+            { page: 'chart-define',        icon: '✏️', color: '#ef4444', label: 'تعریف حساب‌ها', sec: 'op' },
+            { page: 'persons', tab: 'persons-add',  icon: '➕', color: '#06b6d4', label: 'ایجاد شخص', sec: 'op' },
+            { page: 'companies', tab: 'comp-add',   icon: '➕', color: '#8b5cf6', label: 'ایجاد شرکت', sec: 'op' },
+            { page: 'bank-accounts', tab: 'ba-add',  icon: '➕', color: '#f97316', label: 'ایجاد حساب بانکی', sec: 'op' },
+            { page: 'cash-boxes', tab: 'cb-add',  icon: '➕', color: '#22c55e', label: 'ایجاد صندوق', sec: 'op' },
+            { page: 'projects', tab: 'proj-add',  icon: '➕', color: '#d946ef', label: 'ایجاد پروژه', sec: 'op' },
+            { page: 'users', tab: 'users-add',  icon: '➕', color: '#2563eb', label: 'ایجاد کاربر', sec: 'op' },
+            { page: 'sec-groups', tab: 'sg-add',  icon: '➕', color: '#7c3aed', label: 'ایجاد گروه کاربری', sec: 'op' }
         ]
     },
     {
-        id: 'ops', icon: '📝', color: '#f59e0b', title: 'عملیات', items: [
-            { page: 'voucher-list', icon: '📄', color: '#d97706', label: 'فهرست اسناد حسابداری' },
-            { page: 'voucher-new',  icon: '✏️', color: '#dc2626', label: 'صدور سند حسابداری' },
-            { page: 'templates', tab: 'tpl-list', icon: '🧩', color: '#f59e0b', label: 'فهرست الگوهای سند' },
-            { page: 'templates', tab: 'tpl-add',  icon: '➕', color: '#f97316', label: 'ایجاد الگوی سند' },
-            { page: 'templates', tab: 'desc-list', icon: '💬', color: '#eab308', label: 'شرح‌های استاندارد' },
-            { page: 'sms', icon: '📱', color: '#22c55e', label: 'پیامک بانکی',
+        id: 'ops', icon: '📝', color: '#f59e0b', title: 'حسابداری',
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'tools', label: 'ابزارها' } ],
+        items: [
+            { page: 'voucher-list', icon: '📄', color: '#d97706', label: 'فهرست اسناد حسابداری', sec: 'list' },
+            { page: 'templates', tab: 'tpl-list', icon: '🧩', color: '#f59e0b', label: 'فهرست الگوهای سند', sec: 'list' },
+            { page: 'templates', tab: 'desc-list', icon: '💬', color: '#eab308', label: 'شرح‌های استاندارد', sec: 'list' },
+            { page: 'voucher-new',  icon: '✏️', color: '#dc2626', label: 'صدور سند حسابداری', sec: 'op' },
+            { page: 'templates', tab: 'tpl-add',  icon: '➕', color: '#f97316', label: 'ایجاد الگوی سند', sec: 'op' },
+            { page: 'sms', icon: '📱', color: '#22c55e', label: 'پیامک بانکی', sec: 'tools',
               extraHtml: ' <span class="nav-badge hidden" id="sms-nav-badge">۰</span>' }
         ]
     },
     {
-        id: 'treasury', icon: '💧', color: '#14b8a6', title: 'خزانه', items: [
-            { page: 'treasury', tab: 'tr-list', icon: '📄', color: '#0d9488', label: 'فهرست دریافت و پرداخت' },
-            { page: 'treasury', tab: 'tr-add', preset: 'in',  icon: '📥', color: '#059669', label: 'ثبت دریافت' },
-            { page: 'treasury', tab: 'tr-add', preset: 'out', icon: '📤', color: '#dc2626', label: 'ثبت پرداخت' },
-            { page: 'facilities', tab: 'fac-list', icon: '🏦', color: '#0891b2', label: 'فهرست تسهیلات' },
-            { page: 'facilities', tab: 'fac-add',  icon: '➕', color: '#06b6d4', label: 'ایجاد تسهیلات' },
-            { page: 'estimate-daily',   icon: '📝', color: '#f59e0b', label: 'برآورد هزینه‌های روزانه' },
-            { page: 'cashflow-sources', icon: '📌', color: '#f97316', label: 'برآورد منابع دریافتنی' }
+        id: 'treasury', icon: '💧', color: '#14b8a6', title: 'خزانه',
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'plan', label: 'برآوردها' } ],
+        items: [
+            { page: 'treasury', tab: 'tr-list', icon: '📄', color: '#0d9488', label: 'فهرست دریافت و پرداخت', sec: 'list' },
+            { page: 'facilities', tab: 'fac-list', icon: '🏦', color: '#0891b2', label: 'فهرست تسهیلات', sec: 'list' },
+            { page: 'treasury', tab: 'tr-add', preset: 'in',  icon: '📥', color: '#059669', label: 'ثبت دریافت', sec: 'op' },
+            { page: 'treasury', tab: 'tr-add', preset: 'out', icon: '📤', color: '#dc2626', label: 'ثبت پرداخت', sec: 'op' },
+            { page: 'facilities', tab: 'fac-add',  icon: '➕', color: '#06b6d4', label: 'ایجاد تسهیلات', sec: 'op' },
+            { page: 'estimate-daily',   icon: '📝', color: '#f59e0b', label: 'برآورد هزینه‌های روزانه', sec: 'plan' },
+            { page: 'cashflow-sources', icon: '📌', color: '#f97316', label: 'برآورد منابع دریافتنی', sec: 'plan' }
         ]
     },
     {
@@ -80,30 +86,36 @@ var NAV_MENU_GROUPS = [
         ]
     },
     {
-        id: 'assets', icon: '🏗', color: '#e11d48', title: 'اموال', items: [
-            { page: 'assets', tab: 'as-list', icon: '📋', color: '#e11d48', label: 'فهرست اموال' },
-            { page: 'assets', tab: 'as-add',  icon: '➕', color: '#f43f5e', label: 'ثبت دارایی' }
+        id: 'assets', icon: '🏗', color: '#e11d48', title: 'اموال',
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' } ],
+        items: [
+            { page: 'assets', tab: 'as-list', icon: '📋', color: '#e11d48', label: 'فهرست اموال', sec: 'list' },
+            { page: 'assets', tab: 'as-add',  icon: '➕', color: '#f43f5e', label: 'ثبت دارایی', sec: 'op' }
         ]
     },
     {
-        id: 'purchase', icon: '🛒', color: '#059669', title: 'خرید و انبار', items: [
-            { page: 'purchase-req',      icon: '📝', color: '#059669', label: 'درخواست خرید' },
-            { page: 'purchase-orders',   icon: '🧾', color: '#047857', label: 'سفارش خرید' },
-            { page: 'purchase-invoices', icon: '📄', color: '#065f46', label: 'فاکتور خرید' },
-            { page: 'purchase-returns',  icon: '↩️', color: '#dc2626', label: 'برگشت از خرید' },
-            { page: 'purchase-reports',  icon: '📊', color: '#7c3aed', label: 'گزارش‌های خرید' },
-            { page: 'purchase-settings', icon: '⚙️', color: '#64748b', label: 'اتصال به حسابداری' },
-            { page: 'inventory-items',  icon: '📦', color: '#2563eb', label: 'کالاها' },
-            { page: 'stock-requests',   icon: '📋', color: '#0891b2', label: 'درخواست کالا' },
-            { page: 'inventory-moves',  icon: '🔄', color: '#d97706', label: 'رسید و حواله انبار' },
-            { page: 'stock-card',       icon: '📚', color: '#4f46e5', label: 'کارت موجودی' },
-            { page: 'stock-valuation',  icon: '💰', color: '#16a34a', label: 'ارزش‌گذاری و قیمت‌گذاری' }
+        id: 'purchase', icon: '🛒', color: '#059669', title: 'خرید و انبار',
+        secs: [ { id: 'buy', label: 'خرید' }, { id: 'store', label: 'انبار' }, { id: 'rep', label: 'گزارش‌ها و تنظیمات' } ],
+        items: [
+            { page: 'purchase-req',      icon: '📝', color: '#059669', label: 'درخواست خرید', sec: 'buy' },
+            { page: 'purchase-orders',   icon: '🧾', color: '#047857', label: 'سفارش خرید', sec: 'buy' },
+            { page: 'purchase-invoices', icon: '📄', color: '#065f46', label: 'فاکتور خرید', sec: 'buy' },
+            { page: 'purchase-returns',  icon: '↩️', color: '#dc2626', label: 'برگشت از خرید', sec: 'buy' },
+            { page: 'inventory-items',  icon: '📦', color: '#2563eb', label: 'کالاها', sec: 'store' },
+            { page: 'stock-requests',   icon: '📋', color: '#0891b2', label: 'درخواست کالا', sec: 'store' },
+            { page: 'inventory-moves',  icon: '🔄', color: '#d97706', label: 'رسید و حواله انبار', sec: 'store' },
+            { page: 'stock-card',       icon: '📚', color: '#4f46e5', label: 'کارت موجودی', sec: 'store' },
+            { page: 'stock-valuation',  icon: '💰', color: '#16a34a', label: 'ارزش‌گذاری و قیمت‌گذاری', sec: 'store' },
+            { page: 'purchase-reports',  icon: '📊', color: '#7c3aed', label: 'گزارش‌های خرید', sec: 'rep' },
+            { page: 'purchase-settings', icon: '⚙️', color: '#64748b', label: 'اتصال به حسابداری', sec: 'rep' }
         ]
     },
     {
-        id: 'sales', icon: '🛍', color: '#6366f1', title: 'فروش', items: [
-            { page: 'sales', tab: 'si-list', icon: '📄', color: '#4f46e5', label: 'فهرست فاکتورها' },
-            { page: 'sales', tab: 'si-add',  icon: '➕', color: '#4338ca', label: 'صدور فاکتور' }
+        id: 'sales', icon: '🛍', color: '#6366f1', title: 'فروش',
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' } ],
+        items: [
+            { page: 'sales', tab: 'si-list', icon: '📄', color: '#4f46e5', label: 'فهرست فاکتورها', sec: 'list' },
+            { page: 'sales', tab: 'si-add',  icon: '➕', color: '#4338ca', label: 'صدور فاکتور', sec: 'op' }
         ]
     },
     {
@@ -199,6 +211,10 @@ function buildNavMenu() {
             if (!assigned[k]) list.push(it); /* آیتم جدید/باقی‌مانده در انتها */
         });
 
+        /* برچسب بخش‌های داخل گروه («فهرست‌ها» / «عملیات» / ...) — ✅ v2.7.1 */
+        var secsMap = {};
+        (g.secs || []).forEach(function (s) { secsMap[s.id] = s.label; });
+
         var groupEl = document.createElement('div');
         groupEl.className = 'nav-group' + (collapsed[gid] ? ' collapsed' : '');
         groupEl.setAttribute('data-nav-group', gid);
@@ -217,7 +233,20 @@ function buildNavMenu() {
         var itemsBox = document.createElement('div');
         itemsBox.className = 'nav-group-items';
 
+        var lastSec = null;
         list.forEach(function (it) {
+            /* ✅ v2.7.1 — درخواست کاربر: «فهرست‌ها در یک بخش و عملیات زیر بخش کلی
+               فهرست‌ها» — هر گروه به بخش‌های کوچکِ نام‌دار تقسیم می‌شود */
+            var sec = it.sec || null;
+            if (sec && secsMap[sec] && sec !== lastSec) {
+                var lb = document.createElement('div');
+                lb.className = 'nav-sec-label';
+                lb.setAttribute('data-nav-sec', sec);
+                lb.textContent = secsMap[sec];
+                itemsBox.appendChild(lb);
+            }
+            if (sec) lastSec = sec;
+
             var b = document.createElement('button');
             b.type = 'button';
             b.className = 'nav-item-btn';
@@ -239,6 +268,17 @@ function buildNavMenu() {
 
     nav.appendChild(frag);
     navSetSidebarTitle();
+
+    /* ✅ v2.7.1 — خودترمیمی: اگر به هر دلیل هیچ گروهی رندر نشد (دادهٔ خراب و...)
+       ترتیب ذخیره‌شده کنار گذاشته می‌شود و منو یک بار دیگر از پیکربندی پیش‌فرض
+       ساخته می‌شود (با گارد حلقهٔ بی‌نهایت) */
+    if (nav.querySelectorAll('.nav-group[data-nav-group]').length === 0 && NAV_MENU_GROUPS.length > 0
+        && !buildNavMenu._healed) {
+        buildNavMenu._healed = true;
+        try { DB.save('navMenuOrder', { groups: [], items: {} }); } catch (eSh) {}
+        try { DB.save('navMenuCollapsed', {}); } catch (eSh2) {}
+        try { buildNavMenu(); } catch (eSh3) {}
+    }
 }
 
 /* ذخیرهٔ ترتیب از DOM فعلی */
@@ -275,6 +315,13 @@ function navResetOrder() {
     DB.save('navMenuOrder', { groups: [], items: {} });
     DB.save('navMenuCollapsed', {});
     buildNavMenu();
+    /* ✅ v2.7.1 — اگر بازسازی اول کامل نشده بود، یک بار دیگر با تاخیر تلاش می‌شود */
+    setTimeout(function () {
+        try {
+            var nav = document.getElementById('sidebar-nav');
+            if (nav && nav.querySelectorAll('.nav-group[data-nav-group]').length === 0) buildNavMenu();
+        } catch (eR) {}
+    }, 250);
     showToast('✅ ترتیب منو بازنشانی شد');
 }
 
@@ -545,4 +592,4 @@ window.navResetOrder = navResetOrder;
 window.navSetSidebarTitle = navSetSidebarTitle;
 window.NAV_MENU_GROUPS = NAV_MENU_GROUPS;
 
-console.log('✅ [ui/nav-menu.js] loaded — v2.7.0 (منوی ERP + جابه‌جایی)');
+console.log('✅ [ui/nav-menu.js] loaded — v2.7.1 (منوی ERP + بخش‌های فهرست/عملیات + خودترمیمی)');

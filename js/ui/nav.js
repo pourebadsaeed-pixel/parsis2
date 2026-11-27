@@ -4,8 +4,19 @@
    ============================================================ */
 'use strict';
 
+/* ✅ v2.7.1 — خودترمیمی منو: اگر به هر دلیل (خطای بارگذاری/داده خراب) گروه‌ها
+   ساخته نشده بودند، با باز شدن سایدبار دوباره ساخته می‌شوند تا کاربر هرگز
+   سایدبار خالی نبیند و مجبور به زدن «ترتیب پیش‌فرض» نشود. */
 function openSidebar() {
     var sb = document.getElementById('sidebar'); var ov = document.getElementById('overlay');
+    try {
+        var nav = document.getElementById('sidebar-nav');
+        if (nav && nav.querySelectorAll('.nav-group[data-nav-group]').length === 0
+            && typeof buildNavMenu === 'function' && typeof NAV_MENU_GROUPS !== 'undefined'
+            && NAV_MENU_GROUPS.length > 0) {
+            buildNavMenu();
+        }
+    } catch (eNav) {}
     if (sb) sb.classList.add('open'); if (ov) ov.classList.add('show');
 }
 
@@ -94,6 +105,8 @@ function initSidebarSearch() {
         var q = this.value.trim().toLowerCase();
         document.querySelectorAll('#sidebar-nav .nav-group').forEach(function(group) {
             var anyMatch = false;
+            /* ✅ v2.7.1 — برچسب بخش‌ها («فهرست‌ها»/«عملیات») هم با جستجو مدیریت می‌شوند */
+            group.querySelectorAll('.nav-sec-label').forEach(function(lb) { lb.style.display = q ? 'none' : ''; });
             group.querySelectorAll('.nav-group-items button').forEach(function(btn) {
                 var match = !q || btn.textContent.toLowerCase().indexOf(q) !== -1;
                 btn.style.display = match ? '' : 'none';
@@ -165,9 +178,17 @@ function bindSidebarNav() {
     var closeBtn = document.getElementById('close-sidebar'); if (closeBtn) closeBtn.onclick = closeSidebar;
     var overlay = document.getElementById('overlay'); if (overlay) overlay.onclick = function() { closeSidebar(); closeSettings(); };
 
+    /* ✅ v2.7.1 — رفع باگ باز/بسته نشدن گروه‌ها:
+       در منوی جدید (v2.7.0) دکمهٔ عنوان داخل یک div با کلاس nav-group-head
+       قرار می‌گیرد؛ قبلاً parentElement به همان head کلاس می‌زد نه به گروهِ اصلی،
+       برای همین کلیک روی هر بخش هیچ اثری نداشت. حالا closest('.nav-group') استفاده می‌شود. */
     document.addEventListener('click', function (e) {
         var title = e.target.closest('.nav-group-title');
-        if (title) { title.parentElement.classList.toggle('collapsed'); return; }
+        if (title) {
+            var g = title.closest('.nav-group') || title.parentElement;
+            if (g) g.classList.toggle('collapsed');
+            return;
+        }
         
         var btn = e.target.closest('.nav-group-items button[data-page]');
         if (btn) { 

@@ -33,12 +33,21 @@ var HIST_STORE_LABELS = {
     'fiscalPeriods':  'دوره مالی',
     'facilities':     'تسهیلات',
     'voucherTemplates': 'الگوی سند',
+    'stdDescs':       'شرح استاندارد',
     'notes':          'یادداشت',
+    'phonebook':      'مخاطب دفترچه تلفن',
     'treasuryItems':  'دریافت/پرداخت خزانه',
     'assets':         'اموال و دارایی',
     'inventoryItems': 'کالای انبار',
     'inventoryMoves': 'حواله انبار',
-    'salesInvoices':  'فاکتور فروش'
+    'salesInvoices':  'فاکتور فروش',
+    'purchaseReqs':   'درخواست خرید',
+    'purchaseOrders': 'سفارش خرید',
+    'purchaseInvoices': 'فاکتور خرید',
+    'purchaseReturns': 'برگشت از خرید',
+    'stockRequests':  'درخواست کالا',
+    'dailyEstimates': 'برآورد هزینه روزانه',
+    'cashFlowSources': 'برآورد منابع دریافتنی'
 };
 
 /* برچسب فارسی فیلدهای هر مخزن (برای عبارت «نام فیلد: قبلی ← جدید») */
@@ -59,7 +68,12 @@ var HIST_FIELD_LABELS = {
     'projects': { name:'نام', desc:'توضیح' },
     'fiscalPeriods': { title:'عنوان', from:'از تاریخ', to:'تا تاریخ', active:'فعال' },
     'facilities': { title:'عنوان', bankId:'بانک', amount:'مبلغ', date:'تاریخ', desc:'توضیح' },
-    'voucherTemplates': { name:'نام الگو', desc:'شرح پیش‌فرض' },
+    'voucherTemplates': { name:'نام الگو', desc:'شرح پیش‌فرض', lines:'ردیف‌های الگو' },
+    'stdDescs': { text:'متن شرح' },
+    'notes': { title:'عنوان', date:'تاریخ', content:'متن', category:'دسته', checklist:'چک‌لیست',
+               imageRefs:'تصاویر', archived:'آرشیو شده', savedAt:'آخرین ذخیره' },
+    'phonebook': { name:'نام', company:'شرکت', role:'سمت', mobile:'موبایل', phone:'تلفن', email:'ایمیل',
+                   ext:'داخلی', orgUnit:'واحد سازمانی', note:'یادداشت' },
     'treasuryItems': { kind:'نوع (دریافت/پرداخت)', date:'تاریخ', accountId:'حساب', amount:'مبلغ',
                        personId:'شخص', desc:'شرح' },
     'assets': { name:'نام دارایی', group:'گروه', buyDate:'تاریخ خرید', buyAmount:'مبلغ خرید', loc:'محل استقرار',
@@ -70,7 +84,26 @@ var HIST_FIELD_LABELS = {
     'inventoryMoves': { kind:'نوع حواله', date:'تاریخ', itemId:'کالا', qty:'تعداد', price:'فی',
                         refNo:'شماره مرجع', party:'طرف حساب', desc:'توضیح' },
     'salesInvoices': { no:'شماره فاکتور', date:'تاریخ', personId:'مشتری', lines:'اقلام فاکتور',
-                       discount:'تخفیف', taxRate:'مالیات (٪)', paid:'مبلغ پرداخت‌شده', status:'وضعیت', desc:'توضیح' }
+                       discount:'تخفیف', taxRate:'مالیات (٪)', paid:'مبلغ پرداخت‌شده', status:'وضعیت', desc:'توضیح' },
+    'purchaseReqs': { no:'شماره درخواست', date:'تاریخ', requester:'درخواست‌کننده', personId:'شخص',
+                      neededBy:'نیاز تا تاریخ', items:'اقلام', status:'وضعیت', desc:'توضیح' },
+    'purchaseOrders': { no:'شماره سفارش', date:'تاریخ', supplier:'تامین‌کننده', deliveryDate:'تاریخ تحویل',
+                        items:'اقلام', discount:'تخفیف', taxRate:'مالیات (٪)', status:'وضعیت', desc:'توضیح' },
+    'purchaseInvoices': { no:'شماره فاکتور', date:'تاریخ', supplier:'تامین‌کننده', poId:'سفارش خرید',
+                          items:'اقلام', discount:'تخفیف', taxRate:'مالیات (٪)', paid:'مبلغ پرداخت‌شده',
+                          status:'وضعیت', desc:'توضیح' },
+    'purchaseReturns': { no:'شماره برگشت', date:'تاریخ', supplier:'تامین‌کننده', pinvId:'فاکتور مرجع',
+                         items:'اقلام', status:'وضعیت', desc:'توضیح' },
+    'stockRequests': { no:'شماره درخواست', date:'تاریخ', requester:'درخواست‌کننده', personId:'شخص',
+                       itemId:'کالا', qty:'تعداد', purpose:'هدف مصرف', status:'وضعیت', desc:'توضیح' },
+    'dailyEstimates': { date:'تاریخ', items:'ردیف‌ها', desc:'توضیح' },
+    'cashFlowSources': { date:'تاریخ', name:'عنوان', amount:'مبلغ', items:'ردیف‌ها', desc:'توضیح' }
+};
+
+/* ✅ v2.7.1 — کلیدهای سیستمی که در «تغییرات» گزارش نمی‌شوند */
+var HIST_META_KEYS = {
+    createdBy: 1, createdAt: 1, updatedBy: 1, updatedAt: 1,
+    createdAtFa: 1, updatedAtFa: 1, savedAt: 1
 };
 
 var Hist = (function () {
@@ -128,10 +161,12 @@ var Hist = (function () {
         var out = [], i;
         if (before && typeof before === 'object') { for (i in before) keys[i] = 1; }
         if (after && typeof after === 'object') { for (i in after) keys[i] = 1; }
-        /* salt/passHash جداگانه گزارش نمی‌شود (فقط «کلمه عبور» خلاصه) */
+        /* salt/passHash جداگانه گزارش نمی‌شود (فقط «کلمه عبور» خلاصه)
+           ✅ v2.7.1 — کلیدهای سیستمیِ ایجادکننده/تاریخ ایجاد هم از تغییرات حذف شدند */
         Object.keys(keys).forEach(function (k) {
             if (k === 'salt') return;
             if (k === 'id') return;
+            if (HIST_META_KEYS[k]) return;
             var o = before ? before[k] : undefined;
             var n = after ? after[k] : undefined;
             if (_same(o, n)) return;
@@ -208,6 +243,27 @@ var Hist = (function () {
             var rec = before || after || {};
             var hist = DB.load(HIST_STORE_KEY, []);
             if (!Array.isArray(hist)) hist = [];
+
+            /* ✅ v2.7.1 — درخواست کاربر: هنگام ثبت، نام ایجادکننده و تاریخ ایجاد روی
+               خود رکورد هم ثبت می‌شود (در فرم/تاریخچه نمایش داده می‌شود)؛
+               با هر تغییر داده/وضعیت هم آخرین ویرایش‌کننده و تاریخ بروز می‌شود.
+               اکثر ماژول‌ها «همان آبجکت واقعی» را قبل از DB.save می‌فرستند؛
+               پس تغییر روی after مستقیماً در رکورد ذخیره‌شده هم می‌ماند. */
+            try {
+                if (after && typeof after === 'object') {
+                    var _isCreate = (String(act || '').indexOf('ایجاد') !== -1);
+                    if (_isCreate) {
+                        if (!after.createdBy) after.createdBy = _userName();
+                        if (!after.createdAt) after.createdAt = _now();
+                        delete after.updatedBy;
+                        delete after.updatedAt;
+                    } else if (act !== 'حذف') {
+                        after.updatedBy = _userName();
+                        after.updatedAt = _now();
+                    }
+                }
+            } catch (eSt) {}
+
             hist.push({
                 id: uid(),
                 st: store,
@@ -269,12 +325,47 @@ var Hist = (function () {
 
     function _actBadge(act) {
         var c = '#64748b', bg = '#f1f5f9';
-        if (act === 'ایجاد') { c = '#065f46'; bg = '#ecfdf5'; }
-        else if (act === 'ویرایش') { c = '#92400e'; bg = '#fef3c7'; }
-        else if (act === 'حذف') { c = '#991b1b'; bg = '#fef2f2'; }
-        else if (act === 'تأیید') { c = '#1e40af'; bg = '#dbeafe'; }
+        var s = String(act || '');
+        if (s.indexOf('ایجاد') !== -1) { c = '#065f46'; bg = '#ecfdf5'; }
+        else if (s.indexOf('ویرایش') !== -1 || s.indexOf('قیمت‌گذاری') !== -1) { c = '#92400e'; bg = '#fef3c7'; }
+        else if (s.indexOf('حذف') !== -1 || s.indexOf('رد') !== -1) { c = '#991b1b'; bg = '#fef2f2'; }
+        else if (s.indexOf('تأیید') !== -1 || s.indexOf('رسید') !== -1 || s.indexOf('صدور') !== -1) { c = '#1e40af'; bg = '#dbeafe'; }
+        else if (s.indexOf('وضعیت') !== -1 || s.indexOf('تبدیل') !== -1) { c = '#5b21b6'; bg = '#f3e8ff'; }
         return '<span style="display:inline-block;background:' + bg + ';color:' + c
             + ';border-radius:99px;padding:2px 10px;font-size:.68rem;font-weight:800">' + esc(act || '—') + '</span>';
+    }
+
+    /* ✅ v2.7.1 — نوار متای رکورد: نام ایجادکننده + تاریخ ایجاد (از خود رکورد،
+       با fallback به اولین ردیف «ایجاد» در تاریخچه) + آخرین ویرایش */
+    function _metaHtml(store, entityId, rows) {
+        var rec = null;
+        try {
+            rec = (DB.load(store, []) || []).filter(function (x) { return x && x.id === entityId; })[0] || null;
+        } catch (e0) {}
+        var creator = '', created = 0, updBy = '', updAt = 0;
+        if (rec) {
+            creator = rec.createdBy || '';
+            created = rec.createdAt || 0;
+            updBy = rec.updatedBy || '';
+            updAt = rec.updatedAt || 0;
+        }
+        if (!creator && rows && rows.length) {
+            for (var i = rows.length - 1; i >= 0; i--) {
+                if (rows[i] && String(rows[i].act || '').indexOf('ایجاد') !== -1) {
+                    creator = rows[i].u || '';
+                    created = rows[i].ts || 0;
+                    break;
+                }
+            }
+        }
+        if (!creator && !created) return '';
+        var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:7px 10px;margin-bottom:8px;font-size:.7rem;color:#14532d">'
+            + '<b>📌 ایجاد:</b> 👤 ' + esc(creator || '—') + ' — 🕘 ' + (created ? _jalaliDateTime(created) : '—');
+        if (updBy && updAt) {
+            html += '<span style="color:#166534">| آخرین تغییر: 👤 ' + esc(updBy) + ' — 🕘 ' + _jalaliDateTime(updAt) + '</span>';
+        }
+        html += '</div>';
+        return html;
     }
 
     function rowsHtml(store, entityId, opts) {
@@ -284,6 +375,8 @@ var Hist = (function () {
         if (!rows.length) {
             return '<div style="padding:18px;text-align:center;color:#94a3b8;font-size:.78rem">هنوز تاریخچه‌ای برای این مورد ثبت نشده است — به‌محض ایجاد یا ویرایش، اینجا ثبت می‌شود.</div>';
         }
+        /* ✅ v2.7.1 — نام ایجادکننده و تاریخ ایجاد همیشه بالای تاریخچه نمایش داده می‌شود */
+        if (entityId) out += _metaHtml(store, entityId, rows);
         rows.forEach(function (h, i) {
             var chHtml = '';
             if (h.ch && h.ch.length) {

@@ -240,6 +240,11 @@ function renderCfsList() {
 
             if (action === 'delete') {
                 if (!confirm('حذف شود؟')) return;
+                /* ✅ v2.7.1 — ثبت حذف منبع در تاریخچه تغییر وضعیت */
+                try {
+                    var _cfsDel = allList.filter(function (x) { return x.id === id; })[0];
+                    if (_cfsDel && typeof Hist !== 'undefined' && Hist.log) Hist.log('cashFlowSources', id, 'حذف', _cfsDel, null, _cfsDel.name || 'منبع');
+                } catch (eH2) {}
                 var l2 = allList.filter(function (x) { return x.id !== id; });
                 DB.save('cashFlowSources', l2);
                 renderCfsList();
@@ -312,6 +317,7 @@ function saveCfsSource() {
     };
 
     var list = DB.load('cashFlowSources', []);
+    var _cfsBefore = id ? (list.filter(function (x) { return x.id === id; })[0] || null) : null;
     if (id) {
         for (var k = 0; k < list.length; k++) {
             if (list[k].id === id) list[k] = o;
@@ -319,6 +325,8 @@ function saveCfsSource() {
     } else {
         list.push(o);
     }
+    /* ✅ v2.7.1 — ثبت ایجاد/ویرایش منبع در تاریخچه تغییر وضعیت */
+    try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('cashFlowSources', o.id, _cfsBefore ? 'ویرایش' : 'ایجاد', _cfsBefore, o, o.name || 'منبع'); } catch (eH) {}
     DB.save('cashFlowSources', list);
     showToast('✅ ذخیره شد');
     clearCfsForm();

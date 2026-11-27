@@ -305,6 +305,8 @@ function saveNote() {
     } else {
         l.push(note);
     }
+    /* ✅ v2.7.1 — ثبت ایجاد/ویرایش یادداشت در تاریخچه تغییر وضعیت */
+    try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('notes', note.id, existing ? 'ویرایش' : 'ایجاد', existing || null, note, note.title || ''); } catch (eH) {}
     DB.save('notes', l);
 
     showToast('✅ یادداشت ذخیره شد.');
@@ -400,10 +402,13 @@ function renderNotesList() {
             e.stopPropagation();
             var id = this.getAttribute('data-nt-arch');
             var l = DB.load('notes', []);
-            for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i].archived = !l[i].archived; }
+            var _archBefore = null;
+            for (var i = 0; i < l.length; i++) { if (l[i].id === id) { _archBefore = JSON.parse(JSON.stringify(l[i])); l[i].archived = !l[i].archived; } }
+            /* ✅ v2.7.1 — ثبت تغییر وضعیت آرشیو در تاریخچه */
+            var found = l.find(function (x) { return x.id === id; });
+            try { if (typeof Hist !== 'undefined' && Hist.log && _archBefore && found) Hist.log('notes', id, found.archived ? 'آرشیو' : 'خروج از آرشیو', _archBefore, found, found.title || ''); } catch (eH4) {}
             DB.save('notes', l);
             renderNotesList();
-            var found = l.find(function (x) { return x.id === id; });
             showToast(found && found.archived ? '📦 به آرشیو منتقل شد' : '↩ از آرشیو خارج شد');
         });
     }
@@ -415,6 +420,11 @@ function renderNotesList() {
             var id = this.getAttribute('data-nt-del');
             if (!confirm('حذف شود؟')) return;
             var l = DB.load('notes', []).filter(function (x) { return x.id !== id; });
+            /* ✅ v2.7.1 — ثبت حذف یادداشت در تاریخچه */
+            try {
+                var _ntDel = DB.load('notes', []).filter(function (x) { return x.id === id; })[0];
+                if (_ntDel && typeof Hist !== 'undefined' && Hist.log) Hist.log('notes', id, 'حذف', _ntDel, null, _ntDel.title || '');
+            } catch (eH5) {}
             DB.save('notes', l);
             renderNotesList();
             if (typeof updateHomeWidgets === 'function') updateHomeWidgets();

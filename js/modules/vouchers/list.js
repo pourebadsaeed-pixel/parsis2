@@ -424,6 +424,8 @@ function handleVoucherRowAction() {
         if (clonedLines.length === 0) { showToast('⚠️ خطا: ردیف‌ها قابل کپی نبودند.'); return; }
         var newV = { id: uid(), number: getNextVoucherNumberForPeriod(state.activePeriodId || ''), date: todayJalaliStr(), time: v.time || '08:00', type: v.type || 'general', periodId: state.activePeriodId || '', desc: v.desc || '', lines: clonedLines, status: 'draft' };
         var list = DB.load('vouchers', []); list.push(newV); DB.save('vouchers', list);
+        /* ✅ v2.7.1 — ثبت کپی سند در تاریخچه تغییر وضعیت */
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('vouchers', newV.id, 'ایجاد (کپی سند)', null, newV, 'سند شماره ' + (newV.number || '—')); } catch (eH) {}
         showToast('📋 سند با ' + toFa(clonedLines.length) + ' ردیف کپی شد (پیش‌نویس)');
         renderVoucherList(); return;
     }
@@ -432,15 +434,33 @@ function handleVoucherRowAction() {
         var issues = getVoucherIssues(v);
         if (issues.length > 0) { alert('⚠️ سند قابل تأیید نیست:\n\n• ' + issues.join('\n• ')); return; }
         var list = DB.load('vouchers', []);
-        for (var x = 0; x < list.length; x++) { if (list[x].id === id) list[x].status = 'approved'; }
-        DB.save('vouchers', list); renderVoucherList(); showToast('✅ سند تأیید شد.'); return;
+        var _apBefore = null;
+        for (var x = 0; x < list.length; x++) { if (list[x].id === id) { _apBefore = JSON.parse(JSON.stringify(list[x])); list[x].status = 'approved'; } }
+        DB.save('vouchers', list);
+        /* ✅ v2.7.1 — رفع نقص: تأیید سند از فهرست در تاریخچه ثبت نمی‌شد */
+        try {
+            if (typeof Hist !== 'undefined' && Hist.log && _apBefore) {
+                var _apAfter = DB.load('vouchers', []).filter(function (z) { return z.id === id; })[0];
+                if (_apAfter) Hist.log('vouchers', id, 'تأیید', _apBefore, _apAfter, 'سند شماره ' + (_apBefore.number || '—'));
+            }
+        } catch (eH2) {}
+        renderVoucherList(); showToast('✅ سند تأیید شد.'); return;
     }
 
     if (action === 'unapprove') {
         if (!confirm('به پیش‌نویس برگردد؟')) return;
         var list2 = DB.load('vouchers', []);
-        for (var y = 0; y < list2.length; y++) { if (list2[y].id === id) list2[y].status = 'draft'; }
-        DB.save('vouchers', list2); renderVoucherList(); return;
+        var _unBefore = null;
+        for (var y = 0; y < list2.length; y++) { if (list2[y].id === id) { _unBefore = JSON.parse(JSON.stringify(list2[y])); list2[y].status = 'draft'; } }
+        DB.save('vouchers', list2);
+        /* ✅ v2.7.1 — رفع نقص: برگشت از تأیید در تاریخچه ثبت نمی‌شد */
+        try {
+            if (typeof Hist !== 'undefined' && Hist.log && _unBefore) {
+                var _unAfter = DB.load('vouchers', []).filter(function (z) { return z.id === id; })[0];
+                if (_unAfter) Hist.log('vouchers', id, 'برگشت از تأیید', _unBefore, _unAfter, 'سند شماره ' + (_unBefore.number || '—'));
+            }
+        } catch (eH3) {}
+        renderVoucherList(); return;
     }
 
     if (action === 'delete') {

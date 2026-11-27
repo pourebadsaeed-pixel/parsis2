@@ -63,6 +63,17 @@ function _pbToast(msg, ms) {
     if (typeof showToast === 'function') showToast(msg, ms);
 }
 
+/* ✅ v2.7.1 — عنوان نمایشی مخاطب برای تاریخچه تغییر وضعیت */
+function _pbEntryTitle(item) {
+    try {
+        var p = (DB.load('persons', []) || []).filter(function (x) { return x && x.id === item.personId; })[0];
+        var nm = p ? ((p.first || '') + ' ' + (p.last || '')).trim() : '';
+        if (!nm) nm = 'مخاطب';
+        var co = (DB.load('companies', []) || []).filter(function (x) { return x && x.id === item.companyId; })[0];
+        return nm + (co && co.name ? ' — ' + co.name : '');
+    } catch (e) { return 'مخاطب'; }
+}
+
 /* ============================================================
    ✅ تزریق فیلد واحد سازمانی + دکمه‌های اکسل
    ============================================================ */
@@ -548,6 +559,14 @@ function renderPhonebookList() {
             var id = this.getAttribute('data-id');
             if (!confirm('این عضو دفترچه تلفن حذف شود؟')) return;
 
+            /* ✅ v2.7.1 — ثبت حذف مخاطب در تاریخچه تغییر وضعیت */
+            try {
+                var _pbDel = getPhonebook().filter(function (x) { return x.id === id; })[0];
+                if (_pbDel && typeof Hist !== 'undefined' && Hist.log) {
+                    var _pbLbl = _pbEntryTitle(_pbDel);
+                    Hist.log('phonebook', id, 'حذف', _pbDel, null, _pbLbl);
+                }
+            } catch (eH) {}
             var l = getPhonebook().filter(function (x) { return x.id !== id; });
             savePhonebook(l);
             renderPhonebookList();
@@ -633,10 +652,14 @@ function savePhonebookEntry() {
 
     if (id) {
         var idx = list.findIndex(function (x) { return x.id === id; });
+        /* ✅ v2.7.1 — ثبت ایجاد/ویرایش مخاطب در تاریخچه تغییر وضعیت */
+        var _pbBefore = (idx !== -1) ? JSON.parse(JSON.stringify(list[idx])) : null;
         if (idx !== -1) list[idx] = item;
         else list.push(item);
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('phonebook', item.id, _pbBefore ? 'ویرایش' : 'ایجاد', _pbBefore, item, _pbEntryTitle(item)); } catch (eH2) {}
     } else {
         list.push(item);
+        try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('phonebook', item.id, 'ایجاد', null, item, _pbEntryTitle(item)); } catch (eH3) {}
     }
     savePhonebook(list);
 

@@ -909,15 +909,63 @@
                         _verWarned = true;
                         _relayAppVer = j.appVer;
                         /* فقط وقتی نسخهٔ رله «جدیدتر» است به‌روزرسانی خودکار؛
-                           اگر قدیمی‌تر بود یعنی انتشار وارونه شده — فقط بنر */
+                           اگر قدیمی‌تر بود یعنی انتشار وارونه شده — بنر اکشن‌دار
+                           ✅ v2.7.1 — به‌جای toast منفعل، بنر با دکمهٔ «انتشار این نسخه
+                           روی رله» نشان داده می‌شود تا ناهماهنگی نسخهٔ اپ و رله با
+                           یک کلیک از داخل همین دستگاه حل شود. */
                         if (_verCmp(j.appVer, APP_VERSION) > 0) _showUpdateBanner(j.appVer);
-                        else {
-                            try { showToast('ℹ اپ روی رله نسخهٔ ' + toFa(j.appVer) + ' است و این صفحه ' + toFa(APP_VERSION) + ' — داده‌ها سینک می‌شوند؛ برای انتشار نسخهٔ جدید، در اپ اصلی «انتشار اپ روی رله» را بزنید'); } catch (e3) {}
-                        }
+                        else _showPublishBanner(j.appVer);
                     }
                 })
                 .catch(function () {});
         } catch (eV) {}
+    }
+
+    /* ✅ v2.7.1 — بنر «نسخهٔ این دستگاه جدیدتر از رله است» با دکمهٔ انتشار فوری.
+       با کلیک، همان publishApp تنظیمات اجرا می‌شود (با نمایش درصد) و بعد از
+       اتمام، صفحه رفرش می‌شود تا نسخهٔ سرو‌شده از رله هم‌تراز شود. */
+    function _showPublishBanner(relayVer) {
+        try {
+            var old = document.getElementById('parsis-ver-banner');
+            if (old) old.remove();
+            var bar = document.createElement('div');
+            bar.id = 'parsis-ver-banner';
+            bar.dir = 'rtl';
+            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;padding:12px 16px;font-size:14px;line-height:1.9;box-shadow:0 2px 10px rgba(0,0,0,.3);text-align:center';
+            bar.innerHTML = 'ℹ این دستگاه نسخهٔ ' + (typeof toFa === 'function' ? toFa(APP_VERSION) : APP_VERSION)
+                + ' دارد و اپ روی رله نسخهٔ ' + (typeof toFa === 'function' ? toFa(relayVer) : relayVer)
+                + ' است — داده‌ها عادی سینک می‌شوند؛ برای هم‌ترازی نسخه، انتشار را اجرا کنید. '
+                + '<button id="parsis-ver-pub" style="background:#fff;color:#b45309;border:0;border-radius:8px;padding:6px 14px;margin:0 6px;font-weight:bold;cursor:pointer">⚡ انتشار این نسخه روی رله</button> '
+                + '<button id="parsis-ver-dismiss" style="background:transparent;color:#fff;border:1px solid #fff;border-radius:8px;padding:6px 14px;margin:0 4px;cursor:pointer">بستن</button>';
+            document.body.appendChild(bar);
+            document.getElementById('parsis-ver-dismiss').onclick = function () {
+                var b = document.getElementById('parsis-ver-banner');
+                if (b) b.remove();
+            };
+            document.getElementById('parsis-ver-pub').onclick = function () {
+                try {
+                    var btn = document.getElementById('parsis-ver-pub');
+                    if (btn) { btn.disabled = true; btn.textContent = '⏳ در حال انتشار…'; }
+                    if (typeof window.ParsisCloudSync !== 'undefined' && typeof window.ParsisCloudSync.publishApp === 'function') {
+                        window.ParsisCloudSync.publishApp(function (done, total) {
+                            try {
+                                var pct = total ? Math.round((done / total) * 100) : 0;
+                                if (btn) btn.textContent = '⏳ انتشار… ' + toFa(pct) + '٪';
+                            } catch (eP) {}
+                        }).then(function (r) {
+                            var okN = r && (r.ok || 0);
+                            showToast('✅ انتشار کامل شد (' + toFa(okN) + ' فایل) — صفحه به‌روزرسانی می‌شود');
+                            setTimeout(function () { location.reload(); }, 1500);
+                        }).catch(function (ePub) {
+                            showToast('⛔ انتشار ناموفق بود: ' + ((ePub && ePub.message) || ePub) + ' — از تنظیمات ← ☁️ دوباره تلاش کنید');
+                            if (btn) { btn.disabled = false; btn.textContent = '⚡ انتشار این نسخه روی رله'; }
+                        });
+                    } else {
+                        showToast('⚠️ ماژول انتشار آماده نیست — از تنظیمات ← ☁️ همگام‌سازی ← «انتشار اپ روی رله» استفاده کنید');
+                    }
+                } catch (eC) { showToast('⛔ خطا در انتشار: ' + eC); }
+            };
+        } catch (eB) {}
     }
 
     /* ✅ v2.3.5 — بنر به‌روزرسانی خودکار: ۱۰ ثانیه شمارش، دکمهٔ لغو، بعد پاک‌سازی

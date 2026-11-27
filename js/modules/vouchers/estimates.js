@@ -225,6 +225,11 @@ function renderEstimateList() {
                 if (addTab) addTab.click();
             } else if (action === 'delete') {
                 if (!confirm('حذف شود؟')) return;
+                /* ✅ v2.7.1 — ثبت حذف برآورد در تاریخچه تغییر وضعیت */
+                try {
+                    var _estDel = DB.load('dailyEstimates', []).filter(function (x) { return x.id === id; })[0];
+                    if (_estDel && typeof Hist !== 'undefined' && Hist.log) Hist.log('dailyEstimates', id, 'حذف', _estDel, null, _estDel.title || '');
+                } catch (eH2) {}
                 var l = DB.load('dailyEstimates', []).filter(function (x) { return x.id !== id; });
                 DB.save('dailyEstimates', l);
                 renderEstimateList();
@@ -262,8 +267,11 @@ function saveEstimate() {
     };
 
     var l = DB.load('dailyEstimates', []);
-    if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } } 
+    var _estBefore = id ? (l.filter(function (x) { return x.id === id; })[0] || null) : null;
+    if (id) { for (var i = 0; i < l.length; i++) { if (l[i].id === id) l[i] = o; } }
     else { l.push(o); }
+    /* ✅ v2.7.1 — ثبت ایجاد/ویرایش برآورد در تاریخچه تغییر وضعیت */
+    try { if (typeof Hist !== 'undefined' && Hist.log) Hist.log('dailyEstimates', o.id, _estBefore ? 'ویرایش' : 'ایجاد', _estBefore, o, o.title || ''); } catch (eH) {}
     DB.save('dailyEstimates', l);
     showToast('✅ ذخیره شد');
     clearEstForm();

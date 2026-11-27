@@ -16,9 +16,25 @@ function bindSettingsButtons() {
             if (typeof renderWidgetOrderUI === 'function') renderWidgetOrderUI();
             if (typeof renderDashboardOrderUI === 'function') renderDashboardOrderUI();
             if (typeof updateBiometricUI === 'function') updateBiometricUI(); // ✅ این خط اضافه شود
+            if (typeof buildNavMenu === 'function') buildNavMenu(); // ✅ v2.7.0 — منوی داده‌محور
             
             var aboutEl = document.getElementById('about-version');
             if (aboutEl) aboutEl.textContent = APP_NAME + ' — نسخه ' + toFa(APP_VERSION) + ' (PWA)';
+        };
+    }
+    /* ✅ v2.7.0 — رفع باگ: «باز کردن همه / بستن همه» در تنظیمات کار نمی‌کرد (بایند نمی‌شد) */
+    var sea = document.getElementById('settings-expand-all');
+    if (sea && !sea.dataset.bound) {
+        sea.dataset.bound = '1';
+        sea.onclick = function () {
+            document.querySelectorAll('#settings-modal details.settings-details').forEach(function (d) { d.open = true; });
+        };
+    }
+    var sca = document.getElementById('settings-collapse-all');
+    if (sca && !sca.dataset.bound) {
+        sca.dataset.bound = '1';
+        sca.onclick = function () {
+            document.querySelectorAll('#settings-modal details.settings-details').forEach(function (d) { d.open = false; });
         };
     }
     // ... بقیه کدها بدون تغییر ...
@@ -146,6 +162,12 @@ function bindBaseDataForms() {
     try { if (typeof bindInvItemsForm === 'function') bindInvItemsForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindInvMovesForm === 'function') bindInvMovesForm(); } catch(e){ console.warn(e); }
     try { if (typeof bindSalesForm === 'function') bindSalesForm(); } catch(e){ console.warn(e); }
+    /* ✅ v2.7.0 — فرم‌های ماژول خرید و انبار */
+    try { if (typeof bindPreqForm === 'function') bindPreqForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindPoForm === 'function') bindPoForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindPinvForm === 'function') bindPinvForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindPretForm === 'function') bindPretForm(); } catch(e){ console.warn(e); }
+    try { if (typeof bindSreqForm === 'function') bindSreqForm(); } catch(e){ console.warn(e); }
 }
 
 function bindFilterInputs() {
@@ -162,7 +184,13 @@ function bindFilterInputs() {
         'as-filter': 'renderAssetsList',
         'iv-filter': 'renderInvItemsList',
         'im-filter': 'renderInvMovesList',
-        'si-filter': 'renderSalesList'
+        'si-filter': 'renderSalesList',
+        /* ✅ v2.7.0 — ماژول خرید و انبار */
+        'preq-filter': 'renderPreqList',
+        'po-filter': 'renderPoList',
+        'pinv-filter': 'renderPinvList',
+        'pret-filter': 'renderPretList',
+        'sreq-filter': 'renderSreqList'
     };
     Object.keys(filterMap).forEach(function (id) {
         var el = document.getElementById(id);
@@ -203,6 +231,20 @@ function startApp() {
 
     try { if (typeof bindSidebarNav === 'function') bindSidebarNav(); } catch(e){ console.warn('Sidebar bind error:', e); }
     try { if (typeof bindSettingsButtons === 'function') bindSettingsButtons(); } catch(e){ console.warn('Settings bind error:', e); }
+    try { if (typeof buildNavMenu === 'function') buildNavMenu(); } catch(e){ console.warn('NavMenu build error:', e); } /* ✅ v2.7.0 */
+    /* ✅ v2.7.1 — تلاش مجدد منو با تاخیر: اگر در بار اول به هر دلیل (ترتیب ترتیب
+       بارگذاری ماژول‌ها روی بعضی دستگاه‌ها) گروه‌ها ساخته نشده بودند، اینجا دوباره
+       ساخته می‌شوند تا کاربر سایدبار خالی نبیند و مجبور به «ترتیب پیش‌فرض» نشود */
+    setTimeout(function () {
+        try {
+            var _nav = document.getElementById('sidebar-nav');
+            if (_nav && _nav.querySelectorAll('.nav-group[data-nav-group]').length === 0
+                && typeof buildNavMenu === 'function') {
+                console.warn('[nav] menu empty at startup — rebuilding');
+                buildNavMenu();
+            }
+        } catch (eNavRetry) {}
+    }, 900);
 
     bindBaseDataForms();
     bindFilterInputs();
