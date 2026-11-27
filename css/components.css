@@ -1399,6 +1399,124 @@ body.resizing-cols .report-table th { user-select:none !important; }
 .cal-week-day.today .cwd-name-en { color: rgba(255,255,255,0.95); }
 .cal-week-day.holiday .cwd-name-en { color: #dc2626; }
 
+/* ================ ✅ v2.7.2 — سربرگ ویجت تقویم (تاریخ شمسی/میلادی + فلش‌ها) ================ */
+.calw-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.calw-nav {
+  width:38px;
+  height:38px;
+  flex-shrink:0;
+  border-radius:11px;
+  border:1.5px solid var(--border);
+  background:var(--card-solid);
+  color:var(--primary-dark);
+  font-size:1.25rem;
+  font-weight:900;
+  line-height:1;
+  cursor:pointer;
+  font-family:inherit;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .18s;
+}
+.calw-nav:hover { background:var(--primary-light,#dbeafe); transform:scale(1.07); }
+.calw-nav:active { transform:scale(0.96); }
+.calw-dates { flex:1; text-align:center; min-width:0; }
+.calw-j {
+  font-weight:900;
+  font-size:0.95rem;
+  color:var(--primary-dark);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.calw-g {
+  font-weight:800;
+  font-size:0.75rem;
+  color:var(--text-muted);
+  margin-top:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.calw-today-btn {
+  display:block;
+  margin:0 auto 10px;
+  padding:5px 16px;
+  border-radius:9px;
+  border:1px dashed var(--border);
+  background:transparent;
+  color:var(--text-muted);
+  font-family:inherit;
+  font-size:0.7rem;
+  font-weight:800;
+  cursor:pointer;
+  transition:all .15s;
+}
+.calw-today-btn:hover { color:var(--primary-dark); border-color:var(--primary-dark); }
+
+/* ================ ✅ v2.7.2 — تعطیلات و رویدادهای هفته (ذیل ویجت تقویم) ================ */
+.calw-events {
+  margin-top:10px;
+  border-top:1px dashed var(--border);
+  padding-top:8px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.calw-ev-row {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 9px;
+  border-radius:9px;
+  background:var(--card-alt);
+  font-size:0.72rem;
+  line-height:1.5;
+}
+.calw-ev-row.hol {
+  background:linear-gradient(135deg,#fef2f2,#fee2e2);
+  border:1px solid #fecaca;
+}
+.calw-ev-date {
+  flex-shrink:0;
+  font-weight:900;
+  color:var(--primary-dark);
+  font-size:0.68rem;
+  min-width:74px;
+}
+.calw-ev-row.hol .calw-ev-date { color:#dc2626; }
+.calw-ev-title {
+  flex:1;
+  min-width:0;
+  font-weight:700;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.calw-ev-row.hol .calw-ev-title { color:#991b1b; font-weight:800; }
+.calw-empty {
+  text-align:center;
+  color:var(--text-muted);
+  font-weight:600;
+  background:transparent;
+  padding:6px;
+}
+.calw-more {
+  text-align:center;
+  color:var(--text-muted);
+  font-weight:700;
+  font-size:0.68rem;
+  background:transparent;
+}
+
 /* ================ CHECKLIST WIDGET ================ */
 .cl-widget-item {
   display: flex;

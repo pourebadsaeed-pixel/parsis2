@@ -430,38 +430,133 @@ function renderBirthdaysWidget() {
     el.innerHTML = html;
 }
 
+/* ✅ v2.7.2 — ویجت تقویم هفتگی بازنویسی شد (درخواست‌های کاربر):
+     • بالای ویجت: تاریخ شمسی (شنبه ۷ آذر ۱۴۰۵) و زیر آن تاریخ میلادی
+       (نام روز، شماره روز، نام ماه، سال)
+     • لیست روزهای هفته با نام فارسی
+     • تعطیلات و رویدادهای ویژهٔ همان هفته در ذیل ویجت
+     • فلش راست/چپ برای رفتن به هفته قبل/بعد + دکمهٔ «این هفته» */
+window.__calWidgetOffset = window.__calWidgetOffset || 0;
+
 function renderCalendarWidget() {
     var el = document.getElementById('home-cal-widget');
     if (!el) return;
 
+    var weekOffset = window.__calWidgetOffset || 0;
+
     var now = new Date();
     var todayJ = toJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
-    var jsDay = now.getDay();
+    var todayStr = todayJ[0] + '/' + pad2(todayJ[1]) + '/' + pad2(todayJ[2]);
+
+    /* لنگر: همان روزِ هفته (امروز + ۷×offset) */
+    var anchor = new Date(now);
+    anchor.setDate(now.getDate() + weekOffset * 7);
+
+    /* شنبهٔ همان هفته */
+    var jsDay = anchor.getDay();
     var offsetFromSat = (jsDay + 1) % 7;
+    var satDate = new Date(anchor);
+    satDate.setDate(anchor.getDate() - offsetFromSat);
 
-    var satDate = new Date(now);
-    satDate.setDate(satDate.getDate() - offsetFromSat);
+    var aJ = toJalali(anchor.getFullYear(), anchor.getMonth() + 1, anchor.getDate());
 
-    var daysEn = ['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI'];
-    var html = '<div class="cal-week-grid">';
+    var html = '';
 
+    /* ---------- سربرگ: تاریخ شمسی + میلادی + فلش‌ها ---------- */
+    html += '<div class="calw-head">';
+    html += '<button type="button" class="calw-nav" id="calw-prev" title="هفته قبل">‹</button>';
+    html += '<div class="calw-dates">';
+    html += '<div class="calw-j">' + WEEKDAYS_FA[anchor.getDay()] + ' ' + toFa(aJ[2]) + ' ' + JALALI_MONTHS[aJ[1] - 1] + ' ' + toFa(aJ[0]) + '</div>';
+    html += '<div class="calw-g">' + WEEKDAYS_FA[anchor.getDay()] + ' ' + toFa(anchor.getDate()) + ' ' + GREG_MONTHS[anchor.getMonth()] + ' ' + toFa(anchor.getFullYear()) + '</div>';
+    html += '</div>';
+    html += '<button type="button" class="calw-nav" id="calw-next" title="هفته بعد">›</button>';
+    html += '</div>';
+    html += '<button type="button" class="calw-today-btn" id="calw-today">این هفته</button>';
+
+    /* ---------- روزهای هفته ---------- */
+    var FA_WD_SHORT = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
+    html += '<div class="cal-week-grid">';
+
+    var weekStartStr = '', weekEndStr = '';
+    var weekEventsByDate = {};
     for (var i = 0; i < 7; i++) {
         var d = new Date(satDate);
         d.setDate(satDate.getDate() + i);
 
         var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-        var isToday = (j[0] === todayJ[0] && j[1] === todayJ[1] && j[2] === todayJ[2]);
+        var ds = j[0] + '/' + pad2(j[1]) + '/' + pad2(j[2]);
+        if (i === 0) weekStartStr = ds;
+        if (i === 6) weekEndStr = ds;
+
+        var isToday = (ds === todayStr);
         var isHoliday = (d.getDay() === 5);
 
         var cls = 'cal-week-day' + (isToday ? ' today' : '') + (isHoliday ? ' holiday' : '');
         html += '<div class="' + cls + '">';
-        html += '<div class="cwd-name-en">' + daysEn[i] + '</div>';
+        html += '<div class="cwd-name">' + FA_WD_SHORT[i] + '</div>';
         html += '<div class="cwd-circle">' + toFa(j[2]) + '</div>';
         html += '<div class="cwd-square">' + d.getDate() + '</div>';
         html += '</div>';
     }
     html += '</div>';
+
+    /* ---------- تعطیلات و رویدادهای همین هفته (ذیل ویجت) ---------- */
+    var weekEvents = [];
+    try {
+        if (window.ParsisCalendarEvents) {
+            weekEvents = window.ParsisCalendarEvents.getEventsInRange(weekStartStr, weekEndStr);
+        }
+    } catch (eW1) {}
+    try {
+        if (typeof calBuildAllEvents === 'function') {
+            calBuildAllEvents().forEach(function (ev) {
+                if (ev.builtin) return; /* پیش‌فرض‌ها بالا اضافه شدند */
+                if (ev.date >= weekStartStr && ev.date <= weekEndStr) weekEvents.push(ev);
+            });
+        }
+    } catch (eW2) {}
+
+    weekEvents.sort(function (a, b) {
+        if (a.date === b.date) return String(a.time || '').localeCompare(String(b.time || ''));
+        return a.date.localeCompare(b.date);
+    });
+
+    html += '<div class="calw-events">';
+    if (weekEvents.length === 0) {
+        html += '<div class="calw-ev-row calw-empty">— تعطیلی یا رویداد ویژه‌ای در این هفته نیست</div>';
+    } else {
+        weekEvents.slice(0, 6).forEach(function (ev) {
+            var isHol = ev.cat === 'holiday';
+            var dd = ev.date.split('/');
+            html += '<div class="calw-ev-row' + (isHol ? ' hol' : '') + '">'
+                 +  '<span class="calw-ev-date">' + toFa(dd[2]) + ' ' + JALALI_MONTHS[Number(dd[1]) - 1] + '</span>'
+                 +  '<span class="calw-ev-title">' + esc(ev.title) + '</span>'
+                 + '</div>';
+        });
+        if (weekEvents.length > 6) {
+            html += '<div class="calw-ev-row calw-more">و ' + toFa(weekEvents.length - 6) + ' رویداد دیگر در این هفته…</div>';
+        }
+    }
+    html += '</div>';
+
     el.innerHTML = html;
+
+    /* ---------- فلش‌ها: راست = هفته قبل، چپ = هفته بعد ---------- */
+    var prevBtn = document.getElementById('calw-prev');
+    var nextBtn = document.getElementById('calw-next');
+    var todayBtn = document.getElementById('calw-today');
+    if (prevBtn) prevBtn.onclick = function () {
+        window.__calWidgetOffset = (window.__calWidgetOffset || 0) - 1;
+        renderCalendarWidget();
+    };
+    if (nextBtn) nextBtn.onclick = function () {
+        window.__calWidgetOffset = (window.__calWidgetOffset || 0) + 1;
+        renderCalendarWidget();
+    };
+    if (todayBtn) todayBtn.onclick = function () {
+        window.__calWidgetOffset = 0;
+        renderCalendarWidget();
+    };
 }
 
 function updateHomeUpcomingInstallments() {

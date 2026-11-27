@@ -116,7 +116,12 @@ var DEF_CATS_41 = [
 var SYS_CATS_41 = {
     installment: { label: 'قسط',     color: '#dc2626', icon: '💳' },
     source:      { label: 'دریافتنی', color: '#10b981', icon: '📥' },
-    external:    { label: 'خارجی',   color: '#64748b', icon: '🌐' }
+    external:    { label: 'خارجی',   color: '#64748b', icon: '🌐' },
+    /* ✅ v2.7.2 — چهار دستهٔ داخلی رویدادهای پیش‌فرض (قابل فیلتر از لجند) */
+    holiday:     { label: 'تعطیلات رسمی ایران',  color: '#ef4444', icon: '🔴' },
+    iran:        { label: 'رویدادهای تقویم ایران', color: '#0d9488', icon: '🇮🇷' },
+    world:       { label: 'رویدادهای جهانی',     color: '#8b5cf6', icon: '🌐' },
+    ancient:     { label: 'ایران باستان',        color: '#d97706', icon: '🏺' }
 };
 
 function uCats41() {
@@ -442,10 +447,39 @@ function calBuildAllEvents() {
         CAL41.externalEvents.forEach(function (e) { evs.push(e); });
     }
 
+    /* ✅ v2.7.2 — رویدادهای پیش‌فرض: تعطیلات رسمی ایران + تقویم ایران +
+       رویدادهای جهانی + ایران باستان (فیلتر هر دسته از لجند پایین صفحه تقویم) */
+    try {
+        if (window.ParsisCalendarEvents && typeof window.ParsisCalendarEvents.getEvents === 'function') {
+            window.ParsisCalendarEvents.getEvents().forEach(function (e) { evs.push(e); });
+        }
+    } catch (eBe) {}
+
     _calEvCache = evs;
     _calEvCacheTs = now;
     return evs;
 }
+
+/* ✅ v2.7.2 — بازکردن یک رویداد/تکرار از بیرون (نوتیفیکیشن تقویم →
+   کلیک روی نوتیف → ورود به تقویم و بازشدن همان رویداد) */
+function calOpenEventOccurrence(rawId, dateStr) {
+    var all = calBuildAllEvents();
+    var occ = all.filter(function (e) {
+        return e.rawId === rawId && (e.date === dateStr || !dateStr);
+    })[0];
+    if (!occ) {
+        /* شاید روی تاریخ دیگری جابه‌جا شده — اولین تکرار همان رویداد */
+        occ = all.filter(function (e) { return e.rawId === rawId; })[0];
+    }
+    if (!occ) return false;
+    var cur = occ.date.split('/').map(Number);
+    CAL41.cursor = { y: cur[0], m: cur[1], d: cur[2] };
+    CAL41.view = 'day';
+    if (typeof calRender === 'function') calRender();
+    try { openEventModal41(occ); } catch (eM) {}
+    return true;
+}
+window.calOpenEventOccurrence = calOpenEventOccurrence;
 
 function invalidateCalEventCache() {
     _calEvCache = null;

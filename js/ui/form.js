@@ -347,18 +347,78 @@ function closeAllTabs() {
     if (typeof showToast === 'function') showToast('🧹 همه فرم‌ها بسته شد');
 }
 
+/* ✅ v2.7.2 — دکمه «🧹 بستن همه فرم‌ها» بالای منو حذف شد (درخواست کاربر: بلااستفاده بود).
+   closeAllTabs برای استفاده‌های دیگر (مثل منوی تب‌ها) حفظ شده است. */
 function injectCloseAllButton() {
-    if (document.getElementById('close-all-forms-btn')) return true;
-    var searchBox = document.querySelector('.sidebar-search');
-    if (!searchBox) return false;
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--border)';
-    var btn = document.createElement('button');
-    btn.id = 'close-all-forms-btn'; btn.type = 'button'; btn.innerHTML = '🧹 بستن همه فرم‌ها';
-    btn.style.cssText = 'width:100%;padding:10px 14px;background:linear-gradient(135deg,#fee2e2,#fecaca);color:#991b1b;border:1px solid #fca5a5;border-radius:10px;font-family:inherit;font-size:.82rem;font-weight:800;cursor:pointer';
-    btn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); closeAllTabs(); };
-    wrap.appendChild(btn);
-    searchBox.parentNode.insertBefore(wrap, searchBox.nextSibling);
+    /* غیرفعال — دیگر دکمه‌ای تزریق نمی‌شود */
+    return true;
+}
+
+/* ============================================================
+   ✅ v2.7.2 — باکس‌های «الگو» و «شماره و تاریخ» فرم صدور سند:
+   چیورن جمع‌شدن (^) — کلیک روی عنوان یا دکمه، بدنهٔ کارت را
+   جمع/باز می‌کند؛ وضعیت ذخیره می‌شود (voucherCardCollapsed)
+   ============================================================ */
+(function injectVoucherCardCollapse() {
+    if (document.getElementById('vcard-272-style')) return _bindVoucherCards272();
+    var s = document.createElement('style');
+    s.id = 'vcard-272-style';
+    s.textContent = ''
+    + '.vcard-head { display:flex; align-items:center; justify-content:space-between; gap:8px; '
+      + 'padding:2px 2px 10px; margin-bottom:10px; border-bottom:1px dashed var(--border); cursor:pointer; user-select:none; }'
+    + '.vcard-head-title { font-weight:900; color:var(--primary-dark); font-size:0.92rem; }'
+    + '.vcard-toggle { width:34px; height:34px; border-radius:9px; border:1px solid var(--border); '
+      + 'background:#f1f5f9; color:var(--primary-dark); font-size:1rem; line-height:1; cursor:pointer; '
+      + 'font-family:inherit; display:flex; align-items:center; justify-content:center; transition:all .18s; flex-shrink:0; }'
+    + '.vcard-toggle:hover { background:var(--primary-light,#dbeafe); transform:scale(1.06); }'
+    + '.card.vcard-collapsed .vcard-toggle { transform:rotate(180deg); }'
+    + '.card.vcard-collapsed .vcard-body { display:none !important; }'
+    + '.card.vcard-collapsed .vcard-head { border-bottom:none; margin-bottom:0; padding-bottom:2px; }'
+    + '.card.vcard-collapsed { padding-bottom:12px; }';
+    document.head.appendChild(s);
+    return _bindVoucherCards272();
+})();
+
+function _bindVoucherCards272() {
+    var KEY = 'voucherCardCollapsed';
+    var IDS = ['voucher-template-card', 'voucher-head-card'];
+
+    function loadState() {
+        var v = DB.load(KEY, {});
+        return (v && typeof v === 'object') ? v : {};
+    }
+
+    function applyState() {
+        var st = loadState();
+        IDS.forEach(function (id) {
+            /* querySelectorAll — چون تب‌های جدید، کلون صفحه می‌سازند و id تکراری
+               به وجود می‌آید، وضعیت روی همهٔ نسخه‌ها اعمال می‌شود */
+            Array.prototype.slice.call(document.querySelectorAll('[id="' + id + '"]')).forEach(function (card) {
+                card.classList.toggle('vcard-collapsed', !!st[id]);
+            });
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        var tgl = e.target.closest ? (e.target.closest('.vcard-toggle') || e.target.closest('.vcard-head')) : null;
+        if (!tgl) return;
+        var card = tgl.closest('.card');
+        if (!card) return;
+        var keyId = null, k;
+        for (k = 0; k < IDS.length; k++) {
+            if ((card.id || '').indexOf(IDS[k]) === 0) { keyId = IDS[k]; break; }
+        }
+        if (!keyId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var willCollapse = !card.classList.contains('vcard-collapsed');
+        card.classList.toggle('vcard-collapsed', willCollapse);
+        var st = loadState();
+        st[keyId] = willCollapse;
+        DB.save(KEY, st);
+    });
+
+    setTimeout(applyState, 300);
     return true;
 }
 
@@ -411,7 +471,8 @@ function initFormTabs() {
     var interval = setInterval(function () {
         tries++;
         var ok1 = installGoToPageOverride();
-        var ok2 = injectCloseAllButton();
+        /* ✅ v2.7.2 — دکمه «بستن همه فرم‌ها» حذف شد (درخواست کاربر) */
+        var ok2 = true;
         var ok3 = !!ensureTabBar();
         if ((ok1 && ok2 && ok3) || tries > 20) { clearInterval(interval); renderTabs(); }
     }, 300);

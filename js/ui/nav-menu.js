@@ -55,7 +55,7 @@ var NAV_MENU_GROUPS = [
     },
     {
         id: 'ops', icon: '📝', color: '#f59e0b', title: 'حسابداری',
-        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'tools', label: 'ابزارها' } ],
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'tools', label: 'ابزارها' }, { id: 'rep', label: 'گزارش‌ها' } ],
         items: [
             { page: 'voucher-list', icon: '📄', color: '#d97706', label: 'فهرست اسناد حسابداری', sec: 'list' },
             { page: 'templates', tab: 'tpl-list', icon: '🧩', color: '#f59e0b', label: 'فهرست الگوهای سند', sec: 'list' },
@@ -63,12 +63,21 @@ var NAV_MENU_GROUPS = [
             { page: 'voucher-new',  icon: '✏️', color: '#dc2626', label: 'صدور سند حسابداری', sec: 'op' },
             { page: 'templates', tab: 'tpl-add',  icon: '➕', color: '#f97316', label: 'ایجاد الگوی سند', sec: 'op' },
             { page: 'sms', icon: '📱', color: '#22c55e', label: 'پیامک بانکی', sec: 'tools',
-              extraHtml: ' <span class="nav-badge hidden" id="sms-nav-badge">۰</span>' }
+              extraHtml: ' <span class="nav-badge hidden" id="sms-nav-badge">۰</span>' },
+            /* ✅ v2.7.2 — درخواست کاربر: گزارش‌ها (بجز تسهیلات) به بخش حسابداری منتقل شد */
+            { page: 'dashboard',            icon: '🎯', color: '#0891b2', label: 'داشبورد مالی', sec: 'rep' },
+            { page: 'report-cashflow',      icon: '💵', color: '#059669', label: 'پیش‌بینی روزانه نقدینگی', sec: 'rep' },
+            { page: 'report-cashflow-desc', icon: '💸', color: '#dc2626', label: 'گردش وجه نقد', sec: 'rep' },
+            { page: 'report-account',      icon: '📒', color: '#3b82f6', label: 'مرور حساب‌ها', sec: 'rep' },
+            { page: 'report-trial',        icon: '⚖️', color: '#7c3aed', label: 'تراز آزمایشی', sec: 'rep' },
+            { page: 'report-incomplete',   icon: '🔍', color: '#f59e0b', label: 'تراکنش‌های تکمیل نشده', sec: 'rep' },
+            { page: 'report-compare',      icon: '📈', color: '#16a34a', label: 'گزارش مقایسه‌ای', sec: 'rep' },
+            { page: 'report-ledger',       icon: '📚', color: '#4f46e5', label: 'گزارش دفاتر', sec: 'rep' }
         ]
     },
     {
         id: 'treasury', icon: '💧', color: '#14b8a6', title: 'خزانه',
-        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'plan', label: 'برآوردها' } ],
+        secs: [ { id: 'list', label: 'فهرست‌ها' }, { id: 'op', label: 'عملیات' }, { id: 'plan', label: 'برآوردها' }, { id: 'rep', label: 'گزارش‌های خزانه' } ],
         items: [
             { page: 'treasury', tab: 'tr-list', icon: '📄', color: '#0d9488', label: 'فهرست دریافت و پرداخت', sec: 'list' },
             { page: 'facilities', tab: 'fac-list', icon: '🏦', color: '#0891b2', label: 'فهرست تسهیلات', sec: 'list' },
@@ -76,13 +85,19 @@ var NAV_MENU_GROUPS = [
             { page: 'treasury', tab: 'tr-add', preset: 'out', icon: '📤', color: '#dc2626', label: 'ثبت پرداخت', sec: 'op' },
             { page: 'facilities', tab: 'fac-add',  icon: '➕', color: '#06b6d4', label: 'ایجاد تسهیلات', sec: 'op' },
             { page: 'estimate-daily',   icon: '📝', color: '#f59e0b', label: 'برآورد هزینه‌های روزانه', sec: 'plan' },
-            { page: 'cashflow-sources', icon: '📌', color: '#f97316', label: 'برآورد منابع دریافتنی', sec: 'plan' }
+            { page: 'cashflow-sources', icon: '📌', color: '#f97316', label: 'برآورد منابع دریافتنی', sec: 'plan' },
+            /* ✅ v2.7.2 — درخواست کاربر: دو گزارش تسهیلات به «گزارش‌های خزانه» منتقل شد */
+            { page: 'report-facility',      icon: '🏦', color: '#0891b2', label: 'خلاصه تسهیلات', sec: 'rep' },
+            { page: 'report-facility-full', icon: '📊', color: '#06b6d4', label: 'گزارش جامع تسهیلات', sec: 'rep' }
         ]
     },
     {
-        id: 'planning', icon: '🗓', color: '#8b5cf6', title: 'برنامه‌ریزی', items: [
+        id: 'planning', icon: '🗓', color: '#8b5cf6', title: 'برنامه‌ریزی',
+        items: [
             { page: 'jalali-calendar', icon: '📅', color: '#8b5cf6', label: 'مدیریت تقویم' },
-            { page: 'notes', icon: '📔', color: '#a855f7', label: 'دفترچه یادداشت' }
+            { page: 'notes', icon: '📔', color: '#a855f7', label: 'دفترچه یادداشت' },
+            /* ✅ v2.7.2 — ماشین‌حساب حرفه‌ای در برنامه‌ریزی */
+            { page: 'calculator', icon: '🧮', color: '#0ea5e9', label: 'ماشین‌حساب حرفه‌ای' }
         ]
     },
     {
@@ -117,21 +132,10 @@ var NAV_MENU_GROUPS = [
             { page: 'sales', tab: 'si-list', icon: '📄', color: '#4f46e5', label: 'فهرست فاکتورها', sec: 'list' },
             { page: 'sales', tab: 'si-add',  icon: '➕', color: '#4338ca', label: 'صدور فاکتور', sec: 'op' }
         ]
-    },
-    {
-        id: 'reports', icon: '📊', color: '#64748b', title: 'گزارش‌ها', items: [
-            { page: 'dashboard',            icon: '🎯', color: '#0891b2', label: 'داشبورد مالی' },
-            { page: 'report-cashflow',      icon: '💵', color: '#059669', label: 'پیش‌بینی روزانه نقدینگی' },
-            { page: 'report-cashflow-desc', icon: '💸', color: '#dc2626', label: 'گردش وجه نقد' },
-            { page: 'report-account',      icon: '📒', color: '#3b82f6', label: 'مرور حساب‌ها' },
-            { page: 'report-trial',        icon: '⚖️', color: '#7c3aed', label: 'تراز آزمایشی' },
-            { page: 'report-incomplete',   icon: '🔍', color: '#f59e0b', label: 'تراکنش‌های تکمیل نشده' },
-            { page: 'report-facility',     icon: '🏦', color: '#0891b2', label: 'خلاصه تسهیلات' },
-            { page: 'report-facility-full',icon: '📊', color: '#06b6d4', label: 'گزارش جامع تسهیلات' },
-            { page: 'report-compare',      icon: '📈', color: '#16a34a', label: 'گزارش مقایسه‌ای' },
-            { page: 'report-ledger',       icon: '📚', color: '#4f46e5', label: 'گزارش دفاتر' }
-        ]
     }
+    /* ✅ v2.7.2 — گروه «گزارش‌ها» حذف شد: همه گزارش‌ها به «حسابداری» و
+       دو گزارش تسهیلات به «گزارش‌های خزانه» (بخش خزانه) منتقل شدند.
+       ترتیب ذخیره‌شده قدیمی کاربران به‌صورت امن نادیده گرفته می‌شود. */
 ];
 
 /* ---------- ابزار ---------- */
@@ -152,6 +156,34 @@ function _navLoadCollapsed() {
     var c = DB.load('navMenuCollapsed', {});
     if (!c || typeof c !== 'object') return {};
     return c;
+}
+
+/* ✅ v2.7.2 — وضعیت جمع‌شدگی زیرشاخه‌ها (فهرست‌ها / عملیات / ابزارها / ...) */
+function _navLoadSecCollapsed() {
+    var c = DB.load('navSecCollapsed', {});
+    if (!c || typeof c !== 'object') return {};
+    return c;
+}
+
+function _navSaveSecCollapsed(c) {
+    DB.save('navSecCollapsed', c || {});
+}
+
+/* ✅ v2.7.2 — قفل ترتیب منو: وقتی فعال باشد جابه‌جایی با کشیدن ممکن نیست
+   (پیش‌فرض: قفل — تا جابه‌جایی تصادفی آیتم‌ها اتفاق نیفتد) */
+function navIsLocked() {
+    return DB.load('navMenuLocked', true) !== false;
+}
+
+function navSetLocked(v) {
+    DB.save('navMenuLocked', !!v);
+    document.body.classList.toggle('nav-order-locked', !!v);
+    var btn = document.getElementById('nav-lock-order');
+    if (btn) {
+        btn.innerHTML = v ? '🔒 ترتیب قفل است' : '🔓 ترتیب آزاد است';
+        btn.title = v ? 'قفل فعال است — برای جابه‌جایی منو کلیک کنید' : 'جابه‌جایی آزاد است — برای قفل‌کردن کلیک کنید';
+        btn.classList.toggle('mini-btn-active', !!v);
+    }
 }
 
 /* عنوان سایدبار: نام برنامه + نسخه در پرانتز */
@@ -233,27 +265,34 @@ function buildNavMenu() {
         var itemsBox = document.createElement('div');
         itemsBox.className = 'nav-group-items';
 
+        /* ✅ v2.7.2 — وضعیت جمع‌شدگی زیرشاخه‌ها */
+        var secCollapsed = _navLoadSecCollapsed();
+
         var lastSec = null;
         list.forEach(function (it) {
             /* ✅ v2.7.1 — درخواست کاربر: «فهرست‌ها در یک بخش و عملیات زیر بخش کلی
                فهرست‌ها» — هر گروه به بخش‌های کوچکِ نام‌دار تقسیم می‌شود */
             var sec = it.sec || null;
             if (sec && secsMap[sec] && sec !== lastSec) {
-                var lb = document.createElement('div');
-                lb.className = 'nav-sec-label';
+                var lb = document.createElement('button');
+                lb.type = 'button';
+                lb.className = 'nav-sec-label' + (secCollapsed[gid + ':' + sec] ? ' sec-collapsed' : '');
                 lb.setAttribute('data-nav-sec', sec);
-                lb.textContent = secsMap[sec];
+                lb.setAttribute('data-nav-group-sec', gid + ':' + sec);
+                lb.title = 'باز/بسته کردن «' + secsMap[sec] + '»';
+                lb.innerHTML = '<span class="nav-sec-caret">▾</span><span class="nav-sec-txt">' + esc(secsMap[sec]) + '</span>';
                 itemsBox.appendChild(lb);
             }
             if (sec) lastSec = sec;
 
             var b = document.createElement('button');
             b.type = 'button';
-            b.className = 'nav-item-btn';
+            b.className = 'nav-item-btn' + ((sec && secCollapsed[gid + ':' + sec]) ? ' nav-sec-hidden' : '');
             b.setAttribute('data-page', it.page);
             b.setAttribute('data-nav-key', _navItemKey(it));
             if (it.tab) b.setAttribute('data-tab', it.tab);
             if (it.preset) b.setAttribute('data-preset', it.preset);
+            if (sec) b.setAttribute('data-sec', sec);
             b.innerHTML =
                 '<span class="nav-drag" data-drag="item" title="جابه‌جایی">⋮⋮</span>' +
                 '<span class="nav-ico" style="background:' + it.color + '">' + it.icon + '</span>' +
@@ -268,6 +307,9 @@ function buildNavMenu() {
 
     nav.appendChild(frag);
     navSetSidebarTitle();
+
+    /* ✅ v2.7.2 — همگام‌سازی وضعیت قفل با دکمه و بدنه */
+    navSetLocked(navIsLocked());
 
     /* ✅ v2.7.1 — خودترمیمی: اگر به هر دلیل هیچ گروهی رندر نشد (دادهٔ خراب و...)
        ترتیب ذخیره‌شده کنار گذاشته می‌شود و منو یک بار دیگر از پیکربندی پیش‌فرض
@@ -314,6 +356,7 @@ function navResetOrder() {
     if (!confirm('ترتیب منو به حالت پیش‌فرض بازگردانده شود؟')) return;
     DB.save('navMenuOrder', { groups: [], items: {} });
     DB.save('navMenuCollapsed', {});
+    DB.save('navSecCollapsed', {}); /* ✅ v2.7.2 — زیرشاخه‌ها هم باز شود */
     buildNavMenu();
     /* ✅ v2.7.1 — اگر بازسازی اول کامل نشده بود، یک بار دیگر با تاخیر تلاش می‌شود */
     setTimeout(function () {
@@ -497,6 +540,13 @@ function _navFinishDrag() {
     document.addEventListener('pointerdown', function (e) {
         var handle = e.target.closest ? e.target.closest('.nav-drag') : null;
         if (!handle) return;
+        /* ✅ v2.7.2 — قفل ترتیب: اگر فعال باشد هیچ جابه‌جایی‌ای شروع نمی‌شود */
+        if (navIsLocked()) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (eLk) {}
+            if (typeof showToast === 'function')
+                showToast('🔒 ترتیب منو قفل است — از دکمه «ترتیب قفل» در بالای منو بازش کنید');
+            return;
+        }
         var groupEl = handle.closest('.nav-group');
         if (!groupEl || groupEl.classList.contains('nav-frequent')) return;
         if (e.button !== undefined && e.button !== 0) return;
@@ -571,6 +621,43 @@ var _navDragWasDrag = false;
         setTimeout(_navSaveCollapsedFromDOM, 30);
     });
 
+    /* ✅ v2.7.2 — کلیک روی زیرشاخه (فهرست‌ها/عملیات/ابزارها/...) →
+       اکسپند/کولپسِ همان زیرشاخه + ذخیرهٔ وضعیت */
+    document.addEventListener('click', function (e) {
+        var secBtn = e.target.closest ? e.target.closest('.nav-sec-label') : null;
+        if (!secBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var key = secBtn.getAttribute('data-nav-group-sec');
+        if (!key) return;
+        var groupId = key.split(':')[0];
+        var secId = secBtn.getAttribute('data-nav-sec');
+        var gEl = secBtn.closest('.nav-group');
+        if (!gEl) return;
+
+        var willCollapse = !secBtn.classList.contains('sec-collapsed');
+        secBtn.classList.toggle('sec-collapsed', willCollapse);
+        var c = _navLoadSecCollapsed();
+        c[key] = willCollapse;
+        _navSaveSecCollapsed(c);
+
+        Array.prototype.slice.call(gEl.querySelectorAll('.nav-item-btn[data-sec]')).forEach(function (b) {
+            if (b.getAttribute('data-sec') === secId) b.classList.toggle('nav-sec-hidden', willCollapse);
+        });
+    });
+
+    /* ✅ v2.7.2 — قفل/باز کردن ترتیب منو */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('#nav-lock-order') : null;
+        if (!btn) return;
+        e.preventDefault();
+        var locked = navIsLocked();
+        navSetLocked(!locked);
+        if (typeof showToast === 'function') showToast(!locked
+            ? '🔓 ترتیب منو آزاد شد — حالا می‌توانید آیتم‌ها را بکشید'
+            : '🔒 ترتیب منو قفل شد — جابه‌جایی تصادفی غیرممکن است');
+    });
+
     /* باز/بستن همه (دکمه‌های داخل سایدبار) → بعد از اجرا ذخیره شود */
     ['side-expand', 'side-collapse'].forEach(function (id) {
         document.addEventListener('click', function (e) {
@@ -590,6 +677,32 @@ var _navDragWasDrag = false;
 window.buildNavMenu = buildNavMenu;
 window.navResetOrder = navResetOrder;
 window.navSetSidebarTitle = navSetSidebarTitle;
+window.navIsLocked = navIsLocked;
+window.navSetLocked = navSetLocked;
 window.NAV_MENU_GROUPS = NAV_MENU_GROUPS;
 
-console.log('✅ [ui/nav-menu.js] loaded — v2.7.1 (منوی ERP + بخش‌های فهرست/عملیات + خودترمیمی)');
+/* ============================================================
+   ✅ v2.7.2 — استایل‌های زیرشاخه + قفل ترتیب
+   ============================================================ */
+(function injectNav272Css() {
+    if (document.getElementById('nav-272-style')) return;
+    var s = document.createElement('style');
+    s.id = 'nav-272-style';
+    s.textContent = ''
+    + '.nav-sec-label { display:flex !important; align-items:center; gap:4px; cursor:pointer !important; '
+      + 'border:none; background:transparent; font-family:inherit; padding:6px 6px 4px !important; width:100%; '
+      + 'text-align:right; color:var(--text-muted); font-weight:900; font-size:.68rem !important; '
+      + 'letter-spacing:.2px; transition:color .15s; }'
+    + '.nav-sec-label:hover { color:var(--primary-dark,#1e40af); }'
+    + '.nav-sec-caret { display:inline-block; font-size:.6rem; color:#94a3b8; transition:transform .18s; width:12px; text-align:center; }'
+    + '.nav-sec-label.sec-collapsed .nav-sec-caret { transform:rotate(-90deg); }'
+    + '.nav-sec-label.sec-collapsed { opacity:.75; }'
+    + '.nav-item-btn.nav-sec-hidden { display:none !important; }'
+    + '/* قفل ترتیب: دستگیره‌های جابه‌جایی کاملاً پنهان می‌شوند */'
+    + 'body.nav-order-locked .nav-drag { display:none !important; }'
+    + 'body.nav-order-locked .nav-item-btn { cursor:pointer !important; }'
+    + '.mini-btn-active { background:linear-gradient(135deg,#dcfce7,#bbf7d0) !important; color:#166534 !important; border-color:#86efac !important; }';
+    document.head.appendChild(s);
+})();
+
+console.log('✅ [ui/nav-menu.js] loaded — v2.7.2 (جابه‌جایی گزارش‌ها + قفل ترتیب + اکسپند زیرشاخه‌ها)');

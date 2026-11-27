@@ -40,6 +40,8 @@
             +   '<h1 class="welcome-title">پارسیس</h1>'
             +   '<div class="welcome-subtitle">حسابداری هوشمند</div>'
             +   '<div class="welcome-version">نسخه ' + toFa(APP_VERSION) + '</div>'
+            /* ✅ v2.7.2 — درخواست کاربر: نام کاربر زیر عنوان و نسخه */
+            +   '<div class="welcome-user" id="welcome-user">' + welcomeUserName() + '</div>'
             + '</div>'
             + '<div class="welcome-chart-wrap">'
             +   '<div class="welcome-chart-title">💹 خلاصهٔ دورهٔ مالی فعال</div>'
@@ -55,6 +57,16 @@
                 if (el.parentNode) el.parentNode.removeChild(el);
             }, 500);
         });
+    }
+
+    /* ✅ v2.7.2 — نام کاربرِ واردشده (برای نمایش زیر عنوان صفحه اول) */
+    function welcomeUserName() {
+        try {
+            if (typeof state !== 'undefined' && state.currentUser && state.currentUser.username) {
+                return '👤 ' + esc(String(state.currentUser.username));
+            }
+        } catch (e) {}
+        return '';
     }
 
     function renderDate() {
@@ -153,6 +165,7 @@
         + '.welcome-title { font-size:3.4rem !important; font-weight:900 !important; letter-spacing:-1px !important; margin-top:14px !important; background:linear-gradient(135deg, #ffffff 0%, #6ee7b7 55%, #34d399 100%) !important; -webkit-background-clip:text !important; background-clip:text !important; -webkit-text-fill-color:transparent !important; animation:wgPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both !important; animation-delay:0.5s !important; }'
         + '.welcome-subtitle { font-size:1.1rem !important; color:rgba(255,255,255,0.8) !important; margin-top:4px !important; animation:wgPop 0.7s ease both !important; animation-delay:0.8s !important; }'
         + '.welcome-version { font-size:0.8rem !important; color:rgba(255,255,255,0.5) !important; margin-top:6px !important; animation:wgPop 0.7s ease both !important; animation-delay:1s !important; }'
+        + '.welcome-user { font-size:1rem !important; font-weight:900 !important; color:#6ee7b7 !important; margin-top:10px !important; text-shadow:0 2px 14px rgba(110,231,183,0.4) !important; animation:wgPop 0.7s ease both !important; animation-delay:1.15s !important; min-height:1.4em; }'
         + '.welcome-chart-wrap { width:min(420px, 92vw) !important; text-align:center !important; z-index:1 !important; animation:wgFadeIn 0.8s ease both !important; animation-delay:1.4s !important; }'
         + '.welcome-chart-title { color:rgba(255,255,255,0.9) !important; font-weight:900 !important; font-size:0.95rem !important; margin-bottom:10px !important; }'
         + '.welcome-chart { display:flex !important; justify-content:center !important; margin-bottom:14px !important; }'

@@ -157,7 +157,9 @@ function runPageRenderer(name) {
             if (typeof runComparisonReport === 'function') setTimeout(runComparisonReport, 50);
         },
         'home':                 function () { if (typeof updateHomeWidgets === 'function') updateHomeWidgets(); },
-        'jalali-calendar':      function () { if (typeof calRender === 'function') setTimeout(calRender, 80); }
+        'jalali-calendar':      function () { if (typeof calRender === 'function') setTimeout(calRender, 80); },
+        /* ✅ v2.7.2 — ماشین‌حساب حرفه‌ای (برنامه‌ریزی) */
+        'calculator':           function () { if (typeof initCalculatorPage === 'function') initCalculatorPage(); }
     };
 
     if (dispatch[name]) dispatch[name]();

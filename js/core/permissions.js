@@ -50,6 +50,8 @@ var PERM_DATA_PAGES = [
     ['notes',              '📔 دفترچه یادداشت'],
     ['sms',                '📱 پیامک بانکی'],
     ['jalali-calendar',    '📅 مدیریت تقویم'],
+    /* ✅ v2.7.2 — ماشین‌حساب حرفه‌ای */
+    ['calculator',          '🧮 ماشین‌حساب حرفه‌ای'],
     /* ✅ v2.4.0 — ماژول‌های جدید */
     ['treasury',           '💧 خزانه — دریافت و پرداخت'],
     ['assets',             '🏗 اموال و دارایی'],
@@ -101,7 +103,7 @@ var PERM_TREE_CATEGORIES = [
     { id: 'inv-cat',      title: '🛒 خرید و انبار',        pages: ['inventory-items', 'inventory-moves', 'stock-requests', 'stock-card', 'stock-valuation', 'purchase-req', 'purchase-orders', 'purchase-invoices', 'purchase-returns', 'purchase-reports', 'purchase-settings'] },
     { id: 'sales-cat',    title: '🛒 فروش',                pages: ['sales'] },
     { id: 'report-cat',   title: '📚 گزارش‌ها',             pages: ['report-cashflow', 'report-cashflow-desc', 'report-account', 'report-ledger', 'report-trial', 'report-incomplete', 'report-facility', 'report-facility-full', 'report-compare'] },
-    { id: 'def-cat',      title: '⚙️ تعریف‌ها و ابزارها',    pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'notes', 'sms', 'jalali-calendar', 'language'] }
+    { id: 'def-cat',      title: '⚙️ تعریف‌ها و ابزارها',    pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'notes', 'sms', 'jalali-calendar', 'calculator', 'language'] }
 ];
 
 /* عمل‌های مجاز برای هر نوع صفحه (در فرم نمایش داده می‌شود) */

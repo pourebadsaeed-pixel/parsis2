@@ -265,6 +265,76 @@
         });
     }
 
+    /* ============================================================
+       ✅ v2.7.2 — دسترسی دوربین و آلارم دقیق (درخواست کاربر:
+       «نرم‌افزار اندروید به فایل‌ها، دوربین و آلارم دسترسی داشته باشه»)
+       ============================================================ */
+    async function requestCameraPerm() {
+        var P = getParsis();
+        if (!P || !P.requestCameraAndMediaPermissions) {
+            if (typeof showToast === 'function') showToast('این قابلیت فقط در اپ اندروید است.');
+            return 'browser';
+        }
+        try {
+            var r = await P.requestCameraAndMediaPermissions();
+            return r && r.granted ? 'granted' : 'requested';
+        } catch (e) { return 'denied'; }
+    }
+
+    async function checkCameraPerm() {
+        var P = getParsis();
+        if (!P || !P.hasCameraPermission) return 'browser';
+        try {
+            var r = await P.hasCameraPermission();
+            return r && r.granted ? 'granted' : 'denied';
+        } catch (e) { return 'unknown'; }
+    }
+
+    async function checkAlarmPerm() {
+        var P = getParsis();
+        if (!P || !P.hasExactAlarmPermission) return 'browser';
+        try {
+            var r = await P.hasExactAlarmPermission();
+            return r && r.granted ? 'granted' : 'denied';
+        } catch (e) { return 'unknown'; }
+    }
+
+    function requestAlarmPerm() {
+        var P = getParsis();
+        if (!P || !P.requestExactAlarmPermission) {
+            if (typeof showToast === 'function') showToast('این قابلیت فقط در اپ اندروید است.');
+            return;
+        }
+        try {
+            P.requestExactAlarmPermission().then(function () {
+                if (typeof showToast === 'function') showToast('⏰ صفحهٔ اجازهٔ آلارم دقیق باز شد — اجازه را فعال کنید');
+                setTimeout(updateAlarmStatus, 2500);
+            }).catch(function () {});
+        } catch (e) {}
+    }
+
+    function updateCameraStatus() {
+        var el = document.getElementById('set-andr-camera-status');
+        if (!el) return;
+        var P = getParsis();
+        if (!P) { el.textContent = '— فقط در اپ اندروید'; el.style.color = '#64748b'; return; }
+        checkCameraPerm().then(function (st) {
+            if (st === 'granted') { el.textContent = '✅ دسترسی دوربین فعال است'; el.style.color = '#166534'; }
+            else { el.textContent = '⛔ دسترسی دوربین داده نشده (برای عکس پیوست اسناد)'; el.style.color = '#b91c1c'; }
+        });
+    }
+
+    function updateAlarmStatus() {
+        var el = document.getElementById('set-andr-alarm-status');
+        if (!el) return;
+        var P = getParsis();
+        if (!P) { el.textContent = '— فقط در اپ اندروید'; el.style.color = '#64748b'; return; }
+        checkAlarmPerm().then(function (st) {
+            if (st === 'granted') { el.textContent = '✅ آلارم دقیق فعال است (یادآورها سر وقت می‌آیند)'; el.style.color = '#166534'; }
+            else { el.textContent = '⛔ آلارم دقیق فعال نیست (اندروید ۱۲+ — برای یادآورهای دقیق)'; el.style.color = '#b91c1c'; }
+        });
+    }
+
     function bindSettings() {
         var smsBtn = document.getElementById('set-andr-sms-btn');
         if (smsBtn && !smsBtn._awBound) {
@@ -319,9 +389,31 @@
             });
         }
 
-        /* وضعیت اولیه سه بخش */
+        /* ✅ v2.7.2 — دوربین و آلارم دقیق */
+        var camBtn = document.getElementById('set-andr-camera-btn');
+        if (camBtn && !camBtn._awBound) {
+            camBtn._awBound = true;
+            camBtn.addEventListener('click', async function () {
+                var st = await requestCameraPerm();
+                if (st === 'granted') toast('✅ دسترسی دوربین و رسانه فعال است');
+                else if (st === 'requested') toast('📱 پنجرهٔ اجازه باز شد — دسترسی را تأیید کنید');
+                setTimeout(updateCameraStatus, 1600);
+            });
+        }
+
+        var alarmBtn = document.getElementById('set-andr-alarm-btn');
+        if (alarmBtn && !alarmBtn._awBound) {
+            alarmBtn._awBound = true;
+            alarmBtn.addEventListener('click', function () {
+                requestAlarmPerm();
+            });
+        }
+
+        /* وضعیت اولیه بخش‌ها */
         updateSmsStatus();
         updateWidgetStatus();
+        updateCameraStatus();
+        updateAlarmStatus();
     }
 
     /* اتصال پس از آماده شدن DOM */
@@ -358,7 +450,10 @@
         buildSnapshot: buildSnapshot,
         pushWidgets: pushWidgets,
         updateWidgetStatus: updateWidgetStatus,
-        updateSmsStatus: updateSmsStatus
+        updateSmsStatus: updateSmsStatus,
+        updateCameraStatus: updateCameraStatus,
+        updateAlarmStatus: updateAlarmStatus,
+        requestAlarmPerm: requestAlarmPerm
     };
 
     console.log('✅ [modules/native-widgets.js] loaded');
