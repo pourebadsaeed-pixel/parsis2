@@ -2723,16 +2723,18 @@ function calEnsurePage() {
         }
     }
 
-    var navOps = document.querySelector('[data-nav-group="ops"] .nav-group-items');
+    var navOps = document.querySelector('[data-nav-group="planning"] .nav-group-items') ||
+                 document.querySelector('[data-nav-group="ops"] .nav-group-items');
     if (navOps) {
         var existing = navOps.querySelector('[data-page="jalali-calendar"]');
         if (!existing) {
+            /* ✅ v2.7.0 — منوی داده‌محور: دکمهٔ تقویم در گروه «برنامه‌ریزی» است؛
+               این فقط برای سازگاری با منوی قدیمی/سفارشی است */
             var b = document.createElement('button');
             b.setAttribute('data-page', 'jalali-calendar');
-            b.textContent = '📅 مدیریت تقویم';
+            b.className = 'nav-item-btn';
+            b.innerHTML = '<span class="nav-ico" style="background:#8b5cf6">📅</span><span class="nav-item-label">مدیریت تقویم</span>';
             navOps.appendChild(b);
-        } else {
-            existing.textContent = '📅 مدیریت تقویم';
         }
     }
 }
