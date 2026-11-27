@@ -173,7 +173,7 @@
 <div id="app" style="display:none;">
 <header class="topbar">
     <button id="menu-btn" class="icon-btn">☰</button>
-    <h1 class="topbar-title">پارسیس</h1>
+    <!-- ✅ v2.7.0 — نام برنامه از توپ‌بار حذف شد؛ فضا به باکس تاریخ داده شد (نام کامل در منوی کشویی ☰) -->
     <div class="date-info">
         <div class="date-line jalali" id="date-jalali">—</div>
         <div class="date-line greg" id="date-gregorian" style="display:none"></div>
@@ -186,127 +186,17 @@
 </header>
 <div id="overlay" class="overlay"></div>
 <aside id="sidebar" class="sidebar">
-    <div class="sidebar-head"><h2>منوی اصلی</h2><button id="close-sidebar" class="close-btn">×</button></div>
+    <div class="sidebar-head"><h2 id="sidebar-app-title">پارسیس (۲.۷.۰)</h2><button id="close-sidebar" class="close-btn">×</button></div>
     <div class="sidebar-search"><input type="text" id="sidebar-search-input" placeholder="🔍 جستجوی فرم یا گزارش..."></div>
-    <div class="sidebar-actions"><button id="side-expand" class="mini-btn">باز کردن همه</button><button id="side-collapse" class="mini-btn">بستن همه</button></div>
+    <div class="sidebar-actions"><button id="side-expand" class="mini-btn">باز کردن همه</button><button id="side-collapse" class="mini-btn">بستن همه</button><button id="nav-reset-order" class="mini-btn" title="بازگشت ترتیب منو به حالت پیش‌فرض">↺ ترتیب پیش‌فرض</button></div>
     <nav class="sidebar-nav" id="sidebar-nav">
         <div class="nav-group nav-frequent collapsed" id="nav-frequent-group" style="display:none">
             <button class="nav-group-title"><span>⭐ پرکاربرد</span><span class="caret">▾</span></button>
             <div class="nav-group-items" id="nav-frequent-items"></div>
         </div>
-        <div class="nav-group collapsed" data-nav-group="base-info">
-            <button class="nav-group-title"><span>📋 اطلاعات اولیه</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="language">🌐 زبان</button>
-                <button data-page="account-types">📑 لیست نوع حساب</button>
-                <button data-page="bank-types">🏦 انواع حساب بانکی</button>
-                <button data-page="cash-types">💰 انواع صندوق</button>
-                <button data-page="currency">💱 ارز و واحد پول</button>
-                <button data-page="fiscal" data-tab="fiscal-list">📅 فهرست دوره‌های مالی</button>
-                <button data-page="fiscal" data-tab="fiscal-add">➕ ایجاد دوره مالی</button>
-                <button data-page="chart-define">✏️ تعریف حساب‌ها</button>
-            </div>
-        </div>
-        <div class="nav-group collapsed" data-nav-group="data">
-            <button class="nav-group-title"><span>🗂 اطلاعات پایه</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="persons" data-tab="persons-list">👥 فهرست اشخاص</button>
-                <button data-page="persons" data-tab="persons-add">➕ ایجاد شخص</button>
-                <button data-page="companies" data-tab="comp-list">🏢 فهرست شرکت‌ها</button>
-                <button data-page="companies" data-tab="comp-add">➕ ایجاد شرکت</button>
-                <button data-page="phonebook">📞 دفترچه تلفن</button>
-                <button data-page="bank-accounts" data-tab="ba-list">🏦 فهرست حساب‌های بانکی</button>
-                <button data-page="bank-accounts" data-tab="ba-add">➕ ایجاد حساب بانکی</button>
-                <button data-page="cash-boxes" data-tab="cb-list">💰 فهرست صندوق‌ها</button>
-                <button data-page="cash-boxes" data-tab="cb-add">➕ ایجاد صندوق</button>
-                <button data-page="projects" data-tab="proj-list">📁 فهرست پروژه‌ها</button>
-                <button data-page="projects" data-tab="proj-add">➕ ایجاد پروژه</button>
-            </div>
-        </div>
-        <div class="nav-group collapsed" data-nav-group="cash">
-            <button class="nav-group-title"><span>💧 مدیریت نقدینگی</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="estimate-daily">📝 برآورد هزینه‌های روزانه</button>
-                <button data-page="cashflow-sources">📌 برآورد منابع دریافتنی</button>
-            </div>
-        </div>
-        <!-- ✅ v2.4.0 — ماژول خزانه -->
-        <div class="nav-group collapsed" data-nav-group="treasury">
-            <button class="nav-group-title"><span>💧 خزانه</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="treasury" data-tab="tr-list">📄 فهرست دریافت و پرداخت</button>
-                <button data-page="treasury" data-tab="tr-add" data-preset="in">📥 ثبت دریافت</button>
-                <button data-page="treasury" data-tab="tr-add" data-preset="out">📤 ثبت پرداخت</button>
-                <button data-page="facilities" data-tab="fac-list">🏦 فهرست تسهیلات</button>
-                <button data-page="facilities" data-tab="fac-add">➕ ایجاد تسهیلات</button>
-            </div>
-        </div>
-        <!-- ✅ v2.4.0 — ماژول اموال -->
-        <div class="nav-group collapsed" data-nav-group="assets">
-            <button class="nav-group-title"><span>🏗 اموال</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="assets" data-tab="as-list">📋 فهرست اموال</button>
-                <button data-page="assets" data-tab="as-add">➕ ثبت دارایی</button>
-            </div>
-        </div>
-        <!-- ✅ v2.4.0 — ماژول انبار -->
-        <div class="nav-group collapsed" data-nav-group="inventory">
-            <button class="nav-group-title"><span>📦 انبار</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="inventory-items" data-tab="iv-list">📋 فهرست کالاها</button>
-                <button data-page="inventory-items" data-tab="iv-add">➕ ایجاد کالا</button>
-                <button data-page="inventory-moves" data-tab="im-list">🔄 فهرست حواله‌ها</button>
-                <button data-page="inventory-moves" data-tab="im-add" data-preset="in">➕ ثبت حواله ورود</button>
-                <button data-page="inventory-moves" data-tab="im-add" data-preset="out">➕ ثبت حواله خروج</button>
-            </div>
-        </div>
-        <!-- ✅ v2.4.0 — ماژول فروش -->
-        <div class="nav-group collapsed" data-nav-group="sales">
-            <button class="nav-group-title"><span>🛒 فروش</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="sales" data-tab="si-list">📄 فهرست فاکتورها</button>
-                <button data-page="sales" data-tab="si-add">➕ صدور فاکتور</button>
-            </div>
-        </div>
-        <div class="nav-group collapsed" data-nav-group="ops">
-            <button class="nav-group-title"><span>📝 عملیات</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="voucher-list">📄 فهرست اسناد حسابداری</button>
-                <button data-page="voucher-new">✏️ صدور سند حسابداری</button>
-                <button data-page="templates" data-tab="tpl-list">🧩 فهرست الگوهای سند</button>
-                <button data-page="templates" data-tab="tpl-add">➕ ایجاد الگوی سند</button>
-                <button data-page="templates" data-tab="desc-list">💬 شرح‌های استاندارد</button>
-                <button data-page="notes">📔 دفترچه یادداشت</button>
-                <button data-page="sms" id="nav-sms-btn">📱 پیامک بانکی <span class="nav-badge hidden" id="sms-nav-badge">۰</span></button>
-            </div>
-        </div>
-        <!-- ✅ v2.4.0 — بخش امنیت (فقط سرپرست) -->
-        <div class="nav-group collapsed" data-nav-group="security">
-            <button class="nav-group-title"><span>🛡 امنیت</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="users" data-tab="users-list">👤 فهرست کاربران</button>
-                <button data-page="users" data-tab="users-add">➕ ایجاد کاربر</button>
-                <button data-page="sec-groups" data-tab="sg-list">👥 فهرست گروه‌های کاربری</button>
-                <button data-page="sec-groups" data-tab="sg-add">➕ ایجاد گروه کاربری</button>
-                <button data-page="sec-perms">🔐 حقوق دسترسی</button>
-                <button data-page="sec-limits">🚫 محدودیت حقوق دسترسی</button>
-            </div>
-        </div>
-        <div class="nav-group collapsed" data-nav-group="reports">
-            <button class="nav-group-title"><span>📊 گزارش‌ها</span><span class="caret">▾</span></button>
-            <div class="nav-group-items">
-                <button data-page="dashboard">🎯 داشبورد مالی</button>
-                <button data-page="report-cashflow">💵 پیش‌بینی روزانه نقدینگی</button>
-                <button data-page="report-cashflow-desc">💸 گردش وجه نقد</button>
-                <button data-page="report-account">📒 مرور حساب‌ها</button>
-                <button data-page="report-trial">⚖️ تراز آزمایشی</button>
-                <button data-page="report-incomplete">🔍 تراکنش‌های تکمیل نشده</button>
-                <button data-page="report-facility">🏦 خلاصه تسهیلات</button>
-                <button data-page="report-facility-full">📊 گزارش جامع تسهیلات</button>
-                <button data-page="report-compare">📊 گزارش مقایسه‌ای</button>
-                <button data-page="report-ledger">📚 گزارش دفاتر</button>
-            </div>
-        </div>
+        <!-- ✅ v2.7.0 — گروه‌های منو به‌صورت داده‌محور توسط js/ui/nav-menu.js ساخته می‌شوند
+             (گروه‌بندی: عمومی / عملیات / خزانه / برنامه‌ریزی / اموال / خرید و انبار / فروش / گزارش‌ها
+              + جابه‌جایی با کشیدن و رها کردن + ذخیرهٔ ترتیب) -->
     </nav>
     <div class="sidebar-foot"><button id="logout-btn" class="logout-btn">🚪 خروج</button></div>
 </aside>
@@ -797,6 +687,321 @@
         </div>
     </div></div>
     <div id="tab-si-hist" class="tab-content"><div class="card"><div id="hist-sales"></div></div></div>
+</section>
+
+<!-- ============================================================
+     ✅ v2.7.0 — ماژول خرید و انبار (الگوبرداری از Odoo / ERPNext)
+     چرخهٔ خرید: درخواست خرید → سفارش خرید → رسید کالا → فاکتور خرید → برگشت
+     چرخهٔ انبار: درخواست کالا → حواله خروج / رسید ورود → کارت موجودی → قیمت‌گذاری
+     ============================================================ -->
+<section id="page-purchase-req" class="page">
+    <h2>📝 خرید — درخواست خرید</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="preq-list">📋 فهرست درخواست‌ها</button>
+        <button class="tab-btn" data-tab="preq-add">✏️ ثبت درخواست خرید</button>
+        <button class="tab-btn" data-tab="preq-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-preq-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="preq-count">۰</span>
+            <input type="text" class="filter-input" id="preq-filter" placeholder="🔍 جستجو">
+            <button class="export-btn" data-export="purchaseReqs">📊 اکسل</button>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="preq-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>تاریخ نیاز</th><th>درخواست‌کننده</th><th>اقلام</th><th>جمع برآوردی</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="preq-list-body"></tbody></table></div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 گردش کار: ثبت → تأیید (✓) → تبدیل به سفارش خرید (🧾). درخواست‌های ردشده قابل ویرایش مجدد نیستند — از «جدید» شروع کنید.</p>
+    </div></div>
+    <div id="tab-preq-add" class="tab-content"><div class="card">
+        <input type="hidden" id="preq-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره درخواست</label><input type="text" id="preq-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="preq-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>تاریخ نیاز</label><input type="text" id="preq-need-date" class="date-picker" dir="ltr"></div>
+            <div class="field"><label>درخواست‌کننده</label><input type="text" id="preq-requester" placeholder="نام شخص/واحد درخواست‌کننده"></div>
+        </div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">اقلام درخواست</h3>
+        <div id="preq-lines"></div>
+        <div class="form-buttons"><button id="preq-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button></div>
+        <div class="grid-2">
+            <div class="field"><label>وضعیت</label>
+                <select id="preq-status">
+                    <option value="pending" selected>در انتظار تأیید</option>
+                    <option value="approved">تأییدشده</option>
+                    <option value="draft">پیش‌نویس</option>
+                </select>
+            </div>
+            <div class="field"><label>توضیح</label><input type="text" id="preq-note"></div>
+        </div>
+        <div class="form-buttons">
+            <button id="save-preq" class="btn-primary">💾 ذخیره</button>
+            <button id="new-preq" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-preq-hist" class="tab-content"><div class="card"><div id="hist-preq"></div></div></div>
+</section>
+
+<section id="page-purchase-orders" class="page">
+    <h2>🧾 خرید — سفارش خرید</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="po-list">📋 فهرست سفارش‌ها</button>
+        <button class="tab-btn" data-tab="po-add">✏️ ثبت سفارش خرید</button>
+        <button class="tab-btn" data-tab="po-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-po-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="po-count">۰</span>
+            <input type="text" class="filter-input" id="po-filter" placeholder="🔍 جستجو">
+            <button class="export-btn" data-export="purchaseOrders">📊 اکسل</button>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="po-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>تامین‌کننده</th><th>تحویل</th><th>اقلام</th><th>مبلغ نهایی</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="po-list-body"></tbody></table></div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 گردش کار: ثبت → ارسال (📤) → ثبت رسید کالا (📥 = رسید انبار خودکار) → صدور فاکتور خرید (🧾) → تأیید فاکتور = ثبت سند حسابداری.</p>
+    </div></div>
+    <div id="tab-po-add" class="tab-content"><div class="card">
+        <input type="hidden" id="po-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره سفارش</label><input type="text" id="po-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="po-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>تامین‌کننده (شخص)</label><select id="po-supplier"></select></div>
+            <div class="field"><label>تاریخ تحویل مورد انتظار</label><input type="text" id="po-expect-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">اقلام سفارش</h3>
+        <div id="po-lines"></div>
+        <div class="form-buttons"><button id="po-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button></div>
+        <div class="grid-2">
+            <div class="field"><label>تخفیف</label><input type="text" id="po-discount" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>مالیات بر ارزش افزوده (٪)</label><input type="text" id="po-tax" inputmode="numeric" dir="ltr" placeholder="مثلاً ۱۰"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:.78rem;font-weight:800">
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">جمع اقلام: <span id="po-subtotal">۰</span></span>
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">مالیات: <span id="po-tax-amt">۰</span></span>
+            <span style="background:#ecfdf5;color:#065f46;border-radius:10px;padding:5px 12px">مبلغ نهایی: <span id="po-total">۰</span></span>
+        </div>
+        <div class="field"><label>توضیح</label><input type="text" id="po-note"></div>
+        <div class="form-buttons">
+            <button id="save-po" class="btn-primary">💾 ذخیره</button>
+            <button id="new-po" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-po-hist" class="tab-content"><div class="card"><div id="hist-po"></div></div></div>
+</section>
+
+<section id="page-purchase-invoices" class="page">
+    <h2>📄 خرید — فاکتور خرید</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="pinv-list">📋 فهرست فاکتورها</button>
+        <button class="tab-btn" data-tab="pinv-add">✏️ ثبت فاکتور خرید</button>
+        <button class="tab-btn" data-tab="pinv-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-pinv-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="pinv-count">۰</span>
+            <input type="text" class="filter-input" id="pinv-filter" placeholder="🔍 جستجو">
+            <button class="export-btn" data-export="purchaseInvoices">📊 اکسل</button>
+        </div>
+        <div style="margin:8px 0;font-size:.76rem;font-weight:800">
+            <span style="background:#ecfdf5;color:#065f46;border-radius:10px;padding:5px 12px;display:inline-block">جمع کل خرید: <span id="pinv-sum-total">۰</span></span>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="pinv-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>تامین‌کننده</th><th>اقلام</th><th>جمع اقلام</th><th>مالیات</th><th>مبلغ نهایی</th><th>وضعیت پرداخت</th><th>وضعیت</th><th>سند حسابداری</th><th>عملیات</th>
+        </tr></thead><tbody id="pinv-list-body"></tbody></table></div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 با تأیید فاکتور (✓): سند حسابداری خودکار ثبت می‌شود (بدهکار انبار/خرید + مالیات — بستانکار حساب‌های پرداختنی با تفصیلی تامین‌کننده) و اگر از سفارشِ رسیددار نیامده باشد، رسید انبار هم خودکار می‌خورد. حساب‌ها را از «اتصال به حسابداری» تعیین کنید.</p>
+    </div></div>
+    <div id="tab-pinv-add" class="tab-content"><div class="card">
+        <input type="hidden" id="pinv-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره فاکتور</label><input type="text" id="pinv-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="pinv-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="field"><label>تامین‌کننده (شخص)</label><select id="pinv-supplier"></select></div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">اقلام فاکتور</h3>
+        <div id="pinv-lines"></div>
+        <div class="form-buttons"><button id="pinv-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button></div>
+        <div class="grid-2">
+            <div class="field"><label>تخفیف</label><input type="text" id="pinv-discount" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>مالیات بر ارزش افزوده (٪)</label><input type="text" id="pinv-tax" inputmode="numeric" dir="ltr" placeholder="مثلاً ۱۰"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0;font-size:.78rem;font-weight:800">
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">جمع اقلام: <span id="pinv-subtotal">۰</span></span>
+            <span style="background:#f8fafc;color:#334155;border-radius:10px;padding:5px 12px">مالیات: <span id="pinv-tax-amt">۰</span></span>
+            <span style="background:#ecfdf5;color:#065f46;border-radius:10px;padding:5px 12px">مبلغ نهایی: <span id="pinv-total">۰</span></span>
+        </div>
+        <div class="grid-2">
+            <div class="field"><label>مبلغ پرداخت‌شده</label><input type="text" id="pinv-paid" class="money-input" inputmode="numeric" dir="ltr"></div>
+            <div class="field"><label>توضیح</label><input type="text" id="pinv-desc"></div>
+        </div>
+        <div class="form-buttons">
+            <button id="save-pinv" class="btn-primary">💾 ذخیره</button>
+            <button id="new-pinv" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-pinv-hist" class="tab-content"><div class="card"><div id="hist-pinv"></div></div></div>
+</section>
+
+<section id="page-purchase-returns" class="page">
+    <h2>↩️ خرید — برگشت از خرید</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="pret-list">📋 فهرست برگشت‌ها</button>
+        <button class="tab-btn" data-tab="pret-add">✏️ ثبت برگشت</button>
+        <button class="tab-btn" data-tab="pret-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-pret-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="pret-count">۰</span>
+            <input type="text" class="filter-input" id="pret-filter" placeholder="🔍 جستجو">
+            <button class="export-btn" data-export="purchaseReturns">📊 اکسل</button>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="pret-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>تامین‌کننده</th><th>اقلام</th><th>مبلغ برگشتی</th><th>وضعیت</th><th>سند حسابداری</th><th>عملیات</th>
+        </tr></thead><tbody id="pret-list-body"></tbody></table></div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 با تأیید برگشت (✓): حوالهٔ خروج انبار + سند معکوس (بدهکار پرداختنی — بستانکار انبار/خرید) خودکار ثبت می‌شود.</p>
+    </div></div>
+    <div id="tab-pret-add" class="tab-content"><div class="card">
+        <input type="hidden" id="pret-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره برگشت</label><input type="text" id="pret-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="pret-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="field"><label>از فاکتور خرید موجود (اختیاری)</label><select id="pret-from-invoice"></select></div>
+        <div class="field"><label>تامین‌کننده (شخص)</label><select id="pret-supplier"></select></div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">اقلام برگشتی</h3>
+        <div id="pret-lines"></div>
+        <div class="form-buttons"><button id="pret-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button></div>
+        <div class="field"><label>توضیح</label><input type="text" id="pret-desc"></div>
+        <div class="form-buttons">
+            <button id="save-pret" class="btn-primary">💾 ذخیره</button>
+            <button id="new-pret" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-pret-hist" class="tab-content"><div class="card"><div id="hist-pret"></div></div></div>
+</section>
+
+<section id="page-purchase-reports" class="page">
+    <h2>📊 گزارش‌های خرید</h2>
+    <div class="card">
+        <div class="grid-2">
+            <div class="field"><label>نوع گزارش</label><select id="prp-type"></select></div>
+            <div class="field" style="display:flex;align-items:flex-end;gap:8px">
+                <div style="flex:1"><label>از تاریخ</label><input type="text" id="prp-from" class="date-picker" dir="ltr"></div>
+                <div style="flex:1"><label>تا تاریخ</label><input type="text" id="prp-to" class="date-picker" dir="ltr"></div>
+            </div>
+        </div>
+        <div class="form-buttons">
+            <button id="prp-run" class="btn-primary">▶ اجرای گزارش</button>
+            <button id="prp-export" class="btn-secondary">📊 اکسل</button>
+        </div>
+        <div id="prp-summary" style="margin:10px 0;font-size:.8rem;font-weight:800"></div>
+        <div id="prp-body"></div>
+    </div>
+</section>
+
+<section id="page-purchase-settings" class="page">
+    <h2>⚙️ خرید و انبار — اتصال به حسابداری</h2>
+    <div class="card">
+        <p class="muted" style="font-size:.75rem;margin-bottom:12px">💡 وقتی فعال باشد، با تأیید هر فاکتور خرید یک سند حسابداری تأییدشده به‌صورت خودکار ثبت می‌شود:<br>
+        بدهکار: «انبار/خرید» + «مالیات» — بستانکار: «حساب بدهی تامین‌کننده» (با تفصیلی شخص تامین‌کننده، اگر حساب تفصیلی داشته باشد).<br>
+        برای برگشت از خرید همین سند به‌صورت معکوس ثبت می‌شود.</p>
+        <label class="checkbox-item"><input type="checkbox" id="pas-enabled"> <span>فعال‌سازی سند حسابداری خودکار از فاکتور خرید</span></label>
+        <label class="checkbox-item" style="margin-top:8px"><input type="checkbox" id="pas-autostock" checked> <span>ثبت رسید انبار خودکار از فاکتور (وقتی از سفارشِ رسیددار نیامده باشد)</span></label>
+        <div class="grid-2" style="margin-top:12px">
+            <div class="field"><label>حساب انبار / خرید (بدهکار)</label><select id="pas-inv-acc"></select></div>
+            <div class="field"><label>حساب مالیات خرید (بدهکار)</label><select id="pas-tax-acc"></select></div>
+        </div>
+        <div class="field"><label>حساب بدهی تامین‌کننده (بستانکار) — الزامی برای سند خودکار</label><select id="pas-payable-acc"></select></div>
+        <div class="form-buttons">
+            <button id="save-pas" class="btn-primary">💾 ذخیره تنظیمات</button>
+        </div>
+    </div>
+</section>
+
+<section id="page-stock-requests" class="page">
+    <h2>📋 انبار — درخواست کالا</h2>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="sreq-list">📋 فهرست درخواست‌ها</button>
+        <button class="tab-btn" data-tab="sreq-add">✏️ ثبت درخواست کالا</button>
+        <button class="tab-btn" data-tab="sreq-hist">🕘 تاریخچه تغییر وضعیت</button>
+    </div>
+    <div id="tab-sreq-list" class="tab-content active"><div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="sreq-count">۰</span>
+            <input type="text" class="filter-input" id="sreq-filter" placeholder="🔍 جستجو">
+            <button class="export-btn" data-export="stockRequests">📊 اکسل</button>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="sreq-table"><thead><tr>
+            <th>شماره</th><th>تاریخ</th><th>درخواست‌کننده</th><th>اقلام</th><th>وضعیت</th><th>عملیات</th>
+        </tr></thead><tbody id="sreq-list-body"></tbody></table></div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 با تأیید درخواست (✓): حوالهٔ خروج انبار خودکار صادر می‌شود؛ اگر موجودی کمتر از درخواست باشد، همان‌قدر که هست صادر می‌شود (وضعیت «جزئی»).</p>
+    </div></div>
+    <div id="tab-sreq-add" class="tab-content"><div class="card">
+        <input type="hidden" id="sreq-id">
+        <div class="grid-2">
+            <div class="field"><label>شماره درخواست</label><input type="text" id="sreq-no" dir="ltr"></div>
+            <div class="field"><label>تاریخ *</label><input type="text" id="sreq-date" class="date-picker" dir="ltr"></div>
+        </div>
+        <div class="field"><label>درخواست‌کننده</label><input type="text" id="sreq-requester" placeholder="نام شخص/واحد درخواست‌کننده"></div>
+        <h3 style="margin:14px 0 10px;color:var(--primary-dark);font-size:0.9rem">کالاهای درخواستی</h3>
+        <div id="sreq-lines"></div>
+        <div class="form-buttons"><button id="sreq-add-line" class="btn-secondary btn-mini">+ افزودن ردیف</button></div>
+        <div class="field"><label>توضیح</label><input type="text" id="sreq-note"></div>
+        <div class="form-buttons">
+            <button id="save-sreq" class="btn-primary">💾 ذخیره</button>
+            <button id="new-sreq" class="btn-secondary">جدید</button>
+        </div>
+    </div></div>
+    <div id="tab-sreq-hist" class="tab-content"><div class="card"><div id="hist-sreq"></div></div></div>
+</section>
+
+<section id="page-stock-card" class="page">
+    <h2>📚 انبار — کارت موجودی کالا</h2>
+    <div class="card">
+        <div class="grid-2">
+            <div class="field"><label>کالا</label><select id="sc-item"></select></div>
+            <div class="field" style="display:flex;align-items:flex-end;gap:8px">
+                <div style="flex:1"><label>از تاریخ</label><input type="text" id="sc-from" class="date-picker" dir="ltr"></div>
+                <div style="flex:1"><label>تا تاریخ</label><input type="text" id="sc-to" class="date-picker" dir="ltr"></div>
+            </div>
+        </div>
+        <div class="form-buttons">
+            <button id="sc-run" class="btn-primary">▶ نمایش کارت</button>
+            <button id="sc-export" class="btn-secondary">📊 اکسل</button>
+        </div>
+        <div id="sc-body" style="margin-top:12px"></div>
+    </div>
+</section>
+
+<section id="page-stock-valuation" class="page">
+    <h2>💰 انبار — ارزش‌گذاری موجودی و قیمت‌گذاری فروش</h2>
+    <div class="card">
+        <div class="list-header">
+            <span class="count-badge" id="sv-count">۰</span>
+            <label class="checkbox-item" style="margin:0"><input type="checkbox" id="sv-low-only"> <span>فقط کالاهای زیر حداقل موجودی</span></label>
+            <button id="sv-export" class="btn-secondary btn-mini">📊 اکسل</button>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="sv-table"><thead><tr>
+            <th>کد</th><th>کالا</th><th>گروه</th><th>موجودی</th><th>میانگین موزون</th><th>آخرین فی خرید</th><th>ارزش موجودی</th><th>فی فروش فعلی</th>
+        </tr></thead><tbody id="sv-body"></tbody></table></div>
+        <div style="margin:10px 0;font-size:.78rem;font-weight:800">
+            <span style="background:#ecfdf5;color:#065f46;border-radius:10px;padding:5px 12px;display:inline-block">جمع ارزش موجودی انبار: <span id="sv-total-val">۰</span></span>
+        </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+        <h3 style="margin:0 0 10px;color:var(--primary-dark);font-size:0.9rem">🏷 قیمت‌گذاری فروش (میانگین موزون + حاشیه سود)</h3>
+        <div class="grid-2">
+            <div class="field"><label>کالا</label><select id="sv-price-item"></select></div>
+            <div class="field"><label>حاشیه سود (٪)</label><input type="text" id="sv-margin" inputmode="numeric" dir="ltr" placeholder="مثلاً ۲۵"></div>
+        </div>
+        <div id="sv-price-info" style="margin:8px 0"></div>
+        <div class="form-buttons">
+            <button id="sv-apply-price" class="btn-primary">✅ اعمال فی فروش پیشنهادی</button>
+        </div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px">💡 میانگین موزون = ارزش کل ورودی‌ها ÷ تعداد ورودی‌ها پس از کسر خروجی‌ها با همان میانگین (روش استاندارد ارزش‌گذاری موجودی در ERPها).</p>
+    </div>
 </section>
 
 <section id="page-language" class="page">
@@ -2483,7 +2688,7 @@
     </div>
 </div>
 
-<script>window.__PARSIS_VER = '2.6.0';</script>
+<script>window.__PARSIS_VER = '2.7.0';</script>
 <script src="./js/core/db.js?v=2.3.5"></script>
 <script>
 (async function loadApp() {
@@ -2546,7 +2751,7 @@
         var modules = [
             './js/core/constants.js', './js/core/utils.js', './js/core/native-bridge.js', './js/core/lan-sync.js', './js/core/cloud-sync.js', './js/core/password.js', './js/core/state.js', './js/core/router.js', './js/core/permissions.js', './js/core/history.js',
             './js/core/calendar-popup.js', './js/core/hide.js', './js/core/lookups.js',
-            './js/ui/toast.js', './js/ui/nav.js', './js/ui/theme.js', './js/ui/table.js',
+            './js/ui/toast.js', './js/ui/nav.js', './js/ui/nav-menu.js', './js/ui/theme.js', './js/ui/table.js',
             './js/ui/form.js', './js/ui/time-picker.js', './js/ui/share.js', './js/ui/observers.js',
             './js/modules/accounts/fiscal.js', './js/modules/accounts/chart.js', './js/modules/persons.js',
             './js/modules/accounts/companies.js', './js/modules/accounts/banks.js', './js/modules/accounts/cashboxes.js',
@@ -2558,7 +2763,9 @@
             './js/modules/dashboard.js', './js/modules/widgets.js', './js/modules/reminders.js', './js/modules/native-widgets.js', './js/modules/calendar.js',
             './js/modules/notes.js', './js/modules/sms.js', './js/modules/phonebook.js', './js/modules/ai.js',
             './js/modules/welcome.js', './js/modules/backup.js', './js/modules/fix-sidebar.js',
-            './js/modules/users.js', './js/modules/user-perms.js', './js/modules/treasury.js', './js/modules/assets.js', './js/modules/inventory.js', './js/modules/sales.js', './js/modules/auth.js', './js/app.js'
+            './js/modules/users.js', './js/modules/user-perms.js', './js/modules/treasury.js', './js/modules/assets.js', './js/modules/inventory.js',
+            './js/modules/purchase.js', './js/modules/purchase-invoices.js', './js/modules/purchase-reports.js', './js/modules/stock.js',
+            './js/modules/sales.js', './js/modules/auth.js', './js/app.js'
         ];
         var total = modules.length;
 

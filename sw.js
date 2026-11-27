@@ -19,7 +19,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v49';
+const CACHE_VERSION = 'v50';
 const CACHE_NAME    = 'parsis-' + CACHE_VERSION;
 const OFFLINE_URL   = './offline.html';
 
@@ -68,6 +68,10 @@ const PRECACHE_ASSETS = [
     './js/modules/voucher-photos.js',
     './js/modules/persons.js',
     './js/modules/phonebook.js',
+    './js/modules/purchase-invoices.js',
+    './js/modules/purchase-reports.js',
+    './js/modules/purchase.js',
+    './js/modules/stock.js',
     './js/modules/reports/account.js',
     './js/modules/reports/cashflow.js',
     './js/modules/reports/facility.js',
@@ -87,6 +91,7 @@ const PRECACHE_ASSETS = [
     './js/modules/widgets.js',
     './js/ui/form.js',
     './js/ui/nav.js',
+    './js/ui/nav-menu.js',
     './js/ui/observers.js',
     './js/ui/share.js',
     './js/ui/table.js',
