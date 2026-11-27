@@ -55,7 +55,16 @@ var PERM_DATA_PAGES = [
     ['assets',             '🏗 اموال و دارایی'],
     ['inventory-items',    '📦 کالاهای انبار'],
     ['inventory-moves',    '🔄 حواله‌های انبار'],
-    ['sales',              '🛒 فروش — فاکتورها']
+    ['sales',              '🛒 فروش — فاکتورها'],
+    /* ✅ v2.7.0 — ماژول خرید و انبار */
+    ['purchase-req',        '📝 درخواست خرید'],
+    ['purchase-orders',     '🧾 سفارش خرید'],
+    ['purchase-invoices',   '📄 فاکتور خرید'],
+    ['purchase-returns',    '↩️ برگشت از خرید'],
+    ['purchase-settings',  '⚙️ اتصال خرید به حسابداری'],
+    ['stock-requests',     '📋 درخواست کالا'],
+    ['stock-card',         '📚 کارت موجودی کالا'],
+    ['stock-valuation',    '💰 ارزش‌گذاری و قیمت‌گذاری انبار']
 ];
 
 /* صفحات گزارش — دو عمل: دیدن / گزارش‌گیری و چاپ */
@@ -69,7 +78,9 @@ var PERM_REPORT_PAGES = [
     ['report-incomplete',    '🔍 تراکنش‌های تکمیل نشده'],
     ['report-facility',      '🏦 خلاصه تسهیلات'],
     ['report-facility-full', '📊 گزارش جامع تسهیلات'],
-    ['report-compare',       '📊 گزارش مقایسه‌ای']
+    ['report-compare',       '📊 گزارش مقایسه‌ای'],
+    /* ✅ v2.7.0 — ماژول خرید */
+    ['purchase-reports',     '📊 گزارش‌های خرید']
 ];
 
 /* ✅ v2.3.0 — صفحه زبان/تنظیمات پایه هم زیر پوشش دسترسی رفت (پوشش کامل همه صفحات) */
@@ -86,7 +97,8 @@ var PERM_TREE_CATEGORIES = [
     { id: 'voucher-cat',  title: '🧾 اسناد حسابداری',       pages: ['voucher-list', 'voucher-new', 'templates'] },
     { id: 'treasury-cat', title: '💧 خزانه',               pages: ['treasury', 'facilities'] },
     { id: 'assets-cat',   title: '🏗 اموال',               pages: ['assets'] },
-    { id: 'inv-cat',      title: '📦 انبار',               pages: ['inventory-items', 'inventory-moves'] },
+    /* ✅ v2.7.0 — انبار به «خرید و انبار» ارتقا یافت */
+    { id: 'inv-cat',      title: '🛒 خرید و انبار',        pages: ['inventory-items', 'inventory-moves', 'stock-requests', 'stock-card', 'stock-valuation', 'purchase-req', 'purchase-orders', 'purchase-invoices', 'purchase-returns', 'purchase-reports', 'purchase-settings'] },
     { id: 'sales-cat',    title: '🛒 فروش',                pages: ['sales'] },
     { id: 'report-cat',   title: '📚 گزارش‌ها',             pages: ['report-cashflow', 'report-cashflow-desc', 'report-account', 'report-ledger', 'report-trial', 'report-incomplete', 'report-facility', 'report-facility-full', 'report-compare'] },
     { id: 'def-cat',      title: '⚙️ تعریف‌ها و ابزارها',    pages: ['chart-define', 'account-types', 'bank-types', 'cash-types', 'currency', 'estimate-daily', 'cashflow-sources', 'notes', 'sms', 'jalali-calendar', 'language'] }

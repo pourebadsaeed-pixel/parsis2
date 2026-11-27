@@ -57,6 +57,16 @@ function runPageRenderer(name) {
         'inventory-items':      function () { if (typeof initInvItemsPage === 'function') initInvItemsPage(); },
         'inventory-moves':      function () { if (typeof initInvMovesPage === 'function') initInvMovesPage(); },
         'sales':                function () { if (typeof initSalesPage === 'function') initSalesPage(); },
+        /* ✅ v2.7.0 — ماژول خرید و انبار */
+        'purchase-req':          function () { if (typeof initPreqPage === 'function') initPreqPage(); },
+        'purchase-orders':       function () { if (typeof initPoPage === 'function') initPoPage(); },
+        'purchase-invoices':     function () { if (typeof initPinvPage === 'function') initPinvPage(); },
+        'purchase-returns':      function () { if (typeof initPretPage === 'function') initPretPage(); },
+        'purchase-reports':      function () { if (typeof initPurchaseReportsPage === 'function') initPurchaseReportsPage(); },
+        'purchase-settings':    function () { if (typeof initPurchaseSettingsPage === 'function') initPurchaseSettingsPage(); },
+        'stock-requests':       function () { if (typeof initSreqPage === 'function') initSreqPage(); },
+        'stock-card':           function () { if (typeof initStockCardPage === 'function') initStockCardPage(); },
+        'stock-valuation':      function () { if (typeof initStockValuationPage === 'function') initStockValuationPage(); },
         'bank-types':           function () {
             if (typeof renderChips === 'function') renderChips('bank-types-list', state.bankTypes, 'bankTypes');
         },
@@ -290,6 +300,13 @@ function rerenderCurrentPage() {
         'inventory-items':      'renderInvItemsList',
         'inventory-moves':      'renderInvMovesList',
         'sales':                'renderSalesList',
+        /* ✅ v2.7.0 — ماژول خرید و انبار */
+        'purchase-req':          'renderPreqList',
+        'purchase-orders':       'renderPoList',
+        'purchase-invoices':     'renderPinvList',
+        'purchase-returns':      'renderPretList',
+        'stock-requests':       'renderSreqList',
+        'stock-valuation':      'renderStockValuation',
         'dashboard':            'renderDashboard',
         'home':                 'updateHomeWidgets'
     };

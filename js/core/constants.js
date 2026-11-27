@@ -5,7 +5,7 @@
 'use strict';
 
 var APP_NAME    = 'پارسیس';
-var APP_VERSION = '2.6.0';
+var APP_VERSION = '2.7.0';
 
 var JALALI_MONTHS = [
     'فروردین', 'اردیبهشت', 'خرداد',
@@ -97,7 +97,17 @@ var NAVIGABLE_PAGES = {
     'assets':               'اموال و دارایی',
     'inventory-items':      'کالاهای انبار',
     'inventory-moves':      'حواله‌های انبار',
-    'sales':                'فروش — فاکتورها'
+    'sales':                'فروش — فاکتورها',
+    /* ✅ v2.7.0 — ماژول خرید و انبار */
+    'purchase-req':          'درخواست خرید',
+    'purchase-orders':       'سفارش خرید',
+    'purchase-invoices':     'فاکتور خرید',
+    'purchase-returns':      'برگشت از خرید',
+    'purchase-reports':      'گزارش‌های خرید',
+    'purchase-settings':    'اتصال خرید به حسابداری',
+    'stock-requests':       'درخواست کالا',
+    'stock-card':           'کارت موجودی کالا',
+    'stock-valuation':      'ارزش‌گذاری و قیمت‌گذاری انبار'
 };
 
 var PAGE_TITLES_FA = {
@@ -144,7 +154,17 @@ var PAGE_TITLES_FA = {
     'assets':               { icon: '🏗', title: 'اموال و دارایی' },
     'inventory-items':      { icon: '📦', title: 'کالاهای انبار' },
     'inventory-moves':      { icon: '🔄', title: 'حواله‌های انبار' },
-    'sales':                { icon: '🛒', title: 'فروش — فاکتورها' }
+    'sales':                { icon: '🛒', title: 'فروش — فاکتورها' },
+    /* ✅ v2.7.0 — ماژول خرید و انبار */
+    'purchase-req':          { icon: '📝', title: 'درخواست خرید' },
+    'purchase-orders':       { icon: '🧾', title: 'سفارش خرید' },
+    'purchase-invoices':     { icon: '📄', title: 'فاکتور خرید' },
+    'purchase-returns':      { icon: '↩️', title: 'برگشت از خرید' },
+    'purchase-reports':      { icon: '📊', title: 'گزارش‌های خرید' },
+    'purchase-settings':    { icon: '⚙️', title: 'اتصال خرید به حسابداری' },
+    'stock-requests':       { icon: '📋', title: 'درخواست کالا' },
+    'stock-card':           { icon: '📚', title: 'کارت موجودی کالا' },
+    'stock-valuation':      { icon: '💰', title: 'ارزش‌گذاری و قیمت‌گذاری انبار' }
 };
 
 var LINK_TYPES = ['person', 'company', 'bank', 'cashbox', 'project', 'facility'];
