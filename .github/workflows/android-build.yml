@@ -127,7 +127,12 @@ jobs:
 
           import fi.iki.elonen.NanoHTTPD;
 
+          import android.app.WallpaperManager;
+          import android.appwidget.AppWidgetManager;
+          import android.content.ComponentName;
+
           import ir.parsis.app.widget.ParsisWidgetProvider;
+          import ir.parsis.app.widget.CalendarWidgetProvider;
 
           /**
            * پلاگین اختصاصی پارسیس — پل بین لایه وب و قابلیت‌های نیتیو اندروید:
@@ -284,6 +289,89 @@ jobs:
                       call.resolve(res);
                   } catch (Exception e) {
                       call.reject("write-failed", e.getMessage());
+                  }
+              }
+
+              /* ---------------- ✅ v2.7.3 — ویجت نیتیو «تقویم هفتگی» + پس‌زمینه ---------------- */
+
+              @PluginMethod
+              public void pushCalendarWidgetData(PluginCall call) {
+                  Context ctx = getContext();
+                  if (ctx == null) { call.reject("no context"); return; }
+                  String json = call.getString("json");
+                  if (json == null || json.length() == 0) { call.reject("empty-json"); return; }
+                  try {
+                      FileOutputStream fos = ctx.openFileOutput("calendar-widget.json", Context.MODE_PRIVATE);
+                      fos.write(json.getBytes("UTF-8"));
+                      fos.close();
+                      CalendarWidgetProvider.refreshAll(ctx);
+                      JSObject res = new JSObject();
+                      res.put("ok", true);
+                      call.resolve(res);
+                  } catch (Exception e) {
+                      call.reject("write-failed", e.getMessage());
+                  }
+              }
+
+              /* افزودن ویجت تقویم به صفحه اصلی — requestPinAppWidget (اندروید ۸+) */
+              @PluginMethod
+              public void pinCalendarWidget(PluginCall call) {
+                  Context ctx = getContext();
+                  JSObject res = new JSObject();
+                  if (ctx == null) { res.put("ok", false); call.resolve(res); return; }
+                  if (Build.VERSION.SDK_INT < 26) {
+                      res.put("ok", false);
+                      res.put("reason", "old-android");
+                      call.resolve(res);
+                      return;
+                  }
+                  try {
+                      AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+                      ComponentName cn = new ComponentName(ctx, CalendarWidgetProvider.class);
+                      boolean ok = mgr.requestPinAppWidget(cn, null, null);
+                      res.put("ok", ok);
+                      call.resolve(res);
+                  } catch (Exception e) {
+                      res.put("ok", false);
+                      call.resolve(res);
+                  }
+              }
+
+              /* تنظیم تصویر (base64 PNG) به‌عنوان پس‌زمینهٔ قفل/صفحه اصلی */
+              @PluginMethod
+              public void setWallpaperFromBase64(PluginCall call) {
+                  Context ctx = getContext();
+                  JSObject res = new JSObject();
+                  if (ctx == null) { res.put("ok", false); call.reject("no context"); return; }
+                  String b64 = call.getString("base64");
+                  String target = call.getString("target", "lock");
+                  if (b64 == null || b64.length() == 0) { res.put("ok", false); call.reject("empty-base64"); return; }
+                  if (b64.startsWith("data:") && b64.indexOf(',') >= 0) b64 = b64.substring(b64.indexOf(',') + 1);
+                  try {
+                      byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                      android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                      if (bmp == null) { res.put("ok", false); call.reject("decode-failed"); return; }
+                      WallpaperManager wm = WallpaperManager.getInstance(ctx);
+                      boolean lockOk = false, systemOk = false;
+                      boolean wantLock = "lock".equals(target) || "both".equals(target);
+                      boolean wantSystem = "system".equals(target) || "both".equals(target);
+                      if (Build.VERSION.SDK_INT >= 24) {
+                          if (wantLock) {
+                              try { wm.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK); lockOk = true; } catch (Exception eL) {}
+                          }
+                          if (wantSystem) {
+                              try { wm.setBitmap(bmp, null, true, WallpaperManager.FLAG_SYSTEM); systemOk = true; } catch (Exception eS) {}
+                          }
+                      } else {
+                          try { wm.setBitmap(bmp); systemOk = true; } catch (Exception eO) {}
+                      }
+                      res.put("ok", lockOk || systemOk);
+                      res.put("lockOk", lockOk);
+                      res.put("systemOk", systemOk);
+                      call.resolve(res);
+                  } catch (Exception e) {
+                      res.put("ok", false);
+                      call.reject("wallpaper-failed", e.getMessage());
                   }
               }
 
@@ -1346,6 +1434,222 @@ jobs:
           }
           JAVA
 
+          cat > android/app/src/main/java/ir/parsis/app/widget/CalendarWidgetProvider.java <<'JAVA'
+          package ir.parsis.app.widget;
+
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.view.View;
+          import android.widget.RemoteViews;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.FileInputStream;
+
+          import ir.parsis.app.MainActivity;
+          import ir.parsis.app.R;
+
+          /**
+           * ✅ v2.7.3 — ویجت نیتیو «تقویم هفتگی» صفحهٔ اصلی گوشی.
+           * داده از فایل calendar-widget.json خوانده می‌شود که لایهٔ وب با
+           * ParsisPlugin.pushCalendarWidgetData به‌روزرسانی می‌کند.
+           *
+           * ساختار ویجت:
+           *   • ساعتِ زندهٔ سیستمی (TextClock) — وسطِ بالای ویجت
+           *   • تاریخ شمسی + میلادی
+           *   • نوار ۷ روزِ هفته (تعطیل‌ها قرمز: جمعه + تعطیلات رسمی)
+           *   • فهرست رویدادهای هفته با ListView — قابل اسکرول (درخواست کاربر)
+           */
+          public class CalendarWidgetProvider extends AppWidgetProvider {
+
+              public static final String DATA_FILE = "calendar-widget.json";
+
+              private static final int[] DAY_CELL_IDS = {
+                  R.id.cw_c0, R.id.cw_c1, R.id.cw_c2, R.id.cw_c3, R.id.cw_c4, R.id.cw_c5, R.id.cw_c6
+              };
+              private static final int[] DAY_NAME_IDS = {
+                  R.id.cw_d0, R.id.cw_d1, R.id.cw_d2, R.id.cw_d3, R.id.cw_d4, R.id.cw_d5, R.id.cw_d6
+              };
+              private static final int[] DAY_NUM_IDS = {
+                  R.id.cw_n0, R.id.cw_n1, R.id.cw_n2, R.id.cw_n3, R.id.cw_n4, R.id.cw_n5, R.id.cw_n6
+              };
+              private static final int[] DAY_GD_IDS = {
+                  R.id.cw_g0, R.id.cw_g1, R.id.cw_g2, R.id.cw_g3, R.id.cw_g4, R.id.cw_g5, R.id.cw_g6
+              };
+
+              static JSONObject readData(Context ctx) {
+                  FileInputStream fis = null;
+                  try {
+                      fis = ctx.openFileInput(DATA_FILE);
+                      ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                      byte[] buf = new byte[4096];
+                      int n;
+                      while ((n = fis.read(buf)) > 0) bos.write(buf, 0, n);
+                      return new JSONObject(bos.toString("UTF-8"));
+                  } catch (Exception e) {
+                      return new JSONObject();
+                  } finally {
+                      if (fis != null) try { fis.close(); } catch (Exception e2) {}
+                  }
+              }
+
+              @Override
+              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  JSONObject data = readData(ctx);
+                  for (int id : ids) {
+                      mgr.updateAppWidget(id, buildViews(ctx, data, id));
+                  }
+              }
+
+              public void push(Context ctx) {
+                  AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+                  int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, CalendarWidgetProvider.class));
+                  if (ids == null || ids.length == 0) return;
+                  JSONObject data = readData(ctx);
+                  for (int id : ids) {
+                      mgr.updateAppWidget(id, buildViews(ctx, data, id));
+                  }
+              }
+
+              public static void refreshAll(Context ctx) {
+                  try { new CalendarWidgetProvider().push(ctx); } catch (Exception e) {}
+              }
+
+              private PendingIntent openApp(Context ctx) {
+                  Intent it = new Intent(ctx, MainActivity.class);
+                  it.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                  return PendingIntent.getActivity(ctx, 4321, it,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+              }
+
+              private RemoteViews buildViews(Context ctx, JSONObject data, int appWidgetId) {
+                  RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_cal);
+                  rv.setOnClickPendingIntent(R.id.cw_root, openApp(ctx));
+
+                  /* تاریخ شمسی + میلادی */
+                  rv.setTextViewText(R.id.cw_jdate, data.optString("jDate", "📅 تقویم هفتگی پارسیس"));
+                  rv.setTextViewText(R.id.cw_gdate, data.optString("gDate", ""));
+
+                  /* نوار ۷ روز هفته — تعطیل‌ها قرمز، امروز سبز */
+                  JSONArray days = data.optJSONArray("days");
+                  int dayCount = (days == null) ? 0 : Math.min(days.length(), 7);
+                  for (int i = 0; i < 7; i++) {
+                      if (i < dayCount) {
+                          JSONObject d = days.optJSONObject(i);
+                          if (d == null) { rv.setViewVisibility(DAY_CELL_IDS[i], View.GONE); continue; }
+                          boolean hol = d.optBoolean("hol", false);
+                          boolean today = d.optBoolean("today", false);
+                          rv.setViewVisibility(DAY_CELL_IDS[i], View.VISIBLE);
+                          rv.setTextViewText(DAY_NAME_IDS[i], d.optString("n", ""));
+                          rv.setTextViewText(DAY_NUM_IDS[i], d.optString("jd", ""));
+                          rv.setTextViewText(DAY_GD_IDS[i], d.optString("gd", ""));
+                          if (today) {
+                              rv.setTextColor(DAY_NAME_IDS[i], 0xFF6EE7B7);
+                              rv.setTextColor(DAY_NUM_IDS[i], 0xFFFFFFFF);
+                              rv.setTextColor(DAY_GD_IDS[i], 0xFFA7F3D0);
+                              rv.setInt(DAY_CELL_IDS[i], "setBackgroundColor", 0x3310B981);
+                          } else if (hol) {
+                              rv.setTextColor(DAY_NAME_IDS[i], 0xFFFECACA);
+                              rv.setTextColor(DAY_NUM_IDS[i], 0xFFFCA5A5);
+                              rv.setTextColor(DAY_GD_IDS[i], 0xFFFECACA);
+                              rv.setInt(DAY_CELL_IDS[i], "setBackgroundColor", 0x33DC2626);
+                          } else {
+                              rv.setTextColor(DAY_NAME_IDS[i], 0xFFCBD5E1);
+                              rv.setTextColor(DAY_NUM_IDS[i], 0xFFF1F5F9);
+                              rv.setTextColor(DAY_GD_IDS[i], 0x99FFFFFF);
+                              rv.setInt(DAY_CELL_IDS[i], "setBackgroundColor", 0x14FFFFFF);
+                          }
+                      } else {
+                          rv.setViewVisibility(DAY_CELL_IDS[i], View.GONE);
+                      }
+                  }
+
+                  /* فهرست رویدادها — ListView قابل اسکرول */
+                  Intent svc = new Intent(ctx, CalendarWidgetViewsService.class);
+                  svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                  svc.setData(Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME)));
+                  rv.setRemoteAdapter(R.id.cw_events, svc);
+                  rv.setEmptyView(R.id.cw_events, R.id.cw_empty);
+                  Intent open = new Intent(ctx, MainActivity.class);
+                  open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                  rv.setPendingIntentTemplate(R.id.cw_events, PendingIntent.getActivity(ctx, appWidgetId, open,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+
+                  return rv;
+              }
+          }
+          JAVA
+
+          cat > android/app/src/main/java/ir/parsis/app/widget/CalendarWidgetViewsService.java <<'JAVA'
+          package ir.parsis.app.widget;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.widget.RemoteViews;
+          import android.widget.RemoteViewsService;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import ir.parsis.app.R;
+
+          /** ✅ v2.7.3 — فهرست رویدادهای هفته در ویجت تقویم (قابل اسکرول) */
+          public class CalendarWidgetViewsService extends RemoteViewsService {
+              @Override
+              public RemoteViewsFactory onGetViewFactory(Intent intent) {
+                  return new CalViewsFactory(getApplicationContext());
+              }
+
+              private static class CalViewsFactory implements RemoteViewsFactory {
+                  private final Context ctx;
+                  private JSONArray events = new JSONArray();
+
+                  CalViewsFactory(Context ctx) { this.ctx = ctx; }
+
+                  @Override public void onCreate() { onDataSetChanged(); }
+
+                  @Override public void onDataSetChanged() {
+                      JSONObject data = CalendarWidgetProvider.readData(ctx);
+                      JSONArray ev = data.optJSONArray("events");
+                      events = (ev == null) ? new JSONArray() : ev;
+                  }
+
+                  @Override public void onDestroy() { }
+
+                  @Override public int getCount() { return events.length(); }
+
+                  @Override public RemoteViews getViewAt(int pos) {
+                      if (pos < 0 || pos >= events.length()) return null;
+                      JSONObject e = events.optJSONObject(pos);
+                      if (e == null) return null;
+                      boolean hol = e.optBoolean("hol", false);
+                      RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_cal_row);
+                      rv.setTextViewText(R.id.cwr_date, e.optString("d", ""));
+                      String title = e.optString("t", "");
+                      String tm = e.optString("tm", "");
+                      rv.setTextViewText(R.id.cwr_title, tm.length() > 0 ? title + " — " + tm : title);
+                      rv.setTextColor(R.id.cwr_date, hol ? 0xFFFCA5A5 : 0xFF6EE7B7);
+                      rv.setTextColor(R.id.cwr_title, hol ? 0xFFFECACA : 0xFFF1F5F9);
+                      Intent fill = new Intent();
+                      rv.setOnClickFillInIntent(R.id.cwr_row, fill);
+                      return rv;
+                  }
+
+                  @Override public RemoteViews getLoadingView() { return null; }
+                  @Override public int getViewTypeCount() { return 1; }
+                  @Override public long getItemId(int pos) { return pos; }
+                  @Override public boolean hasStableIds() { return true; }
+              }
+          }
+          JAVA
+
           cat > android/app/src/main/java/ir/parsis/app/widget/BankWidgetProvider.java <<'JAVA'
           package ir.parsis.app.widget;
 
@@ -1883,6 +2187,173 @@ jobs:
           JAVA
 
           mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/res/drawable
+          cat > android/app/src/main/res/layout/widget_cal.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/cw_root"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:layoutDirection="rtl"
+              android:background="@drawable/widget_bg">
+
+              <!-- ✅ v2.7.3 — سربرگ: ساعت زندهٔ سیستمی + تاریخ شمسی/میلادی -->
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:gravity="center_horizontal"
+                  android:background="@drawable/widget_header_bg"
+                  android:paddingStart="10dp"
+                  android:paddingEnd="10dp"
+                  android:paddingTop="8dp"
+                  android:paddingBottom="8dp">
+
+                  <TextClock
+                      android:id="@+id/cw_clock"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:format12Hour="hh:mm:ss a"
+                      android:format24Hour="HH:mm:ss"
+                      android:textColor="#FFFFFF"
+                      android:textSize="26sp"
+                      android:textStyle="bold"
+                      android:letterSpacing="0.06" />
+
+                  <TextView
+                      android:id="@+id/cw_jdate"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="3dp"
+                      android:gravity="center_horizontal"
+                      android:textColor="#E0E7FF"
+                      android:textSize="13sp"
+                      android:textStyle="bold"
+                      android:singleLine="true"
+                      android:ellipsize="end"
+                      android:text="تقویم هفتگی پارسیس" />
+
+                  <TextView
+                      android:id="@+id/cw_gdate"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="1dp"
+                      android:gravity="center_horizontal"
+                      android:textColor="#94A3B8"
+                      android:textSize="9sp"
+                      android:singleLine="true"
+                      android:ellipsize="end"
+                      android:text="" />
+              </LinearLayout>
+
+              <!-- نوار ۷ روز هفته: شنبه از راست؛ تعطیل‌ها قرمز، امروز سبز -->
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:padding="6dp">
+
+                  <LinearLayout android:id="@+id/cw_c0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d0" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n0" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g0" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+                  <LinearLayout android:id="@+id/cw_c6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:padding="4dp" android:background="#14FFFFFF" android:layout_margin="2dp">
+                      <TextView android:id="@+id/cw_d6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#CBD5E1" android:textSize="9sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_n6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#F1F5F9" android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+                      <TextView android:id="@+id/cw_g6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:textColor="#99FFFFFF" android:textSize="8sp" android:singleLine="true" />
+                  </LinearLayout>
+              </LinearLayout>
+
+              <!-- ✅ درخواست کاربر: فهرست رویدادها قابل اسکرول باشد -->
+              <ListView
+                  android:id="@+id/cw_events"
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1"
+                  android:divider="#1EF1F5F9"
+                  android:dividerHeight="1dp"
+                  android:paddingStart="6dp"
+                  android:paddingEnd="6dp"
+                  android:paddingBottom="6dp"
+                  android:cacheColorHint="#00000000"
+                  android:scrollbars="none" />
+
+              <TextView
+                  android:id="@+id/cw_empty"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:gravity="center"
+                  android:padding="12dp"
+                  android:text="رویدادی در این هفته نیست"
+                  android:textColor="#94A3B8"
+                  android:textSize="11sp"
+                  android:visibility="gone" />
+          </LinearLayout>
+          XML
+
+          cat > android/app/src/main/res/layout/widget_cal_row.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/cwr_row"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="horizontal"
+              android:gravity="center_vertical"
+              android:layoutDirection="rtl"
+              android:paddingStart="8dp"
+              android:paddingEnd="8dp"
+              android:paddingTop="7dp"
+              android:paddingBottom="7dp">
+
+              <TextView
+                  android:id="@+id/cwr_date"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:minWidth="58dp"
+                  android:textColor="#6EE7B7"
+                  android:textSize="10sp"
+                  android:textStyle="bold"
+                  android:singleLine="true" />
+
+              <TextView
+                  android:id="@+id/cwr_title"
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:layout_marginStart="7dp"
+                  android:textColor="#F1F5F9"
+                  android:textSize="11sp"
+                  android:maxLines="2"
+                  android:ellipsize="end" />
+          </LinearLayout>
+          XML
+
           cat > android/app/src/main/res/layout/widget_agenda.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -4305,6 +4776,21 @@ jobs:
               android:resizeMode="horizontal|vertical"
               android:widgetCategory="home_screen"/>
           XML
+          cat > android/app/src/main/res/xml/parsis_cal_widget_info.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="250dp"
+              android:minHeight="180dp"
+              android:targetCellWidth="4"
+              android:targetCellHeight="3"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_cal"
+              android:previewImage="@mipmap/ic_launcher"
+              android:description="@string/widget_cal_desc"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          XML
+
 
           cat > android/app/src/main/res/xml/parsis_bank_widget_info.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
@@ -4538,6 +5024,24 @@ jobs:
                           android:resource="@xml/parsis_facility_widget_info" />
                   </receiver>
 
+                  <!-- ✅ v2.7.3 — ویجت نیتیو «تقویم هفتگی» (ساعت زنده + روزهای تعطیل قرمز + رویدادهای قابل اسکرول) -->
+                  <receiver
+                      android:name=".widget.CalendarWidgetProvider"
+                      android:exported="true"
+                      android:label="تقویم هفتگی — پارسیس">
+                      <intent-filter>
+                          <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.appwidget.provider"
+                          android:resource="@xml/parsis_cal_widget_info" />
+                  </receiver>
+
+                  <service
+                      android:name=".widget.CalendarWidgetViewsService"
+                      android:exported="false"
+                      android:permission="android.permission.BIND_REMOTEVIEWS" />
+
                   <!-- ✅ v2.1.0 — تنظیمات ویجت (فونت/رنگ/پس‌زمینه) -->
                   <activity
                       android:name=".widget.WidgetConfigActivity"
@@ -4548,6 +5052,9 @@ jobs:
 
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.VIBRATE" />
+
+              <!-- ✅ v2.7.3 — تنظیم تقویم هفتگی به‌عنوان پس‌زمینهٔ قفل/صفحه اصلی -->
+              <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
               <!-- پیامک بانکی -->
               <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -4596,7 +5103,7 @@ jobs:
           sp = 'android/app/src/main/res/values/strings.xml'
           s = open(sp, encoding='utf-8').read()
           add = []
-          for k in ['widget_bank', 'widget_cash', 'widget_agenda', 'widget_summary', 'widget_notes', 'widget_facility']:
+          for k in ['widget_bank', 'widget_cash', 'widget_agenda', 'widget_cal', 'widget_summary', 'widget_notes', 'widget_facility']:
               name = k + '_desc'
               if name not in s:
                   add.append(f"    <string name=\"{name}\">{k}</string>".replace('{k}', name.replace('_', ' ')))
