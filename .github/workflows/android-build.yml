@@ -54,7 +54,8 @@ jobs:
             @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 \
             @capacitor/app@6 @capacitor/haptics@6 @capacitor/share@6 \
             @capacitor/filesystem@6 @capacitor/splash-screen@6 \
-            @capacitor/status-bar@6 @capacitor/toast@6
+            @capacitor/status-bar@6 @capacitor/toast@6 \
+            @capacitor/local-notifications@6
 
       - name: Generate Android project (cap add)
         run: |
@@ -629,6 +630,91 @@ jobs:
                   } catch (Exception e2) {
                       call.reject("settings-open-failed", e2.getMessage());
                       return;
+                  }
+                  call.resolve();
+              }
+
+              /* ---------------- ✅ v2.7.2 — مجوزهای runtime: دوربین و رسانه ----------------
+                 درخواست کاربر: «نرم‌افزار اندروید به فایل‌ها، دوربین و آلارم دسترسی داشته باشه» */
+
+              @PluginMethod
+              public void hasCameraPermission(PluginCall call) {
+                  Context ctx = getContext();
+                  boolean granted = ctx != null &&
+                      ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                  JSObject res = new JSObject();
+                  res.put("granted", granted);
+                  call.resolve(res);
+              }
+
+              @PluginMethod
+              public void requestCameraAndMediaPermissions(PluginCall call) {
+                  try {
+                      android.app.Activity act = getActivity() != null ? getActivity() : bridge.getActivity();
+                      JSObject res = new JSObject();
+                      if (act == null) {
+                          res.put("granted", false);
+                          res.put("requested", false);
+                          call.resolve(res);
+                          return;
+                      }
+                      java.util.List<String> wanted = new java.util.ArrayList<>();
+                      if (ContextCompat.checkSelfPermission(act, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
+                          wanted.add(Manifest.permission.CAMERA);
+                      if (Build.VERSION.SDK_INT >= 33) {
+                          if (ContextCompat.checkSelfPermission(act, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED)
+                              wanted.add(Manifest.permission.READ_MEDIA_IMAGES);
+                          if (ContextCompat.checkSelfPermission(act, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED)
+                              wanted.add(Manifest.permission.READ_MEDIA_VIDEO);
+                      } else if (Build.VERSION.SDK_INT <= 32
+                              && ContextCompat.checkSelfPermission(act, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                          wanted.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+                      }
+                      if (wanted.isEmpty()) {
+                          res.put("granted", true);
+                          res.put("requested", false);
+                      } else {
+                          ActivityCompat.requestPermissions(act, wanted.toArray(new String[0]), 47121);
+                          res.put("granted", false);
+                          res.put("requested", true);
+                      }
+                      call.resolve(res);
+                  } catch (Exception e) {
+                      call.reject("perm-request-failed", e.getMessage());
+                  }
+              }
+
+              /* ---------------- ✅ v2.7.2 — آلارم دقیق (یادآورهای تقویم) ---------------- */
+
+              @PluginMethod
+              public void hasExactAlarmPermission(PluginCall call) {
+                  JSObject res = new JSObject();
+                  boolean can = true;
+                  if (Build.VERSION.SDK_INT >= 31) {
+                      android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+                      can = am != null && am.canScheduleExactAlarms();
+                  }
+                  res.put("granted", can);
+                  call.resolve(res);
+              }
+
+              @PluginMethod
+              public void requestExactAlarmPermission(PluginCall call) {
+                  if (Build.VERSION.SDK_INT < 31) { call.resolve(); return; }
+                  try {
+                      android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+                      if (am != null && am.canScheduleExactAlarms()) { call.resolve(); return; }
+                      android.app.Activity act = getActivity() != null ? getActivity() : bridge.getActivity();
+                      if (act == null) { call.resolve(); return; }
+                      Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                              Uri.parse("package:" + getContext().getPackageName()));
+                      act.startActivity(i);
+                  } catch (Exception e) {
+                      /* در صورت بسته‌بودن مسیر مستقیم، تنظیمات عمومی باز می‌شود */
+                      try {
+                          android.app.Activity act2 = getActivity() != null ? getActivity() : bridge.getActivity();
+                          if (act2 != null) act2.startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM));
+                      } catch (Exception e2) { /* مهم نیست */ }
                   }
                   call.resolve();
               }
@@ -4486,6 +4572,16 @@ jobs:
               <uses-permission
                   android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
                   tools:ignore="ScopedStorage" />
+
+              <!-- ✅ v2.7.2 — درخواست کاربر: دسترسی فایل‌ها/دوربین/آلارم -->
+              <!-- فایل‌ها: رسانه در اندروید ۱۳+ و حافظهٔ مشترک در ۱۲ و قدیمی‌تر -->
+              <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+              <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="32" />
+
+              <!-- آلارم دقیق برای یادآورهای تقویم (اپ تقویم/یادآور — مجاز طبق پالیسی گوگل) -->
+              <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
               <!-- ✅ v2.0.7 — ذخیرهٔ مستقیم پشتیبان/اکسل در Download فقط برای اندروید ۹ و قدیمی‌تر
                   (اندروید ۱۰+ از MediaStore.Downloads استفاده می‌کند و مجوز نمی‌خواهد) -->
