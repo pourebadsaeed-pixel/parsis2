@@ -3438,3 +3438,160 @@ body.resizing-cols .report-table th { user-select:none !important; }
 @media(max-width:520px) {
   #avalai-credit-result { grid-template-columns:1fr; }
 }
+
+/* ============================================================
+   ✅ v2.7.0 — منوی کناری ERP (چندسطحی + آیکون رنگی + جابه‌جایی)
+   الگوبرداری از منوهای ERPهای روز دنیا: کارت سفید برای هر گروه،
+   سرگروه با آیکون مربعی رنگی + فلش تاشو در لبهٔ چپ، آیتم‌ها با
+   خط جداکنندهٔ مویی و تورفتگی، دستگیرهٔ جابه‌جایی ⋮⋮
+   ============================================================ */
+
+/* --- هدر گروه: دستگیره + دکمهٔ عنوان --- */
+.nav-group-head {
+  display:flex;
+  align-items:stretch;
+  gap:4px;
+}
+.nav-group-head .nav-group-title {
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  justify-content:flex-start;
+  min-width:0;
+}
+.nav-group-head .nav-group-title .nav-item-label {
+  flex:1;
+  text-align:right;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* --- آیکون‌های مربعی رنگی (مثل ERP) --- */
+.nav-g-ico, .nav-ico {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  border-radius:7px;
+  color:#fff;
+  text-shadow:0 1px 1px rgba(0,0,0,0.25);
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,0.14), 0 1px 2px rgba(15,23,42,0.10);
+}
+.nav-g-ico { width:24px; height:24px; font-size:13px; border-radius:8px; }
+.nav-ico   { width:20px; height:20px; font-size:11px; }
+
+/* --- آیتم‌های منو: تورفتگی + خط جداکنندهٔ مویی --- */
+.nav-group-items { padding:3px 0 7px; gap:0; }
+.nav-group-items .nav-item-btn {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:9px 12px 9px 8px;
+  margin:0 0 0 18px; /* تورفتگی زیرشاخه */
+  border-radius:0;
+  border:none;
+  border-top:1px solid rgba(100,116,139,0.14);
+  justify-content:flex-start;
+  transform:none;
+  position:relative;
+}
+.nav-group-items .nav-item-btn:first-child { border-top:none; }
+.nav-group-items .nav-item-btn .nav-item-label {
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:0.83rem;
+  font-weight:600;
+}
+.nav-group-items .nav-item-btn:hover { background:rgba(100,116,139,0.10); transform:none; }
+.nav-group-items .nav-item-btn.active {
+  background:var(--gradient-accent);
+  color:#fff;
+  box-shadow:none;
+}
+.nav-group-items .nav-item-btn.active .nav-item-label { font-weight:800; }
+
+/* گروه: کارت سفید با حاشیه — مثل منوی ERP */
+.nav-group[data-nav-group] {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  margin-bottom:8px;
+  overflow:hidden;
+  box-shadow:0 1px 3px rgba(15,23,42,0.06);
+}
+.nav-group[data-nav-group] > .nav-group-head { padding:7px 8px 7px 10px; }
+.nav-group[data-nav-group] .nav-group-title {
+  background:none;
+  padding:6px 8px;
+  border-radius:10px;
+}
+
+/* --- دستگیرهٔ جابه‌جایی --- */
+.nav-drag {
+  flex:none;
+  align-self:center;
+  width:20px;
+  text-align:center;
+  cursor:grab;
+  color:#94a3b8;
+  font-size:0.62rem;
+  letter-spacing:-1px;
+  line-height:1;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+  opacity:0;
+  transition:opacity 0.18s;
+  padding:6px 0;
+}
+.nav-group-head:hover .nav-drag,
+.nav-item-btn:hover .nav-drag,
+.nav-drag:focus-visible { opacity:0.85; }
+.nav-group.dragging-group .nav-drag,
+.nav-item-btn .nav-drag:active { opacity:1; }
+/* در دستگاه لمسی همیشه نمایان */
+@media (hover:none) {
+  .nav-drag { opacity:0.45; }
+}
+
+/* --- خط نشانگر محل رها کردن --- */
+.nav-drop-line {
+  display:none;
+  position:absolute;
+  left:10px;
+  right:10px;
+  height:4px;
+  border-radius:99px;
+  background:var(--primary);
+  box-shadow:0 0 0 4px var(--primary-soft);
+  z-index:60;
+  pointer-events:none;
+}
+#sidebar-nav { position:relative; }
+
+/* --- حالت درگ --- */
+.nav-dragging { opacity:0.3 !important; }
+body.nav-dragging-body { cursor:grabbing; user-select:none; -webkit-user-select:none; }
+
+/* --- عنوان سایدبار: نام برنامه + نسخه --- */
+.sidebar-head .sidebar-sub {
+  display:block;
+  font-size:0.66rem;
+  font-weight:600;
+  opacity:0.85;
+  margin-top:2px;
+}
+
+/* --- توپ‌بار: حذف عنوان، فضای بیشتر برای تاریخ --- */
+.topbar .date-info { flex:1; }
+.topbar .date-line.jalali { font-size:1rem; }
+@media (max-width:520px) {
+  .topbar .date-line.jalali { font-size:0.85rem; }
+  .nav-group-items .nav-item-btn { margin-left:12px; }
+}
