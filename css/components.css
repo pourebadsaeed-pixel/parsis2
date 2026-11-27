@@ -1461,14 +1461,62 @@ body.resizing-cols .report-table th { user-select:none !important; }
 }
 .calw-today-btn:hover { color:var(--primary-dark); border-color:var(--primary-dark); }
 
+/* ================ ✅ v2.7.3 — ساعت لحظه‌ای بالای ویجت تقویم ================ */
+.calw-clock-row {
+  display:flex;
+  justify-content:center;
+  margin-bottom:8px;
+}
+.calw-clock {
+  font-size:1.65rem;
+  font-weight:900;
+  letter-spacing:1px;
+  direction:ltr;
+  color:var(--primary-dark);
+  background:linear-gradient(135deg,var(--primary-soft,#eef2ff),var(--card-alt,#f8fafc));
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:4px 22px;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:'tnum';
+  box-shadow:var(--shadow-sm);
+  animation:calwPulse 2s ease-in-out infinite;
+}
+@keyframes calwPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(79,70,229,0.0); }
+  50%     { box-shadow:0 0 0 4px rgba(79,70,229,0.10); }
+}
+
 /* ================ ✅ v2.7.2 — تعطیلات و رویدادهای هفته (ذیل ویجت تقویم) ================ */
-.calw-events {
+/* ✅ v2.7.3 — کادر عنوان + ناحیهٔ قابل اسکرول برای ردیف‌های زیاد */
+.calw-events-wrap {
   margin-top:10px;
   border-top:1px dashed var(--border);
-  padding-top:8px;
+  padding-top:6px;
+}
+.calw-events-title {
+  font-size:0.7rem;
+  font-weight:900;
+  color:var(--text-muted);
+  text-align:center;
+  margin-bottom:5px;
+}
+.calw-events {
   display:flex;
   flex-direction:column;
   gap:4px;
+  max-height:210px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding-left:2px;
+  scrollbar-width:thin;
+}
+.calw-events::-webkit-scrollbar { width:5px; }
+.calw-events::-webkit-scrollbar-track { background:transparent; }
+.calw-events::-webkit-scrollbar-thumb {
+  background:var(--border);
+  border-radius:99px;
 }
 .calw-ev-row {
   display:flex;
@@ -1479,6 +1527,7 @@ body.resizing-cols .report-table th { user-select:none !important; }
   background:var(--card-alt);
   font-size:0.72rem;
   line-height:1.5;
+  flex-shrink:0;
 }
 .calw-ev-row.hol {
   background:linear-gradient(135deg,#fef2f2,#fee2e2);
@@ -1509,13 +1558,59 @@ body.resizing-cols .report-table th { user-select:none !important; }
   background:transparent;
   padding:6px;
 }
+/* ✅ v2.7.3 — «و N رویداد دیگر…» حالا دکمهٔ بازکردن فهرست کامل است */
 .calw-more {
   text-align:center;
-  color:var(--text-muted);
-  font-weight:700;
+  color:var(--primary-dark);
+  font-weight:800;
   font-size:0.68rem;
-  background:transparent;
+  background:var(--primary-soft,#eef2ff);
+  border:1px dashed var(--primary,#4f46e5);
+  border-radius:9px;
+  padding:6px 8px;
+  cursor:pointer;
+  font-family:inherit;
+  flex-shrink:0;
+  transition:all .15s;
 }
+.calw-more:hover {
+  background:var(--primary-light,#dbeafe);
+  transform:translateY(-1px);
+}
+.calw-more:active { transform:scale(0.98); }
+.calw-ev-time {
+  color:var(--text-muted);
+  font-weight:800;
+  font-size:0.66rem;
+  direction:ltr;
+  unicode-bidi:isolate;
+}
+
+/* ================ ✅ v2.7.3 — روز تعطیل در نوار هفتهٔ ویجت =
+   (جمعه + تعطیلات رسمی: کل خانهٔ روز قرمز می‌شود) ================ */
+.cal-week-day.holiday {
+  background:linear-gradient(135deg,#fee2e2,#fecaca) !important;
+  border-color:#fca5a5 !important;
+}
+.cal-week-day.holiday .cwd-name { color:#b91c1c !important; }
+.cal-week-day.holiday .cwd-circle {
+  background:linear-gradient(135deg,#f87171,#dc2626) !important;
+  color:#fff !important;
+}
+.cal-week-day.holiday .cwd-square {
+  background:#fff !important;
+  color:#b91c1c !important;
+  border-color:#fecaca !important;
+}
+/* امروزِ تعطیل: قرمز پررنگ‌تر */
+.cal-week-day.holiday.today {
+  background:linear-gradient(135deg,#dc2626,#991b1b) !important;
+}
+.cal-week-day.holiday.today .cwd-name,
+.cal-week-day.holiday.today .cwd-circle,
+.cal-week-day.holiday.today .cwd-square { color:#fff !important; }
+.cal-week-day.holiday.today .cwd-circle { background:rgba(255,255,255,0.25) !important; }
+
 
 /* ================ CHECKLIST WIDGET ================ */
 .cl-widget-item {
@@ -3717,20 +3812,55 @@ body.nav-dragging-body { cursor:grabbing; user-select:none; -webkit-user-select:
 /* ============================================================
    ✅ v2.7.1 — برچسب بخش‌های داخل گروه منو («فهرست‌ها» / «عملیات» / ...)
    درخواست کاربر: فهرست‌ها در یک بخش و عملیات زیر بخش کلی فهرست‌ها
+
+   ✅ v2.7.3 — اصلاح چیدمان برچسب زیرشاخه‌ها (درخواست کاربر):
+   قبلاً قانون عمومی «.nav-group-items button» با justify-content:space-between
+   متنِ برچسب («فهرست‌ها» و…) را به انتهای چپ ردیف می‌راند و از آیتم‌های زیرش
+   دور می‌افتاد. حالا برچسب راست‌چین است و «دقیقاً روی آیتم‌های خودش» می‌نشیند:
+     • همان تورفتگی چپ ۱۸px که آیتم‌ها دارند (margin: 8px 0 2px 18px)
+     • متن از راست، فلش ▾ کنار متن در سمت راست (نه دو سر ردیف)
+   + استایل‌های جاافتادهٔ جمع‌شدن زیرشاخه‌ها اضافه شد (nav-sec-hidden / sec-collapsed)
    ============================================================ */
-.nav-sec-label {
-  margin: 7px 12px 2px 12px;
-  padding: 2px 8px;
-  font-size: 0.64rem;
-  font-weight: 800;
+.nav-group-items .nav-sec-label,
+button.nav-sec-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;   /* RTL: از راست شروع می‌شود */
+  gap: 5px;
+  margin: 8px 0 2px 18px;        /* ✅ دقیقاً همان حاشیهٔ آیتم‌های زیرش */
+  padding: 3px 10px 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 900;
   letter-spacing: 0.2px;
   color: var(--primary, #4f46e5);
-  background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(99,102,241,0.02));
+  background: linear-gradient(90deg, rgba(99,102,241,0.14), rgba(99,102,241,0.02));
+  border: none;
   border-right: 3px solid var(--primary, #4f46e5);
-  border-radius: 6px;
+  border-radius: 7px 0 0 7px;
   text-align: right;
+  font-family: inherit;
+  cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
 }
+.nav-sec-label .nav-sec-caret {
+  flex: none;
+  font-size: 0.6rem;
+  color: var(--primary, #4f46e5);
+  display: inline-block;
+  transition: transform 0.2s;
+}
+.nav-sec-label .nav-sec-txt {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* حالت جمع‌شده: فلش می‌چرخد */
+.nav-sec-label.sec-collapsed .nav-sec-caret { transform: rotate(-90deg); }
+/* آیتم‌های زیر برچسبِ جمع‌شده پنهان می‌شوند (استایل جاافتادهٔ v2.7.2) */
+.nav-group-items .nav-item-btn.nav-sec-hidden { display: none !important; }
 .nav-group-items .nav-item-btn:first-child { border-top: none; }
 .nav-sec-label + .nav-item-btn { border-top: none !important; }

@@ -221,6 +221,336 @@
     }
 
     /* ============================================================
+       ✅ v2.7.3 — ویجت نیتیو «تقویم هفتگی» صفحه اصلی گوشی
+       (درخواست کاربر: انتقال ویجت تقویم هفته به صفحه اصلی گوشی + ساعت لحظه‌ای)
+       داده از buildCalendarWidgetData (در widgets.js) ساخته و با
+       ParsisPlugin.pushCalendarWidgetData برای ویجت اندروید ارسال می‌شود.
+       ساعت در ویجت نیتیو با TextClock سیستمی به‌صورت زنده تیک می‌زند.
+       ============================================================ */
+    function buildCalendarNativeData() {
+        if (typeof window.buildCalendarWidgetData !== 'function') return null;
+        var d = window.buildCalendarWidgetData(0);
+        if (!d || !d.days || !d.days.length) return null;
+        var aJ = d.anchorJ, aG = d.anchorG;
+        var data = {
+            updatedAt: '',
+            jDate: WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aJ.d) + ' ' + JALALI_MONTHS[aJ.m - 1] + ' ' + toFa(aJ.y),
+            gDate: WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aG.d) + ' ' + GREG_MONTHS[aG.m] + ' ' + toFa(aG.y),
+            days: [],
+            events: []
+        };
+        try { data.updatedAt = todayJalaliStr() + ' — ' + tsToJalaliTime(Date.now()); } catch (eT) {}
+        d.days.forEach(function (dd) {
+            data.days.push({ n: dd.name, jd: dd.jd, gd: dd.gd, hol: !!dd.isHoliday, today: !!dd.isToday });
+        });
+        d.events.slice(0, 40).forEach(function (ev) {
+            var dd = String(ev.date).split('/');
+            data.events.push({
+                d: toFa(dd[2]) + ' ' + JALALI_MONTHS[Number(dd[1]) - 1],
+                t: String(ev.title || ''),
+                tm: ev.time ? toFaTime(ev.time) : '',
+                hol: !!ev.isHoliday
+            });
+        });
+        return data;
+    }
+
+    function pushCalendarWidget(silent) {
+        var P = getParsis();
+        if (!P || !P.pushCalendarWidgetData) return;
+        try {
+            var data = buildCalendarNativeData();
+            if (!data) return;
+            P.pushCalendarWidgetData({ json: JSON.stringify(data) }).then(function () {
+                if (!silent && typeof showToast === 'function') showToast('📅 ویجت تقویم هفتگی گوشی به‌روزرسانی شد');
+                updateCalWidgetStatus();
+            }).catch(function () {});
+        } catch (e) {}
+    }
+
+    function updateCalWidgetStatus() {
+        var el = document.getElementById('set-calw-status');
+        if (!el) return;
+        var P = getParsis();
+        if (!P || !P.pushCalendarWidgetData) { el.textContent = '— فقط در اپ اندروید'; el.style.color = '#64748b'; return; }
+        var data = buildCalendarNativeData();
+        el.textContent = data
+            ? '✅ آماده — ' + toFa(data.events.length) + ' رویداد این هفته ارسال شد (ساعت ویجت زنده است)'
+            : '…';
+        el.style.color = '#166534';
+    }
+
+    /* ---------- 📌 افزودن ویجت تقویم به صفحه اصلی (اندروید ۸+) ---------- */
+    async function pinCalendarWidget() {
+        var P = getParsis();
+        if (!P || !P.pinCalendarWidget) {
+            toast('این قابلیت فقط در اپ اندروید است.');
+            return;
+        }
+        try {
+            var r = await P.pinCalendarWidget();
+            if (r && r.ok) toast('📌 پنجرهٔ افزودن ویجت باز شد — «افزودن ویجت» را بزنید');
+            else toast('این لانچر پین خودکار را پشتیبانی نمی‌کند — روی صفحه اصلی انگشت نگه دارید ← Widgets ← پارسیس ← تقویم هفتگی');
+        } catch (e) {
+            toast('پین ویجت ناموفق بود — از راه دستی (Widgets) اضافه کنید');
+        }
+    }
+
+    /* ============================================================
+       ✅ v2.7.3 — پس‌زمینهٔ «تقویم هفتگی» برای صفحه قفل / صفحه اصلی
+       درخواست کاربر: ویجت تقویم به صفحه قفل هم «به‌عنوان پس‌زمینه» برود.
+       اندروید (۵ به بعد) اجازهٔ ویجت روی قفل را نمی‌دهد؛ راه استاندارد =
+       رندر تقویم هفته (ساعت + تاریخ + روزها + رویدادها) به تصویر PNG و
+       تنظیم به‌عنوان Wallpaper قفل (WallpaperManager + FLAG_LOCK).
+       ============================================================ */
+    function drawCalendarWallpaper(scale) {
+        scale = scale || 1;
+        var W = 1080 * scale, H = 2160 * scale;
+        var d = (typeof window.buildCalendarWidgetData === 'function') ? window.buildCalendarWidgetData(0) : null;
+        if (!d || !d.days) return null;
+        var canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        var x = canvas.getContext('2d');
+
+        /* پس‌زمینه */
+        var g = x.createLinearGradient(0, 0, W, H);
+        g.addColorStop(0, '#04241b');
+        g.addColorStop(0.5, '#033528');
+        g.addColorStop(1, '#02160f');
+        x.fillStyle = g;
+        x.fillRect(0, 0, W, H);
+
+        /* الگوی نقطه‌ای */
+        x.fillStyle = 'rgba(255,255,255,0.045)';
+        var dotGap = 34 * scale;
+        for (var py = dotGap / 2; py < H; py += dotGap) {
+            for (var px = dotGap / 2; px < W; px += dotGap) {
+                x.beginPath();
+                x.arc(px, py, 1.6 * scale, 0, Math.PI * 2);
+                x.fill();
+            }
+        }
+
+        var faFont = '"Vazirmatn", Tahoma, sans-serif';
+        var aJ = d.anchorJ, aG = d.anchorG;
+        var now = new Date();
+        var hh = pad2(now.getHours()), mm = pad2(now.getMinutes());
+
+        var cx = W / 2;
+        x.textAlign = 'center';
+        x.textBaseline = 'middle';
+
+        /* ساعت بزرگ */
+        x.fillStyle = '#ffffff';
+        x.font = '900 ' + Math.round(150 * scale) + 'px ' + faFont;
+        x.fillText(toFa(hh) + ':' + toFa(mm), cx, 300 * scale);
+
+        /* تاریخ شمسی */
+        x.fillStyle = '#d1fae5';
+        x.font = '900 ' + Math.round(52 * scale) + 'px ' + faFont;
+        x.fillText(WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aJ.d) + ' ' + JALALI_MONTHS[aJ.m - 1] + ' ' + toFa(aJ.y), cx, 430 * scale);
+
+        /* تاریخ میلادی */
+        x.fillStyle = 'rgba(209,250,229,0.65)';
+        x.font = '700 ' + Math.round(34 * scale) + 'px ' + faFont;
+        x.fillText(WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aG.d) + ' ' + GREG_MONTHS[aG.m] + ' ' + toFa(aG.y), cx, 492 * scale);
+
+        /* خط جداکننده */
+        x.strokeStyle = 'rgba(255,255,255,0.18)';
+        x.lineWidth = 2 * scale;
+        x.beginPath();
+        x.moveTo(90 * scale, 560 * scale);
+        x.lineTo(W - 90 * scale, 560 * scale);
+        x.stroke();
+
+        /* روزهای هفته — از راست (شنبه) */
+        var cellW = (W - 120 * scale - 6 * 12 * scale) / 7;
+        var cellH = 190 * scale;
+        var cellY = 610 * scale;
+        for (var i = 0; i < 7; i++) {
+            var dd = d.days[i];
+            var col = 6 - i; /* راست = شنبه در بوم LTR */
+            var cellX = 60 * scale + col * (cellW + 12 * scale);
+            var nameCol = 'rgba(255,255,255,0.75)';
+            var numCol = '#f8fafc';
+            if (dd.isHoliday) {
+                x.fillStyle = 'rgba(220,38,38,0.30)';
+                roundedRect(x, cellX, cellY, cellW, cellH, 22 * scale);
+                x.fill();
+                x.strokeStyle = 'rgba(248,113,113,0.55)';
+                x.lineWidth = 2 * scale;
+                roundedRect(x, cellX, cellY, cellW, cellH, 22 * scale);
+                x.stroke();
+                nameCol = '#fecaca';
+                numCol = '#fecaca';
+            } else {
+                x.fillStyle = 'rgba(255,255,255,0.09)';
+                roundedRect(x, cellX, cellY, cellW, cellH, 22 * scale);
+                x.fill();
+            }
+            if (dd.isToday) {
+                x.strokeStyle = '#34d399';
+                x.lineWidth = 4 * scale;
+                roundedRect(x, cellX, cellY, cellW, cellH, 22 * scale);
+                x.stroke();
+                nameCol = '#6ee7b7';
+                numCol = '#ffffff';
+            }
+            x.textAlign = 'center';
+            x.fillStyle = nameCol;
+            x.font = '800 ' + Math.round(34 * scale) + 'px ' + faFont;
+            x.fillText(dd.name, cellX + cellW / 2, cellY + 52 * scale);
+            x.fillStyle = numCol;
+            x.font = '900 ' + Math.round(62 * scale) + 'px ' + faFont;
+            x.fillText(dd.jd, cellX + cellW / 2, cellY + 122 * scale);
+            x.fillStyle = 'rgba(255,255,255,0.38)';
+            x.font = '600 ' + Math.round(26 * scale) + 'px ' + faFont;
+            x.fillText(dd.gd, cellX + cellW / 2, cellY + 166 * scale);
+        }
+
+        /* رویدادها */
+        var evY = 870 * scale;
+        var evs = d.events.slice(0, 9);
+        x.textAlign = 'right';
+        x.fillStyle = 'rgba(255,255,255,0.8)';
+        x.font = '900 ' + Math.round(40 * scale) + 'px ' + faFont;
+        var title = 'تعطیلات و رویدادهای این هفته' + (d.events.length > 9 ? ' (' + toFa(d.events.length) + ')' : '');
+        x.fillText(title, W - 90 * scale, evY);
+        evY += 46 * scale;
+
+        if (evs.length === 0) {
+            x.fillStyle = 'rgba(255,255,255,0.45)';
+            x.font = '700 ' + Math.round(32 * scale) + 'px ' + faFont;
+            x.fillText('— تعطیلی یا رویداد ویژه‌ای در این هفته نیست', W - 90 * scale, evY + 30 * scale);
+        }
+        for (var k = 0; k < evs.length; k++) {
+            var ev = evs[k];
+            var rowH = 92 * scale;
+            var rowY = evY + k * (rowH + 14 * scale);
+            if (ev.hol) {
+                x.fillStyle = 'rgba(220,38,38,0.24)';
+                roundedRect(x, 60 * scale, rowY, W - 120 * scale, rowH, 18 * scale);
+                x.fill();
+                x.strokeStyle = 'rgba(248,113,113,0.45)';
+                x.lineWidth = 2 * scale;
+                roundedRect(x, 60 * scale, rowY, W - 120 * scale, rowH, 18 * scale);
+                x.stroke();
+            } else {
+                x.fillStyle = 'rgba(255,255,255,0.07)';
+                roundedRect(x, 60 * scale, rowY, W - 120 * scale, rowH, 18 * scale);
+                x.fill();
+            }
+            /* تاریخ (سمت راست) */
+            x.textAlign = 'right';
+            x.fillStyle = ev.hol ? '#fca5a5' : '#6ee7b7';
+            x.font = '900 ' + Math.round(30 * scale) + 'px ' + faFont;
+            x.fillText(ev.date.split('/')[2] ? toFa(ev.date.split('/')[2]) + ' ' + (JALALI_MONTHS[Number(ev.date.split('/')[1]) - 1] || '') : '', W - 100 * scale, rowY + rowH / 2);
+            /* عنوان */
+            x.fillStyle = '#f1f5f9';
+            x.font = '800 ' + Math.round(34 * scale) + 'px ' + faFont;
+            var maxTw = W - 120 * scale - 260 * scale;
+            x.fillText(truncateCanvasText(x, ev.title, maxTw), W - 100 * scale - 250 * scale, rowY + rowH / 2);
+        }
+
+        /* امضا */
+        x.textAlign = 'center';
+        x.fillStyle = 'rgba(255,255,255,0.35)';
+        x.font = '700 ' + Math.round(30 * scale) + 'px ' + faFont;
+        x.fillText('پارسیس — حسابداری هوشمند' + (typeof APP_VERSION !== 'undefined' ? ' (' + toFa(APP_VERSION) + ')' : ''), cx, H - 80 * scale);
+
+        return canvas;
+    }
+
+    function roundedRect(x, rx, ry, rw, rh, r) {
+        x.beginPath();
+        x.moveTo(rx + r, ry);
+        x.lineTo(rx + rw - r, ry);
+        x.quadraticCurveTo(rx + rw, ry, rx + rw, ry + r);
+        x.lineTo(rx + rw, ry + rh - r);
+        x.quadraticCurveTo(rx + rw, ry + rh, rx + rw - r, ry + rh);
+        x.lineTo(rx + r, ry + rh);
+        x.quadraticCurveTo(rx, ry + rh, rx, ry + rh - r);
+        x.lineTo(rx, ry + r);
+        x.quadraticCurveTo(rx, ry, rx + r, ry);
+        x.closePath();
+    }
+
+    function truncateCanvasText(x, txt, maxW) {
+        txt = String(txt || '');
+        if (x.measureText(txt).width <= maxW) return txt;
+        var s = txt;
+        while (s.length > 3 && x.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+        return s + '…';
+    }
+
+    /* پیش‌نمایش پس‌زمینه (در مرورگر هم کار می‌کند — با دانلود تصویر) */
+    function openWallpaperPreview() {
+        var canvas = drawCalendarWallpaper(0.5);
+        if (!canvas) { toast('داده‌ای برای ساخت پس‌زمینه نیست'); return; }
+        var url = canvas.toDataURL('image/png');
+        var old = document.getElementById('calw-wp-modal');
+        var oldO = document.getElementById('calw-wp-overlay');
+        if (old) old.parentNode.removeChild(old);
+        if (oldO) oldO.parentNode.removeChild(oldO);
+        var ov = document.createElement('div');
+        ov.id = 'calw-wp-overlay';
+        ov.className = 'overlay show';
+        ov.style.zIndex = '960';
+        var m = document.createElement('div');
+        m.id = 'calw-wp-modal';
+        m.className = 'modal show';
+        m.style.maxWidth = '360px';
+        m.style.zIndex = '965';
+        m.innerHTML = ''
+            + '<div class="modal-head"><h2>🖼 پیش‌نمایش پس‌زمینهٔ تقویم هفتگی</h2><button id="calw-wp-close" class="close-btn">×</button></div>'
+            + '<div class="modal-body" style="text-align:center">'
+            +   '<img src="' + url + '" alt="پیش‌نمایش" style="width:100%;max-width:260px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35)">'
+            +   '<p style="font-size:.72rem;color:#64748b;line-height:1.9;margin-top:10px">این تصویر از تقویم همین هفتهٔ شما ساخته می‌شود (ساعتِ لحظه‌ای فقط در ویجت زنده است). برای دیدنِ روزها و رویدادهای تازه، دوباره بسازید و تنظیم کنید.</p>'
+            + '</div>'
+            + '<div class="modal-foot" style="display:flex;gap:8px;flex-wrap:wrap">'
+            +   '<button id="calw-wp-close2" class="btn-secondary" style="flex:1">بستن</button>'
+            +   '<a id="calw-wp-dl" class="btn-secondary" style="flex:1;text-decoration:none;text-align:center;padding:10px 12px" download="parsis-calendar-wallpaper.png" href="' + url + '">⬇️ دانلود</a>'
+            +   '<button id="calw-wp-lock" class="btn-primary" style="flex:1">🖼 پس‌زمینهٔ قفل</button>'
+            +   '<button id="calw-wp-home" class="btn-primary" style="flex:1">🖼 پس‌زمینهٔ صفحهٔ اصلی</button>'
+            + '</div>';
+        document.body.appendChild(ov);
+        document.body.appendChild(m);
+        function close() {
+            if (ov.parentNode) ov.parentNode.removeChild(ov);
+            if (m.parentNode) m.parentNode.removeChild(m);
+        }
+        document.getElementById('calw-wp-close').onclick = close;
+        document.getElementById('calw-wp-close2').onclick = close;
+        ov.onclick = close;
+        document.getElementById('calw-wp-lock').onclick = function () { setCalendarWallpaper('lock'); };
+        document.getElementById('calw-wp-home').onclick = function () { setCalendarWallpaper('system'); };
+    }
+
+    async function setCalendarWallpaper(target) {
+        var P = getParsis();
+        if (!P || !P.setWallpaperFromBase64) {
+            toast('تنظیم پس‌زمینه فقط در اپ اندروید است — می‌توانید تصویر را دانلود کنید.');
+            return;
+        }
+        try {
+            var canvas = drawCalendarWallpaper(1);
+            if (!canvas) { toast('ساخت تصویر ناموفق بود'); return; }
+            var b64 = canvas.toDataURL('image/png').split(',')[1];
+            toast('⏳ در حال تنظیم پس‌زمینه…');
+            var r = await P.setWallpaperFromBase64({ base64: b64, target: target || 'lock' });
+            if (r && r.ok) {
+                toast(r.lockOk && r.systemOk
+                    ? '✅ پس‌زمینهٔ قفل و صفحهٔ اصلی تنظیم شد'
+                    : (r.lockOk ? '✅ پس‌زمینهٔ صفحه قفل تنظیم شد' : '✅ پس‌زمینهٔ صفحه اصلی تنظیم شد'));
+            } else {
+                toast('⚠️ تنظیم پس‌زمینه ناموفق بود');
+            }
+        } catch (e) {
+            toast('⚠️ خطا در ساخت/تنظیم تصویر');
+        }
+    }
+
+    /* ============================================================
        رابط تنظیمات «🤖 اندروید»
        ============================================================ */
     function toast(msg) {
@@ -409,11 +739,42 @@
             });
         }
 
+        /* ✅ v2.7.3 — ویجت نیتیو «تقویم هفتگی» + پس‌زمینهٔ قفل/صفحه اصلی */
+        var calPinBtn = document.getElementById('set-calw-pin-btn');
+        if (calPinBtn && !calPinBtn._awBound) {
+            calPinBtn._awBound = true;
+            calPinBtn.addEventListener('click', function () { pinCalendarWidget(); });
+        }
+        var calRefreshBtn = document.getElementById('set-calw-refresh-btn');
+        if (calRefreshBtn && !calRefreshBtn._awBound) {
+            calRefreshBtn._awBound = true;
+            calRefreshBtn.addEventListener('click', function () {
+                if (!getParsis()) { toast('این قابلیت فقط در اپ اندروید است.'); return; }
+                pushCalendarWidget(false);
+            });
+        }
+        var calPreviewBtn = document.getElementById('set-calw-preview-btn');
+        if (calPreviewBtn && !calPreviewBtn._awBound) {
+            calPreviewBtn._awBound = true;
+            calPreviewBtn.addEventListener('click', function () { openWallpaperPreview(); });
+        }
+        var calLockWpBtn = document.getElementById('set-calw-lock-btn');
+        if (calLockWpBtn && !calLockWpBtn._awBound) {
+            calLockWpBtn._awBound = true;
+            calLockWpBtn.addEventListener('click', function () { setCalendarWallpaper('lock'); });
+        }
+        var calHomeWpBtn = document.getElementById('set-calw-home-btn');
+        if (calHomeWpBtn && !calHomeWpBtn._awBound) {
+            calHomeWpBtn._awBound = true;
+            calHomeWpBtn.addEventListener('click', function () { setCalendarWallpaper('system'); });
+        }
+
         /* وضعیت اولیه بخش‌ها */
         updateSmsStatus();
         updateWidgetStatus();
         updateCameraStatus();
         updateAlarmStatus();
+        updateCalWidgetStatus();
     }
 
     /* اتصال پس از آماده شدن DOM */
@@ -436,19 +797,29 @@
         window.updateHomeWidgets = function () {
             try { orig.apply(this, arguments); } catch (e) {}
             try { pushWidgets(true); } catch (e2) {}
+            try { pushCalendarWidget(true); } catch (e3) {}   /* ✅ v2.7.3 */
         };
         window.updateHomeWidgets.__widgetPushWrapped = true;
         /* ارسال اولیه */
         setTimeout(function () { pushWidgets(true); }, 2500);
+        setTimeout(function () { pushCalendarWidget(true); }, 3200);
     }
     wrapUpdateHomeWidgets();
 
     /* رفرش دوره‌ای (هر ۱۰ دقیقه هنگام باز بودن اپ) */
     setInterval(function () { pushWidgets(true); }, 600000);
+    setInterval(function () { pushCalendarWidget(true); }, 600000);
 
     window.ParsisNativeWidgets = {
         buildSnapshot: buildSnapshot,
         pushWidgets: pushWidgets,
+        buildCalendarNativeData: buildCalendarNativeData,
+        pushCalendarWidget: pushCalendarWidget,
+        updateCalWidgetStatus: updateCalWidgetStatus,
+        pinCalendarWidget: pinCalendarWidget,
+        openWallpaperPreview: openWallpaperPreview,
+        setCalendarWallpaper: setCalendarWallpaper,
+        drawCalendarWallpaper: drawCalendarWallpaper,
         updateWidgetStatus: updateWidgetStatus,
         updateSmsStatus: updateSmsStatus,
         updateCameraStatus: updateCameraStatus,

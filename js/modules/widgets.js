@@ -430,29 +430,62 @@ function renderBirthdaysWidget() {
     el.innerHTML = html;
 }
 
-/* ✅ v2.7.2 — ویجت تقویم هفتگی بازنویسی شد (درخواست‌های کاربر):
-     • بالای ویجت: تاریخ شمسی (شنبه ۷ آذر ۱۴۰۵) و زیر آن تاریخ میلادی
-       (نام روز، شماره روز، نام ماه، سال)
-     • لیست روزهای هفته با نام فارسی
-     • تعطیلات و رویدادهای ویژهٔ همان هفته در ذیل ویجت
-     • فلش راست/چپ برای رفتن به هفته قبل/بعد + دکمهٔ «این هفته» */
+/* ============================================================
+   ✅ v2.7.3 — ویجت «تقویم هفتگی» صفحه اول (بازنویسی کامل)
+   درخواست‌های کاربر در این نسخه:
+     • ساعت لحظه‌ای (ثانیه‌شمار) در وسطِ بالای ویجت
+     • روزهای تعطیل (جمعه + تعطیلات رسمی) کاملاً قرمز
+     • نوار تعطیلات/رویدادهای هفته قابل اسکرول (ردیف‌های زیاد جا می‌شوند)
+     • «و N رویداد دیگر…» دیگر مخفی‌کننده نیست: با کلیک، فهرست کاملِ
+       رویدادهای همان هفته به‌صورت اسکرول‌شونده باز می‌شود («نمایش کمتر»)
+     • تنظیمات «کدام تقویم در ویجت دیده شود» در صفحهٔ مدیریت تقویم
+       (کلید ذخیره: calWidgetSettings) — روی ویجت وب + ویجت اندروید اعمال می‌شود
+     • دادهٔ همین ویجت برای ویجت نیتیو اندروید و پس‌زمینهٔ قفل ساخته می‌شود
+   ============================================================ */
 window.__calWidgetOffset = window.__calWidgetOffset || 0;
+window.__calWidgetExpanded = window.__calWidgetExpanded || false;
 
-function renderCalendarWidget() {
-    var el = document.getElementById('home-cal-widget');
-    if (!el) return;
+/* ---------- تنظیمات ویجت: کدام دسته‌ها نمایش داده شوند ---------- */
+var CALW_DEF_SETTINGS = {
+    holiday: true,      /* 🔴 تعطیلات رسمی ایران */
+    iran: true,        /* 🇮🇷 رویدادهای تقویم ایران */
+    world: true,       /* 🌐 رویدادهای جهانی */
+    ancient: true,      /* 🏺 ایران باستان */
+    userEvents: true,  /* رویدادهای ثبت‌شدهٔ خود کاربر */
+    installment: true,  /* اقساط */
+    source: true       /* دریافتنی‌ها */
+};
 
-    var weekOffset = window.__calWidgetOffset || 0;
+function calwSettings() {
+    var s = null;
+    try { s = DB.load('calWidgetSettings', null); } catch (e) {}
+    if (!s || typeof s !== 'object') s = {};
+    var out = {};
+    Object.keys(CALW_DEF_SETTINGS).forEach(function (k) {
+        out[k] = (k in s) ? !!s[k] : CALW_DEF_SETTINGS[k];
+    });
+    return out;
+}
+window.calwSettings = calwSettings;
 
+function calwSettingApplies(set, ev) {
+    /* آیا این رویداد با تنظیمات ویجت دیده می‌شود؟ */
+    if (ev.builtin) {
+        return !!(set[ev.cat] !== false && (CALW_DEF_SETTINGS[ev.cat] === undefined ? true : set[ev.cat]));
+    }
+    if (ev.cat === 'installment' || ev.cat === 'source') return !!set[ev.cat];
+    return !!set.userEvents;
+}
+
+/* ---------- ساخت دادهٔ مشترک ویجت (وب + نیتیو + پس‌زمینه) ---------- */
+function buildCalendarWidgetData(weekOffset) {
     var now = new Date();
     var todayJ = toJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
     var todayStr = todayJ[0] + '/' + pad2(todayJ[1]) + '/' + pad2(todayJ[2]);
 
-    /* لنگر: همان روزِ هفته (امروز + ۷×offset) */
     var anchor = new Date(now);
-    anchor.setDate(now.getDate() + weekOffset * 7);
+    anchor.setDate(now.getDate() + (weekOffset || 0) * 7);
 
-    /* شنبهٔ همان هفته */
     var jsDay = anchor.getDay();
     var offsetFromSat = (jsDay + 1) % 7;
     var satDate = new Date(anchor);
@@ -460,58 +493,65 @@ function renderCalendarWidget() {
 
     var aJ = toJalali(anchor.getFullYear(), anchor.getMonth() + 1, anchor.getDate());
 
-    var html = '';
-
-    /* ---------- سربرگ: تاریخ شمسی + میلادی + فلش‌ها ---------- */
-    html += '<div class="calw-head">';
-    html += '<button type="button" class="calw-nav" id="calw-prev" title="هفته قبل">‹</button>';
-    html += '<div class="calw-dates">';
-    html += '<div class="calw-j">' + WEEKDAYS_FA[anchor.getDay()] + ' ' + toFa(aJ[2]) + ' ' + JALALI_MONTHS[aJ[1] - 1] + ' ' + toFa(aJ[0]) + '</div>';
-    html += '<div class="calw-g">' + WEEKDAYS_FA[anchor.getDay()] + ' ' + toFa(anchor.getDate()) + ' ' + GREG_MONTHS[anchor.getMonth()] + ' ' + toFa(anchor.getFullYear()) + '</div>';
-    html += '</div>';
-    html += '<button type="button" class="calw-nav" id="calw-next" title="هفته بعد">›</button>';
-    html += '</div>';
-    html += '<button type="button" class="calw-today-btn" id="calw-today">این هفته</button>';
-
     /* ---------- روزهای هفته ---------- */
     var FA_WD_SHORT = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
-    html += '<div class="cal-week-grid">';
-
+    var days = [];
     var weekStartStr = '', weekEndStr = '';
-    var weekEventsByDate = {};
     for (var i = 0; i < 7; i++) {
         var d = new Date(satDate);
         d.setDate(satDate.getDate() + i);
-
         var j = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
         var ds = j[0] + '/' + pad2(j[1]) + '/' + pad2(j[2]);
         if (i === 0) weekStartStr = ds;
         if (i === 6) weekEndStr = ds;
-
-        var isToday = (ds === todayStr);
-        var isHoliday = (d.getDay() === 5);
-
-        var cls = 'cal-week-day' + (isToday ? ' today' : '') + (isHoliday ? ' holiday' : '');
-        html += '<div class="' + cls + '">';
-        html += '<div class="cwd-name">' + FA_WD_SHORT[i] + '</div>';
-        html += '<div class="cwd-circle">' + toFa(j[2]) + '</div>';
-        html += '<div class="cwd-square">' + d.getDate() + '</div>';
-        html += '</div>';
+        days.push({
+            idx: i,
+            name: FA_WD_SHORT[i],
+            jd: toFa(j[2]),
+            jdate: ds,
+            gd: String(d.getDate()),
+            gmonth: GREG_MONTHS[d.getMonth()],
+            isToday: (ds === todayStr),
+            isFriday: (d.getDay() === 5)
+        });
     }
-    html += '</div>';
 
-    /* ---------- تعطیلات و رویدادهای همین هفته (ذیل ویجت) ---------- */
-    var weekEvents = [];
+    /* ---------- رویدادهای همان هفته (تقسیم بر اساس تعطیل‌بودن روز) ---------- */
+    var builtinEvents = [];
     try {
         if (window.ParsisCalendarEvents) {
-            weekEvents = window.ParsisCalendarEvents.getEventsInRange(weekStartStr, weekEndStr);
+            builtinEvents = window.ParsisCalendarEvents.getEventsInRange(weekStartStr, weekEndStr) || [];
         }
     } catch (eW1) {}
+
+    var set = calwSettings();
+    var weekEvents = [];
+
+    builtinEvents.forEach(function (ev) {
+        if (!calwSettingApplies(set, ev)) return;
+        weekEvents.push({
+            date: ev.date,
+            cat: ev.cat,
+            title: ev.title,
+            isHoliday: ev.cat === 'holiday',
+            builtin: true
+        });
+    });
+
     try {
         if (typeof calBuildAllEvents === 'function') {
             calBuildAllEvents().forEach(function (ev) {
                 if (ev.builtin) return; /* پیش‌فرض‌ها بالا اضافه شدند */
-                if (ev.date >= weekStartStr && ev.date <= weekEndStr) weekEvents.push(ev);
+                if (ev.date < weekStartStr || ev.date > weekEndStr) return;
+                if (!calwSettingApplies(set, ev)) return;
+                weekEvents.push({
+                    date: ev.date,
+                    cat: ev.cat,
+                    title: ev.title,
+                    time: ev.time || '',
+                    isHoliday: false,
+                    builtin: false
+                });
             });
         }
     } catch (eW2) {}
@@ -521,30 +561,140 @@ function renderCalendarWidget() {
         return a.date.localeCompare(b.date);
     });
 
-    html += '<div class="calw-events">';
-    if (weekEvents.length === 0) {
+    /* روزهای تعطیل = جمعه + هر روزِ دارای رویدادِ دستهٔ «تعطیلات رسمی» */
+    var holidayDates = {};
+    builtinEvents.forEach(function (ev) {
+        if (ev.cat === 'holiday' && ev.date >= weekStartStr && ev.date <= weekEndStr) {
+            holidayDates[ev.date] = true;
+        }
+    });
+    days.forEach(function (dd) {
+        dd.isHoliday = dd.isFriday || !!holidayDates[dd.jdate];
+    });
+
+    return {
+        todayStr: todayStr,
+        weekStartStr: weekStartStr,
+        weekEndStr: weekEndStr,
+        anchorJ: { y: aJ[0], m: aJ[1], d: aJ[2], wd: anchor.getDay() },
+        anchorG: { y: anchor.getFullYear(), m: anchor.getMonth(), d: anchor.getDate() },
+        days: days,
+        events: weekEvents,
+        settings: set
+    };
+}
+window.buildCalendarWidgetData = buildCalendarWidgetData;
+
+/* ---------- ساعت لحظه‌ای (فقط المان ساعت را به‌روز می‌کند) ---------- */
+var _calwClockTimer = null;
+function calwTickClock() {
+    var el = document.getElementById('calw-clock');
+    if (!el) return;
+    var n = new Date();
+    var hh = pad2(n.getHours()), mm = pad2(n.getMinutes()), ss = pad2(n.getSeconds());
+    el.setAttribute('data-hh', hh);
+    el.textContent = toFa(hh) + ':' + toFa(mm) + ':' + toFa(ss);
+    /* اگر تاریخ عوض شده باشد (نیمه‌شب) کل ویجت تازه‌سازی می‌شود */
+    var dateAttr = el.getAttribute('data-date');
+    if (dateAttr && dateAttr !== n.toDateString()) {
+        el.setAttribute('data-date', n.toDateString());
+        if ((window.__calWidgetOffset || 0) === 0) renderCalendarWidget();
+    }
+}
+function calwStartClock() {
+    if (_calwClockTimer) clearInterval(_calwClockTimer);
+    calwTickClock();
+    _calwClockTimer = setInterval(calwTickClock, 1000);
+}
+
+/* ---------- رندر ویجت ---------- */
+function renderCalendarWidget() {
+    var el = document.getElementById('home-cal-widget');
+    if (!el) return;
+
+    var weekOffset = window.__calWidgetOffset || 0;
+    var expanded = !!window.__calWidgetExpanded;
+    var data = buildCalendarWidgetData(weekOffset);
+    var aJ = data.anchorJ;
+    var aG = data.anchorG;
+
+    var html = '';
+
+    /* ---------- ساعت لحظه‌ای — وسطِ بالای ویجت ---------- */
+    /* data-date باید از ابتدا ست شود تا calwTickClock در نبودش، بی‌نهایت رندر نکند */
+    var nowR = new Date();
+    html += '<div class="calw-clock-row">'
+         +  '<div class="calw-clock" id="calw-clock" data-date="' + nowR.toDateString() + '">--:--:--</div>'
+         +  '</div>';
+
+    /* ---------- سربرگ: تاریخ شمسی + میلادی + فلش‌ها ---------- */
+    html += '<div class="calw-head">';
+    html += '<button type="button" class="calw-nav" id="calw-prev" title="هفته قبل">‹</button>';
+    html += '<div class="calw-dates">';
+    html += '<div class="calw-j">' + WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aJ.d) + ' ' + JALALI_MONTHS[aJ.m - 1] + ' ' + toFa(aJ.y) + '</div>';
+    html += '<div class="calw-g">' + WEEKDAYS_FA[aJ.wd] + ' ' + toFa(aG.d) + ' ' + GREG_MONTHS[aG.m] + ' ' + toFa(aG.y) + '</div>';
+    html += '</div>';
+    html += '<button type="button" class="calw-nav" id="calw-next" title="هفته بعد">›</button>';
+    html += '</div>';
+    if (weekOffset !== 0) {
+        html += '<button type="button" class="calw-today-btn" id="calw-today">این هفته</button>';
+    }
+
+    /* ---------- روزهای هفته (تعطیل = کاملاً قرمز) ---------- */
+    html += '<div class="cal-week-grid">';
+    data.days.forEach(function (dd) {
+        var cls = 'cal-week-day'
+                + (dd.isToday ? ' today' : '')
+                + (dd.isHoliday ? ' holiday' : '');
+        html += '<div class="' + cls + '" data-date="' + dd.jdate + '">';
+        html += '<div class="cwd-name">' + dd.name + '</div>';
+        html += '<div class="cwd-circle">' + dd.jd + '</div>';
+        html += '<div class="cwd-square">' + dd.gd + '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    /* ---------- تعطیلات و رویدادهای هفته — قابل اسکرول ---------- */
+    var evs = data.events;
+    html += '<div class="calw-events-wrap">';
+    html += '<div class="calw-events-title">تعطیلات و رویدادهای این هفته (' + toFa(evs.length) + ')</div>';
+    html += '<div class="calw-events" id="calw-events">';
+
+    if (evs.length === 0) {
         html += '<div class="calw-ev-row calw-empty">— تعطیلی یا رویداد ویژه‌ای در این هفته نیست</div>';
     } else {
-        weekEvents.slice(0, 6).forEach(function (ev) {
-            var isHol = ev.cat === 'holiday';
+        var showCount = expanded ? evs.length : Math.min(evs.length, 6);
+        for (var ei = 0; ei < showCount; ei++) {
+            var ev = evs[ei];
             var dd = ev.date.split('/');
-            html += '<div class="calw-ev-row' + (isHol ? ' hol' : '') + '">'
+            var timeTxt = ev.time ? ' <span class="calw-ev-time">' + toFaTime(ev.time) + '</span>' : '';
+            html += '<div class="calw-ev-row' + (ev.isHoliday ? ' hol' : '') + '">'
                  +  '<span class="calw-ev-date">' + toFa(dd[2]) + ' ' + JALALI_MONTHS[Number(dd[1]) - 1] + '</span>'
-                 +  '<span class="calw-ev-title">' + esc(ev.title) + '</span>'
-                 + '</div>';
-        });
-        if (weekEvents.length > 6) {
-            html += '<div class="calw-ev-row calw-more">و ' + toFa(weekEvents.length - 6) + ' رویداد دیگر در این هفته…</div>';
+                 +  '<span class="calw-ev-title">' + esc(ev.title) + timeTxt + '</span>'
+                 +  '</div>';
+        }
+        if (!expanded && evs.length > 6) {
+            /* ✅ v2.7.3 — این دکمه دیگر فقط اطلاع‌رسان نیست؛ فهرست کامل را باز می‌کند */
+            html += '<button type="button" class="calw-more" id="calw-more-btn">'
+                 +  'و ' + toFa(evs.length - 6) + ' رویداد دیگر در این هفته — برای دیدنِ کامل کلیک کنید ▾'
+                 +  '</button>';
+        }
+        if (expanded && evs.length > 6) {
+            html += '<button type="button" class="calw-more" id="calw-less-btn">▲ نمایش کمتر</button>';
         }
     }
     html += '</div>';
+    html += '</div>';
 
     el.innerHTML = html;
+    calwStartClock();
 
     /* ---------- فلش‌ها: راست = هفته قبل، چپ = هفته بعد ---------- */
     var prevBtn = document.getElementById('calw-prev');
     var nextBtn = document.getElementById('calw-next');
     var todayBtn = document.getElementById('calw-today');
+    var moreBtn = document.getElementById('calw-more-btn');
+    var lessBtn = document.getElementById('calw-less-btn');
     if (prevBtn) prevBtn.onclick = function () {
         window.__calWidgetOffset = (window.__calWidgetOffset || 0) - 1;
         renderCalendarWidget();
@@ -555,6 +705,18 @@ function renderCalendarWidget() {
     };
     if (todayBtn) todayBtn.onclick = function () {
         window.__calWidgetOffset = 0;
+        renderCalendarWidget();
+    };
+    if (moreBtn) moreBtn.onclick = function () {
+        window.__calWidgetExpanded = true;
+        renderCalendarWidget();
+        setTimeout(function () {
+            var box = document.getElementById('calw-events');
+            if (box) box.scrollTop = 0;
+        }, 30);
+    };
+    if (lessBtn) lessBtn.onclick = function () {
+        window.__calWidgetExpanded = false;
         renderCalendarWidget();
     };
 }

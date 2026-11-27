@@ -46,6 +46,13 @@
     + '.calg-md-head .mh-jd { font-size:.9rem; font-weight:900; color:#1e40af; margin-top:2px }'
     + '.calg-md-head.today .mh-jd { color:#1e3a8a }'
     + '.calg-md-head .mh-gd { font-size:.62rem; color:#94a3b8; direction:ltr; margin-top:1px }'
+    /* ✅ v2.7.3 — روزهای تعطیل (جمعه + تعطیلات رسمی) در نمای هفته/۳روز قرمز می‌شوند */
+    + '.calg-md-head.hol { background:linear-gradient(135deg,#fee2e2,#fecaca); border-color:#fca5a5 }'
+    + '.calg-md-head.hol .mh-wd { color:#b91c1c }'
+    + '.calg-md-head.hol .mh-jd { color:#991b1b }'
+    + '.calg-md-head.hol.today { background:linear-gradient(135deg,#dc2626,#991b1b); border-color:#7f1d1d }'
+    + '.calg-md-head.hol.today .mh-wd, .calg-md-head.hol.today .mh-jd { color:#fff }'
+    + '.calg-md-head.hol.today .mh-gd { color:#fecaca }'
     + '.calg-md-ev:hover { filter:brightness(0.97); transform:translateX(-2px) }'
     + '.calg-md-col::-webkit-scrollbar { width:5px }'
     + '.calg-md-col::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px }'
@@ -58,6 +65,18 @@
     + '.calg-legend { display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; background:#fafcff; border-top:1px solid var(--border); font-size:.74rem; font-weight:700 }'
     + '.calg-legend label { display:flex; align-items:center; gap:5px; cursor:pointer }'
     + '.calg-legend .lg-dot { width:10px; height:10px; border-radius:3px }'
+    /* ✅ v2.7.3 — باکس تنظیمات ویجت تقویم هفتگی (کدام تقویم در ویجت دیده شود) */
+    + '.calg-widget-set { margin:0 10px 12px; border:1px solid #dbe7f6; border-radius:12px; background:#f6f9ff; overflow:hidden }'
+    + '.calg-widget-set .cws-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; font-size:.8rem; font-weight:900; color:#1e40af; cursor:pointer; user-select:none; background:#eef4fb }'
+    + '.calg-widget-set .cws-caret { display:inline-block; transition:transform .2s; font-size:.7rem }'
+    + '.calg-widget-set .cws-head.sec-collapsed .cws-caret { transform:rotate(-90deg) }'
+    + '.calg-widget-set .cws-head.sec-collapsed + .cws-body { display:none }'
+    + '.calg-widget-set .cws-body { padding:10px 14px; display:flex; flex-direction:column; gap:7px }'
+    + '.calg-widget-set .cws-note { font-size:.68rem; color:#64748b; line-height:1.9; background:#fff; border:1px dashed #dbe7f6; border-radius:9px; padding:7px 10px }'
+    + '.calg-widget-set label { display:flex; align-items:center; gap:7px; font-size:.78rem; font-weight:700; cursor:pointer; color:var(--text) }'
+    + '.calg-widget-set input[type=checkbox] { width:17px; height:17px; cursor:pointer; accent-color:#4f46e5 }'
+    + '.calg-widget-set .cws-reset { margin-top:4px; padding:7px; border-radius:9px; border:1px dashed #94a3b8; background:#fff; color:#475569; font-family:inherit; font-size:.74rem; font-weight:800; cursor:pointer }'
+    + '.calg-widget-set .cws-reset:hover { border-color:#1e40af; color:#1e40af }'
     + '.calg-tl-wrap{position:relative;display:grid;grid-template-columns:74px 1fr;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card-solid);direction:rtl}'
     + '.calg-tl-hours{background:linear-gradient(180deg,#f9fbfe,#f4f8fd);border-left:1px solid var(--border)}'
     + '.calg-tl-hour-lbl{height:64px;display:flex;align-items:flex-start;justify-content:center;padding-top:5px;font-size:0.72rem;font-weight:900;font-family:monospace;color:var(--primary-dark);direction:ltr;border-bottom:1px solid var(--border);position:relative}'
@@ -549,10 +568,12 @@ function calRenderMonth41(events) {
         var ds = cy + '/' + pad2(cm) + '/' + pad2(day);
         var isToday = (cy === today[0] && cm === today[1] && day === today[2]);
         var isFri = (i % 7) === 6;
+        /* ✅ v2.7.3 — تعطیلات رسمیِ غیرجمعه (عیدها و…) هم قرمز می‌شوند */
+        var isOfficialHol = !other && calIsOfficialHoliday41(ds);
 
         var gd = jalaliToGregorian(cy, cm, day);
         var dt = new Date(gd[0], gd[1] - 1, gd[2]);
-        var cls = 'calg-mcell' + (other ? ' other' : '') + (isToday ? ' today' : '') + (isFri ? ' fri' : '');
+        var cls = 'calg-mcell' + (other ? ' other' : '') + (isToday ? ' today' : '') + ((isFri || isOfficialHol) ? ' fri' : '');
 
         html += '<div class="' + cls + '" data-date="' + ds + '">';
         html += '<div class="cd">';
@@ -586,6 +607,17 @@ function calRenderMonth41(events) {
 /* ============================================================
    بخش ۱۰ — رندر چند-روزه
    ============================================================ */
+/* ✅ v2.7.3 — آیا این روز (تاریخ شمسی) تعطیل رسمی است؟
+   (جمعه‌ها جداگانه بررسی می‌شوند — این تابع فقط تعطیلات رسمیِ تقویم را چک می‌کند) */
+function calIsOfficialHoliday41(ds) {
+    try {
+        if (window.ParsisCalendarEvents && window.ParsisCalendarEvents.getHolidaysOn) {
+            return window.ParsisCalendarEvents.getHolidaysOn(ds).length > 0;
+        }
+    } catch (e) {}
+    return false;
+}
+
 function calRenderMultiDay41(events, numDays, viewKey) {
     var cur = CAL41.cursor;
     var startJ;
@@ -625,14 +657,21 @@ function calRenderMultiDay41(events, numDays, viewKey) {
             var gdH = jalaliToGregorian(pH[0], pH[1], pH[2]);
             var dtH = new Date(gdH[0], gdH[1] - 1, gdH[2]);
             var isTodayH = dsH === todayStr;
+            var isHolH = (dtH.getDay() === 5) || calIsOfficialHoliday41(dsH);
             var headStyle = isTodayH
                 ? 'padding:8px 4px;text-align:center;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-bottom:2px solid #3b82f6;border-left:1px solid var(--border)'
                 : 'padding:8px 4px;text-align:center;background:#eef4fb;border-bottom:2px solid var(--border);border-left:1px solid var(--border)';
+            /* ✅ v2.7.3 — تعطیل (جمعه/رسمی) در نمای ۳روز سربرگ قرمز می‌شود */
+            if (isHolH) {
+                headStyle = isTodayH
+                    ? 'padding:8px 4px;text-align:center;background:linear-gradient(135deg,#dc2626,#991b1b);border-bottom:2px solid #7f1d1d;border-left:1px solid var(--border)'
+                    : 'padding:8px 4px;text-align:center;background:linear-gradient(135deg,#fee2e2,#fecaca);border-bottom:2px solid #fca5a5;border-left:1px solid var(--border)';
+            }
 
             html3 += '<div style="' + headStyle + '" data-date="' + dsH + '">'
-                  +   '<div style="font-size:.72rem;font-weight:800;color:' + (isTodayH ? '#1e3a8a' : '#64748b') + '">' + WEEKDAYS_FA[dtH.getDay()] + '</div>'
-                  +   '<div style="font-size:.95rem;font-weight:900;color:' + (isTodayH ? '#1e3a8a' : '#1e40af') + ';margin-top:2px">' + toFa(pH[2]) + ' ' + JALALI_MONTHS[pH[1] - 1] + '</div>'
-                  +   '<div style="font-size:.62rem;color:#94a3b8;direction:ltr;margin-top:1px">' + dtH.getDate() + ' ' + EN_MONTHS[dtH.getMonth()] + '</div>'
+                  +   '<div style="font-size:.72rem;font-weight:800;color:' + (isTodayH ? (isHolH ? '#fff' : '#1e3a8a') : (isHolH ? '#b91c1c' : '#64748b')) + '">' + WEEKDAYS_FA[dtH.getDay()] + '</div>'
+                  +   '<div style="font-size:.95rem;font-weight:900;color:' + (isTodayH ? (isHolH ? '#fff' : '#1e3a8a') : (isHolH ? '#991b1b' : '#1e40af')) + ';margin-top:2px">' + toFa(pH[2]) + ' ' + JALALI_MONTHS[pH[1] - 1] + '</div>'
+                  +   '<div style="font-size:.62rem;color:' + (isHolH ? (isTodayH ? '#fecaca' : '#b91c1c') : '#94a3b8') + ';direction:ltr;margin-top:1px">' + dtH.getDate() + ' ' + EN_MONTHS[dtH.getMonth()] + '</div>'
                   + '</div>';
         }
 
@@ -727,8 +766,10 @@ function calRenderMultiDay41(events, numDays, viewKey) {
         var gd = jalaliToGregorian(p[0], p[1], p[2]);
         var dt = new Date(gd[0], gd[1] - 1, gd[2]);
         var isToday = ds2 === todayStr;
+        /* ✅ v2.7.3 — تعطیل (جمعه + تعطیلات رسمی) در نمای هفته قرمز می‌شود */
+        var isHol2 = (dt.getDay() === 5) || calIsOfficialHoliday41(ds2);
 
-        html += '<div class="calg-md-head' + (isToday ? ' today' : '') + '" data-col="' + d2 + '">'
+        html += '<div class="calg-md-head' + (isToday ? ' today' : '') + (isHol2 ? ' hol' : '') + '" data-col="' + d2 + '">'
              +  '<div class="mh-wd">' + WEEKDAYS_FA[dt.getDay()] + '</div>'
              +  '<div class="mh-jd">' + toFa(p[2]) + ' ' + JALALI_MONTHS[p[1] - 1] + '</div>'
              +  '<div class="mh-gd">' + dt.getDate() + ' ' + EN_MONTHS[dt.getMonth()] + '</div>'
@@ -1429,6 +1470,26 @@ function calRender() {
     });
     html += '</div>';
 
+    /* ✅ v2.7.3 — تنظیمات ویجت تقویم هفتگی: کدام تقویم‌ها در ویجت
+       صفحهٔ اول (و ویجت اندروید) نمایش داده شوند — درخواست کاربر:
+       «می‌خواهم در تقویم برای آن ویجت تنظیمات داشته باشم که بشه انتخاب کرد
+        کدوم تقویم در ویجت نمایش داده نشه» */
+    var wset = (typeof calwSettings === 'function') ? calwSettings() : {};
+    html += '<div class="calg-widget-set">'
+         +  '<div class="cws-head" id="cws-head">📱 تنظیمات ویجت تقویم هفتگی <span class="cws-caret">▾</span></div>'
+         +  '<div class="cws-body" id="cws-body">'
+         +  '<div class="cws-note">تیک هر تقویم را بردارید تا در ویجت «تقویم هفتگی» صفحهٔ اول و ویجت اندروید نمایش داده <b>نشود</b>. تغییرات همان لحظه ذخیره می‌شود.</div>'
+         +  '<label><input type="checkbox" data-calw="holiday" ' + (wset.holiday ? 'checked' : '') + '> 🔴 تعطیلات رسمی ایران</label>'
+         +  '<label><input type="checkbox" data-calw="iran" ' + (wset.iran ? 'checked' : '') + '> 🇮🇷 رویدادهای تقویم ایران</label>'
+         +  '<label><input type="checkbox" data-calw="world" ' + (wset.world ? 'checked' : '') + '> 🌐 رویدادهای جهانی</label>'
+         +  '<label><input type="checkbox" data-calw="ancient" ' + (wset.ancient ? 'checked' : '') + '> 🏺 ایران باستان</label>'
+         +  '<label><input type="checkbox" data-calw="userEvents" ' + (wset.userEvents ? 'checked' : '') + '> 📌 رویدادهای ثبت‌شدهٔ خودم</label>'
+         +  '<label><input type="checkbox" data-calw="installment" ' + (wset.installment ? 'checked' : '') + '> 💳 اقساط</label>'
+         +  '<label><input type="checkbox" data-calw="source" ' + (wset.source ? 'checked' : '') + '> 📥 دریافتنی‌ها</label>'
+         +  '<button type="button" class="cws-reset" id="cws-reset">↺ همه را نمایش بده</button>'
+         +  '</div>'
+         +  '</div>';
+
     html += '</div>';
     page.innerHTML = html;
 
@@ -1585,6 +1646,55 @@ function bindCalEvents41(active) {
             calRender();
         };
     });
+
+    /* ✅ v2.7.3 — اتصال تنظیمات ویجت تقویم هفتگی (انتخاب کدام تقویم در ویجت دیده شود) */
+    (function bindCalWidgetSettings() {
+        var head = document.getElementById('cws-head');
+        var body = document.getElementById('cws-body');
+        if (head && body) {
+            var saveCollapsed = function () {
+                try {
+                    DB.save('calWidgetSetCollapsed', head.classList.contains('sec-collapsed'));
+                } catch (eCS) {}
+            };
+            try { if (DB.load('calWidgetSetCollapsed', false)) head.classList.add('sec-collapsed'); } catch (eCS2) {}
+            head.onclick = function () {
+                head.classList.toggle('sec-collapsed');
+                saveCollapsed();
+            };
+        }
+        document.querySelectorAll('.calg-widget-set input[data-calw]').forEach(function (cb) {
+            cb.onchange = function () {
+                var key = this.getAttribute('data-calw');
+                var s = (typeof calwSettings === 'function') ? calwSettings() : {};
+                s[key] = this.checked;
+                try { DB.save('calWidgetSettings', s); } catch (eS) {}
+                /* ویجت صفحهٔ اول همان لحظه تازه می‌شود */
+                try { if (typeof renderCalendarWidget === 'function') renderCalendarWidget(); } catch (eR) {}
+                /* ویجت نیتیو اندروید هم به‌روز می‌شود */
+                try {
+                    if (window.ParsisNativeWidgets && window.ParsisNativeWidgets.pushCalendarWidget) {
+                        window.ParsisNativeWidgets.pushCalendarWidget(true);
+                    }
+                } catch (eN) {}
+                if (typeof showToast === 'function') {
+                    showToast(this.checked ? '✅ نمایش این تقویم در ویجت روشن شد' : '⛔ این تقویم در ویجت پنهان شد');
+                }
+            };
+        });
+        var resetBtn = document.getElementById('cws-reset');
+        if (resetBtn) resetBtn.onclick = function () {
+            try { DB.save('calWidgetSettings', {}); } catch (eS2) {}
+            try { if (typeof renderCalendarWidget === 'function') renderCalendarWidget(); } catch (eR2) {}
+            try {
+                if (window.ParsisNativeWidgets && window.ParsisNativeWidgets.pushCalendarWidget) {
+                    window.ParsisNativeWidgets.pushCalendarWidget(true);
+                }
+            } catch (eN2) {}
+            calRender();
+            if (typeof showToast === 'function') showToast('✅ همهٔ تقویم‌ها در ویجت نمایش داده می‌شوند');
+        };
+    })();
 
     var si = document.getElementById('calg-search-input');
     if (si) {
